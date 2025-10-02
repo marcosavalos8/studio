@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 export const metadata: Metadata = {
   title: 'FieldTack WA',
   description: 'Piecework management and payroll for Washington state labor laws.',
+  manifest: '/manifest.ts'
 };
 
 export default function RootLayout({
