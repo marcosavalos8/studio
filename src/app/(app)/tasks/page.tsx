@@ -50,6 +50,8 @@ export default function TasksPage() {
             <TableRow>
               <TableHead>Task Name</TableHead>
               <TableHead>Variety</TableHead>
+              <TableHead>Ranch</TableHead>
+              <TableHead>Block</TableHead>
               <TableHead>Client</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Employee Pay Type</TableHead>
@@ -59,13 +61,15 @@ export default function TasksPage() {
           <TableBody>
             {isLoading && (
                 <TableRow>
-                    <TableCell colSpan={6} className="text-center">Loading...</TableCell>
+                    <TableCell colSpan={8} className="text-center">Loading...</TableCell>
                 </TableRow>
             )}
             {tasks && tasks.map((task) => (
               <TableRow key={task.id}>
                 <TableCell className="font-medium">{task.name}</TableCell>
                 <TableCell>{task.variety}</TableCell>
+                <TableCell>{task.ranch}</TableCell>
+                <TableCell>{task.block}</TableCell>
                 <TableCell>{task.client}</TableCell>
                 <TableCell>
                   <Badge
@@ -91,3 +95,5 @@ export default function TasksPage() {
     </Card>
   )
 }
+
+    

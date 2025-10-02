@@ -18,6 +18,14 @@
           "type": "string",
           "description": "Reference to Client. (Relationship: Client 1:N Task)"
         },
+        "ranch": {
+          "type": "string",
+          "description": "The ranch where the task is performed."
+        },
+        "block": {
+          "type": "string",
+          "description": "The specific block within the ranch."
+        },
         "clientRate": {
           "type": "number",
           "description": "Client rate for the task (per hour or per piece)."
@@ -306,3 +314,4 @@
     "reasoning": "The Firestore data structure is designed to address the permission error and adhere to the core design principles, especially Authorization Independence. The structure uses path-based ownership for employee-related data and denormalizes roles where needed to avoid `get()` calls in security rules. It also segregates data based on access requirements. The structure facilitates secure `list` operations, and enforces data invariants.\n\nSpecifically:\n\n*   **/employees/{employeeId}**: Employee data is stored directly, but managed by an admin role, checked in security rules.\n*   **/users/{userId}/time_entries/{timeEntryId}**: Time entries are stored within the user document, allowing for ownership-based security rules, enabling payroll and invoicing use cases.\n*   **/users/{userId}/piecework/{pieceworkId}**: Piecework records are stored within the user document, allowing for ownership-based security rules, enabling payroll and invoicing use cases.\n*   **/clients/{clientId}**: Client data is stored at the root level, as clients are global to the application and assumed to be managed by admin roles. ClientId is referenced in the tasks collection to provide necessary information to the calculation of invoices.\n*   **/tasks/{taskId}**: Tasks are also stored at the root level, as tasks are global to the application and assumed to be managed by admin roles. This arrangement allows tasks to be easily assigned to time entries and piecework records.\n\nThis design prioritizes Authorization Independence. The root `/employees` collection enforces authorization based on the existence of an admin role, which doesn't require a `get()` call. The `/users/{userId}/time_entries` and `/users/{userId}/piecework` collections are secured by ownership of the authenticated user.\n\nThis approach supports the required QAPs because listing operations can be secured efficiently based on roles (for /employees) or user ownership (for /users/{userId}/time_entries and /users/{userId}/piecework)."
   }
 }
+    

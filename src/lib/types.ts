@@ -17,6 +17,8 @@ export type Task = {
   id: string;
   name: string;
   variety?: string;
+  ranch?: string;
+  block?: string;
   client: string; // client name
   clientRate: number;
   clientRateType: 'hourly' | 'piece';
@@ -52,3 +54,5 @@ export type SharedPieceLog = {
   quantity: number;
   qcNote?: string;
 };
+
+    

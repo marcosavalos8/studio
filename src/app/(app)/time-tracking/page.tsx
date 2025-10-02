@@ -60,11 +60,22 @@ export default function TimeTrackingPage() {
   const [selectedBulkTask, setSelectedBulkTask] = useState<string>('');
   const [isBulkClockingOut, setIsBulkClockingOut] = useState(false);
 
+  const [selectedTask, setSelectedTask] = useState<string>('');
+  const [selectedRanch, setSelectedRanch] = useState<string>('');
+  const [selectedBlock, setSelectedBlock] = useState<string>('');
+
   const tasksQuery = useMemoFirebase(() => {
     if (!firestore) return null
     return query(collection(firestore, "tasks"), where("status", "==", "Active"));
   }, [firestore])
   const { data: tasks } = useCollection<Task>(tasksQuery);
+  
+  const ranches = useMemo(() => tasks ? [...new Set(tasks.map(t => t.ranch).filter(Boolean))] : [], [tasks]);
+  const blocks = useMemo(() => {
+    if (!selectedRanch) return [];
+    return [...new Set(tasks?.filter(t => t.ranch === selectedRanch).map(t => t.block).filter(Boolean))];
+  }, [tasks, selectedRanch]);
+
 
   useEffect(() => {
     setJsConfetti(new JSConfetti());
@@ -109,6 +120,11 @@ export default function TimeTrackingPage() {
   }
 
   const handleScanResult = (scannedData: string) => {
+      if (!selectedTask) {
+          toast({ variant: "destructive", title: "Task not selected", description: "Please select a task, ranch, and block before scanning." });
+          return;
+      }
+
       // Basic check to differentiate between employee and bin QR codes
       // This logic should be made more robust (e.g., QR codes have prefixes)
       const isEmployeeScan = !scannedData.toLowerCase().includes('bin');
@@ -199,10 +215,52 @@ export default function TimeTrackingPage() {
             <CardHeader>
               <CardTitle>QR Code Scanner</CardTitle>
               <CardDescription>
-                Select the mode and scan QR codes for employees and tasks to log time and piecework.
+                Select the task details and scan mode, then scan QR codes to log time and piecework.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="task-select">Task</Label>
+                    <Select value={selectedTask} onValueChange={setSelectedTask}>
+                        <SelectTrigger id="task-select">
+                            <SelectValue placeholder="Select a task" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {tasks?.map(task => (
+                                <SelectItem key={task.id} value={task.id}>{task.name} ({task.variety})</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ranch-select">Ranch</Label>
+                    <Select value={selectedRanch} onValueChange={setSelectedRanch}>
+                        <SelectTrigger id="ranch-select">
+                            <SelectValue placeholder="Select a ranch" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {ranches.map(ranch => (
+                                <SelectItem key={ranch} value={ranch}>{ranch}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                  </div>
+                   <div className="space-y-2">
+                    <Label htmlFor="block-select">Block</Label>
+                    <Select value={selectedBlock} onValueChange={setSelectedBlock} disabled={!selectedRanch}>
+                        <SelectTrigger id="block-select">
+                            <SelectValue placeholder="Select a block" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {blocks.map(block => (
+                                <SelectItem key={block} value={block}>{block}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                  </div>
+              </div>
+
                <div className="space-y-4 rounded-lg border bg-card text-card-foreground shadow-sm p-4">
                 <Label className="font-semibold">Scan Mode</Label>
                  <RadioGroup
@@ -375,3 +433,5 @@ export default function TimeTrackingPage() {
     </div>
   );
 }
+
+    
