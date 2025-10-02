@@ -31,10 +31,16 @@ import {
   AlertTitle,
 } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import { QrCode, ClipboardEdit } from "lucide-react"
+import { QrCode, ClipboardEdit, Users, User } from "lucide-react"
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Switch } from '@/components/ui/switch'
+
+type ScanMode = 'time' | 'piece';
 
 export default function TimeTrackingPage() {
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [scanMode, setScanMode] = useState<ScanMode>('time');
+  const [isSharedPiece, setIsSharedPiece] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
 
@@ -79,10 +85,49 @@ export default function TimeTrackingPage() {
             <CardHeader>
               <CardTitle>QR Code Scanner</CardTitle>
               <CardDescription>
-                Scan QR codes for employees and tasks to log time and piecework.
+                Select the mode and scan QR codes for employees and tasks to log time and piecework.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+               <div className="space-y-4 rounded-lg border bg-card text-card-foreground shadow-sm p-4">
+                <Label className="font-semibold">Scan Mode</Label>
+                 <RadioGroup
+                    defaultValue="time"
+                    value={scanMode}
+                    onValueChange={(value: ScanMode) => setScanMode(value)}
+                    className="flex flex-col sm:flex-row gap-4"
+                  >
+                    <Label htmlFor="mode-time" className="flex flex-1 items-center gap-3 rounded-md border p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5">
+                      <RadioGroupItem value="time" id="mode-time" />
+                      <div className="space-y-1">
+                        <p className="font-medium">Time Clock</p>
+                        <p className="text-sm text-muted-foreground">Scan for employee clock-in and clock-out.</p>
+                      </div>
+                    </Label>
+                    <Label htmlFor="mode-piece" className="flex flex-1 items-center gap-3 rounded-md border p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5">
+                      <RadioGroupItem value="piece" id="mode-piece" />
+                      <div className="space-y-1">
+                        <p className="font-medium">Piecework</p>
+                        <p className="text-sm text-muted-foreground">Scan to record piecework for tasks.</p>
+                      </div>
+                    </Label>
+                 </RadioGroup>
+
+                 {scanMode === 'piece' && (
+                  <div className="flex items-center space-x-2 pt-2">
+                    <Switch
+                      id="shared-piece-switch"
+                      checked={isSharedPiece}
+                      onCheckedChange={setIsSharedPiece}
+                    />
+                    <Label htmlFor="shared-piece-switch" className="flex items-center gap-2">
+                      {isSharedPiece ? <Users className="h-4 w-4" /> : <User className="h-4 w-4" />}
+                      {isSharedPiece ? 'Shared Piece (Multiple Employees)' : 'Single Employee'}
+                    </Label>
+                  </div>
+                 )}
+               </div>
+
               <div className="w-full aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden">
                 <video ref={videoRef} className="w-full aspect-video rounded-md" autoPlay muted />
               </div>
