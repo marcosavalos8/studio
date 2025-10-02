@@ -43,6 +43,8 @@ const QrScanner = dynamic(() => import('./qr-scanner').then(mod => mod.QrScanner
 
 
 type ScanMode = 'clock-in' | 'clock-out' | 'piece';
+type ManualLogType = 'clock-in' | 'clock-out' | 'start-break' | 'end-break' | 'piecework';
+
 
 export default function TimeTrackingPage() {
   const firestore = useFirestore()
@@ -67,8 +69,13 @@ export default function TimeTrackingPage() {
   const [selectedBlock, setSelectedBlock] = useState<string>('');
   const [selectedTask, setSelectedTask] = useState<string>('');
   
+  // Manual Entry State
+  const [manualLogType, setManualLogType] = useState<ManualLogType>('clock-in');
   const [manualEmployeeSearch, setManualEmployeeSearch] = useState('');
   const [manualSelectedEmployee, setManualSelectedEmployee] = useState<Employee | null>(null);
+  const [manualPieceQuantity, setManualPieceQuantity] = useState(1);
+  const [manualNotes, setManualNotes] = useState('');
+  const [isManualSubmitting, setIsManualSubmitting] = useState(false);
 
 
   const clientsQuery = useMemoFirebase(() => {
@@ -78,10 +85,10 @@ export default function TimeTrackingPage() {
   const { data: clients } = useCollection<Client>(clientsQuery);
   
   const tasksQuery = useMemoFirebase(() => {
-    if (!firestore || !selectedClient) return null
-    return query(collection(firestore, "tasks"), where("status", "==", "Active"), where("client", "==", selectedClient));
-  }, [firestore, selectedClient])
-  const { data: tasks } = useCollection<Task>(tasksQuery);
+    if (!firestore) return null
+    return query(collection(firestore, "tasks"), where("status", "==", "Active"));
+  }, [firestore])
+  const { data: allTasks } = useCollection<Task>(tasksQuery);
   
   const employeesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -89,16 +96,21 @@ export default function TimeTrackingPage() {
   }, [firestore]);
   const { data: activeEmployees } = useCollection<Employee>(employeesQuery);
 
-  const ranches = useMemo(() => tasks ? [...new Set(tasks.map(t => t.ranch).filter(Boolean))] : [], [tasks]);
+  const tasksForClient = useMemo(() => {
+    if (!allTasks || !selectedClient) return [];
+    return allTasks.filter(t => t.client === selectedClient);
+  }, [allTasks, selectedClient]);
+
+  const ranches = useMemo(() => tasksForClient ? [...new Set(tasksForClient.map(t => t.ranch).filter(Boolean))] : [], [tasksForClient]);
   
   const blocks = useMemo(() => {
-    if (!selectedRanch || !tasks) return [];
-    return [...new Set(tasks.filter(t => t.ranch === selectedRanch).map(t => t.block).filter(Boolean))];
-  }, [tasks, selectedRanch]);
+    if (!selectedRanch || !tasksForClient) return [];
+    return [...new Set(tasksForClient.filter(t => t.ranch === selectedRanch).map(t => t.block).filter(Boolean))];
+  }, [tasksForClient, selectedRanch]);
   
   const filteredTasks = useMemo(() => {
-    if (!tasks) return [];
-    let filtered = tasks;
+    if (!tasksForClient) return [];
+    let filtered = tasksForClient;
     if (selectedRanch) {
       filtered = filtered.filter(t => t.ranch === selectedRanch);
     }
@@ -106,10 +118,10 @@ export default function TimeTrackingPage() {
       filtered = filtered.filter(t => t.block === selectedBlock);
     }
     return filtered;
-  }, [tasks, selectedRanch, selectedBlock]);
+  }, [tasksForClient, selectedRanch, selectedBlock]);
 
 
-  const currentTask = useMemo(() => tasks?.find(t => t.id === selectedTask), [tasks, selectedTask])
+  const currentTask = useMemo(() => allTasks?.find(t => t.id === selectedTask), [allTasks, selectedTask])
 
   const filteredManualEmployees = useMemo(() => {
     if (!activeEmployees) return [];
@@ -201,14 +213,9 @@ export default function TimeTrackingPage() {
       if (scanMode === 'piece') {
         if (isEmployeeScan) {
           const employeeId = scannedData;
-          if (scannedEmployees.includes(employeeId)) {
-            playBeep(false);
-            toast({ variant: "destructive", title: "Duplicate Employee Scan", description: `Employee already scanned for this piece.` });
-          } else {
             setScannedEmployees(prev => isSharedPiece ? [...prev, employeeId] : [employeeId]);
             const employeeName = activeEmployees?.find(e => e.id === employeeId)?.name || employeeId;
             toast({ title: "Employee Scanned", description: employeeName });
-          }
         } else { // It's a bin scan
           setScannedBin(scannedData);
           toast({ title: "Bin Scanned", description: scannedData });
@@ -216,14 +223,9 @@ export default function TimeTrackingPage() {
       } else { // Clock-in or Clock-out
         if (isEmployeeScan) {
           const employeeId = scannedData;
-           if (scannedEmployees.includes(employeeId)) {
-            playBeep(false);
-            toast({ variant: "destructive", title: "Duplicate Scan", description: `Employee already scanned for ${scanMode}.` });
-          } else {
             setScannedEmployees(prev => [...prev, employeeId]);
             const employeeName = activeEmployees?.find(e => e.id === employeeId)?.name || employeeId;
             toast({ title: `Employee Ready for ${scanMode}`, description: employeeName });
-          }
         } else {
             playBeep(false);
             toast({ variant: "destructive", title: "Invalid Scan", description: "Expected an employee QR code."});
@@ -238,6 +240,8 @@ export default function TimeTrackingPage() {
     }
     
     setIsSubmitting(true);
+    const timeEntryCollection = collection(firestore, 'time_entries');
+    const pieceworkCollection = collection(firestore, 'piecework');
     
     try {
         if (scanMode === 'clock-in') {
@@ -250,7 +254,7 @@ export default function TimeTrackingPage() {
                     endTime: null,
                     isBreak: false,
                 };
-                const docRef = doc(collection(firestore, 'time_entries'));
+                const docRef = doc(timeEntryCollection);
                 batch.set(docRef, newTimeEntry);
             });
             await batch.commit();
@@ -258,7 +262,7 @@ export default function TimeTrackingPage() {
 
         } else if (scanMode === 'clock-out') {
             const q = query(
-                collection(firestore, 'time_entries'),
+                timeEntryCollection,
                 where('employeeId', 'in', scannedEmployees),
                 where('taskId', '==', selectedTask),
                 where('endTime', '==', null)
@@ -287,7 +291,7 @@ export default function TimeTrackingPage() {
                 pieceCount: 1, // Assume 1 bin per scan
                 pieceQrCode: scannedBin,
             };
-            await addDoc(collection(firestore, 'piecework'), newPiecework);
+            await addDoc(pieceworkCollection, newPiecework);
             toast({ title: "Piecework Recorded", description: `Bin ${scannedBin} recorded for ${scannedEmployees.length} employee(s).` });
         }
         
@@ -302,6 +306,69 @@ export default function TimeTrackingPage() {
         setIsSubmitting(false);
     }
   }
+
+  const handleManualSubmit = async () => {
+     if (!firestore || !selectedTask || !manualSelectedEmployee) {
+        toast({ variant: "destructive", title: "Missing Information", description: "Please complete all fields." });
+        return;
+    }
+
+    setIsManualSubmitting(true);
+
+    try {
+        if (manualLogType === 'clock-in') {
+            const newTimeEntry: Omit<TimeEntry, 'id'> = {
+                employeeId: manualSelectedEmployee.id,
+                taskId: selectedTask,
+                timestamp: new Date(),
+                endTime: null,
+                isBreak: false,
+            };
+            await addDoc(collection(firestore, 'time_entries'), newTimeEntry);
+            toast({ title: "Clock In Successful", description: `Clocked in ${manualSelectedEmployee.name}.` });
+        } else if (manualLogType === 'clock-out') {
+             const q = query(
+                collection(firestore, 'time_entries'),
+                where('employeeId', '==', manualSelectedEmployee.id),
+                where('taskId', '==', selectedTask),
+                where('endTime', '==', null)
+            );
+            const querySnapshot = await getDocs(q);
+            if(querySnapshot.empty){
+                toast({ variant: 'destructive', title: "Clock Out Failed", description: "No active clock-in found for this employee and task." });
+            } else {
+                 const batch = writeBatch(firestore);
+                querySnapshot.forEach(doc => {
+                    batch.update(doc.ref, { endTime: serverTimestamp() });
+                });
+                await batch.commit();
+                toast({ title: "Clock Out Successful", description: `Clocked out ${manualSelectedEmployee.name}.` });
+            }
+        } else if (manualLogType === 'piecework') {
+            const newPiecework: Omit<Piecework, 'id'> = {
+                employeeId: manualSelectedEmployee.id,
+                taskId: selectedTask,
+                timestamp: new Date(),
+                pieceCount: manualPieceQuantity,
+                pieceQrCode: 'manual_entry',
+                qcNote: manualNotes,
+            };
+            await addDoc(collection(firestore, 'piecework'), newPiecework);
+            toast({ title: "Piecework Recorded", description: `${manualPieceQuantity} piece(s) recorded for ${manualSelectedEmployee.name}.` });
+        }
+        // Reset form
+        setManualSelectedEmployee(null);
+        setManualEmployeeSearch('');
+        setManualPieceQuantity(1);
+        setManualNotes('');
+    } catch (error: any) {
+        console.error("Manual Submission Error:", error);
+        toast({ variant: 'destructive', title: "Submission Failed", description: error.message || "An unexpected error occurred." });
+    } finally {
+        setIsManualSubmitting(false);
+    }
+  };
+
 
   const handleBulkClockOut = async () => {
     if (!firestore || !selectedBulkTask) {
@@ -348,9 +415,9 @@ export default function TimeTrackingPage() {
   const SelectionFields = ({ isManual = false }: { isManual?: boolean }) => (
     <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${isManual ? 'p-4 border rounded-md' : ''}`}>
         <div className="space-y-2">
-          <Label htmlFor="client-select">Client</Label>
+          <Label htmlFor={`client-select-${isManual}`}>Client</Label>
           <Select value={selectedClient} onValueChange={setSelectedClient}>
-              <SelectTrigger id="client-select">
+              <SelectTrigger id={`client-select-${isManual}`}>
                   <SelectValue placeholder="Select a client" />
               </SelectTrigger>
               <SelectContent>
@@ -361,9 +428,9 @@ export default function TimeTrackingPage() {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="ranch-select">Ranch</Label>
+          <Label htmlFor={`ranch-select-${isManual}`}>Ranch</Label>
           <Select value={selectedRanch} onValueChange={setSelectedRanch} disabled={!selectedClient || ranches.length === 0}>
-              <SelectTrigger id="ranch-select">
+              <SelectTrigger id={`ranch-select-${isManual}`}>
                   <SelectValue placeholder="Select a ranch" />
               </SelectTrigger>
               <SelectContent>
@@ -374,9 +441,9 @@ export default function TimeTrackingPage() {
           </Select>
         </div>
          <div className="space-y-2">
-          <Label htmlFor="block-select">Block</Label>
+          <Label htmlFor={`block-select-${isManual}`}>Block</Label>
           <Select value={selectedBlock} onValueChange={setSelectedBlock} disabled={!selectedRanch || blocks.length === 0}>
-              <SelectTrigger id="block-select">
+              <SelectTrigger id={`block-select-${isManual}`}>
                   <SelectValue placeholder="Select a block" />
               </SelectTrigger>
               <SelectContent>
@@ -387,9 +454,9 @@ export default function TimeTrackingPage() {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="task-select">Task</Label>
+          <Label htmlFor={`task-select-${isManual}`}>Task</Label>
           <Select value={selectedTask} onValueChange={setSelectedTask} disabled={filteredTasks.length === 0}>
-              <SelectTrigger id="task-select">
+              <SelectTrigger id={`task-select-${isManual}`}>
                   <SelectValue placeholder="Select a task" />
               </SelectTrigger>
               <SelectContent>
@@ -531,7 +598,7 @@ export default function TimeTrackingPage() {
             <CardHeader>
               <CardTitle>Manual Log Entry</CardTitle>
               <CardDescription>
-                Manually log time, breaks, or piecework if QR codes are unavailable.
+                Manually log time or piecework if QR codes are unavailable.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -539,15 +606,13 @@ export default function TimeTrackingPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="log-type">Log Type</Label>
-                <Select>
+                <Select value={manualLogType} onValueChange={(v) => setManualLogType(v as ManualLogType)}>
                   <SelectTrigger id="log-type">
                     <SelectValue placeholder="Select log type" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="clock-in">Clock In</SelectItem>
                     <SelectItem value="clock-out">Clock Out</SelectItem>
-                    <SelectItem value="start-break">Start Break</SelectItem>
-                    <SelectItem value="end-break">End Break</SelectItem>
                     <SelectItem value="piecework">Record Piecework</SelectItem>
                   </SelectContent>
                 </Select>
@@ -595,15 +660,34 @@ export default function TimeTrackingPage() {
                 )}
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="quantity">Quantity (for piecework)</Label>
-                <Input id="quantity" type="number" placeholder="Enter number of pieces" />
-              </div>
-               <div className="space-y-2">
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea id="notes" placeholder="Add any relevant notes (e.g., QC issues)" />
-              </div>
-              <Button className="w-full">Submit Log</Button>
+              {manualLogType === 'piecework' && (
+                <>
+                    <div className="space-y-2">
+                        <Label htmlFor="quantity">Quantity (Pieces/Bins)</Label>
+                        <Input 
+                            id="quantity" 
+                            type="number" 
+                            placeholder="Enter number of pieces" 
+                            value={manualPieceQuantity}
+                            onChange={(e) => setManualPieceQuantity(parseInt(e.target.value, 10) || 1)}
+                            min="1"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="notes">Notes</Label>
+                        <Textarea 
+                            id="notes" 
+                            placeholder="Add any relevant notes (e.g., QC issues)" 
+                            value={manualNotes}
+                            onChange={(e) => setManualNotes(e.target.value)}
+                        />
+                    </div>
+                </>
+              )}
+              <Button className="w-full" onClick={handleManualSubmit} disabled={isManualSubmitting || !manualSelectedEmployee || !selectedTask}>
+                {isManualSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                Submit Log
+              </Button>
             </CardContent>
           </Card>
           <Card className="mt-4">
@@ -621,8 +705,8 @@ export default function TimeTrackingPage() {
                             <SelectValue placeholder="Select a task to bulk clock out" />
                         </SelectTrigger>
                         <SelectContent>
-                            {tasks?.map(task => (
-                                <SelectItem key={task.id} value={task.id}>{task.name}</SelectItem>
+                            {allTasks?.filter(t => t.status === 'Active').map(task => (
+                                <SelectItem key={task.id} value={task.id}>{task.name} ({task.client})</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
@@ -631,6 +715,7 @@ export default function TimeTrackingPage() {
                     className="w-full" 
                     onClick={handleBulkClockOut}
                     disabled={isBulkClockingOut || !selectedBulkTask}
+                    variant="destructive"
                 >
                     {isBulkClockingOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Clock Out All
