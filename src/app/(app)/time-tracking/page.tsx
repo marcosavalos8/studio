@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   Card,
   CardContent,
@@ -31,41 +31,82 @@ import {
   AlertTitle,
 } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import { QrCode, ClipboardEdit, Users, User } from "lucide-react"
+import { QrCode, ClipboardEdit, Users, User, CheckCircle } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
+import { QrScanner } from 'react-qr-scanner';
+import JSConfetti from 'js-confetti'
 
 type ScanMode = 'time' | 'piece';
 
 export default function TimeTrackingPage() {
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(true);
   const [scanMode, setScanMode] = useState<ScanMode>('time');
   const [isSharedPiece, setIsSharedPiece] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [lastScanned, setLastScanned] = useState<string | null>(null);
   const { toast } = useToast();
+  const [jsConfetti, setJsConfetti] = useState<JSConfetti | null>(null);
+  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    const getCameraPermission = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-        setHasCameraPermission(true);
+    // Initialize JSConfetti and AudioContext on the client-side
+    setJsConfetti(new JSConfetti());
+    // Create AudioContext after a user gesture (e.g., component mount)
+    const initAudio = () => {
+        const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+        setAudioContext(context);
+        document.removeEventListener('click', initAudio);
+    };
+    document.addEventListener('click', initAudio);
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      } catch (error) {
-        console.error('Error accessing camera:', error);
-        setHasCameraPermission(false);
+    return () => {
+        document.removeEventListener('click', initAudio);
+        audioContext?.close();
+    }
+  }, []);
+
+  const playBeep = () => {
+    if (!audioContext) return;
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, audioContext.currentTime); // A5 note
+    gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.5);
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + 0.2);
+  }
+
+  const handleScan = (result: any) => {
+    if (result) {
+      const scannedData = result?.text;
+      if (scannedData && scannedData !== lastScanned) {
+        setLastScanned(scannedData);
+        
+        playBeep();
+        jsConfetti?.addConfetti();
+
         toast({
-          variant: 'destructive',
-          title: 'Camera Access Denied',
-          description: 'Please enable camera permissions in your browser settings to use this app.',
+          title: "Scan Successful",
+          description: `QR Code scanned: ${scannedData}`,
         });
       }
-    };
+    }
+  }
 
-    getCameraPermission();
-  }, [toast]);
+  const handleError = (error: any) => {
+    console.error(error);
+    if (error.name === 'NotAllowedError' || error.name === 'NotFoundError') {
+        setHasCameraPermission(false);
+    }
+  }
+
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -129,13 +170,23 @@ export default function TimeTrackingPage() {
                </div>
 
               <div className="w-full aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden">
-                <video ref={videoRef} className="w-full aspect-video rounded-md" autoPlay muted />
+                <QrScanner
+                  onScan={handleScan}
+                  onError={handleError}
+                  constraints={{
+                    video: { facingMode: 'environment' }
+                  }}
+                  styles={{
+                    container: { width: '100%', paddingTop: 0 },
+                    video: { width: '100%', height: '100%', objectFit: 'cover' }
+                  }}
+                />
               </div>
               {hasCameraPermission === false && (
                 <Alert variant="destructive">
                   <AlertTitle>Camera Access Required</AlertTitle>
                   <AlertDescription>
-                    Please allow camera access to use this feature.
+                    Please allow camera access to use this feature. You may need to refresh the page after granting permission.
                   </AlertDescription>
                 </Alert>
               )}
@@ -144,7 +195,14 @@ export default function TimeTrackingPage() {
                   <CardTitle>Last Scanned</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-muted-foreground">No QR code scanned yet.</p>
+                  {lastScanned ? (
+                    <div className="flex items-center gap-2 text-green-600">
+                        <CheckCircle className="h-5 w-5" />
+                        <p className="font-mono text-sm">{lastScanned}</p>
+                    </div>
+                  ) : (
+                     <p className="text-muted-foreground">No QR code scanned yet.</p>
+                  )}
                 </CardContent>
               </Card>
             </CardContent>
