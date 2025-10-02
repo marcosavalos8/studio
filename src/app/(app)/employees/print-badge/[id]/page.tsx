@@ -24,6 +24,7 @@ export default function PrintBadgePage() {
     useEffect(() => {
         if (employee && !isLoading && !hasPrinted.current) {
             hasPrinted.current = true;
+            // A short delay helps ensure the QR code is fully rendered before printing
             setTimeout(() => window.print(), 500);
         }
     }, [employee, isLoading])
@@ -33,7 +34,7 @@ export default function PrintBadgePage() {
     }
   
     if (error || !employee) {
-      return <div className="flex h-screen items-center justify-center">Error loading employee data.</div>
+      return <div className="flex h-screen items-center justify-center">Error loading employee data. Please try again.</div>
     }
   
     return (

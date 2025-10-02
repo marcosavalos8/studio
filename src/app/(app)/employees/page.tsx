@@ -16,9 +16,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { PlusCircle, Printer, QrCode } from "lucide-react"
+import { PlusCircle, Printer, QrCode, MoreHorizontal } from "lucide-react"
 
 import type { Employee } from "@/lib/types"
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
@@ -26,17 +34,32 @@ import { collection, query, orderBy } from "firebase/firestore"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { AddEmployeeDialog } from "./add-employee-dialog"
+import { EditEmployeeDialog } from "./edit-employee-dialog"
+import { DeleteEmployeeDialog } from "./delete-employee-dialog"
 import Link from "next/link"
 
 export default function EmployeesPage() {
   const firestore = useFirestore()
   const [isAddDialogOpen, setAddDialogOpen] = useState(false)
+  const [isEditDialogOpen, setEditDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
 
   const employeesQuery = useMemoFirebase(() => {
       if (!firestore) return null
       return query(collection(firestore, "employees"), orderBy("name"))
     }, [firestore])
   const { data: employees, isLoading } = useCollection<Employee>(employeesQuery)
+
+  const handleEdit = (employee: Employee) => {
+    setSelectedEmployee(employee)
+    setEditDialogOpen(true)
+  }
+
+  const handleDelete = (employee: Employee) => {
+    setSelectedEmployee(employee)
+    setDeleteDialogOpen(true)
+  }
 
   return (
     <>
@@ -92,14 +115,32 @@ export default function EmployeesPage() {
                     <span>{employee.qrCode}</span>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Link href={`/employees/print-badge/${employee.id}`} target="_blank" passHref>
-                        <Button variant="outline" size="sm" asChild>
-                           <div>
-                                <Printer className="mr-2 h-4 w-4"/>
-                                Print Badge
-                           </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <span className="sr-only">Open menu</span>
+                          <MoreHorizontal className="h-4 w-4" />
                         </Button>
-                    </Link>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => handleEdit(employee)}>
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                            <Link href={`/employees/print-badge/${employee.id}`} target="_blank" passHref>
+                                Print Badge
+                            </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                          onClick={() => handleDelete(employee)}
+                        >
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}
@@ -108,6 +149,20 @@ export default function EmployeesPage() {
         </CardContent>
       </Card>
       <AddEmployeeDialog isOpen={isAddDialogOpen} onOpenChange={setAddDialogOpen} />
+      {selectedEmployee && (
+        <>
+          <EditEmployeeDialog
+            isOpen={isEditDialogOpen}
+            onOpenChange={setEditDialogOpen}
+            employee={selectedEmployee}
+          />
+          <DeleteEmployeeDialog
+            isOpen={isDeleteDialogOpen}
+            onOpenChange={setDeleteDialogOpen}
+            employee={selectedEmployee}
+          />
+        </>
+      )}
     </>
   )
 }
