@@ -31,15 +31,21 @@ import {
   AlertTitle,
 } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import { QrCode, ClipboardEdit, Users, User, CheckCircle, Package, LogIn, LogOut } from "lucide-react"
+import { QrCode, ClipboardEdit, Users, User, CheckCircle, Package, LogIn, LogOut, Loader2 } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
 import { QrScanner } from 'react-qr-scanner';
 import JSConfetti from 'js-confetti'
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase'
+import { collection, query, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore'
+import type { Task, TimeLog } from '@/lib/types'
 
 type ScanMode = 'clock-in' | 'clock-out' | 'piece';
 
 export default function TimeTrackingPage() {
+  const firestore = useFirestore()
+  const { toast } = useToast()
+  
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(true);
   const [scanMode, setScanMode] = useState<ScanMode>('clock-in');
   const [isSharedPiece, setIsSharedPiece] = useState(false);
@@ -47,9 +53,17 @@ export default function TimeTrackingPage() {
   const [scannedEmployees, setScannedEmployees] = useState<string[]>([]);
   const [scannedBin, setScannedBin] = useState<string | null>(null);
 
-  const { toast } = useToast();
   const [jsConfetti, setJsConfetti] = useState<JSConfetti | null>(null);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+
+  const [selectedBulkTask, setSelectedBulkTask] = useState<string>('');
+  const [isBulkClockingOut, setIsBulkClockingOut] = useState(false);
+
+  const tasksQuery = useMemoFirebase(() => {
+    if (!firestore) return null
+    return query(collection(firestore, "tasks"), where("status", "==", "Active"));
+  }, [firestore])
+  const { data: tasks } = useCollection<Task>(tasksQuery);
 
   useEffect(() => {
     setJsConfetti(new JSConfetti());
@@ -129,6 +143,48 @@ export default function TimeTrackingPage() {
         setHasCameraPermission(false);
     }
   }
+
+  const handleBulkClockOut = async () => {
+    if (!firestore || !selectedBulkTask) {
+        toast({ variant: "destructive", title: "Error", description: "Please select a task." });
+        return;
+    }
+
+    setIsBulkClockingOut(true);
+    try {
+        const timeLogsRef = collection(firestore, 'timelogs');
+        const q = query(
+            timeLogsRef,
+            where('taskId', '==', selectedBulkTask),
+            where('endTime', '==', null)
+        );
+
+        const querySnapshot = await getDocs(q);
+        if (querySnapshot.empty) {
+            toast({ title: "No one to clock out", description: "No employees are currently clocked in for this task." });
+            setIsBulkClockingOut(false);
+            return;
+        }
+
+        const batch = writeBatch(firestore);
+        querySnapshot.forEach(doc => {
+            batch.update(doc.ref, { endTime: serverTimestamp() });
+        });
+
+        await batch.commit();
+
+        toast({
+            title: "Bulk Clock Out Successful",
+            description: `Successfully clocked out ${querySnapshot.size} employee(s) from the task.`,
+        });
+
+    } catch (error) {
+        console.error("Error during bulk clock out:", error);
+        toast({ variant: "destructive", title: "Error", description: "An error occurred during bulk clock out." });
+    } finally {
+        setIsBulkClockingOut(false);
+    }
+  };
 
 
   return (
@@ -306,6 +362,37 @@ export default function TimeTrackingPage() {
                 <Textarea id="notes" placeholder="Add any relevant notes (e.g., QC issues)" />
               </div>
               <Button className="w-full">Submit Log</Button>
+            </CardContent>
+          </Card>
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle>Bulk Clock Out</CardTitle>
+              <CardDescription>
+                Clock out all employees currently working on a specific task.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="bulk-task-select">Task</Label>
+                    <Select value={selectedBulkTask} onValueChange={setSelectedBulkTask}>
+                        <SelectTrigger id="bulk-task-select">
+                            <SelectValue placeholder="Select a task to bulk clock out" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {tasks?.map(task => (
+                                <SelectItem key={task.id} value={task.id}>{task.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <Button 
+                    className="w-full" 
+                    onClick={handleBulkClockOut}
+                    disabled={isBulkClockingOut || !selectedBulkTask}
+                >
+                    {isBulkClockingOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Clock Out All
+                </Button>
             </CardContent>
           </Card>
         </TabsContent>
