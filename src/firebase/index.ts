@@ -1,5 +1,5 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, type Auth } from 'firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged, type Auth, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { firebaseConfig } from './config';
 
@@ -30,8 +30,12 @@ function initializeFirebase(): {
     if (!user) {
       try {
         await signInAnonymously(auth);
-      } catch (error) {
-        console.error("Anonymous sign-in failed:", error);
+      } catch (error: any) {
+        if (error.code === 'auth/operation-not-allowed' || error.code === 'auth/configuration-not-found') {
+          console.error("SIGN IN ERROR: Anonymous sign-in is not enabled in your Firebase project's authentication settings. Please go to the Firebase console, navigate to Authentication > Sign-in method, and enable 'Anonymous' sign-in.");
+        } else {
+          console.error("Anonymous sign-in failed:", error);
+        }
       }
     }
   });
