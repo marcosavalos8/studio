@@ -33,6 +33,8 @@ import { addDoc, collection, doc } from 'firebase/firestore'
 import { useToast } from '@/hooks/use-toast'
 import type { Employee } from '@/lib/types'
 import { Loader2 } from 'lucide-react'
+import { errorEmitter } from '@/firebase/error-emitter'
+import { FirestorePermissionError } from '@/firebase/errors'
 
 const employeeSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -69,28 +71,30 @@ export function AddEmployeeDialog({ isOpen, onOpenChange }: AddEmployeeDialogPro
       return
     }
 
-    try {
-      const newDocRef = doc(collection(firestore, 'employees'))
-      const newEmployee: Omit<Employee, 'id'> = {
-        ...values,
-        qrCode: newDocRef.id,
-      }
-      await addDoc(collection(firestore, 'employees'), newEmployee)
-
-      toast({
-        title: 'Employee Added',
-        description: `${values.name} has been added successfully.`,
-      })
-      form.reset()
-      onOpenChange(false)
-    } catch (error) {
-      console.error('Error adding employee:', error)
-      toast({
-        variant: 'destructive',
-        title: 'Uh oh! Something went wrong.',
-        description: 'Could not add the employee. Please try again.',
-      })
+    const newDocRef = doc(collection(firestore, 'employees'))
+    const newEmployee: Omit<Employee, 'id'> = {
+      ...values,
+      qrCode: newDocRef.id,
     }
+
+    addDoc(collection(firestore, 'employees'), newEmployee)
+      .then(() => {
+        toast({
+          title: 'Employee Added',
+          description: `${values.name} has been added successfully.`,
+        })
+        form.reset()
+        onOpenChange(false)
+      })
+      .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: newDocRef.path,
+          operation: 'create',
+          requestResourceData: newEmployee,
+        });
+
+        errorEmitter.emit('permission-error', permissionError);
+      })
   }
 
   return (
