@@ -29,7 +29,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useFirestore } from '@/firebase'
-import { addDoc, collection, doc } from 'firebase/firestore'
+import { addDoc, collection, doc, setDoc } from 'firebase/firestore'
 import { useToast } from '@/hooks/use-toast'
 import type { Employee } from '@/lib/types'
 import { Loader2 } from 'lucide-react'
@@ -77,7 +77,7 @@ export function AddEmployeeDialog({ isOpen, onOpenChange }: AddEmployeeDialogPro
       qrCode: newDocRef.id,
     }
 
-    addDoc(collection(firestore, 'employees'), newEmployee)
+    setDoc(newDocRef, newEmployee)
       .then(() => {
         toast({
           title: 'Employee Added',
@@ -178,3 +178,5 @@ export function AddEmployeeDialog({ isOpen, onOpenChange }: AddEmployeeDialogPro
     </Dialog>
   )
 }
+
+    

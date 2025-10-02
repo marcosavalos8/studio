@@ -38,7 +38,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 const QrScanner = dynamic(() => import('./qr-scanner').then(mod => mod.QrScannerComponent), {
   ssr: false,
-  loading: () => <Skeleton className="w-full aspect-video bg-muted rounded-md" />,
+  loading: () => <Skeleton className="w-full aspect-video bg-muted rounded-md flex items-center justify-center"><VideoOff className="h-10 w-10 text-muted-foreground" /></Skeleton>,
 })
 
 
@@ -523,7 +523,7 @@ export default function TimeTrackingPage() {
                                         className="w-full justify-start"
                                         onClick={() => {
                                             setManualSelectedEmployee(employee);
-                                            setManualEmployeeSearch('');
+                                            setManualEmployeeSearch(employee.name);
                                         }}
                                     >
                                         {employee.name}
@@ -588,3 +588,5 @@ export default function TimeTrackingPage() {
     </div>
   );
 }
+
+    

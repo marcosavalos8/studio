@@ -1,8 +1,7 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import QrScanner from 'react-qr-scanner'
-import { useToast } from "@/hooks/use-toast"
 import {
     Alert,
     AlertDescription,
@@ -15,14 +14,7 @@ type QrScannerComponentProps = {
 }
 
 export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
-    const { toast } = useToast()
     const [error, setError] = useState<string | null>(null)
-    const [hasMounted, setHasMounted] = useState(false);
-
-
-    useEffect(() => {
-        setHasMounted(true);
-    }, []);
 
     const handleScan = (result: any) => {
         if (result && result.text) {
@@ -53,20 +45,18 @@ export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
         )
     }
 
-    if (!hasMounted) {
-        return null;
-    }
-
     return (
         <div className="w-full aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden">
-           {<QrScanner
+           <QrScanner
                 onScan={handleScan}
                 onError={handleError}
                 constraints={{
                     video: { facingMode: 'environment' }
                 }}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />}
+            />
         </div>
     )
 }
+
+    
