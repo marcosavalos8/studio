@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
+import dynamic from 'next/dynamic'
 import {
   Card,
   CardContent,
@@ -25,20 +26,21 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import { QrCode, ClipboardEdit, Users, User, CheckCircle, Package, LogIn, LogOut, Loader2 } from "lucide-react"
+import { QrCode, ClipboardEdit, Users, User, CheckCircle, Package, LogIn, LogOut, Loader2, VideoOff } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
-import QrScanner from 'react-qr-scanner';
 import JSConfetti from 'js-confetti'
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase'
 import { collection, query, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore'
-import type { Task, TimeLog } from '@/lib/types'
+import type { Task } from '@/lib/types'
+import { Skeleton } from '@/components/ui/skeleton'
+
+const QrScanner = dynamic(() => import('./qr-scanner').then(mod => mod.QrScannerComponent), {
+  ssr: false,
+  loading: () => <Skeleton className="w-full aspect-video bg-muted rounded-md" />,
+})
+
 
 type ScanMode = 'clock-in' | 'clock-out' | 'piece';
 
@@ -46,7 +48,6 @@ export default function TimeTrackingPage() {
   const firestore = useFirestore()
   const { toast } = useToast()
   
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(true);
   const [scanMode, setScanMode] = useState<ScanMode>('clock-in');
   const [isSharedPiece, setIsSharedPiece] = useState(false);
   
@@ -68,9 +69,13 @@ export default function TimeTrackingPage() {
   useEffect(() => {
     setJsConfetti(new JSConfetti());
     const initAudio = () => {
-        const context = new (window.AudioContext || (window as any).webkitAudioContext)();
-        setAudioContext(context);
-        document.removeEventListener('click', initAudio);
+        try {
+            const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+            setAudioContext(context);
+            document.removeEventListener('click', initAudio);
+        } catch (e) {
+            console.error("Could not create audio context", e);
+        }
     };
     document.addEventListener('click', initAudio);
 
@@ -103,10 +108,7 @@ export default function TimeTrackingPage() {
     oscillator.stop(audioContext.currentTime + 0.2);
   }
 
-  const handleScan = (result: any) => {
-    if (result && result.text) {
-      const scannedData = result.text;
-
+  const handleScanResult = (scannedData: string) => {
       // Basic check to differentiate between employee and bin QR codes
       // This logic should be made more robust (e.g., QR codes have prefixes)
       const isEmployeeScan = !scannedData.toLowerCase().includes('bin');
@@ -134,14 +136,6 @@ export default function TimeTrackingPage() {
           toast({ title: `Employee ${scanMode === 'clock-in' ? 'Clocked In' : 'Clocked Out'}`, description: scannedData });
         }
       }
-    }
-  }
-
-  const handleError = (error: any) => {
-    console.error(error);
-    if (error.name === 'NotAllowedError' || error.name === 'NotFoundError') {
-        setHasCameraPermission(false);
-    }
   }
 
   const handleBulkClockOut = async () => {
@@ -213,7 +207,7 @@ export default function TimeTrackingPage() {
                 <Label className="font-semibold">Scan Mode</Label>
                  <RadioGroup
                     value={scanMode}
-                    onValueChange={(value: ScanMode) => setScanMode(value)}
+                    onValueChange={(value) => setScanMode(value as ScanMode)}
                     className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
                   >
                     <Label htmlFor="mode-clock-in" className="flex flex-1 items-center gap-3 rounded-md border p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5">
@@ -254,24 +248,8 @@ export default function TimeTrackingPage() {
                  )}
                </div>
 
-              <div className="w-full aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden">
-                <QrScanner
-                  onScan={handleScan}
-                  onError={handleError}
-                  constraints={{
-                    video: { facingMode: 'environment' }
-                  }}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              </div>
-              {hasCameraPermission === false && (
-                <Alert variant="destructive">
-                  <AlertTitle>Camera Access Required</AlertTitle>
-                  <AlertDescription>
-                    Please allow camera access to use this feature. You may need to refresh the page after granting permission.
-                  </AlertDescription>
-                </Alert>
-              )}
+              <QrScanner onScanResult={handleScanResult} />
+              
               <div className="grid gap-4 md:grid-cols-2">
                 <Card>
                   <CardHeader>
@@ -397,5 +375,3 @@ export default function TimeTrackingPage() {
     </div>
   );
 }
-
-    
