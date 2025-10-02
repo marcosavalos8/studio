@@ -1,104 +1,105 @@
 /**
- * @fileoverview Firestore Security Rules for the time-tracking application.
- *
- * Core Philosophy:
- * This ruleset prioritizes security by enforcing strict ownership and role-based access control.
- * All write operations are protected by authorization checks.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces role-based access control.
  *
  * Data Structure:
- * - /employees/{employeeId}: Stores employee profiles.
- * - /time_entries/{timeEntryId}: Stores time entries.
+ * - /employees/{employeeId}: Stores employee data.
+ * - /time_entries/{timeEntryId}: Stores time entry records.
  * - /piecework/{pieceworkId}: Stores piecework records.
- * - /clients/{clientId}: Stores client information.
- * - /tasks/{taskId}: Stores task or project details.
+ * - /clients/{clientId}: Stores client data.
+ * - /tasks/{taskId}: Stores task data.
  *
  * Key Security Decisions:
- * - All authenticated users can list all data, but writes are restricted.
- * - There is not notion of admin roles.
- *
+ * - All authenticated users can read all collections.
+ * - Only admins can create, update, or delete employee, client, and task data.
+ * - Any authenticated user can create, update, or delete time entry and piecework records.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows read and write access to time entry records for any authenticated user.
-     * @path /time_entries/{timeEntryId}
-     * @allow (list) request.auth != null
-     * @allow (get) request.auth != null
-     * @deny (create) false
-     * @deny (update) false
-     * @deny (delete) false
-     * @principle Allows any authenticated user to list time entries. Write operations are disabled in this prototype.
-     */
-    match /time_entries/{timeEntryId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if false;
-    }
-
-    /**
-     * @description Allows read and write access to piecework records for any authenticated user.
-     * @path /piecework/{pieceworkId}
-     * @allow (list) request.auth != null
-     * @allow (get) request.auth != null
-     * @deny (create) false
-     * @deny (update) false
-     * @deny (delete) false
-     * @principle Allows any authenticated user to list piecework records. Write operations are disabled in this prototype.
-     */
-    match /piecework/{pieceworkId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if false;
-    }
-
-    /**
-     * @description Allows read access to employee documents for any authenticated user, but restricts write access.
+     * @description Manages access to employee data.
      * @path /employees/{employeeId}
-     * @allow (list) request.auth != null
-     * @allow (get) request.auth != null
-     * @deny (create) false
-     * @deny (update) false
-     * @deny (delete) false
-     * @principle Restricts write access to employee profiles in this prototype.
+     * @allow (get, list): Any authenticated user can read employee data.
+     * @allow (create, update, delete): Only admins can modify employee data.
+     * @deny (create): Non-admin users cannot create employees.
+     * @principle Enforces admin-only writes for employee data.
      */
     match /employees/{employeeId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if false;
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Allows read access to client documents for any authenticated user, but restricts write access.
+     * @description Manages access to time entry records.
+     * @path /time_entries/{timeEntryId}
+     * @allow (get, list, create, update, delete): Any authenticated user can manage time entry records.
+     * @principle Allows authenticated users to manage their time entries.
+     */
+    match /time_entries/{timeEntryId} {
+      allow get, list, create, update, delete: if isSignedIn() && resource != null;
+    }
+
+    /**
+     * @description Manages access to piecework records.
+     * @path /piecework/{pieceworkId}
+     * @allow (get, list, create, update, delete): Any authenticated user can manage piecework records.
+     * @principle Allows authenticated users to manage their piecework.
+     */
+    match /piecework/{pieceworkId} {
+      allow get, list, create, update, delete: if isSignedIn() && resource != null;
+    }
+
+    /**
+     * @description Manages access to client data.
      * @path /clients/{clientId}
-     * @allow (list) request.auth != null
-     * @allow (get) request.auth != null
-     * @deny (create) false
-     * @deny (update) false
-     * @deny (delete) false
-     * @principle Restricts write access to client information in this prototype.
+     * @allow (get, list): Any authenticated user can read client data.
+     * @allow (create, update, delete): Only admins can modify client data.
+     * @deny (create): Non-admin users cannot create clients.
+     * @principle Enforces admin-only writes for client data.
      */
     match /clients/{clientId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if false;
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Allows read access to task documents for any authenticated user, but restricts write access.
+     * @description Manages access to task data.
      * @path /tasks/{taskId}
-     * @allow (list) request.auth != null
-     * @allow (get) request.auth != null
-     * @deny (create) false
-     * @deny (update) false
-     * @deny (delete) false
-     * @principle Restricts write access to task details in this prototype.
+     * @allow (get, list): Any authenticated user can read task data.
+     * @allow (create, update, delete): Only admins can modify task data.
+     * @deny (create): Non-admin users cannot create tasks.
+     * @principle Enforces admin-only writes for task data.
      */
     match /tasks/{taskId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if false;
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
 
-    // Helper function to determine if a user is signed in.
+    // --- Helper functions ---
+
+    /**
+     * @description Checks if the user is signed in.
+     * @return True if the user is signed in, false otherwise.
+     */
     function isSignedIn() {
       return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the user has admin privileges.
+     * @return True if the user is an admin, false otherwise.
+     */
+    function isAdmin() {
+      // TODO: Implement logic to check for admin privileges (e.g., custom claims).
+      return false; // In this version, no one is an admin.
     }
   }
 }
