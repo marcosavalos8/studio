@@ -412,25 +412,22 @@ export default function TimeTrackingPage() {
                 setIsManualSubmitting(false);
             } else {
                 const updatedData = { endTime: new Date() };
-                // There should only be one active clock-in per task per employee,
-                // but we loop just in case to close all of them.
-                querySnapshot.forEach(docSnap => {
-                    updateDoc(docSnap.ref, updatedData)
-                    .then(() => {
-                        toast({ title: "Clock Out Successful", description: `Clocked out ${manualSelectedEmployee.name}.` });
-                        setManualSelectedEmployee(null);
-                        setManualEmployeeSearch('');
-                    })
-                    .catch(async (serverError) => {
-                        const permissionError = new FirestorePermissionError({
-                            path: docSnap.ref.path, 
-                            operation: 'update',
-                            requestResourceData: updatedData,
-                        });
-                        errorEmitter.emit('permission-error', permissionError);
-                    })
-                    .finally(() => setIsManualSubmitting(false));
-                });
+                const docSnap = querySnapshot.docs[0];
+                updateDoc(docSnap.ref, updatedData)
+                .then(() => {
+                    toast({ title: "Clock Out Successful", description: `Clocked out ${manualSelectedEmployee.name}.` });
+                    setManualSelectedEmployee(null);
+                    setManualEmployeeSearch('');
+                })
+                .catch(async (serverError) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: docSnap.ref.path, 
+                        operation: 'update',
+                        requestResourceData: updatedData,
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                })
+                .finally(() => setIsManualSubmitting(false));
             }
         });
 
