@@ -21,11 +21,13 @@ import {
   FileText,
   DollarSign,
   Settings,
-  LifeBuoy
+  LifeBuoy,
+  QrCode,
 } from "lucide-react"
 
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/time-tracking", label: "Time Tracking", icon: QrCode },
   { href: "/employees", label: "Employees", icon: Users },
   { href: "/clients", label: "Clients", icon: Briefcase },
   { href: "/tasks", label: "Tasks", icon: ClipboardList },
