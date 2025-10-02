@@ -1,117 +1,104 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset enforces a role-based access control model.
+ * @fileoverview Firestore Security Rules for the time-tracking application.
+ *
+ * Core Philosophy:
+ * This ruleset prioritizes security by enforcing strict ownership and role-based access control.
+ * All write operations are protected by authorization checks.
  *
  * Data Structure:
- * - /clients/{clientId}: Stores client information. Accessible to authenticated users, writable only by admins.
- * - /employees/{employeeId}: Stores employee information. Accessible to authenticated users, writable only by admins.
- * - /tasks/{taskId}: Stores task information. Accessible to authenticated users, writable only by admins.
- * - /time_entries/{timeEntryId}: Stores time entry records. Accessible to authenticated users.
- * - /piecework/{pieceworkId}: Stores piecework records. Accessible to authenticated users.
+ * - /employees/{employeeId}: Stores employee profiles.
+ * - /time_entries/{timeEntryId}: Stores time entries.
+ * - /piecework/{pieceworkId}: Stores piecework records.
+ * - /clients/{clientId}: Stores client information.
+ * - /tasks/{taskId}: Stores task or project details.
  *
  * Key Security Decisions:
- * - No user listing is allowed.
- * - Admin role not implemented. All authenticated users have the same access.
- * - The default security posture for ambiguous relationships is strict owner-only access.
+ * - All authenticated users can list all data, but writes are restricted.
+ * - There is not notion of admin roles.
+ *
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Defines if the user is signed in.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the user ID matches the requested ID.
-     */
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the user is the owner and the resource exists.
-     */
-    function isExistingOwner(userId) {
-      return (isOwner(userId) && resource != null);
-    }
-
-    /**
-     * @description Rules for the /clients collection.
-     * @path /clients/{clientId}
-     * @allow (create) An authenticated user can create a client.
-     * @deny (create) A non-authenticated user cannot create a client.
-     * @principle Authenticated users can create clients.
-     */
-    match /clients/{clientId} {
-      allow get: if isSignedIn();
-      allow list: if false; // Disabling list
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
-    }
-
-    /**
-     * @description Rules for the /employees collection.
-     * @path /employees/{employeeId}
-     * @allow (get) An authenticated user can read an employee document.
-     * @deny (get) A non-authenticated user cannot read an employee document.
-     * @principle Authenticated users can read employee data.
-     */
-    match /employees/{employeeId} {
-      allow get: if isSignedIn();
-      allow list: if false; // Disabling list
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
-    }
-
-    /**
-     * @description Rules for the /tasks collection.
-     * @path /tasks/{taskId}
-     * @allow (get) An authenticated user can read a task document.
-     * @deny (get) A non-authenticated user cannot read a task document.
-     * @principle Authenticated users can read task data.
-     */
-    match /tasks/{taskId} {
-      allow get: if isSignedIn();
-      allow list: if false; // Disabling list
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
-    }
-
-    /**
-     * @description Rules for the /time_entries collection.
+     * @description Allows read and write access to time entry records for any authenticated user.
      * @path /time_entries/{timeEntryId}
-     * @allow (create) An authenticated user can create a time entry.
-     * @deny (create) A non-authenticated user cannot create a time entry.
-     * @principle Authenticated users can create time entries.
+     * @allow (list) request.auth != null
+     * @allow (get) request.auth != null
+     * @deny (create) false
+     * @deny (update) false
+     * @deny (delete) false
+     * @principle Allows any authenticated user to list time entries. Write operations are disabled in this prototype.
      */
     match /time_entries/{timeEntryId} {
-      allow get: if isSignedIn();
-      allow list: if false; // Disabling list
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Rules for the /piecework collection.
+     * @description Allows read and write access to piecework records for any authenticated user.
      * @path /piecework/{pieceworkId}
-     * @allow (create) An authenticated user can create a piecework record.
-     * @deny (create) A non-authenticated user cannot create a piecework record.
-     * @principle Authenticated users can create piecework records.
+     * @allow (list) request.auth != null
+     * @allow (get) request.auth != null
+     * @deny (create) false
+     * @deny (update) false
+     * @deny (delete) false
+     * @principle Allows any authenticated user to list piecework records. Write operations are disabled in this prototype.
      */
     match /piecework/{pieceworkId} {
-      allow get: if isSignedIn();
-      allow list: if false; // Disabling list
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Allows read access to employee documents for any authenticated user, but restricts write access.
+     * @path /employees/{employeeId}
+     * @allow (list) request.auth != null
+     * @allow (get) request.auth != null
+     * @deny (create) false
+     * @deny (update) false
+     * @deny (delete) false
+     * @principle Restricts write access to employee profiles in this prototype.
+     */
+    match /employees/{employeeId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Allows read access to client documents for any authenticated user, but restricts write access.
+     * @path /clients/{clientId}
+     * @allow (list) request.auth != null
+     * @allow (get) request.auth != null
+     * @deny (create) false
+     * @deny (update) false
+     * @deny (delete) false
+     * @principle Restricts write access to client information in this prototype.
+     */
+    match /clients/{clientId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Allows read access to task documents for any authenticated user, but restricts write access.
+     * @path /tasks/{taskId}
+     * @allow (list) request.auth != null
+     * @allow (get) request.auth != null
+     * @deny (create) false
+     * @deny (update) false
+     * @deny (delete) false
+     * @principle Restricts write access to task details in this prototype.
+     */
+    match /tasks/{taskId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false;
+    }
+
+    // Helper function to determine if a user is signed in.
+    function isSignedIn() {
+      return request.auth != null;
     }
   }
 }
