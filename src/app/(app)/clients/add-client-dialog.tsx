@@ -64,8 +64,9 @@ export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) 
     }
 
     const newClient = { ...values }
+    const clientsCollection = collection(firestore, 'clients');
 
-    addDoc(collection(firestore, 'clients'), newClient)
+    addDoc(clientsCollection, newClient)
       .then((docRef) => {
         toast({
           title: 'Client Added',
@@ -76,7 +77,7 @@ export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) 
       })
       .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
-          path: 'clients', // Path for collection creation
+          path: clientsCollection.path,
           operation: 'create',
           requestResourceData: newClient,
         });
