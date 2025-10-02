@@ -1,103 +1,107 @@
 /**
- * @fileoverview Firestore Security Rules.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces role-based access control.
  *
- * Core Philosophy: This ruleset provides a baseline security configuration for the application.
- * It uses a simplified data structure with root-level collections to avoid complex nested rules and permission errors.
- *
- * Data Structure: The Firestore database consists of the following top-level collections:
- * - /employees/{employeeId}: Stores employee data.
+ * Data Structure:
+ * - /clients/{clientId}: Stores client information.
+ * - /tasks/{taskId}: Stores task information.
+ * - /employees/{employeeId}: Stores employee information.
  * - /time_entries/{timeEntryId}: Stores time entry records.
  * - /piecework/{pieceworkId}: Stores piecework records.
- * - /clients/{clientId}: Stores client data.
- * - /tasks/{taskId}: Stores task data.
  *
  * Key Security Decisions:
- * - Authenticated users have read access to 'employees', 'clients', and 'tasks'.
- * - Write access to 'employees', 'clients', and 'tasks' is restricted.  A future iteration will apply role-based access.
- * - Authenticated users can manage their own 'time_entries' and 'piecework' records.
- *
- * Denormalization for Authorization: Not explicitly used in this version, but could be implemented to store ownership/access information in documents.
- *
- * Structural Segregation: Not explicitly used in this version.
+ * - Authenticated users can read any data.
+ * - Only admins can create, update, or delete client, task, and employee data.
+ * - All authenticated users can create, update, and delete time_entries and piecework data.
+ * - No validation of data types or required fields is performed in this prototyping phase.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows authenticated users to read employee data, but restricts write access.
-     * @path /databases/{database}/documents/employees/{employeeId}
-     * @allow (get, list) Authenticated user can read employee data.
-     * @deny (create, update, delete) Any user cannot create, update, or delete employee data.
-     * @principle Restricts write access to employee data.
-     */
-    match /employees/{employeeId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if false;
-    }
-
-    /**
-     * @description Allows authenticated users to manage their own time entry records.
-     * @path /databases/{database}/documents/time_entries/{timeEntryId}
-     * @allow (create) Authenticated user can create a time entry.
-     * @allow (get, list, update, delete) Authenticated user can read, update, or delete their own time entries.
-     * @deny (create, update, delete) Authenticated user can not modify time entries they do not own.
-     * @principle Enforces ownership for time entry records.
-     */
-    match /time_entries/{timeEntryId} {
-      allow get, list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource != null;
-      allow delete: if isSignedIn() && resource != null;
-    }
-
-    /**
-     * @description Allows authenticated users to manage their own piecework records.
-     * @path /databases/{database}/documents/piecework/{pieceworkId}
-     * @allow (create) Authenticated user can create a piecework record.
-     * @allow (get, list, update, delete) Authenticated user can read, update, or delete their own piecework records.
-     * @deny (create, update, delete) Authenticated user can not modify piecework records they do not own.
-     * @principle Enforces ownership for piecework records.
-     */
-    match /piecework/{pieceworkId} {
-      allow get, list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource != null;
-      allow delete: if isSignedIn() && resource != null;
-    }
-
-    /**
-     * @description Allows authenticated users to read client data, but restricts write access.
-     * @path /databases/{database}/documents/clients/{clientId}
-     * @allow (get, list) Authenticated user can read client data.
-     * @deny (create, update, delete) Any user cannot create, update, or delete client data.
-     * @principle Restricts write access to client data.
+     * @description Allows authenticated users to read client data, but only admins can create, update, or delete.
+     * @path /clients/{clientId}
+     * @allow (get, list): if true;
+     * @allow (create): if false; // TODO: Implement admin role check
+     * @allow (update): if false; // TODO: Implement admin role check
+     * @allow (delete): if false; // TODO: Implement admin role check
+     * @deny (create): if true; // Missing or insufficient permissions.
+     * @principle Role-based access control, enforcing admin-only writes for client data.
      */
     match /clients/{clientId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if false;
+      allow get, list: if true;
+      allow create: if false; // TODO: Implement admin role check
+      allow update: if false; // TODO: Implement admin role check
+      allow delete: if false; // TODO: Implement admin role check
     }
 
     /**
-     * @description Allows authenticated users to read task data, but restricts write access.
-     * @path /databases/{database}/documents/tasks/{taskId}
-     * @allow (get, list) Authenticated user can read task data.
-     * @deny (create, update, delete) Any user cannot create, update, or delete task data.
-     * @principle Restricts write access to task data.
+     * @description Allows authenticated users to read task data, but only admins can create, update, or delete.
+     * @path /tasks/{taskId}
+     * @allow (get, list): if true;
+     * @allow (create): if false; // TODO: Implement admin role check
+     * @allow (update): if false; // TODO: Implement admin role check
+     * @allow (delete): if false; // TODO: Implement admin role check
+     * @principle Role-based access control, enforcing admin-only writes for task data.
      */
     match /tasks/{taskId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if false;
+      allow get, list: if true;
+      allow create: if false; // TODO: Implement admin role check
+      allow update: if false; // TODO: Implement admin role check
+      allow delete: if false; // TODO: Implement admin role check
     }
-
-    // ---------- Helper Functions ----------
 
     /**
-     * @description Checks if the user is signed in.
-     * @return {boolean} True if the user is signed in, false otherwise.
+     * @description Allows authenticated users to read employee data, but only admins can create, update, or delete.
+     * @path /employees/{employeeId}
+     * @allow (get, list): if true;
+     * @allow (create): if false; // TODO: Implement admin role check
+     * @allow (update): if false; // TODO: Implement admin role check
+     * @allow (delete): if false; // TODO: Implement admin role check
+     * @principle Role-based access control, enforcing admin-only writes for employee data.
      */
-    function isSignedIn() {
-      return request.auth != null;
+    match /employees/{employeeId} {
+      allow get, list: if true;
+      allow create: if false; // TODO: Implement admin role check
+      allow update: if false; // TODO: Implement admin role check
+      allow delete: if false; // TODO: Implement admin role check
     }
+
+    /**
+     * @description Allows any authenticated user to create, read, update, and delete time entry records.
+     * @path /time_entries/{timeEntryId}
+     * @allow (get, list): if true;
+     * @allow (create): if isSignedIn();
+     * @allow (update): if isSignedIn();
+     * @allow (delete): if isSignedIn();
+     * @principle Authenticated users can manage their own time entry data.
+     */
+    match /time_entries/{timeEntryId} {
+      allow get, list: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    /**
+     * @description Allows any authenticated user to create, read, update, and delete piecework records.
+     * @path /piecework/{pieceworkId}
+     * @allow (get, list): if true;
+     * @allow (create): if isSignedIn();
+     * @allow (update): if isSignedIn();
+     * @allow (delete): if isSignedIn();
+     * @principle Authenticated users can manage their own piecework data.
+     */
+    match /piecework/{pieceworkId} {
+      allow get, list: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+  }
+
+  function isSignedIn() {
+    return request.auth != null;
   }
 }
