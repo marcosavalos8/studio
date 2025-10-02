@@ -1,18 +1,14 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
-import { getAuth, type Auth } from 'firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { firebaseConfig } from './config';
 
 import { useCollection } from './firestore/use-collection';
 import { useDoc } from './firestore/use-doc';
 import { useUser } from './auth/use-user';
-import { FirebaseProvider } from './provider';
-import {
-  useFirebase,
-  useFirebaseApp,
-  useFirestore,
-  useAuth,
-} from './provider';
+import { FirebaseProvider, useFirebase, useFirebaseApp, useFirestore, useAuth } from './provider';
+import { FirebaseClientProvider } from './client-provider';
+
 
 function initializeFirebase(): {
   app: FirebaseApp;
@@ -30,12 +26,23 @@ function initializeFirebase(): {
   const firestore = getFirestore(app);
   const auth = getAuth(app);
 
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      try {
+        await signInAnonymously(auth);
+      } catch (error) {
+        console.error("Anonymous sign-in failed:", error);
+      }
+    }
+  });
+
   return { app, firestore, auth };
 }
 
 export {
   initializeFirebase,
   FirebaseProvider,
+  FirebaseClientProvider,
   useCollection,
   useDoc,
   useUser,

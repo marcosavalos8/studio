@@ -41,7 +41,7 @@ async function seedDatabase() {
             await addDoc(collection(db, "tasks"), task);
         }
         console.log("Database seeded successfully!");
-    } catch (error)_ {
+    } catch (error) {
         console.error("Error seeding database: ", error);
     }
 }

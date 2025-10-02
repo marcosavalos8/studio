@@ -79,6 +79,33 @@
         }
       },
       "required": ["name", "client", "clientRate", "clientRateType", "employeePayType", "employeeRate", "status"]
+    },
+    "timelog": {
+      "title": "Time Log",
+      "description": "A log of time worked by an employee on a task.",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string" },
+        "taskId": { "type": "string" },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "isBreak": { "type": "boolean" },
+        "breakReason": { "type": "string", "enum": ["Paid", "Unpaid Meal"] }
+      },
+      "required": ["employeeId", "taskId", "startTime"]
+    },
+    "piecelog": {
+      "title": "Piece Log",
+      "description": "A log of piecework completed by an employee.",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string" },
+        "taskId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "quantity": { "type": "number" },
+        "qcNote": { "type": "string" }
+      },
+      "required": ["employeeId", "taskId", "timestamp", "quantity"]
     }
   },
   "auth": {
@@ -86,22 +113,24 @@
   },
   "firestore": {
     "/employees/{employeeId}": {
-      "schema": {
-        "$ref": "#/entities/employee"
-      },
+      "schema": { "$ref": "#/entities/employee" },
       "description": "Stores information about individual employees."
     },
     "/clients/{clientId}": {
-      "schema": {
-        "$ref": "#/entities/client"
-      },
+      "schema": { "$ref": "#/entities/client" },
       "description": "Stores information about individual clients."
     },
     "/tasks/{taskId}": {
-      "schema": {
-        "$ref": "#/entities/task"
-      },
+      "schema": { "$ref": "#/entities/task" },
       "description": "Stores information about individual tasks or projects."
+    },
+    "/timelogs/{timelogId}": {
+      "schema": { "$ref": "#/entities/timelog" },
+      "description": "Stores logs for hourly work."
+    },
+    "/piecelogs/{piecelogId}": {
+      "schema": { "$ref": "#/entities/piecelog" },
+      "description": "Stores logs for piecework."
     }
   }
 }

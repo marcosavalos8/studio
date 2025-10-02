@@ -28,37 +28,124 @@ import {
   TableRow,
   TableFooter
 } from "@/components/ui/table"
-import type { Client } from "@/lib/types"
+import type { Client, Task, PieceLog, TimeLog } from "@/lib/types"
 import type { DateRange } from "react-day-picker"
+import { useFirestore } from "@/firebase"
+import { collection, getDocs, query, where } from "firebase/firestore"
 
 type InvoicingFormProps = {
   clients: Client[]
+  tasks: Task[]
 }
 
-export function InvoicingForm({ clients }: InvoicingFormProps) {
+type InvoiceItem = {
+    description: string;
+    quantity: number;
+    rate: number;
+    total: number;
+}
+
+export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
+  const firestore = useFirestore()
   const [date, setDate] = React.useState<DateRange | undefined>()
   const [selectedClient, setSelectedClient] = React.useState<Client | undefined>()
   const [isGenerating, setIsGenerating] = React.useState(false)
-  const [invoice, setInvoice] = React.useState<any | null>(null)
+  const [invoice, setInvoice] = React.useState<{
+    client: Client;
+    date: DateRange;
+    items: InvoiceItem[];
+    total: number;
+  } | null>(null)
 
-  const handleGenerate = () => {
-    if (!selectedClient || !date?.from || !date?.to) return;
+  const handleGenerate = async () => {
+    if (!firestore || !selectedClient || !date?.from || !date?.to) return
     setIsGenerating(true)
-    setTimeout(() => {
-      // Mock data generation
-      const items = [
-        { description: "Apple Picking (Piecework)", quantity: 1250, rate: 0.8, total: 1000 },
-        { description: "Vineyard Pruning (Hourly)", quantity: 40, rate: 22, total: 880 },
-      ]
-      const total = items.reduce((sum, item) => sum + item.total, 0)
-      setInvoice({
-        client: selectedClient,
-        date,
-        items,
-        total,
-      })
-      setIsGenerating(false)
-    }, 1500)
+
+    const clientTasks = tasks.filter(task => task.client === selectedClient.name)
+    const invoiceItems: InvoiceItem[] = []
+
+    // Fetch piece logs
+    const pieceLogsQuery = query(
+      collection(firestore, "piecelogs"),
+      where("taskId", "in", clientTasks.map(t => t.id)),
+      where("timestamp", ">=", date.from),
+      where("timestamp", "<=", date.to)
+    )
+    const pieceLogsSnap = await getDocs(pieceLogsQuery)
+    const pieceLogs = pieceLogsSnap.docs.map(doc => doc.data() as PieceLog)
+
+    // Aggregate piecework logs
+    const pieceworkByTask: Record<string, number> = {}
+    pieceLogs.forEach(log => {
+      if (!pieceworkByTask[log.taskId]) {
+        pieceworkByTask[log.taskId] = 0
+      }
+      pieceworkByTask[log.taskId] += log.quantity
+    })
+
+    for (const taskId in pieceworkByTask) {
+        const task = clientTasks.find(t => t.id === taskId)
+        if (task && task.clientRateType === 'piece') {
+            const quantity = pieceworkByTask[taskId];
+            const total = quantity * task.clientRate
+            invoiceItems.push({
+                description: `${task.name} (Piecework)`,
+                quantity: quantity,
+                rate: task.clientRate,
+                total: total
+            })
+        }
+    }
+
+
+    // Fetch time logs for hourly tasks
+     const timeLogsQuery = query(
+      collection(firestore, "timelogs"),
+      where("taskId", "in", clientTasks.map(t => t.id)),
+      where("startTime", ">=", date.from),
+      where("startTime", "<=", date.to)
+    );
+    const timeLogsSnap = await getDocs(timeLogsQuery);
+    const timeLogs = timeLogsSnap.docs.map(doc => doc.data() as TimeLog).filter(log => log.endTime);
+
+
+    // Aggregate hourly logs
+    const hoursByTask: Record<string, number> = {}
+    timeLogs.forEach(log => {
+        if (!hoursByTask[log.taskId]) {
+            hoursByTask[log.taskId] = 0
+        }
+        const start = (log.startTime as any).toDate()
+        const end = (log.endTime as any).toDate()
+        const durationHours = (end - start) / (1000 * 60 * 60)
+        hoursByTask[log.taskId] += durationHours
+    });
+
+
+    for (const taskId in hoursByTask) {
+        const task = clientTasks.find(t => t.id === taskId)
+        if (task && task.clientRateType === 'hourly') {
+            const hours = hoursByTask[taskId];
+            const total = hours * task.clientRate
+            invoiceItems.push({
+                description: `${task.name} (Hourly)`,
+                quantity: parseFloat(hours.toFixed(2)),
+                rate: task.clientRate,
+                total: total
+            })
+        }
+    }
+
+    const total = invoiceItems.reduce((sum, item) => sum + item.total, 0)
+
+    setInvoice({
+      client: selectedClient,
+      date,
+      items: invoiceItems,
+      total,
+    })
+
+    setIsGenerating(false)
   }
 
   return (
