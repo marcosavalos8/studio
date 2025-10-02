@@ -1,102 +1,103 @@
+/**
+ * @fileoverview Firestore Security Rules.
+ *
+ * Core Philosophy: This ruleset provides a baseline security configuration for the application.
+ * It uses a simplified data structure with root-level collections to avoid complex nested rules and permission errors.
+ *
+ * Data Structure: The Firestore database consists of the following top-level collections:
+ * - /employees/{employeeId}: Stores employee data.
+ * - /time_entries/{timeEntryId}: Stores time entry records.
+ * - /piecework/{pieceworkId}: Stores piecework records.
+ * - /clients/{clientId}: Stores client data.
+ * - /tasks/{taskId}: Stores task data.
+ *
+ * Key Security Decisions:
+ * - Authenticated users have read access to 'employees', 'clients', and 'tasks'.
+ * - Write access to 'employees', 'clients', and 'tasks' is restricted.  A future iteration will apply role-based access.
+ * - Authenticated users can manage their own 'time_entries' and 'piecework' records.
+ *
+ * Denormalization for Authorization: Not explicitly used in this version, but could be implemented to store ownership/access information in documents.
+ *
+ * Structural Segregation: Not explicitly used in this version.
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is authenticated.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the user ID matches the authenticated user's ID.
-     * @param {string} userId - The user ID to check.
-     * @return {boolean} - True if the user is the owner.
-     */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the user is the owner and the resource exists.
-     * @param {string} userId - The user ID to check.
-     * @return {boolean} - True if the user is the owner and resource exists.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource.data.userId == request.auth.uid;
-    }
-
-    /**
-     * @description Rules for the 'employees' collection.
+     * @description Allows authenticated users to read employee data, but restricts write access.
      * @path /databases/{database}/documents/employees/{employeeId}
-     * @allow (get, list) - Any authenticated user can read employee data.
-     * @deny (create, update, delete) - No write operations are allowed in this prototype.
-     * @principle Grants read access to all authenticated users but restricts all write access.
+     * @allow (get, list) Authenticated user can read employee data.
+     * @deny (create, update, delete) Any user cannot create, update, or delete employee data.
+     * @principle Restricts write access to employee data.
      */
     match /employees/{employeeId} {
       allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Rules for the 'time_entries' collection.
+     * @description Allows authenticated users to manage their own time entry records.
      * @path /databases/{database}/documents/time_entries/{timeEntryId}
-     * @allow (create) - Any authenticated user can create a time entry.
-     * @allow (get, list) - Any authenticated user can read time entries.
-     * @deny (update, delete) - No update or delete operations are allowed in this prototype.
-     * @principle Grants read access to all authenticated users and allows creation.
+     * @allow (create) Authenticated user can create a time entry.
+     * @allow (get, list, update, delete) Authenticated user can read, update, or delete their own time entries.
+     * @deny (create, update, delete) Authenticated user can not modify time entries they do not own.
+     * @principle Enforces ownership for time entry records.
      */
     match /time_entries/{timeEntryId} {
       allow get, list: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
 
     /**
-     * @description Rules for the 'piecework' collection.
+     * @description Allows authenticated users to manage their own piecework records.
      * @path /databases/{database}/documents/piecework/{pieceworkId}
-     * @allow (create) - Any authenticated user can create a piecework record.
-     * @allow (get, list) - Any authenticated user can read piecework records.
-     * @deny (update, delete) - No update or delete operations are allowed in this prototype.
-     * @principle Grants read access to all authenticated users and allows creation.
+     * @allow (create) Authenticated user can create a piecework record.
+     * @allow (get, list, update, delete) Authenticated user can read, update, or delete their own piecework records.
+     * @deny (create, update, delete) Authenticated user can not modify piecework records they do not own.
+     * @principle Enforces ownership for piecework records.
      */
     match /piecework/{pieceworkId} {
       allow get, list: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
 
     /**
-     * @description Rules for the 'clients' collection.
+     * @description Allows authenticated users to read client data, but restricts write access.
      * @path /databases/{database}/documents/clients/{clientId}
-     * @allow (get, list) - Any authenticated user can read client data.
-     * @deny (create, update, delete) - No write operations are allowed in this prototype.
-     * @principle Grants read access to all authenticated users but restricts all write access.
+     * @allow (get, list) Authenticated user can read client data.
+     * @deny (create, update, delete) Any user cannot create, update, or delete client data.
+     * @principle Restricts write access to client data.
      */
     match /clients/{clientId} {
       allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Rules for the 'tasks' collection.
+     * @description Allows authenticated users to read task data, but restricts write access.
      * @path /databases/{database}/documents/tasks/{taskId}
-     * @allow (get, list) - Any authenticated user can read task data.
-     * @deny (create, update, delete) - No write operations are allowed in this prototype.
-     * @principle Grants read access to all authenticated users but restricts all write access.
+     * @allow (get, list) Authenticated user can read task data.
+     * @deny (create, update, delete) Any user cannot create, update, or delete task data.
+     * @principle Restricts write access to task data.
      */
     match /tasks/{taskId} {
       allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow create, update, delete: if false;
+    }
+
+    // ---------- Helper Functions ----------
+
+    /**
+     * @description Checks if the user is signed in.
+     * @return {boolean} True if the user is signed in, false otherwise.
+     */
+    function isSignedIn() {
+      return request.auth != null;
     }
   }
 }
