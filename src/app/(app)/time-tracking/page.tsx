@@ -271,10 +271,10 @@ export default function TimeTrackingPage() {
     setIsSubmitting(true);
     const timeEntryCollection = collection(firestore, 'time_entries');
     const pieceworkCollection = collection(firestore, 'piecework');
-    
+    const updatedData = { endTime: new Date() };
+
     if (scanMode === 'clock-in') {
         const batch = writeBatch(firestore);
-        const newEntries: Omit<TimeEntry, 'id'>[] = [];
         scannedEmployees.forEach(employeeId => {
             const newTimeEntry: Omit<TimeEntry, 'id'> = {
                 employeeId: employeeId,
@@ -285,7 +285,6 @@ export default function TimeTrackingPage() {
             };
             const docRef = doc(timeEntryCollection);
             batch.set(docRef, newTimeEntry);
-            newEntries.push(newTimeEntry);
         });
         batch.commit()
             .then(() => {
@@ -297,7 +296,7 @@ export default function TimeTrackingPage() {
                 const permissionError = new FirestorePermissionError({
                     path: 'time_entries',
                     operation: 'create',
-                    requestResourceData: newEntries,
+                    requestResourceData: { "message": `Batch write for ${scannedEmployees.length} employees`},
                 });
                 errorEmitter.emit('permission-error', permissionError);
             })
@@ -317,7 +316,7 @@ export default function TimeTrackingPage() {
             } else {
                 const batch = writeBatch(firestore);
                 querySnapshot.forEach(doc => {
-                    batch.update(doc.ref, { endTime: serverTimestamp() });
+                    batch.update(doc.ref, updatedData);
                 });
                 batch.commit()
                     .then(() => {
@@ -327,9 +326,9 @@ export default function TimeTrackingPage() {
                     })
                     .catch(async (serverError) => {
                         const permissionError = new FirestorePermissionError({
-                            path: 'time_entries', // This is a simplification, ideally paths are individual
+                            path: 'time_entries', 
                             operation: 'update',
-                            requestResourceData: { endTime: 'serverTimestamp' },
+                            requestResourceData: updatedData,
                         });
                         errorEmitter.emit('permission-error', permissionError);
                     })
@@ -412,26 +411,26 @@ export default function TimeTrackingPage() {
                 toast({ variant: 'destructive', title: "Clock Out Failed", description: "No active clock-in found for this employee and task." });
                 setIsManualSubmitting(false);
             } else {
-                 const batch = writeBatch(firestore);
+                const updatedData = { endTime: new Date() };
+                // There should only be one active clock-in per task per employee,
+                // but we loop just in case to close all of them.
                 querySnapshot.forEach(docSnap => {
-                    batch.update(docSnap.ref, { endTime: serverTimestamp() });
-                });
-                batch.commit()
+                    updateDoc(docSnap.ref, updatedData)
                     .then(() => {
                         toast({ title: "Clock Out Successful", description: `Clocked out ${manualSelectedEmployee.name}.` });
                         setManualSelectedEmployee(null);
                         setManualEmployeeSearch('');
                     })
                     .catch(async (serverError) => {
-                        // In a batch, we can't easily know which one failed. We simplify.
                         const permissionError = new FirestorePermissionError({
-                            path: 'time_entries', 
+                            path: docSnap.ref.path, 
                             operation: 'update',
-                            requestResourceData: { endTime: 'serverTimestamp()' },
+                            requestResourceData: updatedData,
                         });
                         errorEmitter.emit('permission-error', permissionError);
                     })
                     .finally(() => setIsManualSubmitting(false));
+                });
             }
         });
 
@@ -485,10 +484,11 @@ export default function TimeTrackingPage() {
             setIsBulkClockingOut(false);
             return;
         }
-
+        
+        const updatedData = { endTime: new Date() };
         const batch = writeBatch(firestore);
         querySnapshot.forEach(doc => {
-            batch.update(doc.ref, { endTime: serverTimestamp() });
+            batch.update(doc.ref, updatedData);
         });
 
         batch.commit()
@@ -502,7 +502,7 @@ export default function TimeTrackingPage() {
                 const permissionError = new FirestorePermissionError({
                     path: 'time_entries', // Simplification
                     operation: 'update',
-                    requestResourceData: { endTime: 'serverTimestamp()' },
+                    requestResourceData: updatedData,
                 });
                 errorEmitter.emit('permission-error', permissionError);
             })
@@ -825,5 +825,3 @@ export default function TimeTrackingPage() {
     </div>
   );
 }
-
-    
