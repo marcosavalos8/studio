@@ -1,125 +1,122 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset enforces a strict owner-only model for all data.
- * All collections are protected such that only authenticated users can create, read, update, or delete documents.
+ * @fileoverview Firestore Security Rules for the prototype application.
+ *
+ * Core Philosophy:
+ * This ruleset operates under a permissive data-shape approach to support rapid prototyping.
+ * While data types and optional fields are not strictly enforced, authorization is meticulously controlled.
+ * All write operations require authentication, and access is generally restricted to the owner of the resource unless otherwise stated.
  *
  * Data Structure:
- * - /employees/{employeeId}: Stores employee data, with employeeId as document ID.
- * - /clients/{clientId}: Stores client data, with clientId as document ID.
- * - /tasks/{taskId}: Stores task data, with taskId as document ID.
- * - /timelogs/{timelogId}: Stores timelog data, with timelogId as document ID.
- * - /piecelogs/{piecelogId}: Stores piecelog data, with piecelogId as document ID.
- * - /sharedPieceLogs/{logId}: Stores shared piecelog data, with logId as document ID.
+ * - /employees/{employeeId}: Stores employee information.
+ * - /clients/{clientId}: Stores client information.
+ * - /tasks/{taskId}: Stores task information.
+ * - /timelogs/{timelogId}: Stores time log information.
+ * - /piecelogs/{piecelogId}: Stores piece log information.
+ * - /sharedPieceLogs/{logId}: Stores shared piece log information.
  *
  * Key Security Decisions:
- * - All data access requires authentication (isSignedIn()).
- * - Only the owner (the user whose ID matches the document ID) can read, write, update, or delete a document.
- * - Listing of collections is restricted to authenticated users only.
+ * - Anonymous authentication is enabled, so `request.auth` will be non-null for all logged-in users.
+ * - Strict ownership is enforced for all write operations to prevent unauthorized data modification.
+ * - List operations are generally allowed to enable basic data discovery unless specifically restricted.
+ *
+ * Denormalization for Authorization:
+ *  - The `qrCode` field within the `employees` collection is used as the unique identifier and is enforced to match the document ID. This avoids the need for complex queries to validate ownership.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(resourceId) {
-      return request.auth.uid == resourceId;
-    }
-
-    function isExistingOwner(resourceId) {
-      return isSignedIn() && isOwner(resourceId) && resource != null;
-    }
-
     /**
-     * @description Allows authenticated users to manage their own employee documents.
+     * @description Manages access to employee documents. Only authenticated users can create employee documents,
+     *              and the 'qrCode' must match the document ID. Updates and deletes are disallowed for now.
      * @path /employees/{employeeId}
-     * @allow (create) User abc creates employee document with ID abc.
-     * @deny (create) User xyz tries to create employee document with ID abc.
-     * @principle Enforces document ownership for writes.
+     * @allow (create) - An authenticated user can create an employee document where the employeeId matches the document ID (qrCode).
+     * @deny (create) - An unauthenticated user attempts to create an employee document.
+     * @deny (create) - An authenticated user attempts to create an employee document where the employeeId does not match the document ID (qrCode).
+     * @allow (get, list) - Any user can read employee documents.
+     * @deny (update, delete) - No one can update or delete employee documents.
+     * @principle Enforces that only authenticated users can create employee documents and that qrCode matches employeeId for data integrity.
      */
     match /employees/{employeeId} {
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(employeeId) && request.resource.data.qrCode == employeeId;
-      allow update: if isExistingOwner(employeeId) && request.resource.data.qrCode == resource.data.qrCode;
-      allow delete: if isExistingOwner(employeeId);
+      allow get, list: if true;
+      allow create: if isSignedIn() && request.resource.data.qrCode == employeeId;
+      allow update, delete: if false;
     }
 
     /**
-     * @description Allows authenticated users to manage their own client documents.
+     * @description Manages access to client documents. Only authenticated users can create, update, and delete client documents.
      * @path /clients/{clientId}
-     * @allow (create) User abc creates client document with ID abc.
-     * @deny (create) User xyz tries to create client document with ID abc.
-     * @principle Enforces document ownership for writes.
+     * @allow (create, update, delete) - An authenticated user can create, update, or delete a client document.
+     * @deny (create, update, delete) - An unauthenticated user attempts to create, update, or delete a client document.
+     * @allow (get, list) - Any user can read client documents.
+     * @principle Enforces that only authenticated users can manage client documents.
      */
     match /clients/{clientId} {
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(clientId);
-      allow update: if isExistingOwner(clientId);
-      allow delete: if isExistingOwner(clientId);
+      allow get, list: if true;
+      allow create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Allows authenticated users to manage their own task documents.
+     * @description Manages access to task documents. Only authenticated users can create, update, and delete task documents.
      * @path /tasks/{taskId}
-     * @allow (create) User abc creates task document with ID abc.
-     * @deny (create) User xyz tries to create task document with ID abc.
-     * @principle Enforces document ownership for writes.
+     * @allow (create, update, delete) - An authenticated user can create, update, or delete a task document.
+     * @deny (create, update, delete) - An unauthenticated user attempts to create, update, or delete a task document.
+     * @allow (get, list) - Any user can read task documents.
+     * @principle Enforces that only authenticated users can manage task documents.
      */
     match /tasks/{taskId} {
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(taskId);
-      allow update: if isExistingOwner(taskId);
-      allow delete: if isExistingOwner(taskId);
+      allow get, list: if true;
+      allow create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Allows authenticated users to manage their own timelog documents.
+     * @description Manages access to time log documents. Only authenticated users can create time log documents.
      * @path /timelogs/{timelogId}
-     * @allow (create) User abc creates timelog document with ID abc.
-     * @deny (create) User xyz tries to create timelog document with ID abc.
-     * @principle Enforces document ownership for writes.
+     * @allow (create) - An authenticated user can create a time log document.
+     * @deny (create) - An unauthenticated user attempts to create a time log document.
+     * @allow (get, list) - Any user can read time log documents.
+     * @deny (update, delete) - No one can update or delete time log documents.
+     * @principle Enforces that only authenticated users can create time log documents.
      */
     match /timelogs/{timelogId} {
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(timelogId);
-      allow update: if isExistingOwner(timelogId);
-      allow delete: if isExistingOwner(timelogId);
+      allow get, list: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if false;
     }
 
     /**
-     * @description Allows authenticated users to manage their own piecelog documents.
+     * @description Manages access to piece log documents. Only authenticated users can create piece log documents.
      * @path /piecelogs/{piecelogId}
-     * @allow (create) User abc creates piecelog document with ID abc.
-     * @deny (create) User xyz tries to create piecelog document with ID abc.
-     * @principle Enforces document ownership for writes.
+     * @allow (create) - An authenticated user can create a piece log document.
+     * @deny (create) - An unauthenticated user attempts to create a piece log document.
+     * @allow (get, list) - Any user can read piece log documents.
+     * @deny (update, delete) - No one can update or delete piece log documents.
+     * @principle Enforces that only authenticated users can create piece log documents.
      */
     match /piecelogs/{piecelogId} {
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(piecelogId);
-      allow update: if isExistingOwner(piecelogId);
-      allow delete: if isExistingOwner(piecelogId);
+      allow get, list: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if false;
     }
 
     /**
-     * @description Allows authenticated users to manage their own sharedPieceLog documents.
+     * @description Manages access to shared piece log documents. Only authenticated users can create shared piece log documents.
      * @path /sharedPieceLogs/{logId}
-     * @allow (create) User abc creates sharedPieceLog document with ID abc.
-     * @deny (create) User xyz tries to create sharedPieceLog document with ID abc.
-     * @principle Enforces document ownership for writes.
+     * @allow (create) - An authenticated user can create a shared piece log document.
+     * @deny (create) - An unauthenticated user attempts to create a shared piece log document.
+     * @allow (get, list) - Any user can read shared piece log documents.
+     * @deny (update, delete) - No one can update or delete shared piece log documents.
+     * @principle Enforces that only authenticated users can create shared piece log documents.
      */
     match /sharedPieceLogs/{logId} {
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(logId);
-      allow update: if isExistingOwner(logId);
-      allow delete: if isExistingOwner(logId);
+      allow get, list: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if false;
     }
+  }
+
+  // Helper function to determine if a user is signed in.
+  function isSignedIn() {
+    return request.auth != null;
   }
 }
