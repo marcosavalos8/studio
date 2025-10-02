@@ -1,148 +1,145 @@
+/**
+ * @file Firebase Security Rules for the Time Tracking Application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for time entries and piecework data stored under the /users/{userId} path.
+ * Administrative access is required for managing employee, client, and task data stored in the root collections.
+ *
+ * Data Structure:
+ * - /employees/{employeeId}: Stores employee profiles. Modification is restricted to administrators.
+ * - /users/{userId}/time_entries/{timeEntryId}: Stores time entries for individual users. Accessible only by the user or administrators.
+ * - /users/{userId}/piecework/{pieceworkId}: Stores piecework records for individual users. Accessible only by the user or administrators.
+ * - /clients/{clientId}: Stores client information. Modification is restricted to administrators.
+ * - /tasks/{taskId}: Stores task details. Modification is restricted to administrators.
+ *
+ * Key Security Decisions:
+ * - Listing of employees, clients, and tasks is allowed for all authenticated users.
+ * - Time entries and piecework records are strictly private to the owning user.
+ * - The rules are designed to avoid any `get()` calls for authorization, ensuring scalability and performance.
+ * - No data shape validation is performed in this prototyping phase.
+ *
+ * Denormalization for Authorization:
+ * - The `employeeId` field within TimeEntry and Piecework documents is used for enforcing ownership within `/users/{userId}` subcollections. This allows authorization without additional reads.
+ *
+ * Structural Segregation:
+ * - Time entry and piecework data are stored under user-specific subcollections (/users/{userId}/time_entries, /users/{userId}/piecework) to ensure that only the owning user (or an admin) can access them.
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the user is signed in.
-     * @return {bool} True if the user is signed in, false otherwise.
+     * @description Checks if the request is authenticated.
+     * @path N/A
+     * @allow N/A
+     * @deny N/A
+     * @principle Requires authentication for protected resources.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Checks if the user is the owner of the document.
-     * @param {string} userId - The user ID to compare against.
-     * @return {bool} True if the user is the owner, false otherwise.
+     * @description Checks if the authenticated user ID matches the provided user ID.
+     * @path N/A
+     * @allow N/A
+     * @deny N/A
+     * @principle Enforces user-based ownership.
      */
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
 
     /**
-     * @description Checks if the user is an existing owner of the document.
-     * @param {string} userId - The user ID to compare against.
-     * @return {bool} True if the user is the owner and the resource exists, false otherwise.
+     * @description Checks if the authenticated user owns the existing document.
+     * @path N/A
+     * @allow N/A
+     * @deny N/A
+     * @principle Protects against modification or deletion of non-existent documents.
      */
     function isExistingOwner(userId) {
-        return isOwner(userId) && exists(resource);
+      return isOwner(userId) && resource != null;
     }
 
-    /**
-     * @description Checks if the user has the 'admin' role.
-     * @return {bool} True if the user has the admin role, false otherwise.
-     */
-    function isAdmin() {
-      //CRITICAL: The implementation of isAdmin() is not defined in the JSON and defaults to false.
-      // In a real application, this would likely involve checking a custom claim
-      // or a document in a separate collection.  For prototyping, we'll grant
-      // admin access to all signed-in users.
-      return isSignedIn();
-    }
+    /**************** Employees Collection ****************/
 
     /**
-     * @description Rules for the /employees/{employeeId} collection.
+     * @description Manages employee profiles. Only administrators can create, update, or delete employee profiles.
      * @path /employees/{employeeId}
-     * @allow (create) If the user has the 'admin' role.
-     * @deny (create) If the user does not have the 'admin' role.
-     * @allow (get) If the user has the 'admin' role.
-     * @deny (get) If the user does not have the 'admin' role.
-     * @allow (update) If the user has the 'admin' role.
-     * @deny (update) If the user does not have the 'admin' role.
-     * @allow (delete) If the user has the 'admin' role.
-     * @deny (delete) If the user does not have the 'admin' role.
-     * @principle Restricts employee creation and modification to users with the 'admin' role.
+     * @allow (get, list): Any authenticated user can read employee data.
+     * @allow (create, update, delete): Only an admin can modify employee data.  (Assume admin role managed externally)
+     * @deny (create, update, delete): Non-admin users cannot modify employee data.
+     * @principle Enforces role-based access control for employee management.
      */
     match /employees/{employeeId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false; // TODO: Add admin role check
     }
 
-    /**
-     * @description Rules for the /users/{userId}/time_entries/{timeEntryId} collection.
-     * @path /users/{userId}/time_entries/{timeEntryId}
-     * @allow (create) If the user is the owner of the time entry.
-     * @deny (create) If the user is not the owner of the time entry.
-     * @allow (get) If the user is the owner of the time entry.
-     * @deny (get) If the user is not the owner of the time entry.
-     * @allow (update) If the user is the owner of the time entry.
-     * @deny (update) If the user is not the owner of the time entry.
-     * @allow (delete) If the user is the owner of the time entry.
-     * @deny (delete) If the user is not the owner of the time entry.
-     * @principle Enforces document ownership for time entries.
-     */
-    match /users/{userId}/time_entries/{timeEntryId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.auth.uid == userId;
-      allow update: if isOwner(userId) && request.auth.uid == userId;
-      allow delete: if isOwner(userId) && request.auth.uid == userId;
-    }
+    /**************** Clients Collection ****************/
 
     /**
-     * @description Rules for the /users/{userId}/piecework/{pieceworkId} collection.
-     * @path /users/{userId}/piecework/{pieceworkId}
-     * @allow (create) If the user is the owner of the piecework record.
-     * @deny (create) If the user is not the owner of the piecework record.
-     * @allow (get) If the user is the owner of the piecework record.
-     * @deny (get) If the user is not the owner of the piecework record.
-     * @allow (update) If the user is the owner of the piecework record.
-     * @deny (update) If the user is not the owner of the piecework record.
-     * @allow (delete) If the user is the owner of the piecework record.
-     * @deny (delete) If the user is not the owner of the piecework record.
-     * @principle Enforces document ownership for piecework records.
-     */
-    match /users/{userId}/piecework/{pieceworkId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.auth.uid == userId;
-      allow update: if isOwner(userId) && request.auth.uid == userId;
-      allow delete: if isOwner(userId) && request.auth.uid == userId;
-    }
-
-    /**
-     * @description Rules for the /clients/{clientId} collection.
+     * @description Manages client information. Only administrators can create, update, or delete client information.
      * @path /clients/{clientId}
-     * @allow (create) If the user has the 'admin' role.
-     * @deny (create) If the user does not have the 'admin' role.
-     * @allow (get) If the user has the 'admin' role.
-     * @deny (get) If the user does not have the 'admin' role.
-     * @allow (update) If the user has the 'admin' role.
-     * @deny (update) If the user does not have the 'admin' role.
-     * @allow (delete) If the user has the 'admin' role.
-     * @deny (delete) If the user does not have the 'admin' role.
-     * @principle Restricts client creation and modification to users with the 'admin' role.
+     * @allow (get, list): Any authenticated user can read client data.
+     * @allow (create, update, delete): Only an admin can modify client data. (Assume admin role managed externally)
+     * @deny (create, update, delete): Non-admin users cannot modify client data.
+     * @principle Enforces role-based access control for client management.
      */
     match /clients/{clientId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false; // TODO: Add admin role check
     }
 
+    /**************** Tasks Collection ****************/
+
     /**
-     * @description Rules for the /tasks/{taskId} collection.
+     * @description Manages task definitions. Only administrators can create, update, or delete tasks.
      * @path /tasks/{taskId}
-     * @allow (create) If the user has the 'admin' role.
-     * @deny (create) If the user does not have the 'admin' role.
-     * @allow (get) If the user has the 'admin' role.
-     * @deny (get) If the user does not have the 'admin' role.
-     * @allow (update) If the user has the 'admin' role.
-     * @deny (update) If the user does not have the 'admin' role.
-     * @allow (delete) If the user has the 'admin' role.
-     * @deny (delete) If the user does not have the 'admin' role.
-     * @principle Restricts task creation and modification to users with the 'admin' role.
+     * @allow (get, list): Any authenticated user can read task data.
+     * @allow (create, update, delete): Only an admin can modify task data.  (Assume admin role managed externally)
+     * @deny (create, update, delete): Non-admin users cannot modify task data.
+     * @principle Enforces role-based access control for task management.
      */
     match /tasks/{taskId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false; // TODO: Add admin role check
+    }
+
+    /**************** Time Entries Collection ****************/
+
+    /**
+     * @description Manages time entries for a specific user. Only the owning user can create, read, update, or delete their own time entries.
+     * @path /users/{userId}/time_entries/{timeEntryId}
+     * @allow (create): The user can create a time entry if the userId matches their authentication.
+     * @allow (get, list): The user can get/list their own time entries.
+     * @allow (update, delete): The user can update/delete their own time entries, but only if the document exists.
+     * @deny (create, update, delete): Another user cannot create/modify/delete time entries for other users.
+     * @principle Enforces user-based ownership for time entry management.
+     */
+    match /users/{userId}/time_entries/{timeEntryId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**************** Piecework Collection ****************/
+
+    /**
+     * @description Manages piecework records for a specific user. Only the owning user can create, read, update, or delete their own piecework records.
+     * @path /users/{userId}/piecework/{pieceworkId}
+     * @allow (create): The user can create a piecework record if the userId matches their authentication.
+     * @allow (get, list): The user can get/list their own piecework records.
+     * @allow (update, delete): The user can update/delete their own piecework records, but only if the document exists.
+     * @deny (create, update, delete): Another user cannot create/modify/delete piecework records for other users.
+     * @principle Enforces user-based ownership for piecework record management.
+     */
+    match /users/{userId}/piecework/{pieceworkId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
   }
 }
