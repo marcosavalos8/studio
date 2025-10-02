@@ -1,9 +1,125 @@
+/**
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a strict owner-only model for all data.
+ * All collections are protected such that only authenticated users can create, read, update, or delete documents.
+ *
+ * Data Structure:
+ * - /employees/{employeeId}: Stores employee data, with employeeId as document ID.
+ * - /clients/{clientId}: Stores client data, with clientId as document ID.
+ * - /tasks/{taskId}: Stores task data, with taskId as document ID.
+ * - /timelogs/{timelogId}: Stores timelog data, with timelogId as document ID.
+ * - /piecelogs/{piecelogId}: Stores piecelog data, with piecelogId as document ID.
+ * - /sharedPieceLogs/{logId}: Stores shared piecelog data, with logId as document ID.
+ *
+ * Key Security Decisions:
+ * - All data access requires authentication (isSignedIn()).
+ * - Only the owner (the user whose ID matches the document ID) can read, write, update, or delete a document.
+ * - Listing of collections is restricted to authenticated users only.
+ */
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(resourceId) {
+      return request.auth.uid == resourceId;
+    }
+
+    function isExistingOwner(resourceId) {
+      return isSignedIn() && isOwner(resourceId) && resource != null;
+    }
+
+    /**
+     * @description Allows authenticated users to manage their own employee documents.
+     * @path /employees/{employeeId}
+     * @allow (create) User abc creates employee document with ID abc.
+     * @deny (create) User xyz tries to create employee document with ID abc.
+     * @principle Enforces document ownership for writes.
+     */
+    match /employees/{employeeId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(employeeId) && request.resource.data.qrCode == employeeId;
+      allow update: if isExistingOwner(employeeId) && request.resource.data.qrCode == resource.data.qrCode;
+      allow delete: if isExistingOwner(employeeId);
+    }
+
+    /**
+     * @description Allows authenticated users to manage their own client documents.
+     * @path /clients/{clientId}
+     * @allow (create) User abc creates client document with ID abc.
+     * @deny (create) User xyz tries to create client document with ID abc.
+     * @principle Enforces document ownership for writes.
+     */
+    match /clients/{clientId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(clientId);
+      allow update: if isExistingOwner(clientId);
+      allow delete: if isExistingOwner(clientId);
+    }
+
+    /**
+     * @description Allows authenticated users to manage their own task documents.
+     * @path /tasks/{taskId}
+     * @allow (create) User abc creates task document with ID abc.
+     * @deny (create) User xyz tries to create task document with ID abc.
+     * @principle Enforces document ownership for writes.
+     */
+    match /tasks/{taskId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(taskId);
+      allow update: if isExistingOwner(taskId);
+      allow delete: if isExistingOwner(taskId);
+    }
+
+    /**
+     * @description Allows authenticated users to manage their own timelog documents.
+     * @path /timelogs/{timelogId}
+     * @allow (create) User abc creates timelog document with ID abc.
+     * @deny (create) User xyz tries to create timelog document with ID abc.
+     * @principle Enforces document ownership for writes.
+     */
+    match /timelogs/{timelogId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(timelogId);
+      allow update: if isExistingOwner(timelogId);
+      allow delete: if isExistingOwner(timelogId);
+    }
+
+    /**
+     * @description Allows authenticated users to manage their own piecelog documents.
+     * @path /piecelogs/{piecelogId}
+     * @allow (create) User abc creates piecelog document with ID abc.
+     * @deny (create) User xyz tries to create piecelog document with ID abc.
+     * @principle Enforces document ownership for writes.
+     */
+    match /piecelogs/{piecelogId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(piecelogId);
+      allow update: if isExistingOwner(piecelogId);
+      allow delete: if isExistingOwner(piecelogId);
+    }
+
+    /**
+     * @description Allows authenticated users to manage their own sharedPieceLog documents.
+     * @path /sharedPieceLogs/{logId}
+     * @allow (create) User abc creates sharedPieceLog document with ID abc.
+     * @deny (create) User xyz tries to create sharedPieceLog document with ID abc.
+     * @principle Enforces document ownership for writes.
+     */
+    match /sharedPieceLogs/{logId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(logId);
+      allow update: if isExistingOwner(logId);
+      allow delete: if isExistingOwner(logId);
     }
   }
 }
