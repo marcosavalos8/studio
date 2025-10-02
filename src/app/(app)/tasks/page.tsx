@@ -16,19 +16,33 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { PlusCircle } from "lucide-react"
+import { PlusCircle, MoreHorizontal } from "lucide-react"
 
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy } from "firebase/firestore"
 import type { Task, Client } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { AddTaskDialog } from "./add-task-dialog"
+import { EditTaskDialog } from "./edit-task-dialog"
+import { DeleteTaskDialog } from "./delete-task-dialog"
 
 export default function TasksPage() {
     const firestore = useFirestore()
     const [isAddDialogOpen, setAddDialogOpen] = useState(false)
+    const [isEditDialogOpen, setEditDialogOpen] = useState(false)
+    const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false)
+    const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+
 
     const tasksQuery = useMemoFirebase(() => {
         if (!firestore) return null
@@ -41,6 +55,16 @@ export default function TasksPage() {
       return query(collection(firestore, "clients"), orderBy("name"))
     }, [firestore])
     const { data: clients, isLoading: loadingClients } = useCollection<Client>(clientsQuery)
+
+    const handleEdit = (task: Task) => {
+        setSelectedTask(task)
+        setEditDialogOpen(true)
+    }
+
+    const handleDelete = (task: Task) => {
+        setSelectedTask(task)
+        setDeleteDialogOpen(true)
+    }
 
     return (
         <>
@@ -60,27 +84,22 @@ export default function TasksPage() {
                 <TableHeader>
                     <TableRow>
                     <TableHead>Task Name</TableHead>
-                    <TableHead>Variety</TableHead>
-                    <TableHead>Ranch</TableHead>
-                    <TableHead>Block</TableHead>
                     <TableHead>Client</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Employee Pay Type</TableHead>
                     <TableHead className="text-right">Employee Rate</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {loadingTasks && (
                         <TableRow>
-                            <TableCell colSpan={8} className="text-center">Loading...</TableCell>
+                            <TableCell colSpan={6} className="text-center">Loading...</TableCell>
                         </TableRow>
                     )}
                     {tasks && tasks.map((task) => (
                     <TableRow key={task.id}>
                         <TableCell className="font-medium">{task.name}</TableCell>
-                        <TableCell>{task.variety}</TableCell>
-                        <TableCell>{task.ranch}</TableCell>
-                        <TableCell>{task.block}</TableCell>
                         <TableCell>{task.client}</TableCell>
                         <TableCell>
                         <Badge
@@ -98,6 +117,29 @@ export default function TasksPage() {
                         <TableCell className="text-right">
                           ${task.employeeRate.toFixed(2)}/{task.employeePayType === 'hourly' ? 'hr' : 'piece'}
                         </TableCell>
+                         <TableCell className="text-right">
+                            <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Open menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuItem onClick={() => handleEdit(task)}>
+                                Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                                onClick={() => handleDelete(task)}
+                                >
+                                Delete
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                            </DropdownMenu>
+                        </TableCell>
                     </TableRow>
                     ))}
                 </TableBody>
@@ -105,6 +147,21 @@ export default function TasksPage() {
             </CardContent>
             </Card>
             {clients && <AddTaskDialog isOpen={isAddDialogOpen} onOpenChange={setAddDialogOpen} clients={clients} />}
+            {selectedTask && clients && (
+                <>
+                <EditTaskDialog
+                    isOpen={isEditDialogOpen}
+                    onOpenChange={setEditDialogOpen}
+                    task={selectedTask}
+                    clients={clients}
+                />
+                <DeleteTaskDialog
+                    isOpen={isDeleteDialogOpen}
+                    onOpenChange={setDeleteDialogOpen}
+                    task={selectedTask}
+                />
+                </>
+            )}
         </>
     )
 }
