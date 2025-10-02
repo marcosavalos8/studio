@@ -17,13 +17,11 @@ type QrScannerComponentProps = {
 export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
     const { toast } = useToast()
     const [error, setError] = useState<string | null>(null)
-    const [constraints, setConstraints] = useState(null);
+    const [hasMounted, setHasMounted] = useState(false);
 
 
     useEffect(() => {
-        setConstraints({
-            video: { facingMode: 'environment' }
-        } as any);
+        setHasMounted(true);
     }, []);
 
     const handleScan = (result: any) => {
@@ -55,12 +53,18 @@ export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
         )
     }
 
+    if (!hasMounted) {
+        return null;
+    }
+
     return (
         <div className="w-full aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden">
-           {constraints && <QrScanner
+           {<QrScanner
                 onScan={handleScan}
                 onError={handleError}
-                constraints={constraints}
+                constraints={{
+                    video: { facingMode: 'environment' }
+                }}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />}
         </div>
