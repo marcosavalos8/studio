@@ -31,11 +31,7 @@ function initializeFirebase(): {
       try {
         await signInAnonymously(auth);
       } catch (error: any) {
-        if (error.code === 'auth/operation-not-allowed' || error.code === 'auth/configuration-not-found') {
-          console.error("SIGN IN ERROR: Anonymous sign-in is not enabled in your Firebase project's authentication settings. Please go to the Firebase console, navigate to Authentication > Sign-in method, and enable 'Anonymous' sign-in.");
-        } else {
-          console.error("Anonymous sign-in failed:", error);
-        }
+        console.error("Anonymous sign-in failed:", error);
       }
     }
   });
