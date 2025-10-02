@@ -1,8 +1,13 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset enforces role-based access control.
+ * @fileoverview Firestore Security Rules for the application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces role-based access control for write operations and allows public read access.
+ * Only admin users can create, update, or delete client, tasks, and employee records. All authenticated
+ * users can read client, task, and employee records. Any authenticated user can read and write TimeEntry and Piecework records.
  *
  * Data Structure:
+ * The Firestore database is structured as follows:
  * - /clients/{clientId}: Stores client information.
  * - /tasks/{taskId}: Stores task information.
  * - /employees/{employeeId}: Stores employee information.
@@ -10,98 +15,96 @@
  * - /piecework/{pieceworkId}: Stores piecework records.
  *
  * Key Security Decisions:
- * - Authenticated users can read any data.
- * - Only admins can create, update, or delete client, task, and employee data.
- * - All authenticated users can create, update, and delete time_entries and piecework data.
- * - No validation of data types or required fields is performed in this prototyping phase.
+ * - Role-Based Access Control: Write operations are restricted to users with admin roles.
+ * - Public Read Access: Read operations are generally open to all authenticated users.
+ * - No User Listing: Listing all users is not permitted.
+ * - Flexible Data Shapes: The rules do not enforce strict schema validation, allowing for rapid iteration.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows authenticated users to read client data, but only admins can create, update, or delete.
+     * @description Grants read access to all authenticated users and restricts write access to admins only.
      * @path /clients/{clientId}
-     * @allow (get, list): if true;
-     * @allow (create): if false; // TODO: Implement admin role check
-     * @allow (update): if false; // TODO: Implement admin role check
-     * @allow (delete): if false; // TODO: Implement admin role check
-     * @deny (create): if true; // Missing or insufficient permissions.
-     * @principle Role-based access control, enforcing admin-only writes for client data.
+     * @allow (get, list): Authenticated user can read client data.
+     * @allow (create, update, delete): Admin user can create, update, or delete client data.
+     * @deny (create, update, delete): Non-admin user attempts to create, update, or delete client data.
+     * @principle Enforces role-based access control for writes.
      */
     match /clients/{clientId} {
-      allow get, list: if true;
-      allow create: if false; // TODO: Implement admin role check
-      allow update: if false; // TODO: Implement admin role check
-      allow delete: if false; // TODO: Implement admin role check
+      allow get, list: if isSignedIn();
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Allows authenticated users to read task data, but only admins can create, update, or delete.
+     * @description Grants read access to all authenticated users and restricts write access to admins only.
      * @path /tasks/{taskId}
-     * @allow (get, list): if true;
-     * @allow (create): if false; // TODO: Implement admin role check
-     * @allow (update): if false; // TODO: Implement admin role check
-     * @allow (delete): if false; // TODO: Implement admin role check
-     * @principle Role-based access control, enforcing admin-only writes for task data.
+     * @allow (get, list): Authenticated user can read task data.
+     * @allow (create, update, delete): Admin user can create, update, or delete task data.
+     * @deny (create, update, delete): Non-admin user attempts to create, update, or delete task data.
+     * @principle Enforces role-based access control for writes.
      */
     match /tasks/{taskId} {
-      allow get, list: if true;
-      allow create: if false; // TODO: Implement admin role check
-      allow update: if false; // TODO: Implement admin role check
-      allow delete: if false; // TODO: Implement admin role check
+      allow get, list: if isSignedIn();
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Allows authenticated users to read employee data, but only admins can create, update, or delete.
+     * @description Grants read access to all authenticated users and restricts write access to admins only.
      * @path /employees/{employeeId}
-     * @allow (get, list): if true;
-     * @allow (create): if false; // TODO: Implement admin role check
-     * @allow (update): if false; // TODO: Implement admin role check
-     * @allow (delete): if false; // TODO: Implement admin role check
-     * @principle Role-based access control, enforcing admin-only writes for employee data.
+     * @allow (get, list): Authenticated user can read employee data.
+     * @allow (create, update, delete): Admin user can create, update, or delete employee data.
+     * @deny (create, update, delete): Non-admin user attempts to create, update, or delete employee data.
+     * @principle Enforces role-based access control for writes.
      */
     match /employees/{employeeId} {
-      allow get, list: if true;
-      allow create: if false; // TODO: Implement admin role check
-      allow update: if false; // TODO: Implement admin role check
-      allow delete: if false; // TODO: Implement admin role check
+      allow get, list: if isSignedIn();
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Allows any authenticated user to create, read, update, and delete time entry records.
+     * @description Grants read and write access to all authenticated users.
      * @path /time_entries/{timeEntryId}
-     * @allow (get, list): if true;
-     * @allow (create): if isSignedIn();
-     * @allow (update): if isSignedIn();
-     * @allow (delete): if isSignedIn();
-     * @principle Authenticated users can manage their own time entry data.
+     * @allow (get, list, create, update, delete): Authenticated user can perform any operation on time entry data.
+     * @principle Allows any authenticated user to manage time entry records.
      */
     match /time_entries/{timeEntryId} {
-      allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow get, list, create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Allows any authenticated user to create, read, update, and delete piecework records.
+     * @description Grants read and write access to all authenticated users.
      * @path /piecework/{pieceworkId}
-     * @allow (get, list): if true;
-     * @allow (create): if isSignedIn();
-     * @allow (update): if isSignedIn();
-     * @allow (delete): if isSignedIn();
-     * @principle Authenticated users can manage their own piecework data.
+     * @allow (get, list, create, update, delete): Authenticated user can perform any operation on piecework data.
+     * @principle Allows any authenticated user to manage piecework records.
      */
     match /piecework/{pieceworkId} {
-      allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow get, list, create, update, delete: if isSignedIn();
     }
-  }
 
-  function isSignedIn() {
-    return request.auth != null;
+    // ---- Helper functions ----
+
+    /**
+     * @description Checks if the user is signed in.
+     * @return {boolean} True if the user is signed in, false otherwise.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the user has the 'admin' role.
+     * @return {boolean} True if the user has the 'admin' role, false otherwise.
+     */
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.role == 'admin';
+    }
   }
 }
