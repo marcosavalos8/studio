@@ -13,7 +13,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from "recharts"
 
 const chartData = [
   { month: "January", hours: 186, pieces: 400 },
@@ -37,15 +37,15 @@ const chartConfig = {
 
 export function Chart() {
     return (
-        <Card>
+        <Card className="h-full flex flex-col">
         <CardHeader>
           <CardTitle>Work Activity Overview</CardTitle>
           <CardDescription>
             Comparison of hours logged vs. pieces recorded over the last 6 months.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
+        <CardContent className="flex-1">
+          <ChartContainer config={chartConfig} className="min-h-[200px] h-full w-full">
             <BarChart accessibilityLayer data={chartData}>
               <CartesianGrid vertical={false} />
               <XAxis
@@ -53,12 +53,18 @@ export function Chart() {
                 tickLine={false}
                 tickMargin={10}
                 axisLine={false}
+                stroke="#888888"
+                fontSize={12}
               />
-              <YAxis />
+              <YAxis
+                stroke="#888888"
+                fontSize={12}
+              />
               <ChartTooltip
                 cursor={false}
                 content={<ChartTooltipContent />}
               />
+              <Legend />
               <Bar dataKey="hours" fill="var(--color-hours)" radius={4} />
               <Bar dataKey="pieces" fill="var(--color-pieces)" radius={4} />
             </BarChart>

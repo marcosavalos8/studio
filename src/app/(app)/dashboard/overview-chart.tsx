@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 const Chart = dynamic(() => import('./chart').then(mod => mod.Chart), {
     ssr: false,
-    loading: () => <Skeleton className="h-[300px]" />,
+    loading: () => <Skeleton className="h-[400px]" />,
 })
 
 export function OverviewChart() {

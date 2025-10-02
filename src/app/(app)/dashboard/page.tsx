@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { OverviewChart } from "./overview-chart"
 import { WeatherWidget } from "./weather-widget"
+import { LiveActivity } from "./live-activity"
 
 
 export default function DashboardPage() {
@@ -71,7 +72,14 @@ export default function DashboardPage() {
         <WeatherWidget />
       </div>
 
-      <OverviewChart />
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        <div className="lg:col-span-4">
+            <OverviewChart />
+        </div>
+        <div className="lg:col-span-3">
+            <LiveActivity />
+        </div>
+      </div>
     </div>
   )
 }
