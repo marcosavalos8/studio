@@ -19,10 +19,10 @@ export const clients: Omit<Client, 'id'>[] = [
 ];
 
 export const tasks: Omit<Task, 'id'>[] = [
-  { name: 'Apple Picking', client: 'Green Valley Farms', clientRate: 20, clientRateType: 'piece', employeePayType: 'piecework', employeeRate: 0.5, status: 'Active' },
+  { name: 'Apple Picking', variety: 'Gala', client: 'Green Valley Farms', clientRate: 20, clientRateType: 'piece', employeePayType: 'piecework', employeeRate: 0.5, status: 'Active' },
   { name: 'Cherry Sorting', client: 'Sunrise Orchards', clientRate: 25, clientRateType: 'hourly', employeePayType: 'hourly', employeeRate: 18, status: 'Active' },
   { name: 'Vineyard Pruning', client: 'Green Valley Farms', clientRate: 22, clientRateType: 'hourly', employeePayType: 'hourly', employeeRate: 19, status: 'Inactive' },
-  { name: 'Packing Boxes', client: 'Columbia Basin Produce', clientRate: 0.8, clientRateType: 'piece', employeePayType: 'piecework', employeeRate: 0.2, status: 'Active' },
+  { name: 'Packing Boxes', variety: 'Mixed', client: 'Columbia Basin Produce', clientRate: 0.8, clientRateType: 'piece', employeePayType: 'piecework', employeeRate: 0.2, status: 'Active' },
   { name: 'Harvesting Asparagus', client: 'Columbia Basin Produce', clientRate: 1.2, clientRateType: 'piece', employeePayType: 'piecework', employeeRate: 0.3, status: 'Completed' },
 ];
 

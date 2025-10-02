@@ -51,6 +51,7 @@ export default function TasksPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Task Name</TableHead>
+              <TableHead>Variety</TableHead>
               <TableHead>Client</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Employee Pay Type</TableHead>
@@ -60,12 +61,13 @@ export default function TasksPage() {
           <TableBody>
             {loading && (
                 <TableRow>
-                    <TableCell colSpan={5} className="text-center">Loading...</TableCell>
+                    <TableCell colSpan={6} className="text-center">Loading...</TableCell>
                 </TableRow>
             )}
             {tasks && tasks.map((task) => (
               <TableRow key={task.id}>
                 <TableCell className="font-medium">{task.name}</TableCell>
+                <TableCell>{task.variety}</TableCell>
                 <TableCell>{task.client}</TableCell>
                 <TableCell>
                   <Badge

@@ -16,6 +16,7 @@ export type Client = {
 export type Task = {
   id: string;
   name: string;
+  variety?: string;
   client: string; // client name
   clientRate: number;
   clientRateType: 'hourly' | 'piece';
