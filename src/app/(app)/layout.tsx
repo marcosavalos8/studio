@@ -8,6 +8,10 @@ export default function AppLayout({
 }: {
   children: React.ReactNode
 }) {
+  const path = (children as any)?.props?.childProp?.segment
+  if (path === 'print-badge') {
+    return <>{children}</>
+  }
   return (
     <FirebaseClientProvider>
       <SidebarProvider>
