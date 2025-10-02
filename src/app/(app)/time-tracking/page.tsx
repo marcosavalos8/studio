@@ -33,7 +33,7 @@ import { Switch } from '@/components/ui/switch'
 import JSConfetti from 'js-confetti'
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase'
 import { collection, query, where, getDocs, writeBatch, serverTimestamp, addDoc, updateDoc, doc, getDoc } from 'firebase/firestore'
-import type { Task, TimeEntry, Piecework, Employee } from '@/lib/types'
+import type { Task, TimeEntry, Piecework, Employee, Client } from '@/lib/types'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const QrScanner = dynamic(() => import('./qr-scanner').then(mod => mod.QrScannerComponent), {
@@ -62,18 +62,25 @@ export default function TimeTrackingPage() {
   const [selectedBulkTask, setSelectedBulkTask] = useState<string>('');
   const [isBulkClockingOut, setIsBulkClockingOut] = useState(false);
 
-  const [selectedTask, setSelectedTask] = useState<string>('');
+  const [selectedClient, setSelectedClient] = useState<string>('');
   const [selectedRanch, setSelectedRanch] = useState<string>('');
   const [selectedBlock, setSelectedBlock] = useState<string>('');
+  const [selectedTask, setSelectedTask] = useState<string>('');
   
   const [manualEmployeeSearch, setManualEmployeeSearch] = useState('');
   const [manualSelectedEmployee, setManualSelectedEmployee] = useState<Employee | null>(null);
 
 
-  const tasksQuery = useMemoFirebase(() => {
+  const clientsQuery = useMemoFirebase(() => {
     if (!firestore) return null
-    return query(collection(firestore, "tasks"), where("status", "==", "Active"));
-  }, [firestore])
+    return query(collection(firestore, "clients"), where("name", "!=", ""));
+  }, [firestore]);
+  const { data: clients } = useCollection<Client>(clientsQuery);
+  
+  const tasksQuery = useMemoFirebase(() => {
+    if (!firestore || !selectedClient) return null
+    return query(collection(firestore, "tasks"), where("status", "==", "Active"), where("client", "==", selectedClient));
+  }, [firestore, selectedClient])
   const { data: tasks } = useCollection<Task>(tasksQuery);
   
   const employeesQuery = useMemoFirebase(() => {
@@ -83,10 +90,24 @@ export default function TimeTrackingPage() {
   const { data: activeEmployees } = useCollection<Employee>(employeesQuery);
 
   const ranches = useMemo(() => tasks ? [...new Set(tasks.map(t => t.ranch).filter(Boolean))] : [], [tasks]);
+  
   const blocks = useMemo(() => {
     if (!selectedRanch || !tasks) return [];
     return [...new Set(tasks.filter(t => t.ranch === selectedRanch).map(t => t.block).filter(Boolean))];
   }, [tasks, selectedRanch]);
+  
+  const filteredTasks = useMemo(() => {
+    if (!tasks) return [];
+    let filtered = tasks;
+    if (selectedRanch) {
+      filtered = filtered.filter(t => t.ranch === selectedRanch);
+    }
+    if (selectedBlock) {
+      filtered = filtered.filter(t => t.block === selectedBlock);
+    }
+    return filtered;
+  }, [tasks, selectedRanch, selectedBlock]);
+
 
   const currentTask = useMemo(() => tasks?.find(t => t.id === selectedTask), [tasks, selectedTask])
 
@@ -115,6 +136,23 @@ export default function TimeTrackingPage() {
         audioContext?.close();
     }
   }, []);
+
+  // Reset selections when client changes
+  useEffect(() => {
+    setSelectedRanch('');
+    setSelectedBlock('');
+    setSelectedTask('');
+  }, [selectedClient])
+
+  useEffect(() => {
+    setSelectedBlock('');
+    setSelectedTask('');
+  }, [selectedRanch]);
+
+  useEffect(() => {
+    setSelectedTask('');
+  }, [selectedBlock]);
+
 
   // Reset scans when mode changes
   useEffect(() => {
@@ -149,7 +187,7 @@ export default function TimeTrackingPage() {
   const handleScanResult = (scannedData: string) => {
       if (!selectedTask) {
           playBeep(false);
-          toast({ variant: "destructive", title: "Task not selected", description: "Please select a task, ranch, and block before scanning." });
+          toast({ variant: "destructive", title: "Task not selected", description: "Please select a client, ranch, block, and task before scanning." });
           return;
       }
 
@@ -307,6 +345,63 @@ export default function TimeTrackingPage() {
     }
   };
 
+  const SelectionFields = ({ isManual = false }: { isManual?: boolean }) => (
+    <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${isManual ? 'p-4 border rounded-md' : ''}`}>
+        <div className="space-y-2">
+          <Label htmlFor="client-select">Client</Label>
+          <Select value={selectedClient} onValueChange={setSelectedClient}>
+              <SelectTrigger id="client-select">
+                  <SelectValue placeholder="Select a client" />
+              </SelectTrigger>
+              <SelectContent>
+                  {clients?.map(client => (
+                      <SelectItem key={client.id} value={client.name}>{client.name}</SelectItem>
+                  ))}
+              </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="ranch-select">Ranch</Label>
+          <Select value={selectedRanch} onValueChange={setSelectedRanch} disabled={!selectedClient || ranches.length === 0}>
+              <SelectTrigger id="ranch-select">
+                  <SelectValue placeholder="Select a ranch" />
+              </SelectTrigger>
+              <SelectContent>
+                  {ranches.map(ranch => (
+                      <SelectItem key={ranch} value={ranch}>{ranch}</SelectItem>
+                  ))}
+              </SelectContent>
+          </Select>
+        </div>
+         <div className="space-y-2">
+          <Label htmlFor="block-select">Block</Label>
+          <Select value={selectedBlock} onValueChange={setSelectedBlock} disabled={!selectedRanch || blocks.length === 0}>
+              <SelectTrigger id="block-select">
+                  <SelectValue placeholder="Select a block" />
+              </SelectTrigger>
+              <SelectContent>
+                  {blocks.map(block => (
+                      <SelectItem key={block} value={block}>{block}</SelectItem>
+                  ))}
+              </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="task-select">Task</Label>
+          <Select value={selectedTask} onValueChange={setSelectedTask} disabled={filteredTasks.length === 0}>
+              <SelectTrigger id="task-select">
+                  <SelectValue placeholder="Select a task" />
+              </SelectTrigger>
+              <SelectContent>
+                  {filteredTasks?.map(task => (
+                      <SelectItem key={task.id} value={task.id}>{task.name} ({task.variety})</SelectItem>
+                  ))}
+              </SelectContent>
+          </Select>
+        </div>
+    </div>
+  )
+
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -330,47 +425,7 @@ export default function TimeTrackingPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="task-select">Task</Label>
-                    <Select value={selectedTask} onValueChange={setSelectedTask}>
-                        <SelectTrigger id="task-select">
-                            <SelectValue placeholder="Select a task" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {tasks?.map(task => (
-                                <SelectItem key={task.id} value={task.id}>{task.name} ({task.variety})</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="ranch-select">Ranch</Label>
-                    <Select value={selectedRanch} onValueChange={setSelectedRanch}>
-                        <SelectTrigger id="ranch-select">
-                            <SelectValue placeholder="Select a ranch" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {ranches.map(ranch => (
-                                <SelectItem key={ranch} value={ranch}>{ranch}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                  </div>
-                   <div className="space-y-2">
-                    <Label htmlFor="block-select">Block</Label>
-                    <Select value={selectedBlock} onValueChange={setSelectedBlock} disabled={!selectedRanch}>
-                        <SelectTrigger id="block-select">
-                            <SelectValue placeholder="Select a block" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {blocks.map(block => (
-                                <SelectItem key={block} value={block}>{block}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                  </div>
-              </div>
+              <SelectionFields />
 
                <div className="space-y-4 rounded-lg border bg-card text-card-foreground shadow-sm p-4">
                 <Label className="font-semibold">Scan Mode</Label>
@@ -480,6 +535,8 @@ export default function TimeTrackingPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+               <SelectionFields isManual={true} />
+
               <div className="space-y-2">
                 <Label htmlFor="log-type">Log Type</Label>
                 <Select>
@@ -537,10 +594,7 @@ export default function TimeTrackingPage() {
                     </>
                 )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="task-id">Bin / Task ID</Label>
-                <Input id="task-id" placeholder="Enter Bin or Task QR Code ID" />
-              </div>
+              
               <div className="space-y-2">
                 <Label htmlFor="quantity">Quantity (for piecework)</Label>
                 <Input id="quantity" type="number" placeholder="Enter number of pieces" />
@@ -588,5 +642,3 @@ export default function TimeTrackingPage() {
     </div>
   );
 }
-
-    
