@@ -35,6 +35,8 @@ import { useCollection, useFirestore, useMemoFirebase } from '@/firebase'
 import { collection, query, where, getDocs, writeBatch, serverTimestamp, addDoc, updateDoc, doc, getDoc } from 'firebase/firestore'
 import type { Task, TimeEntry, Piecework, Employee, Client } from '@/lib/types'
 import { Skeleton } from '@/components/ui/skeleton'
+import { FirestorePermissionError } from '@/firebase/errors'
+import { errorEmitter } from '@/firebase/error-emitter'
 
 const QrScanner = dynamic(() => import('./qr-scanner').then(mod => mod.QrScannerComponent), {
   ssr: false,
@@ -270,67 +272,98 @@ export default function TimeTrackingPage() {
     const timeEntryCollection = collection(firestore, 'time_entries');
     const pieceworkCollection = collection(firestore, 'piecework');
     
-    try {
-        if (scanMode === 'clock-in') {
-            const batch = writeBatch(firestore);
-            scannedEmployees.forEach(employeeId => {
-                const newTimeEntry: Omit<TimeEntry, 'id'> = {
-                    employeeId: employeeId,
-                    taskId: selectedTask,
-                    timestamp: new Date(),
-                    endTime: null,
-                    isBreak: false,
-                };
-                const docRef = doc(timeEntryCollection);
-                batch.set(docRef, newTimeEntry);
-            });
-            await batch.commit();
-            toast({ title: "Clock In Successful", description: `Clocked in ${scannedEmployees.length} employee(s).` });
+    if (scanMode === 'clock-in') {
+        const batch = writeBatch(firestore);
+        const newEntries: Omit<TimeEntry, 'id'>[] = [];
+        scannedEmployees.forEach(employeeId => {
+            const newTimeEntry: Omit<TimeEntry, 'id'> = {
+                employeeId: employeeId,
+                taskId: selectedTask,
+                timestamp: new Date(),
+                endTime: null,
+                isBreak: false,
+            };
+            const docRef = doc(timeEntryCollection);
+            batch.set(docRef, newTimeEntry);
+            newEntries.push(newTimeEntry);
+        });
+        batch.commit()
+            .then(() => {
+                toast({ title: "Clock In Successful", description: `Clocked in ${scannedEmployees.length} employee(s).` });
+                setScannedEmployees([]);
+                setScannedBin(null);
+            })
+            .catch(async (serverError) => {
+                const permissionError = new FirestorePermissionError({
+                    path: 'time_entries',
+                    operation: 'create',
+                    requestResourceData: newEntries,
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            })
+            .finally(() => setIsSubmitting(false));
 
-        } else if (scanMode === 'clock-out') {
-            const q = query(
-                timeEntryCollection,
-                where('employeeId', 'in', scannedEmployees),
-                where('taskId', '==', selectedTask),
-                where('endTime', '==', null)
-            );
-            const querySnapshot = await getDocs(q);
+    } else if (scanMode === 'clock-out') {
+        const q = query(
+            timeEntryCollection,
+            where('employeeId', 'in', scannedEmployees),
+            where('taskId', '==', selectedTask),
+            where('endTime', '==', null)
+        );
+        getDocs(q).then(querySnapshot => {
             if (querySnapshot.empty) {
                  toast({ variant: 'destructive', title: "Clock Out Failed", description: "No active clock-in found for the selected employees and task." });
+                 setIsSubmitting(false);
             } else {
                 const batch = writeBatch(firestore);
                 querySnapshot.forEach(doc => {
                     batch.update(doc.ref, { endTime: serverTimestamp() });
                 });
-                await batch.commit();
-                toast({ title: "Clock Out Successful", description: `Clocked out ${querySnapshot.size} employee(s).` });
+                batch.commit()
+                    .then(() => {
+                        toast({ title: "Clock Out Successful", description: `Clocked out ${querySnapshot.size} employee(s).` });
+                        setScannedEmployees([]);
+                        setScannedBin(null);
+                    })
+                    .catch(async (serverError) => {
+                        const permissionError = new FirestorePermissionError({
+                            path: 'time_entries', // This is a simplification, ideally paths are individual
+                            operation: 'update',
+                            requestResourceData: { endTime: 'serverTimestamp' },
+                        });
+                        errorEmitter.emit('permission-error', permissionError);
+                    })
+                    .finally(() => setIsSubmitting(false));
             }
-        } else if (scanMode === 'piece') {
-            if (!scannedBin) {
-                toast({ variant: 'destructive', title: "Bin not scanned", description: "Please scan a bin QR code." });
-                setIsSubmitting(false);
-                return;
-            }
-            const newPiecework: Omit<Piecework, 'id'> = {
-                employeeId: scannedEmployees.join(','), // For shared, join IDs
-                taskId: selectedTask,
-                timestamp: new Date(),
-                pieceCount: 1, // Assume 1 bin per scan
-                pieceQrCode: scannedBin,
-            };
-            await addDoc(pieceworkCollection, newPiecework);
-            toast({ title: "Piecework Recorded", description: `Bin ${scannedBin} recorded for ${scannedEmployees.length} employee(s).` });
+        });
+    } else if (scanMode === 'piece') {
+        if (!scannedBin) {
+            toast({ variant: 'destructive', title: "Bin not scanned", description: "Please scan a bin QR code." });
+            setIsSubmitting(false);
+            return;
         }
-        
-        // Reset after successful submission
-        setScannedEmployees([]);
-        setScannedBin(null);
-
-    } catch (error: any) {
-        console.error("Submission Error:", error);
-        toast({ variant: 'destructive', title: "Submission Failed", description: error.message || "An unexpected error occurred." });
-    } finally {
-        setIsSubmitting(false);
+        const newPiecework: Omit<Piecework, 'id'> = {
+            employeeId: scannedEmployees.join(','), // For shared, join IDs
+            taskId: selectedTask,
+            timestamp: new Date(),
+            pieceCount: 1, // Assume 1 bin per scan
+            pieceQrCode: scannedBin,
+        };
+        addDoc(pieceworkCollection, newPiecework)
+            .then(() => {
+                toast({ title: "Piecework Recorded", description: `Bin ${scannedBin} recorded for ${scannedEmployees.length} employee(s).` });
+                setScannedEmployees([]);
+                setScannedBin(null);
+            })
+            .catch(async (serverError) => {
+                const permissionError = new FirestorePermissionError({
+                    path: 'piecework',
+                    operation: 'create',
+                    requestResourceData: newPiecework,
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            })
+            .finally(() => setIsSubmitting(false));
     }
   }
 
@@ -341,58 +374,91 @@ export default function TimeTrackingPage() {
     }
 
     setIsManualSubmitting(true);
+    
+    if (manualLogType === 'clock-in') {
+        const newTimeEntry: Omit<TimeEntry, 'id'> = {
+            employeeId: manualSelectedEmployee.id,
+            taskId: selectedTask,
+            timestamp: new Date(),
+            endTime: null,
+            isBreak: false,
+        };
+        addDoc(collection(firestore, 'time_entries'), newTimeEntry)
+            .then(() => {
+                toast({ title: "Clock In Successful", description: `Clocked in ${manualSelectedEmployee.name}.` });
+                setManualSelectedEmployee(null);
+                setManualEmployeeSearch('');
+            })
+            .catch(async (serverError) => {
+                const permissionError = new FirestorePermissionError({
+                    path: 'time_entries',
+                    operation: 'create',
+                    requestResourceData: newTimeEntry,
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            })
+            .finally(() => setIsManualSubmitting(false));
 
-    try {
-        if (manualLogType === 'clock-in') {
-            const newTimeEntry: Omit<TimeEntry, 'id'> = {
-                employeeId: manualSelectedEmployee.id,
-                taskId: selectedTask,
-                timestamp: new Date(),
-                endTime: null,
-                isBreak: false,
-            };
-            await addDoc(collection(firestore, 'time_entries'), newTimeEntry);
-            toast({ title: "Clock In Successful", description: `Clocked in ${manualSelectedEmployee.name}.` });
-        } else if (manualLogType === 'clock-out') {
-             const q = query(
-                collection(firestore, 'time_entries'),
-                where('employeeId', '==', manualSelectedEmployee.id),
-                where('taskId', '==', selectedTask),
-                where('endTime', '==', null)
-            );
-            const querySnapshot = await getDocs(q);
+    } else if (manualLogType === 'clock-out') {
+         const q = query(
+            collection(firestore, 'time_entries'),
+            where('employeeId', '==', manualSelectedEmployee.id),
+            where('taskId', '==', selectedTask),
+            where('endTime', '==', null)
+        );
+        getDocs(q).then(querySnapshot => {
             if(querySnapshot.empty){
                 toast({ variant: 'destructive', title: "Clock Out Failed", description: "No active clock-in found for this employee and task." });
+                setIsManualSubmitting(false);
             } else {
                  const batch = writeBatch(firestore);
                 querySnapshot.forEach(doc => {
                     batch.update(doc.ref, { endTime: serverTimestamp() });
                 });
-                await batch.commit();
-                toast({ title: "Clock Out Successful", description: `Clocked out ${manualSelectedEmployee.name}.` });
+                batch.commit()
+                    .then(() => {
+                        toast({ title: "Clock Out Successful", description: `Clocked out ${manualSelectedEmployee.name}.` });
+                        setManualSelectedEmployee(null);
+                        setManualEmployeeSearch('');
+                    })
+                    .catch(async (serverError) => {
+                        const permissionError = new FirestorePermissionError({
+                            path: 'time_entries', // Simplification
+                            operation: 'update',
+                            requestResourceData: { endTime: 'serverTimestamp' },
+                        });
+                        errorEmitter.emit('permission-error', permissionError);
+                    })
+                    .finally(() => setIsManualSubmitting(false));
             }
-        } else if (manualLogType === 'piecework') {
-            const newPiecework: Omit<Piecework, 'id'> = {
-                employeeId: manualSelectedEmployee.id,
-                taskId: selectedTask,
-                timestamp: new Date(),
-                pieceCount: manualPieceQuantity,
-                pieceQrCode: 'manual_entry',
-                qcNote: manualNotes,
-            };
-            await addDoc(collection(firestore, 'piecework'), newPiecework);
-            toast({ title: "Piecework Recorded", description: `${manualPieceQuantity} piece(s) recorded for ${manualSelectedEmployee.name}.` });
-        }
-        // Reset form
-        setManualSelectedEmployee(null);
-        setManualEmployeeSearch('');
-        setManualPieceQuantity(1);
-        setManualNotes('');
-    } catch (error: any) {
-        console.error("Manual Submission Error:", error);
-        toast({ variant: 'destructive', title: "Submission Failed", description: error.message || "An unexpected error occurred." });
-    } finally {
-        setIsManualSubmitting(false);
+        });
+
+    } else if (manualLogType === 'piecework') {
+        const newPiecework: Omit<Piecework, 'id'> = {
+            employeeId: manualSelectedEmployee.id,
+            taskId: selectedTask,
+            timestamp: new Date(),
+            pieceCount: manualPieceQuantity,
+            pieceQrCode: 'manual_entry',
+            qcNote: manualNotes,
+        };
+        addDoc(collection(firestore, 'piecework'), newPiecework)
+            .then(() => {
+                toast({ title: "Piecework Recorded", description: `${manualPieceQuantity} piece(s) recorded for ${manualSelectedEmployee.name}.` });
+                setManualSelectedEmployee(null);
+                setManualEmployeeSearch('');
+                setManualPieceQuantity(1);
+                setManualNotes('');
+            })
+            .catch(async (serverError) => {
+                const permissionError = new FirestorePermissionError({
+                    path: 'piecework',
+                    operation: 'create',
+                    requestResourceData: newPiecework,
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            })
+            .finally(() => setIsManualSubmitting(false));
     }
   };
 
@@ -404,15 +470,14 @@ export default function TimeTrackingPage() {
     }
 
     setIsBulkClockingOut(true);
-    try {
-        const timeLogsRef = collection(firestore, 'time_entries');
-        const q = query(
-            timeLogsRef,
-            where('taskId', '==', selectedBulkTask),
-            where('endTime', '==', null)
-        );
+    const timeLogsRef = collection(firestore, 'time_entries');
+    const q = query(
+        timeLogsRef,
+        where('taskId', '==', selectedBulkTask),
+        where('endTime', '==', null)
+    );
 
-        const querySnapshot = await getDocs(q);
+    getDocs(q).then(querySnapshot => {
         if (querySnapshot.empty) {
             toast({ title: "No one to clock out", description: "No employees are currently clocked in for this task." });
             setIsBulkClockingOut(false);
@@ -424,19 +489,23 @@ export default function TimeTrackingPage() {
             batch.update(doc.ref, { endTime: serverTimestamp() });
         });
 
-        await batch.commit();
-
-        toast({
-            title: "Bulk Clock Out Successful",
-            description: `Successfully clocked out ${querySnapshot.size} employee(s) from the task.`,
-        });
-
-    } catch (error) {
-        console.error("Error during bulk clock out:", error);
-        toast({ variant: "destructive", title: "Error", description: "An error occurred during bulk clock out." });
-    } finally {
-        setIsBulkClockingOut(false);
-    }
+        batch.commit()
+            .then(() => {
+                toast({
+                    title: "Bulk Clock Out Successful",
+                    description: `Successfully clocked out ${querySnapshot.size} employee(s) from the task.`,
+                });
+            })
+            .catch(async (serverError) => {
+                const permissionError = new FirestorePermissionError({
+                    path: 'time_entries', // Simplification
+                    operation: 'update',
+                    requestResourceData: { endTime: 'serverTimestamp' },
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            })
+            .finally(() => setIsBulkClockingOut(false));
+    });
   };
 
   const SelectionFields = ({ isManual = false }: { isManual?: boolean }) => (
