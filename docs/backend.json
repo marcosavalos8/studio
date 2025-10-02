@@ -115,6 +115,23 @@
         "qcNote": { "type": "string" }
       },
       "required": ["employeeId", "taskId", "timestamp", "quantity"]
+    },
+    "sharedPieceLog": {
+      "title": "Shared Piece Log",
+      "description": "A log of piecework completed by a team of employees, where the quantity is divided among them.",
+      "type": "object",
+      "properties": {
+        "employeeIds": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "An array of employee IDs who shared the work."
+        },
+        "taskId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "quantity": { "type": "number" },
+        "qcNote": { "type": "string" }
+      },
+      "required": ["employeeIds", "taskId", "timestamp", "quantity"]
     }
   },
   "auth": {
@@ -140,6 +157,10 @@
     "/piecelogs/{piecelogId}": {
       "schema": { "$ref": "#/entities/piecelog" },
       "description": "Stores logs for piecework."
+    },
+    "/sharedPieceLogs/{logId}": {
+      "schema": { "$ref": "#/entities/sharedPieceLog" },
+      "description": "Stores logs for piecework shared by a team. The quantity is divided among the employees."
     }
   }
 }

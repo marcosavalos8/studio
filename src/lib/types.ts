@@ -43,3 +43,12 @@ export type PieceLog = {
   quantity: number;
   qcNote?: string;
 };
+
+export type SharedPieceLog = {
+  id: string;
+  employeeIds: string[];
+  taskId: string;
+  timestamp: Date;
+  quantity: number;
+  qcNote?: string;
+};
