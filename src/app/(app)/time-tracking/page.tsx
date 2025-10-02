@@ -34,7 +34,7 @@ import { useToast } from "@/hooks/use-toast"
 import { QrCode, ClipboardEdit, Users, User, CheckCircle, Package, LogIn, LogOut, Loader2 } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
-import { QrScanner } from 'react-qr-scanner';
+import QrScanner from 'react-qr-scanner';
 import JSConfetti from 'js-confetti'
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase'
 import { collection, query, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore'
@@ -261,10 +261,7 @@ export default function TimeTrackingPage() {
                   constraints={{
                     video: { facingMode: 'environment' }
                   }}
-                  styles={{
-                    container: { width: '100%', paddingTop: 0 },
-                    video: { width: '100%', height: '100%', objectFit: 'cover' }
-                  }}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
               </div>
               {hasCameraPermission === false && (
@@ -400,3 +397,5 @@ export default function TimeTrackingPage() {
     </div>
   );
 }
+
+    
