@@ -77,6 +77,9 @@ export default function TimeTrackingPage() {
   const [manualNotes, setManualNotes] = useState('');
   const [isManualSubmitting, setIsManualSubmitting] = useState(false);
 
+  // Debounce state
+  const [recentScans, setRecentScans] = useState<{ employeeId: string; taskId: string; timestamp: number }[]>([]);
+  const DEBOUNCE_MS = 30000; // 30 seconds
 
   const clientsQuery = useMemoFirebase(() => {
     if (!firestore) return null
@@ -98,8 +101,10 @@ export default function TimeTrackingPage() {
 
   const tasksForClient = useMemo(() => {
     if (!allTasks || !selectedClient) return [];
-    return allTasks.filter(t => t.client === selectedClient);
-  }, [allTasks, selectedClient]);
+    const clientData = clients?.find(c => c.id === selectedClient);
+    if (!clientData) return [];
+    return allTasks.filter(t => t.client === clientData.name);
+  }, [allTasks, selectedClient, clients]);
 
   const ranches = useMemo(() => tasksForClient ? [...new Set(tasksForClient.map(t => t.ranch).filter(Boolean))] : [], [tasksForClient]);
   
@@ -203,11 +208,31 @@ export default function TimeTrackingPage() {
           return;
       }
 
-      playBeep();
-      jsConfetti?.addConfetti({ confettiNumber: 30, confettiColors: ['#f59e0b', '#10b981', '#3b82f6'] });
-
       // Assuming employee QR codes are their document IDs
       const isEmployeeScan = !!activeEmployees?.find(e => e.id === scannedData);
+      
+      const now = Date.now();
+      // Clean up old scans from the debounce buffer
+      setRecentScans(prev => prev.filter(scan => now - scan.timestamp < DEBOUNCE_MS));
+
+      if (isEmployeeScan) {
+          const employeeId = scannedData;
+          const isDuplicate = recentScans.some(
+              scan => scan.employeeId === employeeId && scan.taskId === selectedTask
+          );
+
+          if (isDuplicate) {
+              playBeep(false);
+              toast({ variant: "destructive", title: "Duplicate Scan", description: "This employee was recently scanned for the same task." });
+              return;
+          }
+          
+          setRecentScans(prev => [...prev, { employeeId, taskId: selectedTask, timestamp: now }]);
+      }
+
+
+      playBeep();
+      jsConfetti?.addConfetti({ confettiNumber: 30, confettiColors: ['#f59e0b', '#10b981', '#3b82f6'] });
 
 
       if (scanMode === 'piece') {
@@ -223,9 +248,11 @@ export default function TimeTrackingPage() {
       } else { // Clock-in or Clock-out
         if (isEmployeeScan) {
           const employeeId = scannedData;
+          if (!scannedEmployees.includes(employeeId)) {
             setScannedEmployees(prev => [...prev, employeeId]);
-            const employeeName = activeEmployees?.find(e => e.id === employeeId)?.name || employeeId;
-            toast({ title: `Employee Ready for ${scanMode}`, description: employeeName });
+          }
+          const employeeName = activeEmployees?.find(e => e.id === employeeId)?.name || employeeId;
+          toast({ title: `Employee Ready for ${scanMode}`, description: employeeName });
         } else {
             playBeep(false);
             toast({ variant: "destructive", title: "Invalid Scan", description: "Expected an employee QR code."});
@@ -422,7 +449,7 @@ export default function TimeTrackingPage() {
               </SelectTrigger>
               <SelectContent>
                   {clients?.map(client => (
-                      <SelectItem key={client.id} value={client.name}>{client.name}</SelectItem>
+                      <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
                   ))}
               </SelectContent>
           </Select>
