@@ -111,13 +111,14 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Add New Task</DialogTitle>
           <DialogDescription>
             Enter the details for the new work task or project.
           </DialogDescription>
         </DialogHeader>
+        <div className="flex-grow overflow-y-auto pr-4">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
@@ -295,7 +296,7 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
                 />
             </div>
             
-            <DialogFooter className="col-span-1 md:col-span-2">
+            <DialogFooter className="col-span-1 md:col-span-2 mt-4">
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
@@ -306,6 +307,7 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
             </DialogFooter>
           </form>
         </Form>
+        </div>
       </DialogContent>
     </Dialog>
   )
