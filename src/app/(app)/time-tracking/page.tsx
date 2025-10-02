@@ -65,6 +65,10 @@ export default function TimeTrackingPage() {
   const [selectedTask, setSelectedTask] = useState<string>('');
   const [selectedRanch, setSelectedRanch] = useState<string>('');
   const [selectedBlock, setSelectedBlock] = useState<string>('');
+  
+  const [manualEmployeeSearch, setManualEmployeeSearch] = useState('');
+  const [manualSelectedEmployee, setManualSelectedEmployee] = useState<Employee | null>(null);
+
 
   const tasksQuery = useMemoFirebase(() => {
     if (!firestore) return null
@@ -85,6 +89,12 @@ export default function TimeTrackingPage() {
   }, [tasks, selectedRanch]);
 
   const currentTask = useMemo(() => tasks?.find(t => t.id === selectedTask), [tasks, selectedTask])
+
+  const filteredManualEmployees = useMemo(() => {
+    if (!activeEmployees) return [];
+    if (!manualEmployeeSearch) return activeEmployees;
+    return activeEmployees.filter(emp => emp.name.toLowerCase().includes(manualEmployeeSearch.toLowerCase()));
+  }, [activeEmployees, manualEmployeeSearch]);
 
 
   useEffect(() => {
@@ -111,6 +121,11 @@ export default function TimeTrackingPage() {
     setScannedEmployees([]);
     setScannedBin(null);
   }, [scanMode, isSharedPiece, selectedTask]);
+  
+  // Reset manual employee selection when searching
+  useEffect(() => {
+    setManualSelectedEmployee(null);
+  }, [manualEmployeeSearch])
 
   const playBeep = (success = true) => {
     if (!audioContext) return;
@@ -139,18 +154,20 @@ export default function TimeTrackingPage() {
       playBeep();
       jsConfetti?.addConfetti({ confettiNumber: 30, confettiColors: ['#f59e0b', '#10b981', '#3b82f6'] });
 
-      // Assuming employee QR codes start with 'qr-' and bin codes do not
-      const isEmployeeScan = scannedData.startsWith('qr-');
+      // Assuming employee QR codes are their document IDs
+      const isEmployeeScan = !!activeEmployees?.find(e => e.id === scannedData);
+
 
       if (scanMode === 'piece') {
         if (isEmployeeScan) {
           const employeeId = scannedData;
           if (scannedEmployees.includes(employeeId)) {
             playBeep(false);
-            toast({ variant: "destructive", title: "Duplicate Employee Scan", description: `Employee ${employeeId} already scanned for this piece.` });
+            toast({ variant: "destructive", title: "Duplicate Employee Scan", description: `Employee already scanned for this piece.` });
           } else {
             setScannedEmployees(prev => isSharedPiece ? [...prev, employeeId] : [employeeId]);
-            toast({ title: "Employee Scanned", description: employeeId });
+            const employeeName = activeEmployees?.find(e => e.id === employeeId)?.name || employeeId;
+            toast({ title: "Employee Scanned", description: employeeName });
           }
         } else { // It's a bin scan
           setScannedBin(scannedData);
@@ -161,10 +178,11 @@ export default function TimeTrackingPage() {
           const employeeId = scannedData;
            if (scannedEmployees.includes(employeeId)) {
             playBeep(false);
-            toast({ variant: "destructive", title: "Duplicate Scan", description: `Employee ${employeeId} already scanned for ${scanMode}.` });
+            toast({ variant: "destructive", title: "Duplicate Scan", description: `Employee already scanned for ${scanMode}.` });
           } else {
             setScannedEmployees(prev => [...prev, employeeId]);
-            toast({ title: `Employee Ready for ${scanMode}`, description: employeeId });
+            const employeeName = activeEmployees?.find(e => e.id === employeeId)?.name || employeeId;
+            toast({ title: `Employee Ready for ${scanMode}`, description: employeeName });
           }
         } else {
             playBeep(false);
@@ -184,9 +202,9 @@ export default function TimeTrackingPage() {
     try {
         if (scanMode === 'clock-in') {
             const batch = writeBatch(firestore);
-            scannedEmployees.forEach(employeeQr => {
+            scannedEmployees.forEach(employeeId => {
                 const newTimeEntry: Omit<TimeEntry, 'id'> = {
-                    employeeId: employeeQr,
+                    employeeId: employeeId,
                     taskId: selectedTask,
                     timestamp: new Date(),
                     endTime: null,
@@ -411,12 +429,15 @@ export default function TimeTrackingPage() {
                   <CardContent>
                     {scannedEmployees.length > 0 ? (
                         <ul className="space-y-2">
-                        {scannedEmployees.map((id) => (
-                            <li key={id} className="flex items-center gap-2 text-green-600">
-                                <CheckCircle className="h-5 w-5" />
-                                <p className="font-mono text-sm">{id}</p>
-                            </li>
-                        ))}
+                        {scannedEmployees.map((id) => {
+                            const name = activeEmployees?.find(e => e.id === id)?.name || id;
+                            return (
+                                <li key={id} className="flex items-center gap-2 text-green-600">
+                                    <CheckCircle className="h-5 w-5" />
+                                    <p className="font-mono text-sm">{name}</p>
+                                </li>
+                            )
+                        })}
                         </ul>
                     ) : (
                         <p className="text-muted-foreground">No employees scanned yet.</p>
@@ -473,19 +494,47 @@ export default function TimeTrackingPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="employee-id">Employee</Label>
-                <Select>
-                  <SelectTrigger id="employee-id">
-                    <SelectValue placeholder="Select an active employee" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activeEmployees?.map(employee => (
-                      <SelectItem key={employee.id} value={employee.qrCode}>
-                        {employee.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="employee-search">Employee</Label>
+                {manualSelectedEmployee ? (
+                     <div className="flex items-center gap-2 rounded-md border p-2 bg-muted">
+                        <User className="h-4 w-4"/>
+                        <span>{manualSelectedEmployee.name}</span>
+                        <Button variant="ghost" size="sm" className="ml-auto" onClick={() => {
+                            setManualSelectedEmployee(null)
+                            setManualEmployeeSearch('')
+                        }}>Change</Button>
+                    </div>
+                ) : (
+                    <>
+                        <Input 
+                            id="employee-search" 
+                            placeholder="Search for an active employee..."
+                            value={manualEmployeeSearch}
+                            onChange={(e) => setManualEmployeeSearch(e.target.value)}
+                        />
+                        {manualEmployeeSearch && (
+                            <div className="border rounded-md max-h-48 overflow-y-auto">
+                                {filteredManualEmployees.length > 0 ? (
+                                    filteredManualEmployees.map(employee => (
+                                        <Button 
+                                            key={employee.id} 
+                                            variant="ghost" 
+                                            className="w-full justify-start"
+                                            onClick={() => {
+                                                setManualSelectedEmployee(employee);
+                                                setManualEmployeeSearch('');
+                                            }}
+                                        >
+                                            {employee.name}
+                                        </Button>
+                                    ))
+                                ) : (
+                                    <p className="p-4 text-sm text-muted-foreground">No employees found.</p>
+                                )}
+                            </div>
+                        )}
+                    </>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="task-id">Bin / Task ID</Label>
