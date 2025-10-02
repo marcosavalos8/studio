@@ -1,7 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import QrScanner from 'react-qr-scanner'
+import React, { useState, useEffect, useRef } from 'react'
 import {
     Alert,
     AlertDescription,
@@ -9,36 +8,99 @@ import {
 } from "@/components/ui/alert"
 import { VideoOff } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import jsQR from "jsqr";
 
 type QrScannerComponentProps = {
     onScanResult: (result: string) => void;
 }
 
 export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
-    const [error, setError] = useState<string | null>(null)
-    const [isClient, setIsClient] = useState(false)
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+    const [isClient, setIsClient] = useState(false);
+    
+    useEffect(() => {
+        setIsClient(true);
+    }, []);
 
     useEffect(() => {
-        setIsClient(true)
-    }, [])
+        if (!isClient) return;
 
-    const handleScan = (result: any) => {
-        if (result && result.text) {
-            onScanResult(result.text)
-        }
-    }
+        const getCameraPermission = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                }
+                setHasCameraPermission(true);
+            } catch (err) {
+                console.error("Camera access error:", err);
+                setHasCameraPermission(false);
+                if ((err as Error).name === 'NotAllowedError') {
+                    setError('Camera access was denied. Please enable it in your browser settings.');
+                } else {
+                    setError('Could not access the camera. Please ensure it is not in use by another application.');
+                }
+            }
+        };
 
-    const handleError = (err: any) => {
-        console.error(err)
-        if (err.name === 'NotAllowedError') {
-            setError('Camera access was denied. Please enable it in your browser settings.')
-        } else if (err.name === 'NotFoundError') {
-            setError('No camera found. Please ensure a camera is connected and enabled.')
-        } else {
-            setError('An unexpected error occurred with the camera.')
-        }
-    }
+        getCameraPermission();
+
+        return () => {
+            if (videoRef.current && videoRef.current.srcObject) {
+                const stream = videoRef.current.srcObject as MediaStream;
+                stream.getTracks().forEach(track => track.stop());
+            }
+        };
+    }, [isClient]);
+
+    useEffect(() => {
+        if (!hasCameraPermission || !videoRef.current) return;
+
+        let animationFrameId: number;
+
+        const scan = () => {
+            if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+                const video = videoRef.current;
+                const canvas = canvasRef.current;
+                if (canvas) {
+                    const context = canvas.getContext('2d');
+                    if (context) {
+                        canvas.height = video.videoHeight;
+                        canvas.width = video.videoWidth;
+                        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                            inversionAttempts: 'dontInvert',
+                        });
+
+                        if (code) {
+                            onScanResult(code.data);
+                            // Add a small delay before scanning again
+                            setTimeout(() => {
+                                animationFrameId = requestAnimationFrame(scan);
+                            }, 1000); 
+                            return;
+                        }
+                    }
+                }
+            }
+            animationFrameId = requestAnimationFrame(scan);
+        };
+
+        scan();
+
+        return () => {
+            cancelAnimationFrame(animationFrameId);
+        };
+    }, [hasCameraPermission, onScanResult]);
     
+    if (!isClient) {
+      return <Skeleton className="w-full aspect-video bg-muted rounded-md flex items-center justify-center"><VideoOff className="h-10 w-10 text-muted-foreground" /></Skeleton>
+    }
+
     if (error) {
         return (
             <Alert variant="destructive">
@@ -51,20 +113,24 @@ export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
         )
     }
 
-    if (!isClient) {
-        return <Skeleton className="w-full aspect-video bg-muted rounded-md flex items-center justify-center"><VideoOff className="h-10 w-10 text-muted-foreground" /></Skeleton>
-    }
-
     return (
-        <div className="w-full aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden">
-           <QrScanner
-                onScan={handleScan}
-                onError={handleError}
-                constraints={{
-                    video: { facingMode: 'environment' }
-                }}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
+        <div className="w-full aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden relative">
+           <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
+           <canvas ref={canvasRef} style={{ display: 'none' }} />
+           {hasCameraPermission === false && (
+                <Alert variant="destructive" className="absolute">
+                    <VideoOff className="h-4 w-4" />
+                    <AlertTitle>Camera Access Required</AlertTitle>
+                    <AlertDescription>
+                        Please grant camera permission to use the scanner.
+                    </AlertDescription>
+                </Alert>
+           )}
+           {hasCameraPermission === null && (
+                 <div className="absolute inset-0 flex items-center justify-center">
+                    <p className="text-muted-foreground">Initializing camera...</p>
+                 </div>
+           )}
         </div>
     )
 }
