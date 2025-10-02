@@ -357,7 +357,7 @@ export default function TimeTrackingPage() {
             })
             .catch(async (serverError) => {
                 const permissionError = new FirestorePermissionError({
-                    path: 'piecework',
+                    path: pieceworkCollection.path,
                     operation: 'create',
                     requestResourceData: newPiecework,
                 });
@@ -374,10 +374,11 @@ export default function TimeTrackingPage() {
     }
 
     setIsManualSubmitting(true);
+    const employeeId = manualSelectedEmployee.id;
     
     if (manualLogType === 'clock-in') {
         const newTimeEntry: Omit<TimeEntry, 'id'> = {
-            employeeId: manualSelectedEmployee.id,
+            employeeId: employeeId,
             taskId: selectedTask,
             timestamp: new Date(),
             endTime: null,
@@ -402,7 +403,7 @@ export default function TimeTrackingPage() {
     } else if (manualLogType === 'clock-out') {
          const q = query(
             collection(firestore, 'time_entries'),
-            where('employeeId', '==', manualSelectedEmployee.id),
+            where('employeeId', '==', employeeId),
             where('taskId', '==', selectedTask),
             where('endTime', '==', null)
         );
@@ -412,8 +413,8 @@ export default function TimeTrackingPage() {
                 setIsManualSubmitting(false);
             } else {
                  const batch = writeBatch(firestore);
-                querySnapshot.forEach(doc => {
-                    batch.update(doc.ref, { endTime: serverTimestamp() });
+                querySnapshot.forEach(docSnap => {
+                    batch.update(docSnap.ref, { endTime: serverTimestamp() });
                 });
                 batch.commit()
                     .then(() => {
@@ -422,10 +423,11 @@ export default function TimeTrackingPage() {
                         setManualEmployeeSearch('');
                     })
                     .catch(async (serverError) => {
+                        // In a batch, we can't easily know which one failed. We simplify.
                         const permissionError = new FirestorePermissionError({
-                            path: 'time_entries', // Simplification
+                            path: 'time_entries', 
                             operation: 'update',
-                            requestResourceData: { endTime: 'serverTimestamp' },
+                            requestResourceData: { endTime: 'serverTimestamp()' },
                         });
                         errorEmitter.emit('permission-error', permissionError);
                     })
@@ -435,7 +437,7 @@ export default function TimeTrackingPage() {
 
     } else if (manualLogType === 'piecework') {
         const newPiecework: Omit<Piecework, 'id'> = {
-            employeeId: manualSelectedEmployee.id,
+            employeeId: employeeId,
             taskId: selectedTask,
             timestamp: new Date(),
             pieceCount: manualPieceQuantity,
@@ -500,7 +502,7 @@ export default function TimeTrackingPage() {
                 const permissionError = new FirestorePermissionError({
                     path: 'time_entries', // Simplification
                     operation: 'update',
-                    requestResourceData: { endTime: 'serverTimestamp' },
+                    requestResourceData: { endTime: 'serverTimestamp()' },
                 });
                 errorEmitter.emit('permission-error', permissionError);
             })
