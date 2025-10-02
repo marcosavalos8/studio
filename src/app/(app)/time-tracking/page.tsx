@@ -31,28 +31,28 @@ import {
   AlertTitle,
 } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import { QrCode, ClipboardEdit, Users, User, CheckCircle } from "lucide-react"
+import { QrCode, ClipboardEdit, Users, User, CheckCircle, Package, LogIn, LogOut } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
 import { QrScanner } from 'react-qr-scanner';
 import JSConfetti from 'js-confetti'
 
-type ScanMode = 'time' | 'piece';
+type ScanMode = 'clock-in' | 'clock-out' | 'piece';
 
 export default function TimeTrackingPage() {
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(true);
-  const [scanMode, setScanMode] = useState<ScanMode>('time');
+  const [scanMode, setScanMode] = useState<ScanMode>('clock-in');
   const [isSharedPiece, setIsSharedPiece] = useState(false);
-  const [lastScanned, setLastScanned] = useState<string | null>(null);
+  
+  const [scannedEmployees, setScannedEmployees] = useState<string[]>([]);
+  const [scannedBin, setScannedBin] = useState<string | null>(null);
+
   const { toast } = useToast();
   const [jsConfetti, setJsConfetti] = useState<JSConfetti | null>(null);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    // Initialize JSConfetti and AudioContext on the client-side
     setJsConfetti(new JSConfetti());
-    // Create AudioContext after a user gesture (e.g., component mount)
     const initAudio = () => {
         const context = new (window.AudioContext || (window as any).webkitAudioContext)();
         setAudioContext(context);
@@ -66,13 +66,19 @@ export default function TimeTrackingPage() {
     }
   }, []);
 
+  // Reset scans when mode changes
+  useEffect(() => {
+    setScannedEmployees([]);
+    setScannedBin(null);
+  }, [scanMode, isSharedPiece]);
+
   const playBeep = () => {
     if (!audioContext) return;
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
     
     oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(880, audioContext.currentTime); // A5 note
+    oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
     gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.5);
 
@@ -84,18 +90,35 @@ export default function TimeTrackingPage() {
   }
 
   const handleScan = (result: any) => {
-    if (result) {
-      const scannedData = result?.text;
-      if (scannedData && scannedData !== lastScanned) {
-        setLastScanned(scannedData);
-        
-        playBeep();
-        jsConfetti?.addConfetti();
+    if (result && result.text) {
+      const scannedData = result.text;
 
-        toast({
-          title: "Scan Successful",
-          description: `QR Code scanned: ${scannedData}`,
-        });
+      // Basic check to differentiate between employee and bin QR codes
+      // This logic should be made more robust (e.g., QR codes have prefixes)
+      const isEmployeeScan = !scannedData.toLowerCase().includes('bin');
+
+      playBeep();
+      jsConfetti?.addConfetti({ confettiNumber: 50 });
+
+      if (scanMode === 'piece') {
+        if (isEmployeeScan) {
+          if (scannedEmployees.includes(scannedData)) {
+            toast({ variant: "destructive", title: "Duplicate Scan", description: `Employee ${scannedData} already scanned.` });
+          } else {
+            setScannedEmployees(prev => isSharedPiece ? [...prev, scannedData] : [scannedData]);
+            toast({ title: "Employee Scanned", description: scannedData });
+          }
+        } else {
+          setScannedBin(scannedData);
+          toast({ title: "Bin Scanned", description: scannedData });
+        }
+      } else { // Clock-in or Clock-out
+        if (scannedEmployees.includes(scannedData)) {
+          toast({ variant: "destructive", title: "Duplicate Scan", description: `Employee ${scannedData} already scanned for ${scanMode}.` });
+        } else {
+          setScannedEmployees(prev => [...prev, scannedData]);
+          toast({ title: `Employee ${scanMode === 'clock-in' ? 'Clocked In' : 'Clocked Out'}`, description: scannedData });
+        }
       }
     }
   }
@@ -133,29 +156,35 @@ export default function TimeTrackingPage() {
                <div className="space-y-4 rounded-lg border bg-card text-card-foreground shadow-sm p-4">
                 <Label className="font-semibold">Scan Mode</Label>
                  <RadioGroup
-                    defaultValue="time"
                     value={scanMode}
                     onValueChange={(value: ScanMode) => setScanMode(value)}
-                    className="flex flex-col sm:flex-row gap-4"
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
                   >
-                    <Label htmlFor="mode-time" className="flex flex-1 items-center gap-3 rounded-md border p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5">
-                      <RadioGroupItem value="time" id="mode-time" />
-                      <div className="space-y-1">
-                        <p className="font-medium">Time Clock</p>
-                        <p className="text-sm text-muted-foreground">Scan for employee clock-in and clock-out.</p>
+                    <Label htmlFor="mode-clock-in" className="flex flex-1 items-center gap-3 rounded-md border p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5">
+                      <RadioGroupItem value="clock-in" id="mode-clock-in" />
+                      <div className="flex items-center gap-2">
+                        <LogIn className="h-5 w-5 text-green-600"/>
+                        <p className="font-medium">Clock In</p>
                       </div>
                     </Label>
-                    <Label htmlFor="mode-piece" className="flex flex-1 items-center gap-3 rounded-md border p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5">
+                    <Label htmlFor="mode-clock-out" className="flex flex-1 items-center gap-3 rounded-md border p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5">
+                      <RadioGroupItem value="clock-out" id="mode-clock-out" />
+                      <div className="flex items-center gap-2">
+                        <LogOut className="h-5 w-5 text-red-600"/>
+                        <p className="font-medium">Clock Out</p>
+                      </div>
+                    </Label>
+                    <Label htmlFor="mode-piece" className="flex flex-1 items-center gap-3 rounded-md border p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5 sm:col-span-2 lg:col-span-1">
                       <RadioGroupItem value="piece" id="mode-piece" />
-                      <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                         <Package className="h-5 w-5 text-blue-600"/>
                         <p className="font-medium">Piecework</p>
-                        <p className="text-sm text-muted-foreground">Scan to record piecework for tasks.</p>
                       </div>
                     </Label>
                  </RadioGroup>
 
                  {scanMode === 'piece' && (
-                  <div className="flex items-center space-x-2 pt-2">
+                  <div className="flex items-center space-x-2 pt-4 border-t mt-4">
                     <Switch
                       id="shared-piece-switch"
                       checked={isSharedPiece}
@@ -190,21 +219,49 @@ export default function TimeTrackingPage() {
                   </AlertDescription>
                 </Alert>
               )}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Last Scanned</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {lastScanned ? (
-                    <div className="flex items-center gap-2 text-green-600">
-                        <CheckCircle className="h-5 w-5" />
-                        <p className="font-mono text-sm">{lastScanned}</p>
-                    </div>
-                  ) : (
-                     <p className="text-muted-foreground">No QR code scanned yet.</p>
-                  )}
-                </CardContent>
-              </Card>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        {scanMode === 'piece' && (isSharedPiece ? <Users/> : <User/>)}
+                        {scanMode !== 'piece' && <User/>}
+                        Scanned Employees
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {scannedEmployees.length > 0 ? (
+                        <ul className="space-y-2">
+                        {scannedEmployees.map((id) => (
+                            <li key={id} className="flex items-center gap-2 text-green-600">
+                                <CheckCircle className="h-5 w-5" />
+                                <p className="font-mono text-sm">{id}</p>
+                            </li>
+                        ))}
+                        </ul>
+                    ) : (
+                        <p className="text-muted-foreground">No employees scanned yet.</p>
+                    )}
+                  </CardContent>
+                </Card>
+                 {scanMode === 'piece' && (
+                    <Card>
+                        <CardHeader>
+                        <CardTitle className="flex items-center gap-2"><Package/>Scanned Bin</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                        {scannedBin ? (
+                            <div className="flex items-center gap-2 text-green-600">
+                                <CheckCircle className="h-5 w-5" />
+                                <p className="font-mono text-sm">{scannedBin}</p>
+                            </div>
+                        ) : (
+                            <p className="text-muted-foreground">No bin scanned yet.</p>
+                        )}
+                        </CardContent>
+                    </Card>
+                 )}
+              </div>
+
             </CardContent>
           </Card>
         </TabsContent>
@@ -237,8 +294,8 @@ export default function TimeTrackingPage() {
                 <Input id="employee-id" placeholder="Enter Employee QR Code ID" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="task-id">Task / Lot ID</Label>
-                <Input id="task-id" placeholder="Enter Task or Lot QR Code ID" />
+                <Label htmlFor="task-id">Bin / Task ID</Label>
+                <Input id="task-id" placeholder="Enter Bin or Task QR Code ID" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="quantity">Quantity (for piecework)</Label>
