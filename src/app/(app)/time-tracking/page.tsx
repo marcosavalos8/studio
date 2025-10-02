@@ -33,7 +33,7 @@ import { Switch } from '@/components/ui/switch'
 import JSConfetti from 'js-confetti'
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase'
 import { collection, query, where, getDocs, writeBatch, serverTimestamp, addDoc, updateDoc, doc, getDoc } from 'firebase/firestore'
-import type { Task, TimeEntry, Piecework } from '@/lib/types'
+import type { Task, TimeEntry, Piecework, Employee } from '@/lib/types'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const QrScanner = dynamic(() => import('./qr-scanner').then(mod => mod.QrScannerComponent), {
@@ -72,6 +72,12 @@ export default function TimeTrackingPage() {
   }, [firestore])
   const { data: tasks } = useCollection<Task>(tasksQuery);
   
+  const employeesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, "employees"), where("status", "==", "Active"));
+  }, [firestore]);
+  const { data: activeEmployees } = useCollection<Employee>(employeesQuery);
+
   const ranches = useMemo(() => tasks ? [...new Set(tasks.map(t => t.ranch).filter(Boolean))] : [], [tasks]);
   const blocks = useMemo(() => {
     if (!selectedRanch || !tasks) return [];
@@ -467,8 +473,19 @@ export default function TimeTrackingPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="employee-id">Employee ID</Label>
-                <Input id="employee-id" placeholder="Enter Employee QR Code ID" />
+                <Label htmlFor="employee-id">Employee</Label>
+                <Select>
+                  <SelectTrigger id="employee-id">
+                    <SelectValue placeholder="Select an active employee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeEmployees?.map(employee => (
+                      <SelectItem key={employee.id} value={employee.qrCode}>
+                        {employee.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="task-id">Bin / Task ID</Label>
