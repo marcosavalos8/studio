@@ -23,6 +23,7 @@ import { PlaceHolderImages } from '@/lib/placeholder-images'
 
 const pageTitles: { [key: string]: string } = {
   '/dashboard': 'Dashboard',
+  '/time-tracking': 'Time Tracking',
   '/employees': 'Employees',
   '/clients': 'Clients',
   '/tasks': 'Tasks & Projects',
