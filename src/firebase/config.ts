@@ -7,4 +7,4 @@
 //
 // https://firebase.google.com/docs/web/setup#config-object
 
-export const firebaseConfig = {"apiKey":"your-api-key","authDomain":"your-project-id.firebaseapp.com","projectId":"your-project-id","storageBucket":"your-project-id.appspot.com","messagingSenderId":"your-sender-id","appId":"your-app-id"};
+export const firebaseConfig = {"projectId":"studio-3716014693-db09c","appId":"1:434983121945:web:86b1cd3bc62bff397fa688","apiKey":"AIzaSyABQpfZcj8_Wj2zSEeWWAzl7FtCVE_ZL6o","authDomain":"studio-3716014693-db09c.firebaseapp.com","measurementId":"","messagingSenderId":"434983121945"};
