@@ -92,7 +92,7 @@ export default function TimeTrackingPage() {
 
   const filteredManualEmployees = useMemo(() => {
     if (!activeEmployees) return [];
-    if (!manualEmployeeSearch) return activeEmployees;
+    if (!manualEmployeeSearch) return [];
     return activeEmployees.filter(emp => emp.name.toLowerCase().includes(manualEmployeeSearch.toLowerCase()));
   }, [activeEmployees, manualEmployeeSearch]);
 
@@ -124,7 +124,9 @@ export default function TimeTrackingPage() {
   
   // Reset manual employee selection when searching
   useEffect(() => {
-    setManualSelectedEmployee(null);
+    if(manualEmployeeSearch === '') {
+        setManualSelectedEmployee(null);
+    }
   }, [manualEmployeeSearch])
 
   const playBeep = (success = true) => {
@@ -512,27 +514,26 @@ export default function TimeTrackingPage() {
                             value={manualEmployeeSearch}
                             onChange={(e) => setManualEmployeeSearch(e.target.value)}
                         />
-                        {manualEmployeeSearch && (
+                        {manualEmployeeSearch && filteredManualEmployees.length > 0 && (
                             <div className="border rounded-md max-h-48 overflow-y-auto">
-                                {filteredManualEmployees.length > 0 ? (
-                                    filteredManualEmployees.map(employee => (
-                                        <Button 
-                                            key={employee.id} 
-                                            variant="ghost" 
-                                            className="w-full justify-start"
-                                            onClick={() => {
-                                                setManualSelectedEmployee(employee);
-                                                setManualEmployeeSearch('');
-                                            }}
-                                        >
-                                            {employee.name}
-                                        </Button>
-                                    ))
-                                ) : (
-                                    <p className="p-4 text-sm text-muted-foreground">No employees found.</p>
-                                )}
+                                {filteredManualEmployees.map(employee => (
+                                    <Button 
+                                        key={employee.id} 
+                                        variant="ghost" 
+                                        className="w-full justify-start"
+                                        onClick={() => {
+                                            setManualSelectedEmployee(employee);
+                                            setManualEmployeeSearch('');
+                                        }}
+                                    >
+                                        {employee.name}
+                                    </Button>
+                                ))}
                             </div>
                         )}
+                         {manualEmployeeSearch && filteredManualEmployees.length === 0 && (
+                            <p className="p-4 text-sm text-muted-foreground">No employees found.</p>
+                         )}
                     </>
                 )}
               </div>
