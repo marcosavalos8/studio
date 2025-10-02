@@ -17,9 +17,14 @@
           "type": "string",
           "enum": ["Worker", "Supervisor"],
           "description": "The role of the employee."
+        },
+        "status": {
+            "type": "string",
+            "enum": ["Active", "Inactive"],
+            "description": "The employment status of the employee."
         }
       },
-      "required": ["name", "qrCode", "role"]
+      "required": ["name", "qrCode", "role", "status"]
     },
     "client": {
       "title": "Client",

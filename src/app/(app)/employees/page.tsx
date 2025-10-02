@@ -24,6 +24,7 @@ import { useCollection } from "@/firebase"
 import { collection, query, orderBy } from "firebase/firestore"
 import { useFirestore } from "@/firebase"
 import { useMemo } from "react"
+import { cn } from "@/lib/utils"
 
 export default function EmployeesPage() {
   const firestore = useFirestore()
@@ -51,13 +52,14 @@ export default function EmployeesPage() {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Role</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>QR Code ID</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading && (
                 <TableRow>
-                    <TableCell colSpan={3} className="text-center">Loading...</TableCell>
+                    <TableCell colSpan={4} className="text-center">Loading...</TableCell>
                 </TableRow>
             )}
             {employees && employees.map((employee) => (
@@ -66,6 +68,17 @@ export default function EmployeesPage() {
                 <TableCell>
                   <Badge variant={employee.role === 'Supervisor' ? "default" : "secondary"}>
                     {employee.role}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant="outline"
+                    className={cn({
+                      "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300": employee.status === 'Active',
+                      "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300": employee.status === 'Inactive',
+                    })}
+                  >
+                    {employee.status}
                   </Badge>
                 </TableCell>
                 <TableCell className="font-mono">{employee.qrCode}</TableCell>

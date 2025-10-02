@@ -3,6 +3,7 @@ export type Employee = {
   name: string;
   qrCode: string;
   role: 'Worker' | 'Supervisor';
+  status: 'Active' | 'Inactive';
 };
 
 export type Client = {
@@ -27,9 +28,8 @@ export type TimeLog = {
   id: string;
   employeeId: string;
   taskId: string;
-  timestamp: Date;
-  latitude: number;
-  longitude: number;
+  startTime: Date;
+  endTime: Date;
   isBreak: boolean;
   breakReason?: 'Paid' | 'Unpaid Meal';
 };
@@ -37,8 +37,8 @@ export type TimeLog = {
 export type PieceLog = {
   id: string;
   employeeId:string;
+  taskId: string;
   timestamp: Date;
   quantity: number;
-  pieceScannedQr: string;
   qcNote?: string;
 };
