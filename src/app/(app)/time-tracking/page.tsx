@@ -514,7 +514,7 @@ export default function TimeTrackingPage() {
                             value={manualEmployeeSearch}
                             onChange={(e) => setManualEmployeeSearch(e.target.value)}
                         />
-                        {manualEmployeeSearch && filteredManualEmployees.length > 0 && (
+                        {manualEmployeeSearch && filteredManualEmployees && filteredManualEmployees.length > 0 && (
                             <div className="border rounded-md max-h-48 overflow-y-auto">
                                 {filteredManualEmployees.map(employee => (
                                     <Button 
@@ -531,7 +531,7 @@ export default function TimeTrackingPage() {
                                 ))}
                             </div>
                         )}
-                         {manualEmployeeSearch && filteredManualEmployees.length === 0 && (
+                         {manualEmployeeSearch && filteredManualEmployees && filteredManualEmployees.length === 0 && (
                             <p className="p-4 text-sm text-muted-foreground">No employees found.</p>
                          )}
                     </>
