@@ -367,7 +367,7 @@ export default function TimeTrackingPage() {
   }
 
   const handleManualSubmit = async () => {
-     if (!firestore || !selectedTask || !manualSelectedEmployee) {
+    if (!firestore || !selectedTask || !manualSelectedEmployee) {
         toast({ variant: "destructive", title: "Missing Information", description: "Please complete all fields." });
         return;
     }
@@ -400,35 +400,42 @@ export default function TimeTrackingPage() {
             .finally(() => setIsManualSubmitting(false));
 
     } else if (manualLogType === 'clock-out') {
-         const q = query(
+        const q = query(
             collection(firestore, 'time_entries'),
             where('employeeId', '==', employeeId),
             where('taskId', '==', selectedTask),
             where('endTime', '==', null)
         );
         getDocs(q).then(querySnapshot => {
-            if(querySnapshot.empty){
+            if (querySnapshot.empty) {
                 toast({ variant: 'destructive', title: "Clock Out Failed", description: "No active clock-in found for this employee and task." });
                 setIsManualSubmitting(false);
             } else {
                 const updatedData = { endTime: new Date() };
                 const docSnap = querySnapshot.docs[0];
                 updateDoc(docSnap.ref, updatedData)
-                .then(() => {
-                    toast({ title: "Clock Out Successful", description: `Clocked out ${manualSelectedEmployee.name}.` });
-                    setManualSelectedEmployee(null);
-                    setManualEmployeeSearch('');
-                })
-                .catch(async (serverError) => {
-                    const permissionError = new FirestorePermissionError({
-                        path: docSnap.ref.path, 
-                        operation: 'update',
-                        requestResourceData: updatedData,
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                })
-                .finally(() => setIsManualSubmitting(false));
+                    .then(() => {
+                        toast({ title: "Clock Out Successful", description: `Clocked out ${manualSelectedEmployee.name}.` });
+                        setManualSelectedEmployee(null);
+                        setManualEmployeeSearch('');
+                    })
+                    .catch(async (serverError) => {
+                        const permissionError = new FirestorePermissionError({
+                            path: docSnap.ref.path,
+                            operation: 'update',
+                            requestResourceData: updatedData,
+                        });
+                        errorEmitter.emit('permission-error', permissionError);
+                    })
+                    .finally(() => setIsManualSubmitting(false));
             }
+        }).catch(err => {
+            const permissionError = new FirestorePermissionError({
+                path: 'time_entries',
+                operation: 'list',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            setIsManualSubmitting(false);
         });
 
     } else if (manualLogType === 'piecework') {
@@ -499,11 +506,18 @@ export default function TimeTrackingPage() {
                 const permissionError = new FirestorePermissionError({
                     path: 'time_entries', // Simplification
                     operation: 'update',
-                    requestResourceData: updatedData,
+                    requestResourceData: { "message": `Batch update for ${querySnapshot.size} docs`, data: updatedData },
                 });
                 errorEmitter.emit('permission-error', permissionError);
             })
             .finally(() => setIsBulkClockingOut(false));
+    }).catch(err => {
+        const permissionError = new FirestorePermissionError({
+            path: 'time_entries',
+            operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        setIsBulkClockingOut(false);
     });
   };
 
