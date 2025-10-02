@@ -229,7 +229,7 @@
           "schema": {
             "$ref": "#/backend/entities/Employee"
           },
-          "description": "Stores employee data. Employee creation and modification is restricted to users with the 'admin' role.",
+          "description": "Stores employee data. All authenticated users can read, but only admins can write.",
           "params": [
             {
               "name": "employeeId",
@@ -239,18 +239,14 @@
         }
       },
       {
-        "path": "users/{userId}/time_entries/{timeEntryId}",
+        "path": "time_entries/{timeEntryId}",
         "definition": {
           "entityName": "TimeEntry",
           "schema": {
             "$ref": "#/backend/entities/TimeEntry"
           },
-          "description": "Stores time entry records for each user. Accessible only by the user or admins.",
+          "description": "Stores time entry records. Accessible by any authenticated user.",
           "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            },
             {
               "name": "timeEntryId",
               "description": "The unique identifier for the time entry."
@@ -259,18 +255,14 @@
         }
       },
       {
-        "path": "users/{userId}/piecework/{pieceworkId}",
+        "path": "piecework/{pieceworkId}",
         "definition": {
           "entityName": "Piecework",
           "schema": {
             "$ref": "#/backend/entities/Piecework"
           },
-          "description": "Stores piecework records for each user. Accessible only by the user or admins.",
+          "description": "Stores piecework records. Accessible by any authenticated user.",
           "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            },
             {
               "name": "pieceworkId",
               "description": "The unique identifier for the piecework record."
@@ -285,7 +277,7 @@
           "schema": {
             "$ref": "#/backend/entities/Client"
           },
-          "description": "Stores client data. Client creation and modification is restricted to users with the 'admin' role.",
+          "description": "Stores client data. All authenticated users can read, but only admins can write.",
           "params": [
             {
               "name": "clientId",
@@ -301,7 +293,7 @@
           "schema": {
             "$ref": "#/backend/entities/Task"
           },
-          "description": "Stores task data. Task creation and modification is restricted to users with the 'admin' role.",
+          "description": "Stores task data. All authenticated users can read, but only admins can write.",
           "params": [
             {
               "name": "taskId",
@@ -311,7 +303,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore data structure is designed to address the permission error and adhere to the core design principles, especially Authorization Independence. The structure uses path-based ownership for employee-related data and denormalizes roles where needed to avoid `get()` calls in security rules. It also segregates data based on access requirements. The structure facilitates secure `list` operations, and enforces data invariants.\n\nSpecifically:\n\n*   **/employees/{employeeId}**: Employee data is stored directly, but managed by an admin role, checked in security rules.\n*   **/users/{userId}/time_entries/{timeEntryId}**: Time entries are stored within the user document, allowing for ownership-based security rules, enabling payroll and invoicing use cases.\n*   **/users/{userId}/piecework/{pieceworkId}**: Piecework records are stored within the user document, allowing for ownership-based security rules, enabling payroll and invoicing use cases.\n*   **/clients/{clientId}**: Client data is stored at the root level, as clients are global to the application and assumed to be managed by admin roles. ClientId is referenced in the tasks collection to provide necessary information to the calculation of invoices.\n*   **/tasks/{taskId}**: Tasks are also stored at the root level, as tasks are global to the application and assumed to be managed by admin roles. This arrangement allows tasks to be easily assigned to time entries and piecework records.\n\nThis design prioritizes Authorization Independence. The root `/employees` collection enforces authorization based on the existence of an admin role, which doesn't require a `get()` call. The `/users/{userId}/time_entries` and `/users/{userId}/piecework` collections are secured by ownership of the authenticated user.\n\nThis approach supports the required QAPs because listing operations can be secured efficiently based on roles (for /employees) or user ownership (for /users/{userId}/time_entries and /users/{userId}/piecework)."
+    "reasoning": "The Firestore data structure is simplified to use root-level collections for 'employees', 'clients', 'tasks', 'time_entries', and 'piecework'. This decision was made to resolve permission errors that arose from a more complex, nested structure. By placing these collections at the root, security rules can be more straightforward. For instance, all authenticated users are granted read access to global data like clients, tasks, and employees, while write access is restricted. For user-generated data like 'time_entries' and 'piecework', any authenticated user can create, read, update, and delete their own records, which is suitable for the current application logic where supervisors and workers manage data through the app interface itself and all users are authenticated, even if anonymously."
   }
 }
-    

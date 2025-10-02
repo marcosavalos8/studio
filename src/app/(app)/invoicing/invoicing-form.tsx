@@ -63,7 +63,13 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
     if (!firestore || !selectedClient || !date?.from || !date?.to) return
     setIsGenerating(true)
 
-    const clientTasks = tasks.filter(task => task.client === selectedClient.name)
+    const clientData = clients.find(c => c.id === selectedClient.id)
+    if (!clientData) {
+        setIsGenerating(false)
+        return
+    }
+
+    const clientTasks = tasks.filter(task => task.client === clientData.name)
     const invoiceItems: InvoiceItem[] = []
 
     // Fetch piece logs
@@ -141,7 +147,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
     const total = invoiceItems.reduce((sum, item) => sum + item.total, 0)
 
     setInvoice({
-      client: selectedClient,
+      client: clientData,
       date,
       items: invoiceItems,
       total,
