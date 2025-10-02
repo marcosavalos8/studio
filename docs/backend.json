@@ -221,88 +221,35 @@
     ]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "employees/{employeeId}",
-        "definition": {
-          "entityName": "Employee",
-          "schema": {
-            "$ref": "#/backend/entities/Employee"
-          },
-          "description": "Stores employee data. All authenticated users can read, but only admins can write.",
-          "params": [
-            {
-              "name": "employeeId",
-              "description": "The unique identifier for the employee."
-            }
-          ]
-        }
+    "/employees/{employeeId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Employee"
       },
-      {
-        "path": "time_entries/{timeEntryId}",
-        "definition": {
-          "entityName": "TimeEntry",
-          "schema": {
-            "$ref": "#/backend/entities/TimeEntry"
-          },
-          "description": "Stores time entry records. Accessible by any authenticated user.",
-          "params": [
-            {
-              "name": "timeEntryId",
-              "description": "The unique identifier for the time entry."
-            }
-          ]
-        }
+      "description": "Stores employee data. All authenticated users can read, but only admins can write."
+    },
+    "/time_entries/{timeEntryId}": {
+      "schema": {
+        "$ref": "#/backend/entities/TimeEntry"
       },
-      {
-        "path": "piecework/{pieceworkId}",
-        "definition": {
-          "entityName": "Piecework",
-          "schema": {
-            "$ref": "#/backend/entities/Piecework"
-          },
-          "description": "Stores piecework records. Accessible by any authenticated user.",
-          "params": [
-            {
-              "name": "pieceworkId",
-              "description": "The unique identifier for the piecework record."
-            }
-          ]
-        }
+      "description": "Stores time entry records. Accessible by any authenticated user."
+    },
+    "/piecework/{pieceworkId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Piecework"
       },
-      {
-        "path": "clients/{clientId}",
-        "definition": {
-          "entityName": "Client",
-          "schema": {
-            "$ref": "#/backend/entities/Client"
-          },
-          "description": "Stores client data. All authenticated users can read, but only admins can write.",
-          "params": [
-            {
-              "name": "clientId",
-              "description": "The unique identifier for the client."
-            }
-          ]
-        }
+      "description": "Stores piecework records. Accessible by any authenticated user."
+    },
+    "/clients/{clientId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Client"
       },
-      {
-        "path": "tasks/{taskId}",
-        "definition": {
-          "entityName": "Task",
-          "schema": {
-            "$ref": "#/backend/entities/Task"
-          },
-          "description": "Stores task data. All authenticated users can read, but only admins can write.",
-          "params": [
-            {
-              "name": "taskId",
-              "description": "The unique identifier for the task."
-            }
-          ]
-        }
-      }
-    ],
-    "reasoning": "The Firestore data structure is simplified to use root-level collections for 'employees', 'clients', 'tasks', 'time_entries', and 'piecework'. This decision was made to resolve permission errors that arose from a more complex, nested structure. By placing these collections at the root, security rules can be more straightforward. For instance, all authenticated users are granted read access to global data like clients, tasks, and employees, while write access is restricted. For user-generated data like 'time_entries' and 'piecework', any authenticated user can create, read, update, and delete their own records, which is suitable for the current application logic where supervisors and workers manage data through the app interface itself and all users are authenticated, even if anonymously."
+      "description": "Stores client data. All authenticated users can read, but only admins can write."
+    },
+    "/tasks/{taskId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Task"
+      },
+      "description": "Stores task data. All authenticated users can read, but only admins can write."
+    }
   }
 }
