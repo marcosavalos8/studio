@@ -1,7 +1,8 @@
 'use client'
 
 import * as React from "react"
-import { useFormState, useFormStatus } from "react-dom"
+import { useActionState } from "react"
+import { useFormStatus } from "react-dom"
 import { format } from "date-fns"
 import { Calendar as CalendarIcon, Loader2, Download } from "lucide-react"
 
@@ -48,7 +49,7 @@ const initialState = {
 }
 
 export function PayrollForm() {
-  const [state, formAction] = useFormState(generateReportAction, initialState)
+  const [state, formAction] = useActionState(generateReportAction, initialState)
   const [date, setDate] = React.useState<DateRange | undefined>()
   const { toast } = useToast()
 
