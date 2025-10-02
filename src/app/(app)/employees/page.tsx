@@ -19,9 +19,20 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { PlusCircle } from "lucide-react"
 
-import { employees } from "@/lib/mock-data"
+import type { Employee } from "@/lib/types"
+import { useCollection } from "@/firebase"
+import { collection, query, orderBy } from "firebase/firestore"
+import { useFirestore } from "@/firebase"
+import { useMemo } from "react"
 
 export default function EmployeesPage() {
+  const firestore = useFirestore()
+  const employeesQuery = useMemo(() => {
+      if (!firestore) return null
+      return query(collection(firestore, "employees"), orderBy("name"))
+    }, [firestore])
+  const { data: employees, loading } = useCollection<Employee>(employeesQuery)
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -44,7 +55,12 @@ export default function EmployeesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {employees.map((employee) => (
+            {loading && (
+                <TableRow>
+                    <TableCell colSpan={3} className="text-center">Loading...</TableCell>
+                </TableRow>
+            )}
+            {employees && employees.map((employee) => (
               <TableRow key={employee.id}>
                 <TableCell className="font-medium">{employee.name}</TableCell>
                 <TableCell>

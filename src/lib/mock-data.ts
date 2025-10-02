@@ -1,4 +1,7 @@
 import type { Employee, Client, Task } from '@/lib/types';
+import { getFirestore } from "firebase/firestore";
+import { addDoc, collection } from "firebase/firestore";
+
 
 export const employees: Employee[] = [
   { id: 'emp-01', name: 'Maria Garcia', qrCode: 'qr-maria-garcia', role: 'Worker' },
@@ -22,3 +25,23 @@ export const tasks: Task[] = [
   { id: 'task-04', name: 'Packing Boxes', client: 'Columbia Basin Produce', clientRate: 0.8, clientRateType: 'piece', employeePayType: 'piecework', employeeRate: 0.2, status: 'Active' },
   { id: 'task-05', name: 'Harvesting Asparagus', client: 'Columbia Basin Produce', clientRate: 1.2, clientRateType: 'piece', employeePayType: 'piecework', employeeRate: 0.3, status: 'Completed' },
 ];
+
+// NOTE: This is an example of how you might seed data.
+// This function is not called anywhere and is for demonstration purposes.
+async function seedDatabase() {
+    const db = getFirestore();
+    try {
+        for (const employee of employees) {
+            await addDoc(collection(db, "employees"), employee);
+        }
+        for (const client of clients) {
+            await addDoc(collection(db, "clients"), client);
+        }
+        for (const task of tasks) {
+            await addDoc(collection(db, "tasks"), task);
+        }
+        console.log("Database seeded successfully!");
+    } catch (error)_ {
+        console.error("Error seeding database: ", error);
+    }
+}

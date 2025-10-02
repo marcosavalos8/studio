@@ -1,0 +1,107 @@
+{
+  "entities": {
+    "employee": {
+      "title": "Employee",
+      "description": "An employee of the company.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the employee."
+        },
+        "qrCode": {
+          "type": "string",
+          "description": "The unique QR code identifier for the employee."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["Worker", "Supervisor"],
+          "description": "The role of the employee."
+        }
+      },
+      "required": ["name", "qrCode", "role"]
+    },
+    "client": {
+      "title": "Client",
+      "description": "A client of the company.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the client."
+        },
+        "billingAddress": {
+          "type": "string",
+          "description": "The billing address of the client."
+        },
+        "paymentTerms": {
+          "type": "string",
+          "description": "The payment terms for the client."
+        }
+      },
+      "required": ["name", "billingAddress", "paymentTerms"]
+    },
+    "task": {
+      "title": "Task",
+      "description": "A work task or project.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the task."
+        },
+        "client": {
+          "type": "string",
+          "description": "The name of the client this task is for."
+        },
+        "clientRate": {
+          "type": "number",
+          "description": "The rate charged to the client."
+        },
+        "clientRateType": {
+          "type": "string",
+          "enum": ["hourly", "piece"],
+          "description": "The type of rate charged to the client."
+        },
+        "employeePayType": {
+          "type": "string",
+          "enum": ["hourly", "piecework"],
+          "description": "How the employee is paid for this task."
+        },
+        "employeeRate": {
+          "type": "number",
+          "description": "The rate the employee is paid."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Active", "Inactive", "Completed"],
+          "description": "The status of the task."
+        }
+      },
+      "required": ["name", "client", "clientRate", "clientRateType", "employeePayType", "employeeRate", "status"]
+    }
+  },
+  "auth": {
+    "providers": ["anonymous"]
+  },
+  "firestore": {
+    "/employees/{employeeId}": {
+      "schema": {
+        "$ref": "#/entities/employee"
+      },
+      "description": "Stores information about individual employees."
+    },
+    "/clients/{clientId}": {
+      "schema": {
+        "$ref": "#/entities/client"
+      },
+      "description": "Stores information about individual clients."
+    },
+    "/tasks/{taskId}": {
+      "schema": {
+        "$ref": "#/entities/task"
+      },
+      "description": "Stores information about individual tasks or projects."
+    }
+  }
+}

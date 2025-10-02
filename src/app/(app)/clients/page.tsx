@@ -18,9 +18,20 @@ import {
 import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
 
-import { clients } from "@/lib/mock-data"
+import { useCollection } from "@/firebase"
+import { collection, query, orderBy } from "firebase/firestore"
+import { useFirestore } from "@/firebase"
+import { useMemo } from "react"
+import type { Client } from "@/lib/types"
 
 export default function ClientsPage() {
+  const firestore = useFirestore()
+  const clientsQuery = useMemo(() => {
+    if (!firestore) return null
+    return query(collection(firestore, "clients"), orderBy("name"))
+  }, [firestore])
+  const { data: clients, loading } = useCollection<Client>(clientsQuery)
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -43,7 +54,12 @@ export default function ClientsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {clients.map((client) => (
+             {loading && (
+                <TableRow>
+                    <TableCell colSpan={3} className="text-center">Loading...</TableCell>
+                </TableRow>
+            )}
+            {clients && clients.map((client) => (
               <TableRow key={client.id}>
                 <TableCell className="font-medium">{client.name}</TableCell>
                 <TableCell>{client.billingAddress}</TableCell>
