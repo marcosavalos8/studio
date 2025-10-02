@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import QrScanner from 'react-qr-scanner'
 import {
     Alert,
@@ -8,6 +8,7 @@ import {
     AlertTitle,
 } from "@/components/ui/alert"
 import { VideoOff } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 
 type QrScannerComponentProps = {
     onScanResult: (result: string) => void;
@@ -15,6 +16,11 @@ type QrScannerComponentProps = {
 
 export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
     const [error, setError] = useState<string | null>(null)
+    const [isClient, setIsClient] = useState(false)
+
+    useEffect(() => {
+        setIsClient(true)
+    }, [])
 
     const handleScan = (result: any) => {
         if (result && result.text) {
@@ -45,6 +51,10 @@ export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
         )
     }
 
+    if (!isClient) {
+        return <Skeleton className="w-full aspect-video bg-muted rounded-md flex items-center justify-center"><VideoOff className="h-10 w-10 text-muted-foreground" /></Skeleton>
+    }
+
     return (
         <div className="w-full aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden">
            <QrScanner
@@ -58,5 +68,3 @@ export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
         </div>
     )
 }
-
-    
