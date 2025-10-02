@@ -88,8 +88,9 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
     }
 
     const newTask: Omit<Task, 'id'> = { ...values };
+    const tasksCollection = collection(firestore, 'tasks');
 
-    addDoc(collection(firestore, 'tasks'), newTask)
+    addDoc(tasksCollection, newTask)
       .then(() => {
         toast({
           title: 'Task Added',
@@ -100,7 +101,7 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
       })
       .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
-          path: 'tasks',
+          path: tasksCollection.path,
           operation: 'create',
           requestResourceData: newTask,
         });
