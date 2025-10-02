@@ -3,6 +3,8 @@
 import * as React from "react"
 import { format } from "date-fns"
 import { Calendar as CalendarIcon, Loader2, Download } from "lucide-react"
+import { Timestamp } from 'firebase/firestore'
+
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -28,7 +30,7 @@ import {
   TableRow,
   TableFooter
 } from "@/components/ui/table"
-import type { Client, Task, PieceLog, TimeLog } from "@/lib/types"
+import type { Client, Task, Piecework, TimeEntry } from "@/lib/types"
 import type { DateRange } from "react-day-picker"
 import { useFirestore } from "@/firebase"
 import { collection, getDocs, query, where } from "firebase/firestore"
@@ -66,13 +68,13 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
 
     // Fetch piece logs
     const pieceLogsQuery = query(
-      collection(firestore, "piecelogs"),
+      collection(firestore, "piecework"),
       where("taskId", "in", clientTasks.map(t => t.id)),
       where("timestamp", ">=", date.from),
       where("timestamp", "<=", date.to)
     )
     const pieceLogsSnap = await getDocs(pieceLogsQuery)
-    const pieceLogs = pieceLogsSnap.docs.map(doc => doc.data() as PieceLog)
+    const pieceLogs = pieceLogsSnap.docs.map(doc => doc.data() as Piecework)
 
     // Aggregate piecework logs
     const pieceworkByTask: Record<string, number> = {}
@@ -80,7 +82,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
       if (!pieceworkByTask[log.taskId]) {
         pieceworkByTask[log.taskId] = 0
       }
-      pieceworkByTask[log.taskId] += log.quantity
+      pieceworkByTask[log.taskId] += log.pieceCount
     })
 
     for (const taskId in pieceworkByTask) {
@@ -100,13 +102,13 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
 
     // Fetch time logs for hourly tasks
      const timeLogsQuery = query(
-      collection(firestore, "timelogs"),
+      collection(firestore, "time_entries"),
       where("taskId", "in", clientTasks.map(t => t.id)),
-      where("startTime", ">=", date.from),
-      where("startTime", "<=", date.to)
+      where("timestamp", ">=", date.from),
+      where("timestamp", "<=", date.to)
     );
     const timeLogsSnap = await getDocs(timeLogsQuery);
-    const timeLogs = timeLogsSnap.docs.map(doc => doc.data() as TimeLog).filter(log => log.endTime);
+    const timeLogs = timeLogsSnap.docs.map(doc => doc.data() as TimeEntry).filter(log => log.endTime);
 
 
     // Aggregate hourly logs
@@ -115,9 +117,9 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         if (!hoursByTask[log.taskId]) {
             hoursByTask[log.taskId] = 0
         }
-        const start = (log.startTime as any).toDate()
-        const end = (log.endTime as any).toDate()
-        const durationHours = (end - start) / (1000 * 60 * 60)
+        const start = (log.timestamp as unknown as Timestamp).toDate()
+        const end = (log.endTime as unknown as Timestamp).toDate()
+        const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
         hoursByTask[log.taskId] += durationHours
     });
 
@@ -216,7 +218,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
             <div className="text-right">
               <div className="font-semibold">FieldTack WA</div>
               <div className="text-sm text-muted-foreground">Invoice Date: {format(new Date(), "LLL dd, y")}</div>
-              <div className="text-sm text-muted-foreground">Period: {format(invoice.date.from, "LLL dd, y")} - {format(invoice.date.to, "LLL dd, y")}</div>
+              <div className="text-sm text-muted-foreground">Period: {format(invoice.date.from!, "LLL dd, y")} - {format(invoice.date.to!, "LLL dd, y")}</div>
             </div>
           </div>
 

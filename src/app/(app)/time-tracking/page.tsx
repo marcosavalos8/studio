@@ -32,8 +32,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
 import JSConfetti from 'js-confetti'
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase'
-import { collection, query, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore'
-import type { Task } from '@/lib/types'
+import { collection, query, where, getDocs, writeBatch, serverTimestamp, addDoc, updateDoc, doc, getDoc } from 'firebase/firestore'
+import type { Task, TimeEntry, Piecework } from '@/lib/types'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const QrScanner = dynamic(() => import('./qr-scanner').then(mod => mod.QrScannerComponent), {
@@ -57,6 +57,8 @@ export default function TimeTrackingPage() {
   const [jsConfetti, setJsConfetti] = useState<JSConfetti | null>(null);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [selectedBulkTask, setSelectedBulkTask] = useState<string>('');
   const [isBulkClockingOut, setIsBulkClockingOut] = useState(false);
 
@@ -72,9 +74,11 @@ export default function TimeTrackingPage() {
   
   const ranches = useMemo(() => tasks ? [...new Set(tasks.map(t => t.ranch).filter(Boolean))] : [], [tasks]);
   const blocks = useMemo(() => {
-    if (!selectedRanch) return [];
-    return [...new Set(tasks?.filter(t => t.ranch === selectedRanch).map(t => t.block).filter(Boolean))];
+    if (!selectedRanch || !tasks) return [];
+    return [...new Set(tasks.filter(t => t.ranch === selectedRanch).map(t => t.block).filter(Boolean))];
   }, [tasks, selectedRanch]);
+
+  const currentTask = useMemo(() => tasks?.find(t => t.id === selectedTask), [tasks, selectedTask])
 
 
   useEffect(() => {
@@ -100,16 +104,16 @@ export default function TimeTrackingPage() {
   useEffect(() => {
     setScannedEmployees([]);
     setScannedBin(null);
-  }, [scanMode, isSharedPiece]);
+  }, [scanMode, isSharedPiece, selectedTask]);
 
-  const playBeep = () => {
+  const playBeep = (success = true) => {
     if (!audioContext) return;
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
     
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
-    gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+    oscillator.type = success ? 'sine' : 'sawtooth';
+    oscillator.frequency.setValueAtTime(success ? 880 : 440, audioContext.currentTime);
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.5);
 
     oscillator.connect(gainNode);
@@ -121,37 +125,118 @@ export default function TimeTrackingPage() {
 
   const handleScanResult = (scannedData: string) => {
       if (!selectedTask) {
+          playBeep(false);
           toast({ variant: "destructive", title: "Task not selected", description: "Please select a task, ranch, and block before scanning." });
           return;
       }
 
-      // Basic check to differentiate between employee and bin QR codes
-      // This logic should be made more robust (e.g., QR codes have prefixes)
-      const isEmployeeScan = !scannedData.toLowerCase().includes('bin');
-
       playBeep();
-      jsConfetti?.addConfetti({ confettiNumber: 50 });
+      jsConfetti?.addConfetti({ confettiNumber: 30, confettiColors: ['#f59e0b', '#10b981', '#3b82f6'] });
+
+      // Assuming employee QR codes start with 'qr-' and bin codes do not
+      const isEmployeeScan = scannedData.startsWith('qr-');
 
       if (scanMode === 'piece') {
         if (isEmployeeScan) {
-          if (scannedEmployees.includes(scannedData)) {
-            toast({ variant: "destructive", title: "Duplicate Scan", description: `Employee ${scannedData} already scanned.` });
+          const employeeId = scannedData;
+          if (scannedEmployees.includes(employeeId)) {
+            playBeep(false);
+            toast({ variant: "destructive", title: "Duplicate Employee Scan", description: `Employee ${employeeId} already scanned for this piece.` });
           } else {
-            setScannedEmployees(prev => isSharedPiece ? [...prev, scannedData] : [scannedData]);
-            toast({ title: "Employee Scanned", description: scannedData });
+            setScannedEmployees(prev => isSharedPiece ? [...prev, employeeId] : [employeeId]);
+            toast({ title: "Employee Scanned", description: employeeId });
           }
-        } else {
+        } else { // It's a bin scan
           setScannedBin(scannedData);
           toast({ title: "Bin Scanned", description: scannedData });
         }
       } else { // Clock-in or Clock-out
-        if (scannedEmployees.includes(scannedData)) {
-          toast({ variant: "destructive", title: "Duplicate Scan", description: `Employee ${scannedData} already scanned for ${scanMode}.` });
+        if (isEmployeeScan) {
+          const employeeId = scannedData;
+           if (scannedEmployees.includes(employeeId)) {
+            playBeep(false);
+            toast({ variant: "destructive", title: "Duplicate Scan", description: `Employee ${employeeId} already scanned for ${scanMode}.` });
+          } else {
+            setScannedEmployees(prev => [...prev, employeeId]);
+            toast({ title: `Employee Ready for ${scanMode}`, description: employeeId });
+          }
         } else {
-          setScannedEmployees(prev => [...prev, scannedData]);
-          toast({ title: `Employee ${scanMode === 'clock-in' ? 'Clocked In' : 'Clocked Out'}`, description: scannedData });
+            playBeep(false);
+            toast({ variant: "destructive", title: "Invalid Scan", description: "Expected an employee QR code."});
         }
       }
+  }
+
+  const handleSubmit = async () => {
+    if (!firestore || !selectedTask || scannedEmployees.length === 0) {
+        toast({ variant: "destructive", title: "Missing Information", description: "Task and at least one employee must be scanned." });
+        return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+        if (scanMode === 'clock-in') {
+            const batch = writeBatch(firestore);
+            scannedEmployees.forEach(employeeQr => {
+                const newTimeEntry: Omit<TimeEntry, 'id'> = {
+                    employeeId: employeeQr,
+                    taskId: selectedTask,
+                    timestamp: new Date(),
+                    endTime: null,
+                    isBreak: false,
+                };
+                const docRef = doc(collection(firestore, 'time_entries'));
+                batch.set(docRef, newTimeEntry);
+            });
+            await batch.commit();
+            toast({ title: "Clock In Successful", description: `Clocked in ${scannedEmployees.length} employee(s).` });
+
+        } else if (scanMode === 'clock-out') {
+            const q = query(
+                collection(firestore, 'time_entries'),
+                where('employeeId', 'in', scannedEmployees),
+                where('taskId', '==', selectedTask),
+                where('endTime', '==', null)
+            );
+            const querySnapshot = await getDocs(q);
+            if (querySnapshot.empty) {
+                 toast({ variant: 'destructive', title: "Clock Out Failed", description: "No active clock-in found for the selected employees and task." });
+            } else {
+                const batch = writeBatch(firestore);
+                querySnapshot.forEach(doc => {
+                    batch.update(doc.ref, { endTime: serverTimestamp() });
+                });
+                await batch.commit();
+                toast({ title: "Clock Out Successful", description: `Clocked out ${querySnapshot.size} employee(s).` });
+            }
+        } else if (scanMode === 'piece') {
+            if (!scannedBin) {
+                toast({ variant: 'destructive', title: "Bin not scanned", description: "Please scan a bin QR code." });
+                setIsSubmitting(false);
+                return;
+            }
+            const newPiecework: Omit<Piecework, 'id'> = {
+                employeeId: scannedEmployees.join(','), // For shared, join IDs
+                taskId: selectedTask,
+                timestamp: new Date(),
+                pieceCount: 1, // Assume 1 bin per scan
+                pieceQrCode: scannedBin,
+            };
+            await addDoc(collection(firestore, 'piecework'), newPiecework);
+            toast({ title: "Piecework Recorded", description: `Bin ${scannedBin} recorded for ${scannedEmployees.length} employee(s).` });
+        }
+        
+        // Reset after successful submission
+        setScannedEmployees([]);
+        setScannedBin(null);
+
+    } catch (error: any) {
+        console.error("Submission Error:", error);
+        toast({ variant: 'destructive', title: "Submission Failed", description: error.message || "An unexpected error occurred." });
+    } finally {
+        setIsSubmitting(false);
+    }
   }
 
   const handleBulkClockOut = async () => {
@@ -162,7 +247,7 @@ export default function TimeTrackingPage() {
 
     setIsBulkClockingOut(true);
     try {
-        const timeLogsRef = collection(firestore, 'timelogs');
+        const timeLogsRef = collection(firestore, 'time_entries');
         const q = query(
             timeLogsRef,
             where('taskId', '==', selectedBulkTask),
@@ -350,7 +435,10 @@ export default function TimeTrackingPage() {
                     </Card>
                  )}
               </div>
-
+              <Button onClick={handleSubmit} disabled={isSubmitting || scannedEmployees.length === 0 || (scanMode === 'piece' && !scannedBin)} className="w-full">
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                Submit {scanMode === 'clock-in' ? 'Clock In(s)' : scanMode === 'clock-out' ? 'Clock Out(s)' : 'Piecework'}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -433,5 +521,3 @@ export default function TimeTrackingPage() {
     </div>
   );
 }
-
-    

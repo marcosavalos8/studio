@@ -27,22 +27,23 @@ export type Task = {
   status: 'Active' | 'Inactive' | 'Completed';
 };
 
-export type TimeLog = {
+export type TimeEntry = {
   id: string;
   employeeId: string;
   taskId: string;
-  startTime: Date;
-  endTime: Date;
+  timestamp: Date;
+  endTime?: Date | null;
   isBreak: boolean;
   breakReason?: 'Paid' | 'Unpaid Meal';
 };
 
-export type PieceLog = {
+export type Piecework = {
   id: string;
   employeeId:string;
   taskId: string;
   timestamp: Date;
-  quantity: number;
+  pieceCount: number;
+  pieceQrCode: string;
   qcNote?: string;
 };
 
@@ -54,5 +55,3 @@ export type SharedPieceLog = {
   quantity: number;
   qcNote?: string;
 };
-
-    
