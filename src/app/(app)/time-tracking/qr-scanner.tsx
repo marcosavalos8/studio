@@ -1,59 +1,47 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
-import QrScanner from 'react-qr-scanner';
+import React, { useState } from 'react'
+import QrScanner from 'react-qr-scanner'
 import { useToast } from "@/hooks/use-toast"
 import {
     Alert,
     AlertDescription,
     AlertTitle,
 } from "@/components/ui/alert"
+import { VideoOff } from 'lucide-react'
 
 type QrScannerComponentProps = {
     onScanResult: (result: string) => void;
 }
 
 export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
-    const { toast } = useToast();
-    const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-    const videoRef = useRef<HTMLVideoElement>(null);
-
-    useEffect(() => {
-        const getCameraPermission = async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                if (videoRef.current) {
-                    videoRef.current.srcObject = stream;
-                }
-                setHasCameraPermission(true);
-            } catch (error) {
-                console.error('Error accessing camera:', error);
-                setHasCameraPermission(false);
-            }
-        };
-
-        getCameraPermission();
-    }, []);
+    const { toast } = useToast()
+    const [error, setError] = useState<string | null>(null)
 
     const handleScan = (result: any) => {
         if (result && result.text) {
-            onScanResult(result.text);
+            onScanResult(result.text)
         }
     }
 
-    const handleError = (error: any) => {
-        console.error(error);
-        if (error.name === 'NotAllowedError' || error.name === 'NotFoundError' || error.name === 'NotReadableError') {
-            setHasCameraPermission(false);
+    const handleError = (err: any) => {
+        console.error(err)
+        if (err.name === 'NotAllowedError') {
+            setError('Camera access was denied. Please enable it in your browser settings.')
+        } else if (err.name === 'NotFoundError') {
+            setError('No camera found. Please ensure a camera is connected and enabled.')
+        } else {
+            setError('An unexpected error occurred with the camera.')
         }
     }
     
-    if (hasCameraPermission === false) {
+    if (error) {
         return (
             <Alert variant="destructive">
-                <AlertTitle>Camera Access Denied</AlertTitle>
+                <VideoOff className="h-4 w-4" />
+                <AlertTitle>Camera Error</AlertTitle>
                 <AlertDescription>
-                    Please allow camera access in your browser settings to use the scanner. You may need to refresh the page after granting permission.
+                    {error} You may need to refresh the page after granting permission.
                 </AlertDescription>
             </Alert>
         )
