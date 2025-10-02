@@ -1,7 +1,6 @@
 'use client'
 
-import { useDoc } from '@/firebase'
-import { useFirestore } from '@/firebase'
+import { useDoc, useFirestore, useMemoFirebase } from '@/firebase'
 import type { Employee } from '@/lib/types'
 import { doc } from 'firebase/firestore'
 import { Loader2 } from 'lucide-react'
@@ -14,27 +13,26 @@ export default function PrintBadgePage() {
     const firestore = useFirestore()
     const { id } = params
   
-    const employeeRef = useMemo(() => {
+    const employeeRef = useMemoFirebase(() => {
       if (!firestore || !id) return null
       return doc(firestore, 'employees', id as string)
     }, [firestore, id])
   
-    const { data: employee, loading, error } = useDoc<Employee>(employeeRef)
+    const { data: employee, isLoading, error } = useDoc<Employee>(employeeRef)
     const hasPrinted = useRef(false);
-    const employeeData = employee?.[0];
 
     useEffect(() => {
-        if (employeeData && !loading && !hasPrinted.current) {
+        if (employee && !isLoading && !hasPrinted.current) {
             hasPrinted.current = true;
             setTimeout(() => window.print(), 500);
         }
-    }, [employeeData, loading])
+    }, [employee, isLoading])
 
-    if (loading) {
+    if (isLoading) {
       return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>
     }
   
-    if (error || !employeeData) {
+    if (error || !employee) {
       return <div className="flex h-screen items-center justify-center">Error loading employee data.</div>
     }
   
@@ -53,17 +51,16 @@ export default function PrintBadgePage() {
                 }
             `}</style>
             <div className="w-[4in] h-[6in] bg-white border border-gray-300 shadow-lg print:shadow-none print:border-none rounded-lg flex flex-col items-center justify-center p-8 space-y-8">
-                <h1 className="text-4xl font-bold text-center break-words">{employeeData.name}</h1>
+                <h1 className="text-4xl font-bold text-center break-words">{employee.name}</h1>
                 <div className="border-4 border-black p-2">
-                    <QRCode value={employeeData.qrCode} size={250} />
+                    <QRCode value={employee.qrCode} size={250} />
                 </div>
-                <p className="text-center text-gray-500 font-mono text-sm">{employeeData.qrCode}</p>
+                <p className="text-center text-gray-500 font-mono text-sm">{employee.qrCode}</p>
                 <div className="text-center">
                     <p className="text-xl font-semibold text-primary">FieldTack WA</p>
-                    <p className="text-sm text-muted-foreground">{employeeData.role}</p>
+                    <p className="text-sm text-muted-foreground">{employee.role}</p>
                 </div>
             </div>
         </div>
     )
   }
-  

@@ -21,10 +21,9 @@ import { Badge } from "@/components/ui/badge"
 import { PlusCircle, Printer, QrCode } from "lucide-react"
 
 import type { Employee } from "@/lib/types"
-import { useCollection } from "@/firebase"
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy } from "firebase/firestore"
-import { useFirestore } from "@/firebase"
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { AddEmployeeDialog } from "./add-employee-dialog"
 import Link from "next/link"
@@ -33,11 +32,11 @@ export default function EmployeesPage() {
   const firestore = useFirestore()
   const [isAddDialogOpen, setAddDialogOpen] = useState(false)
 
-  const employeesQuery = useMemo(() => {
+  const employeesQuery = useMemoFirebase(() => {
       if (!firestore) return null
       return query(collection(firestore, "employees"), orderBy("name"))
     }, [firestore])
-  const { data: employees, loading } = useCollection<Employee>(employeesQuery)
+  const { data: employees, isLoading } = useCollection<Employee>(employeesQuery)
 
   return (
     <>
@@ -64,7 +63,7 @@ export default function EmployeesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading && (
+              {isLoading && (
                   <TableRow>
                       <TableCell colSpan={5} className="text-center">Loading...</TableCell>
                   </TableRow>

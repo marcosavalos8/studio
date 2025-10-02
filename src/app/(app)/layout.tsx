@@ -9,7 +9,7 @@ export default function AppLayout({
   children: React.ReactNode
 }) {
   const path = (children as any)?.props?.childProp?.segment
-  if (path === 'print-badge') {
+  if (path?.startsWith('employees/print-badge')) {
     return <>{children}</>
   }
   return (

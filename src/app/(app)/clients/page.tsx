@@ -18,19 +18,17 @@ import {
 import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
 
-import { useCollection } from "@/firebase"
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy } from "firebase/firestore"
-import { useFirestore } from "@/firebase"
-import { useMemo } from "react"
 import type { Client } from "@/lib/types"
 
 export default function ClientsPage() {
   const firestore = useFirestore()
-  const clientsQuery = useMemo(() => {
+  const clientsQuery = useMemoFirebase(() => {
     if (!firestore) return null
     return query(collection(firestore, "clients"), orderBy("name"))
   }, [firestore])
-  const { data: clients, loading } = useCollection<Client>(clientsQuery)
+  const { data: clients, isLoading } = useCollection<Client>(clientsQuery)
 
   return (
     <Card>
@@ -54,7 +52,7 @@ export default function ClientsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-             {loading && (
+             {isLoading && (
                 <TableRow>
                     <TableCell colSpan={3} className="text-center">Loading...</TableCell>
                 </TableRow>

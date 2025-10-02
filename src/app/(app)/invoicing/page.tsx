@@ -8,26 +8,24 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { InvoicingForm } from "./invoicing-form"
-import { useCollection } from "@/firebase"
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy } from "firebase/firestore"
-import { useFirestore } from "@/firebase"
-import { useMemo } from "react"
 import type { Client, Task } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export default function InvoicingPage() {
   const firestore = useFirestore()
-  const clientsQuery = useMemo(() => {
+  const clientsQuery = useMemoFirebase(() => {
     if (!firestore) return null
     return query(collection(firestore, "clients"), orderBy("name"))
   }, [firestore])
-  const { data: clients, loading: loadingClients } = useCollection<Client>(clientsQuery)
+  const { data: clients, isLoading: loadingClients } = useCollection<Client>(clientsQuery)
 
-  const tasksQuery = useMemo(() => {
+  const tasksQuery = useMemoFirebase(() => {
     if (!firestore) return null
     return query(collection(firestore, "tasks"))
   }, [firestore])
-  const { data: tasks, loading: loadingTasks } = useCollection<Task>(tasksQuery)
+  const { data: tasks, isLoading: loadingTasks } = useCollection<Task>(tasksQuery)
 
   const loading = loadingClients || loadingTasks
 

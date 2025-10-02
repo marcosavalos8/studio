@@ -19,20 +19,18 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { PlusCircle } from "lucide-react"
 
-import { useCollection } from "@/firebase"
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy } from "firebase/firestore"
-import { useFirestore } from "@/firebase"
-import { useMemo } from "react"
 import type { Task } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 export default function TasksPage() {
     const firestore = useFirestore()
-    const tasksQuery = useMemo(() => {
+    const tasksQuery = useMemoFirebase(() => {
         if (!firestore) return null
         return query(collection(firestore, "tasks"), orderBy("name"))
     }, [firestore])
-    const { data: tasks, loading } = useCollection<Task>(tasksQuery)
+    const { data: tasks, isLoading } = useCollection<Task>(tasksQuery)
 
   return (
     <Card>
@@ -59,7 +57,7 @@ export default function TasksPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading && (
+            {isLoading && (
                 <TableRow>
                     <TableCell colSpan={6} className="text-center">Loading...</TableCell>
                 </TableRow>
