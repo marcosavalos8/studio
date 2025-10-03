@@ -55,37 +55,32 @@ async function getPayrollData(startDate: string, endDate: string) {
     const piecework: Piecework[] = [];
     const { Timestamp } = require('firebase-admin/firestore');
 
-    // Query per-task to avoid collectionGroup index issues
-    for (const task of tasks) {
-        const timeEntriesQuery = db.collection('time_entries')
-            .where('taskId', '==', task.id)
-            .where('timestamp', '>=', start)
-            .where('timestamp', '<=', end);
-        const timeEntriesSnap = await timeEntriesQuery.get();
-        timeEntriesSnap.forEach(doc => {
-            const data = doc.data();
-            timeEntries.push({ 
-                id: doc.id,
-                ...data,
-                timestamp: (data.timestamp as typeof Timestamp).toDate(),
-                endTime: data.endTime ? (data.endTime as typeof Timestamp).toDate() : undefined
-            } as TimeEntry)
-        });
+    const timeEntriesQuery = db.collection('time_entries')
+        .where('timestamp', '>=', start)
+        .where('timestamp', '<=', end);
+    const timeEntriesSnap = await timeEntriesQuery.get();
+    timeEntriesSnap.forEach(doc => {
+        const data = doc.data();
+        timeEntries.push({ 
+            id: doc.id,
+            ...data,
+            timestamp: (data.timestamp as typeof Timestamp).toDate(),
+            endTime: data.endTime ? (data.endTime as typeof Timestamp).toDate() : undefined
+        } as TimeEntry)
+    });
 
-        const pieceworkQuery = db.collection('piecework')
-            .where('taskId', '==', task.id)
-            .where('timestamp', '>=', start)
-            .where('timestamp', '<=', end);
-        const pieceworkSnap = await pieceworkQuery.get();
-        pieceworkSnap.forEach(doc => {
-            const data = doc.data();
-            piecework.push({ 
-                id: doc.id,
-                ...data,
-                timestamp: (data.timestamp as typeof Timestamp).toDate()
-            } as Piecework)
-        });
-    }
+    const pieceworkQuery = db.collection('piecework')
+        .where('timestamp', '>=', start)
+        .where('timestamp', '<=', end);
+    const pieceworkSnap = await pieceworkQuery.get();
+    pieceworkSnap.forEach(doc => {
+        const data = doc.data();
+        piecework.push({ 
+            id: doc.id,
+            ...data,
+            timestamp: (data.timestamp as typeof Timestamp).toDate()
+        } as Piecework)
+    });
 
     return {
         employees,
