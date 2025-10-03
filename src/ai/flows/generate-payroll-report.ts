@@ -23,7 +23,7 @@ export type GeneratePayrollReportInput = z.infer<typeof GeneratePayrollReportInp
 const PromptInputSchema = z.object({
   startDate: z.string(),
   endDate: z.string(),
-  payrollData: z.string(), // Changed from z.any() to z.string()
+  jsonData: z.string(), // Changed from payrollData to jsonData
 });
 
 const GeneratePayrollReportOutputSchema = z.object({
@@ -44,7 +44,7 @@ const prompt = ai.definePrompt({
 
   You have been provided with the following data:
   \`\`\`json
-  {{{payrollData}}}
+  {{{jsonData}}}
   \`\`\`
 
   Using this data, generate a payroll report that includes the following for each employee:
@@ -73,7 +73,7 @@ const generatePayrollReportFlow = ai.defineFlow(
     const {output} = await prompt({
         startDate: input.startDate,
         endDate: input.endDate,
-        payrollData: input.jsonData,
+        jsonData: input.jsonData,
     });
     
     if (!output) {
