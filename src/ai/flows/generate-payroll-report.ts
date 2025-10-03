@@ -11,6 +11,9 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 import type {TimeEntry, Piecework, Task, Employee, Client} from '@/lib/types';
+import { getFirestore } from 'firebase-admin/firestore';
+import { initializeApp, getApps, credential } from 'firebase-admin/app';
+
 
 // Delay-load and cache the admin SDK to avoid initialization conflicts with Next.js
 let db: import('firebase-admin/firestore').Firestore;
@@ -20,9 +23,6 @@ async function getDb() {
     return db;
   }
   
-  const { getFirestore } = await import('firebase-admin/firestore');
-  const { initializeApp, getApps, credential } = await import('firebase-admin/app');
-
   if (getApps().length === 0) {
       try {
         // When running in a managed environment like Firebase App Hosting,

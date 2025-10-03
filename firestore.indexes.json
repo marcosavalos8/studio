@@ -6,7 +6,7 @@
       "fields": [
         {
           "fieldPath": "taskId",
-          "arrayConfig": "CONTAINS"
+          "order": "ASCENDING"
         },
         {
           "fieldPath": "timestamp",
@@ -20,7 +20,7 @@
       "fields": [
         {
           "fieldPath": "taskId",
-          "arrayConfig": "CONTAINS"
+          "order": "ASCENDING"
         },
         {
           "fieldPath": "timestamp",
@@ -34,7 +34,7 @@
       "fields": [
         {
           "fieldPath": "taskId",
-          "arrayConfig": "CONTAINS"
+          "order": "ASCENDING"
         },
         {
           "fieldPath": "endTime",
