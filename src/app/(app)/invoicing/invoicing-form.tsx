@@ -71,6 +71,17 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
 
     const clientTasks = tasks.filter(task => task.client === clientData.name)
     const invoiceItems: InvoiceItem[] = []
+    
+    if (clientTasks.length === 0) {
+        setInvoice({
+            client: clientData,
+            date,
+            items: [],
+            total: 0,
+        })
+        setIsGenerating(false)
+        return
+    }
 
     // Fetch piece logs
     const pieceLogsQuery = query(
@@ -85,10 +96,13 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
     // Aggregate piecework logs
     const pieceworkByTask: Record<string, number> = {}
     pieceLogs.forEach(log => {
-      if (!pieceworkByTask[log.taskId]) {
-        pieceworkByTask[log.taskId] = 0
-      }
-      pieceworkByTask[log.taskId] += log.pieceCount
+      const taskIds = log.employeeId.includes(',') ? log.taskId.split(',') : [log.taskId];
+      taskIds.forEach(taskId => {
+        if (!pieceworkByTask[taskId]) {
+            pieceworkByTask[taskId] = 0
+        }
+        pieceworkByTask[taskId] += log.pieceCount / taskIds.length;
+      });
     })
 
     for (const taskId in pieceworkByTask) {
@@ -238,14 +252,18 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {invoice.items.map((item: any, index: number) => (
+              {invoice.items.length > 0 ? invoice.items.map((item: any, index: number) => (
                 <TableRow key={index}>
                   <TableCell>{item.description}</TableCell>
                   <TableCell className="text-center">{item.quantity}</TableCell>
                   <TableCell className="text-center">${item.rate.toFixed(2)}</TableCell>
                   <TableCell className="text-right">${item.total.toFixed(2)}</TableCell>
                 </TableRow>
-              ))}
+              )) : (
+                <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground">No billable activity for this period.</TableCell>
+                </TableRow>
+              )}
             </TableBody>
             <TableFooter>
                 <TableRow>

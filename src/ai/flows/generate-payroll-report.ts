@@ -10,15 +10,22 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import {getFirestore, collection, query, where, getDocs, Timestamp} from 'firebase-admin/firestore';
-import {initializeApp, getApps} from 'firebase-admin/app';
+import { getFirestore, collection, query, where, getDocs, Timestamp, initializeFirestore, Firestore } from 'firebase-admin/firestore';
+import {initializeApp, getApps, App} from 'firebase-admin/app';
 import type {TimeEntry, Piecework, Task, Employee} from '@/lib/types';
 
 
+// Ensure Firebase is initialized
+let app: App;
+let db: Firestore;
+
 if (getApps().length === 0) {
-  initializeApp();
+  app = initializeApp();
+} else {
+  app = getApps()[0];
 }
-const db = getFirestore();
+db = getFirestore(app);
+
 
 async function getPayrollData(startDate: string, endDate: string) {
   const start = new Date(startDate);
@@ -84,7 +91,12 @@ const payrollDataTool = ai.defineTool(
         outputSchema: z.any(),
     },
     async ({startDate, endDate}) => {
-        return await getPayrollData(startDate, endDate);
+        try {
+            return await getPayrollData(startDate, endDate);
+        } catch (e) {
+            console.error("Error fetching payroll data:", e);
+            return { error: 'Failed to retrieve data from the database.' };
+        }
     }
 );
 
@@ -113,6 +125,8 @@ const prompt = ai.definePrompt({
   Your task is to generate a detailed and accurate payroll report.
 
   First, use the 'getPayrollData' tool to fetch all necessary data for the period between {{startDate}} and {{endDate}}.
+
+  If the data contains an error, report that error to the user and stop.
 
   Then, using the retrieved data, generate a payroll report that includes the following for each employee:
   - Total hours worked on hourly tasks.
