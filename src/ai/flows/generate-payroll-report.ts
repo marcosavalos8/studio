@@ -10,33 +10,48 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
-import {initializeApp, getApps, credential} from 'firebase-admin/app';
 import type {TimeEntry, Piecework, Task, Employee, Client} from '@/lib/types';
 import { firebaseConfig } from '@/firebase/config';
 
 
-// Ensure Firebase is initialized for admin access
-function getDb() {
-  if (getApps().length === 0) {
-    try {
+// Delay-load and cache the admin SDK to avoid initialization conflicts with Next.js
+let db: import('firebase-admin/firestore').Firestore;
+
+async function getDb() {
+  if (db) {
+    return db;
+  }
+  
+  // This check ensures admin SDK is only initialized in a true Genkit server environment,
+  // not during Next.js builds which can cause conflicts.
+  if (process.env.GENKIT_ENV) {
+    const { getFirestore } = await import('firebase-admin/firestore');
+    const { initializeApp, getApps, credential } = await import('firebase-admin/app');
+
+    if (getApps().length === 0) {
+       try {
         // When running in a managed environment like Firebase App Hosting,
         // this will automatically use the available service account.
         initializeApp();
-    } catch(e) {
+      } catch (e) {
         console.warn("Default initializeApp failed, trying with config. This is expected in local dev.", e)
         // For local development, you might need to specify credentials.
         initializeApp({
             credential: credential.applicationDefault(),
             projectId: firebaseConfig.projectId,
         });
+      }
     }
+    db = getFirestore();
+    return db;
   }
-  return getFirestore();
+  
+  throw new Error("Firestore admin SDK is not available in this environment.");
 }
 
+
 async function getPayrollData(startDate: string, endDate: string) {
-  const db = getDb();
+  const db = await getDb();
   const start = new Date(startDate);
   const end = new Date(endDate);
   
@@ -56,11 +71,12 @@ async function getPayrollData(startDate: string, endDate: string) {
   const timeEntriesSnap = await timeEntriesQuery.get();
   const timeEntries = timeEntriesSnap.docs.map(doc => {
       const data = doc.data();
+      const { Timestamp } = require('firebase-admin/firestore');
       return { 
         id: doc.id,
         ...data,
-        timestamp: (data.timestamp as Timestamp).toDate(),
-        endTime: data.endTime ? (data.endTime as Timestamp).toDate() : undefined
+        timestamp: (data.timestamp as typeof Timestamp).toDate(),
+        endTime: data.endTime ? (data.endTime as typeof Timestamp).toDate() : undefined
      } as TimeEntry
   });
 
@@ -70,10 +86,11 @@ async function getPayrollData(startDate: string, endDate: string) {
   const pieceworkSnap = await pieceworkQuery.get();
   const piecework = pieceworkSnap.docs.map(doc => {
        const data = doc.data();
+       const { Timestamp } = require('firebase-admin/firestore');
       return { 
         id: doc.id,
         ...data,
-        timestamp: (data.timestamp as Timestamp).toDate()
+        timestamp: (data.timestamp as typeof Timestamp).toDate()
      } as Piecework
   });
   
