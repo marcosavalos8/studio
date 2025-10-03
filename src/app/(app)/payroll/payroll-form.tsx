@@ -213,19 +213,11 @@ export function PayrollForm() {
             const timeEntries = timeEntriesSnap.docs.map(doc => {
                 const data = doc.data();
                 
-                const timestamp = (data.timestamp && data.timestamp instanceof Timestamp) 
-                    ? data.timestamp.toDate().toISOString() 
-                    : undefined;
-
-                const endTime = (data.endTime && data.endTime instanceof Timestamp) 
-                    ? data.endTime.toDate().toISOString() 
-                    : undefined;
-                
                 return { 
                     ...data,
                     id: doc.id,
-                    timestamp,
-                    endTime,
+                    timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || null,
+                    endTime: (data.endTime as Timestamp)?.toDate().toISOString() || null,
                 };
             });
 
@@ -237,14 +229,10 @@ export function PayrollForm() {
             const piecework = pieceworkSnap.docs.map(doc => {
                 const data = doc.data();
 
-                const timestamp = (data.timestamp && data.timestamp instanceof Timestamp)
-                    ? data.timestamp.toDate().toISOString()
-                    : undefined;
-
                 return { 
                     ...data,
                     id: doc.id,
-                    timestamp
+                    timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || null,
                 };
             });
 

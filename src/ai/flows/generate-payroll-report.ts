@@ -5,7 +5,7 @@
  *
  * - generatePayrollReport - A function that handles the payroll report generation process.
  * - GeneratePayrollReportInput - The input type for the generatePayrollReport function.
- * - ProcessedPayrollDataSchema - The return schema for the generatePayrollReport function, containing structured payroll data.
+ * - ProcessedPayrollData - The return type for the generatePayrollReport function, containing structured payroll data.
  */
 
 import {ai} from '@/ai/genkit';
