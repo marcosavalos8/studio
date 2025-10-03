@@ -4,48 +4,30 @@
       "collectionGroup": "time_entries",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "timestamp",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "timestamp", "order": "ASCENDING" }
       ]
     },
     {
       "collectionGroup": "piecework",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "timestamp",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "timestamp", "order": "ASCENDING" }
       ]
     },
     {
       "collectionGroup": "time_entries",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "taskId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "timestamp",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "taskId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "ASCENDING" }
       ]
     },
     {
       "collectionGroup": "piecework",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "taskId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "timestamp",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "taskId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "ASCENDING" }
       ]
     }
   ]
