@@ -4,24 +4,24 @@ import { AppHeader } from '@/components/layout/header'
 import { AppSidebar } from '@/components/layout/sidebar'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { FirebaseClientProvider } from '@/firebase/client-provider'
-import { useUser, useAuth } from '@/firebase/provider'
+import { useUser } from '@/firebase/auth/use-user'
 import { useEffect } from 'react'
 import { signInAnonymously } from 'firebase/auth'
 import { Loader2 } from 'lucide-react'
+import { auth } from '@/firebase'
 
 function AuthWrapper({ children }: { children: React.ReactNode }) {
-  const { user, isUserLoading } = useUser()
-  const auth = useAuth()
+  const { user, loading } = useUser()
 
   useEffect(() => {
-    if (!isUserLoading && !user && auth) {
+    if (!loading && !user) {
       signInAnonymously(auth).catch((error) => {
         console.error("Anonymous sign-in failed:", error);
       });
     }
-  }, [user, isUserLoading, auth]);
+  }, [user, loading]);
 
-  if (isUserLoading) {
+  if (loading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
