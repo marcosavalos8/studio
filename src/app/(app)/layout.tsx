@@ -21,7 +21,7 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
     }
   }, [user, isUserLoading, auth]);
 
-  if (isUserLoading || !user) {
+  if (isUserLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
