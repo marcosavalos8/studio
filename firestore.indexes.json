@@ -1,9 +1,8 @@
-
 {
   "indexes": [
     {
       "collectionGroup": "piecework",
-      "queryScope": "COLLECTION",
+      "queryScope": "COLLECTION_GROUP",
       "fields": [
         {
           "fieldPath": "taskId",
@@ -17,7 +16,7 @@
     },
     {
       "collectionGroup": "time_entries",
-      "queryScope": "COLLECTION",
+      "queryScope": "COLLECTION_GROUP",
       "fields": [
         {
           "fieldPath": "taskId",
