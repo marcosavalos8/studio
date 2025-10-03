@@ -35,6 +35,7 @@ const clientSchema = z.object({
   billingAddress: z.string().min(1, 'Billing address is required'),
   paymentTerms: z.string().min(1, 'Payment terms are required'),
   email: z.string().email('Invalid email address').optional().or(z.literal('')),
+  commissionRate: z.coerce.number().min(0, 'Commission must be a positive number.').optional(),
 })
 
 type EditClientDialogProps = {
@@ -53,6 +54,7 @@ export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDia
       billingAddress: client.billingAddress,
       paymentTerms: client.paymentTerms,
       email: client.email || '',
+      commissionRate: client.commissionRate || 0,
     },
   })
 
@@ -63,6 +65,7 @@ export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDia
         billingAddress: client.billingAddress,
         paymentTerms: client.paymentTerms,
         email: client.email || '',
+        commissionRate: client.commissionRate || 0,
       })
     }
   }, [client, form])
@@ -102,7 +105,7 @@ export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDia
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Edit Client</DialogTitle>
           <DialogDescription>
@@ -163,6 +166,19 @@ export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDia
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name="commissionRate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Commission Rate (%)</FormLabel>
+                  <FormControl>
+                    <Input type="number" placeholder="e.g., 5" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
                 Cancel
@@ -178,3 +194,5 @@ export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDia
     </Dialog>
   )
 }
+
+    

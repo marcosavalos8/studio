@@ -56,6 +56,8 @@ export type InvoiceData = {
     to: string | null | undefined;
   };
   items: InvoiceItem[];
+  subtotal: number;
+  commission: number;
   total: number;
 };
 
@@ -98,6 +100,8 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
               to: date.to?.toISOString()
             },
             items: [],
+            subtotal: 0,
+            commission: 0,
             total: 0,
         })
         setIsGenerating(false)
@@ -139,9 +143,9 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
             const log = doc.data() as TimeEntry;
              if (clientTaskIds.includes(log.taskId) && log.endTime) {
                 const startTime = (log.timestamp as unknown as Timestamp).toDate();
-                const endTime = log.endTime ? (log.endTime as unknown as Timestamp).toDate() : null;
+                const endTime = log.endTime ? (log.endTime as unknown as Timestamp).toDate() : new Date();
 
-                if (endTime && endTime >= startTime) {
+                if (endTime >= startTime) {
                     if (!hoursByTask[log.taskId]) {
                         hoursByTask[log.taskId] = 0;
                     }
@@ -177,7 +181,9 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
             }
         }
 
-        const total = invoiceItems.reduce((sum, item) => sum + item.total, 0)
+        const subtotal = invoiceItems.reduce((sum, item) => sum + item.total, 0)
+        const commission = clientData.commissionRate ? subtotal * (clientData.commissionRate / 100) : 0
+        const total = subtotal + commission
 
         setInvoice({
             client: clientData,
@@ -186,6 +192,8 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
               to: date.to.toISOString()
             },
             items: invoiceItems,
+            subtotal,
+            commission,
             total,
         })
     } catch(err) {
@@ -351,6 +359,16 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
             {invoice.items.length > 0 && (
                 <TableFooter>
                     <TableRow>
+                        <TableCell colSpan={3} className="text-right font-medium">Subtotal</TableCell>
+                        <TableCell className="text-right font-medium">${invoice.subtotal.toFixed(2)}</TableCell>
+                    </TableRow>
+                    {invoice.commission > 0 && (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-right">Commission ({invoice.client.commissionRate}%)</TableCell>
+                        <TableCell className="text-right">${invoice.commission.toFixed(2)}</TableCell>
+                      </TableRow>
+                    )}
+                    <TableRow>
                         <TableCell colSpan={3} className="text-right font-bold text-base">Total</TableCell>
                         <TableCell className="text-right font-bold text-base">${invoice.total.toFixed(2)}</TableCell>
                     </TableRow>
@@ -386,3 +404,5 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
     </div>
   )
 }
+
+    

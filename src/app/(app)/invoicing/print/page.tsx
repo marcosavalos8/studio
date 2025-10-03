@@ -57,6 +57,16 @@ function InvoiceToPrint({ invoice }: { invoice: InvoiceData }) {
         </TableBody>
         {invoice.items.length > 0 && (
             <TableFooter>
+                <TableRow>
+                    <TableCell colSpan={3} className="text-right font-medium">Subtotal</TableCell>
+                    <TableCell className="text-right font-medium">${invoice.subtotal.toFixed(2)}</TableCell>
+                </TableRow>
+                 {invoice.commission > 0 && (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-right">Commission ({invoice.client.commissionRate}%)</TableCell>
+                    <TableCell className="text-right">${invoice.commission.toFixed(2)}</TableCell>
+                  </TableRow>
+                )}
                 <TableRow className="text-base font-bold">
                     <TableCell colSpan={3} className="text-right">Total</TableCell>
                     <TableCell className="text-right">${invoice.total.toFixed(2)}</TableCell>
@@ -81,9 +91,6 @@ export default function PrintInvoicePage() {
         if (data) {
             try {
                 const parsedData = JSON.parse(data);
-                // Convert date strings back to Date objects
-                if(parsedData.date.from) parsedData.date.from = new Date(parsedData.date.from);
-                if(parsedData.date.to) parsedData.date.to = new Date(parsedData.date.to);
                 setInvoice(parsedData);
             } catch (e) {
                 setError("Failed to parse invoice data. Please close this tab and try again.");
@@ -145,3 +152,5 @@ export default function PrintInvoicePage() {
         </>
     );
 }
+
+    

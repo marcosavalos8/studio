@@ -12,6 +12,7 @@ export type Client = {
   billingAddress: string;
   paymentTerms: string;
   email?: string;
+  commissionRate?: number;
 };
 
 export type Task = {
@@ -56,3 +57,5 @@ export type SharedPieceLog = {
   quantity: number;
   qcNote?: string;
 };
+
+    

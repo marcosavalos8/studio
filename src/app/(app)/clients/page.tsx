@@ -79,13 +79,14 @@ export default function ClientsPage() {
                 <TableHead>Contact Email</TableHead>
                 <TableHead>Billing Address</TableHead>
                 <TableHead>Payment Terms</TableHead>
+                <TableHead>Commission</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
                {isLoading && (
                   <TableRow>
-                      <TableCell colSpan={5} className="text-center">Loading...</TableCell>
+                      <TableCell colSpan={6} className="text-center">Loading...</TableCell>
                   </TableRow>
               )}
               {clients && clients.map((client) => (
@@ -94,6 +95,7 @@ export default function ClientsPage() {
                   <TableCell>{client.email || '-'}</TableCell>
                   <TableCell>{client.billingAddress}</TableCell>
                   <TableCell>{client.paymentTerms}</TableCell>
+                  <TableCell>{client.commissionRate ? `${client.commissionRate}%` : '-'}</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -141,3 +143,5 @@ export default function ClientsPage() {
     </>
   )
 }
+
+    

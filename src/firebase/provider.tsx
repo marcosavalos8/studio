@@ -1,10 +1,14 @@
 'use client';
 
-import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
+import React, { createContext, useContext, ReactNode, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
-import { Auth, User } from 'firebase/auth';
-import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
+import { Auth } from 'firebase/auth';
+
+const FirebaseErrorListener = dynamic(() =>
+  import('@/components/FirebaseErrorListener').then((mod) => mod.FirebaseErrorListener)
+);
 
 interface FirebaseProviderProps {
   children: ReactNode;
@@ -31,7 +35,6 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   firestore,
   auth,
 }) => {
-
   const contextValue = useMemo((): FirebaseContextState => {
     return {
       firebaseApp,
@@ -42,7 +45,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
   return (
     <FirebaseContext.Provider value={contextValue}>
-      <FirebaseErrorListener />
+      {typeof window !== 'undefined' && <FirebaseErrorListener />}
       {children}
     </FirebaseContext.Provider>
   );
@@ -89,29 +92,4 @@ export function useMemoFirebase<T>(factory: () => T, deps: React.DependencyList)
   return memoized;
 }
 
-/**
- * Hook specifically for accessing the authenticated user's state.
- * This provides the User object, loading status, and any auth errors.
- */
-export const useUser = (): { user: User | null; isUserLoading: boolean; } => {
-  const auth = useAuth();
-  const [user, setUser] = useState<User | null>(null);
-  const [isUserLoading, setUserLoading] = useState(true);
-
-  useEffect(() => {
-    if (!auth) {
-      setUser(null);
-      setUserLoading(false);
-      return;
-    }
-
-    const unsubscribe = auth.onAuthStateChanged(user => {
-      setUser(user);
-      setUserLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [auth]);
-  
-  return { user, isUserLoading };
-};
+    

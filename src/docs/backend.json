@@ -90,6 +90,10 @@
           "type": "string",
           "format": "email",
           "description": "Contact email for the client."
+        },
+        "commissionRate": {
+          "type": "number",
+          "description": "The commission percentage to charge this client on the invoice total."
         }
       },
       "required": [
@@ -280,3 +284,5 @@
     }
   }
 }
+
+    
