@@ -187,7 +187,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
 
   return (
     <div>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-3 print:hidden">
         <Select onValueChange={(value) => setSelectedClient(clients.find(c => c.id === value))}>
           <SelectTrigger>
             <SelectValue placeholder="Select a client" />
@@ -296,7 +296,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
             </div>
             <Button variant="outline" size="sm" onClick={() => window.print()}>
                 <Download className="mr-2 h-4 w-4" />
-                Download PDF
+                Print / Save as PDF
             </Button>
           </div>
            <style jsx global>{`
