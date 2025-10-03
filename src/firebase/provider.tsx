@@ -5,22 +5,22 @@ import dynamic from 'next/dynamic';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
 import { Auth } from 'firebase/auth';
+import { firebaseApp, auth, firestore } from '@/firebase';
 
+// Dynamically import the listener only on the client side
 const FirebaseErrorListener = dynamic(() =>
-  import('@/components/FirebaseErrorListener').then((mod) => mod.FirebaseErrorListener)
+  import('@/components/FirebaseErrorListener').then((mod) => mod.FirebaseErrorListener),
+  { ssr: false }
 );
 
 interface FirebaseProviderProps {
   children: ReactNode;
-  firebaseApp: FirebaseApp | null;
-  firestore: Firestore | null;
-  auth: Auth | null;
 }
 
 export interface FirebaseContextState {
-  firebaseApp: FirebaseApp | null;
-  firestore: Firestore | null;
-  auth: Auth | null;
+  firebaseApp: FirebaseApp;
+  firestore: Firestore;
+  auth: Auth;
 }
 
 // React Context
@@ -31,21 +31,19 @@ export const FirebaseContext = createContext<FirebaseContextState | undefined>(u
  */
 export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   children,
-  firebaseApp,
-  firestore,
-  auth,
 }) => {
+  // The context value now directly uses the imported, initialized services
   const contextValue = useMemo((): FirebaseContextState => {
     return {
       firebaseApp,
       firestore,
       auth,
     };
-  }, [firebaseApp, firestore, auth]);
+  }, []); // Empty dependency array ensures this is computed only once
 
   return (
     <FirebaseContext.Provider value={contextValue}>
-      {typeof window !== 'undefined' && <FirebaseErrorListener />}
+      <FirebaseErrorListener />
       {children}
     </FirebaseContext.Provider>
   );
@@ -53,7 +51,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
 
 /** Hook to access Firebase App instance. */
-export const useFirebaseApp = (): FirebaseApp | null => {
+export const useFirebaseApp = (): FirebaseApp => {
   const context = useContext(FirebaseContext);
   if (context === undefined) {
     throw new Error('useFirebaseApp must be used within a FirebaseProvider.');
@@ -62,7 +60,7 @@ export const useFirebaseApp = (): FirebaseApp | null => {
 };
 
 /** Hook to access Firebase Auth instance. */
-export const useAuth = (): Auth | null => {
+export const useAuth = (): Auth => {
   const context = useContext(FirebaseContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within a FirebaseProvider.');
@@ -71,7 +69,7 @@ export const useAuth = (): Auth | null => {
 };
 
 /** Hook to access Firestore instance. */
-export const useFirestore = (): Firestore | null => {
+export const useFirestore = (): Firestore => {
   const context = useContext(FirebaseContext);
   if (context === undefined) {
     throw new Error('useFirestore must be used within a FirebaseProvider.');
@@ -91,5 +89,3 @@ export function useMemoFirebase<T>(factory: () => T, deps: React.DependencyList)
   
   return memoized;
 }
-
-    

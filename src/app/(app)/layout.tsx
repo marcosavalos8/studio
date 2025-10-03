@@ -3,7 +3,7 @@
 import { AppHeader } from '@/components/layout/header'
 import { AppSidebar } from '@/components/layout/sidebar'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
-import { FirebaseClientProvider } from '@/firebase/client-provider'
+import { FirebaseProvider } from '@/firebase/provider'
 import { useUser } from '@/firebase/auth/use-user'
 import { useEffect } from 'react'
 import { signInAnonymously } from 'firebase/auth'
@@ -15,6 +15,7 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loading && !user) {
+      // Non-blocking call
       signInAnonymously(auth).catch((error) => {
         console.error("Anonymous sign-in failed:", error);
       });
@@ -47,10 +48,10 @@ export default function AppLayout({
   children: React.ReactNode
 }) {
   return (
-    <FirebaseClientProvider>
+    <FirebaseProvider>
       <AuthWrapper>
         {children}
       </AuthWrapper>
-    </FirebaseClientProvider>
+    </FirebaseProvider>
   )
 }

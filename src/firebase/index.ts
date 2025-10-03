@@ -5,6 +5,7 @@ import { initializeApp, getApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 
+// This is the singleton pattern.
 let firebaseApp: FirebaseApp;
 if (!getApps().length) {
   firebaseApp = initializeApp(firebaseConfig);
@@ -18,7 +19,6 @@ const firestore: Firestore = getFirestore();
 export { firebaseApp, auth, firestore };
 
 export * from './provider';
-export * from './client-provider';
 export * from './firestore/use-collection';
 export * from './firestore/use-doc';
 export * from './non-blocking-updates';
