@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -45,8 +46,6 @@ async function getPayrollData(startDate: string, endDate: string) {
     const clientsSnap = await getDocs(collection(db, 'clients'));
     const clients = clientsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client));
 
-    // Fetch all time entries and piecework within the date range and then filter in code.
-    // This avoids complex collection group queries that require specific indexes.
     const timeEntriesQuery = query(collection(db, 'time_entries'),
         where('timestamp', '>=', start),
         where('timestamp', '<=', end));
