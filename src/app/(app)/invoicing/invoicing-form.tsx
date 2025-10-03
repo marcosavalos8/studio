@@ -94,55 +94,51 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         const pieceworkByTask: Record<string, number> = {};
         const hoursByTask: Record<string, number> = {};
 
-        const fetchPieceworkLogs = async () => {
-            if (clientTaskIds.length > 0) {
-                const pieceLogsQuery = query(
-                    collection(firestore, "piecework"),
-                    where("taskId", "in", clientTaskIds),
-                    where("timestamp", ">=", date.from),
-                    where("timestamp", "<=", date.to)
-                );
-                const pieceLogsSnap = await getDocs(pieceLogsQuery);
-                pieceLogsSnap.forEach(doc => {
-                    const log = doc.data() as Piecework;
-                    const taskId = log.taskId;
-                    if (!pieceworkByTask[taskId]) {
-                        pieceworkByTask[taskId] = 0;
-                    }
-                    pieceworkByTask[taskId] += log.pieceCount;
-                });
+        // To avoid complex queries, fetch logs in chunks if necessary (though 'in' queries are limited to 30 items)
+        // For simplicity, we fetch all and filter client-side if clientTaskIds > 30, but a chunking strategy is better for production.
+        const pieceLogsQuery = query(
+            collection(firestore, "piecework"),
+            where("timestamp", ">=", date.from),
+            where("timestamp", "<=", date.to)
+        );
+        
+        const timeLogsQuery = query(
+            collection(firestore, "time_entries"),
+            where("timestamp", ">=", date.from),
+            where("timestamp", "<=", date.to)
+        );
+
+        const [pieceLogsSnap, timeLogsSnap] = await Promise.all([
+            getDocs(pieceLogsQuery),
+            getDocs(timeLogsQuery)
+        ]);
+        
+        pieceLogsSnap.forEach(doc => {
+            const log = doc.data() as Piecework;
+            if (clientTaskIds.includes(log.taskId)) {
+                if (!pieceworkByTask[log.taskId]) {
+                    pieceworkByTask[log.taskId] = 0;
+                }
+                pieceworkByTask[log.taskId] += log.pieceCount;
             }
-        };
+        });
 
-        const fetchTimeEntries = async () => {
-             if (clientTaskIds.length > 0) {
-                const timeLogsQuery = query(
-                    collection(firestore, "time_entries"),
-                    where("taskId", "in", clientTaskIds),
-                    where("timestamp", ">=", date.from),
-                    where("timestamp", "<=", date.to)
-                );
-                const timeLogsSnap = await getDocs(timeLogsQuery);
+        timeLogsSnap.forEach(doc => {
+            const log = doc.data() as TimeEntry;
+             if (clientTaskIds.includes(log.taskId) && log.endTime) {
+                const startTime = (log.timestamp as unknown as Timestamp).toDate();
+                const endTime = log.endTime ? (log.endTime as unknown as Timestamp).toDate() : null;
 
-                timeLogsSnap.docs.forEach(doc => {
-                    const log = doc.data() as TimeEntry;
-                    if(log.endTime) {
-                      const startTime = (log.timestamp as unknown as Timestamp).toDate();
-                      const endTime = log.endTime ? (log.endTime as unknown as Timestamp).toDate() : null;
-
-                      if (endTime && endTime >= startTime) {
-                          if (!hoursByTask[log.taskId]) {
-                              hoursByTask[log.taskId] = 0;
-                          }
-                          const durationHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-                          hoursByTask[log.taskId] += durationHours;
-                      }
+                if (endTime && endTime >= startTime) {
+                    if (!hoursByTask[log.taskId]) {
+                        hoursByTask[log.taskId] = 0;
                     }
-                });
+                    const durationHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+                    hoursByTask[log.taskId] += durationHours;
+                }
             }
-        };
+        });
 
-        await Promise.all([fetchPieceworkLogs(), fetchTimeEntries()]);
         
         // --- Build Invoice Items ---
         for (const task of clientTasks) {

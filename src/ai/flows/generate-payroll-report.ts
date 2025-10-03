@@ -45,34 +45,33 @@ async function getPayrollData(startDate: string, endDate: string) {
     const clientsSnap = await getDocs(collection(db, 'clients'));
     const clients = clientsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client));
 
-    const timeEntries: TimeEntry[] = [];
-    const piecework: Piecework[] = [];
-
+    // Fetch all time entries and piecework within the date range and then filter in code.
+    // This avoids complex collection group queries that require specific indexes.
     const timeEntriesQuery = query(collection(db, 'time_entries'),
         where('timestamp', '>=', start),
         where('timestamp', '<=', end));
     const timeEntriesSnap = await getDocs(timeEntriesQuery);
-    timeEntriesSnap.forEach(doc => {
+    const timeEntries = timeEntriesSnap.docs.map(doc => {
         const data = doc.data();
-        timeEntries.push({ 
+        return { 
             id: doc.id,
             ...data,
             timestamp: (data.timestamp as Timestamp).toDate(),
             endTime: data.endTime ? (data.endTime as Timestamp).toDate() : undefined
-        } as TimeEntry)
+        } as TimeEntry;
     });
 
     const pieceworkQuery = query(collection(db, 'piecework'),
         where('timestamp', '>=', start),
         where('timestamp', '<=', end));
     const pieceworkSnap = await getDocs(pieceworkQuery);
-    pieceworkSnap.forEach(doc => {
+    const piecework = pieceworkSnap.docs.map(doc => {
         const data = doc.data();
-        piecework.push({ 
+        return { 
             id: doc.id,
             ...data,
             timestamp: (data.timestamp as Timestamp).toDate()
-        } as Piecework)
+        } as Piecework;
     });
 
     return {
