@@ -29,12 +29,13 @@ async function getDb() {
             credential: credential.applicationDefault(),
         });
       } catch (e) {
-        console.warn("Default initializeApp failed. This is expected in local dev.", e)
+        // This can happen in local dev if the app is already initialized.
       }
   }
   db = getFirestore();
   return db;
 }
+
 
 async function getPayrollData(startDate: string, endDate: string) {
   const db = await getDb();
@@ -50,34 +51,35 @@ async function getPayrollData(startDate: string, endDate: string) {
   const clientsSnap = await db.collection('clients').get();
   const clients = clientsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client));
 
-  // Query all time entries and piecework within the date range
+  const timeEntries: TimeEntry[] = [];
   const timeEntriesQuery = db.collection('time_entries')
-    .where('timestamp', '>=', start)
-    .where('timestamp', '<=', end);
+      .where('timestamp', '>=', start)
+      .where('timestamp', '<=', end);
   const timeEntriesSnap = await timeEntriesQuery.get();
-  const timeEntries = timeEntriesSnap.docs.map(doc => {
+  timeEntriesSnap.forEach(doc => {
       const data = doc.data();
       const { Timestamp } = require('firebase-admin/firestore');
-      return { 
+      timeEntries.push({ 
         id: doc.id,
         ...data,
         timestamp: (data.timestamp as typeof Timestamp).toDate(),
         endTime: data.endTime ? (data.endTime as typeof Timestamp).toDate() : undefined
-     } as TimeEntry
+     } as TimeEntry)
   });
 
+  const piecework: Piecework[] = [];
   const pieceworkQuery = db.collection('piecework')
       .where('timestamp', '>=', start)
       .where('timestamp', '<=', end);
   const pieceworkSnap = await pieceworkQuery.get();
-  const piecework = pieceworkSnap.docs.map(doc => {
-       const data = doc.data();
-       const { Timestamp } = require('firebase-admin/firestore');
-      return { 
+  pieceworkSnap.forEach(doc => {
+      const data = doc.data();
+      const { Timestamp } = require('firebase-admin/firestore');
+      piecework.push({ 
         id: doc.id,
         ...data,
         timestamp: (data.timestamp as typeof Timestamp).toDate()
-     } as Piecework
+     } as Piecework)
   });
   
   return {

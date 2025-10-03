@@ -94,9 +94,6 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         const pieceworkByTask: Record<string, number> = {};
         const hoursByTask: Record<string, number> = {};
 
-        // To avoid 'in' query limitations (max 30), we might need to iterate if there are many tasks.
-        // For simplicity, assuming number of tasks per client is manageable.
-        // A more robust solution would chunk the clientTaskIds array.
         const chunk = <T,>(arr: T[], size: number) =>
             Array.from({ length: Math.ceil(arr.length / size) }, (v, i) =>
                 arr.slice(i * size, i * size + size)
