@@ -12,36 +12,19 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 
-const payrollDataTool = ai.defineTool(
-    {
-        name: 'getPayrollData',
-        description: 'Receives payroll data from the client to be processed.',
-        inputSchema: z.object({
-            jsonData: z.string().describe('A JSON string containing employees, tasks, clients, time entries, and piecework records.'),
-        }),
-        outputSchema: z.any(),
-    },
-    async ({jsonData}) => {
-        try {
-            const data = JSON.parse(jsonData);
-            return {
-                summary: `Received data for ${data.employees.length} employees, ${data.tasks.length} tasks, ${data.clients.length} clients, ${data.timeEntries.length} time entries, and ${data.piecework.length} piecework records.`,
-                data: data,
-            }
-        } catch (e: any) {
-            console.error("Error parsing payroll data:", e);
-            return { error: `Failed to parse data from the client. The error was: ${e.message}` };
-        }
-    }
-);
-
-
 const GeneratePayrollReportInputSchema = z.object({
   startDate: z.string().describe('The start date for the payroll report (YYYY-MM-DD).'),
   endDate: z.string().describe('The end date for the payroll report (YYYY-MM-DD).'),
   jsonData: z.string().describe('A JSON string containing all necessary payroll data.'),
 });
 export type GeneratePayrollReportInput = z.infer<typeof GeneratePayrollReportInputSchema>;
+
+// This internal schema includes the parsed data for the prompt
+const PromptInputSchema = z.object({
+  startDate: z.string(),
+  endDate: z.string(),
+  payrollData: z.any(),
+});
 
 const GeneratePayrollReportOutputSchema = z.object({
   report: z.string().describe('The generated payroll report in markdown format.'),
@@ -54,17 +37,17 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
 
 const prompt = ai.definePrompt({
   name: 'generatePayrollReportPrompt',
-  input: {schema: GeneratePayrollReportInputSchema},
+  input: {schema: PromptInputSchema},
   output: {schema: GeneratePayrollReportOutputSchema},
-  tools: [payrollDataTool],
   prompt: `You are an expert in Washington (WA) labor laws.
-  Your task is to generate a detailed and accurate payroll report.
+  Your task is to generate a detailed and accurate payroll report for the period between {{startDate}} and {{endDate}}.
 
-  First, use the 'getPayrollData' tool to process the provided JSON data for the period between {{startDate}} and {{endDate}}. The 'jsonData' field in your tool call should be the 'jsonData' from the input.
+  You have been provided with the following data:
+  \`\`\`json
+  {{{json payrollData}}}
+  \`\`\`
 
-  If the tool returns an error object, you MUST report that error to the user and stop processing.
-
-  Using the retrieved data from the 'data' field of the tool's output, generate a payroll report that includes the following for each employee:
+  Using this data, generate a payroll report that includes the following for each employee:
   - A summary of total hours worked on hourly tasks and total earnings from those tasks.
   - A summary of total pieces completed for piecework tasks and total earnings from those tasks.
   - A check for WA minimum wage compliance. For each work week, if an employee's total earnings (hourly + piecework) divided by total hours worked is less than the WA minimum wage, calculate the required top-up amount. The current WA minimum wage is $16.28 per hour. A standard work week is Sunday to Saturday.
@@ -84,9 +67,22 @@ const generatePayrollReportFlow = ai.defineFlow(
     outputSchema: GeneratePayrollReportOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
+    let parsedData;
+    try {
+        parsedData = JSON.parse(input.jsonData);
+    } catch (e: any) {
+        console.error("Error parsing payroll data:", e);
+        throw new Error(`Failed to parse data from the client. The error was: ${e.message}`);
+    }
+
+    const {output} = await prompt({
+        startDate: input.startDate,
+        endDate: input.endDate,
+        payrollData: parsedData,
+    });
+    
     if (!output) {
-      throw new Error("The AI model did not return a report. There might have been an issue with data fetching or the model itself.");
+      throw new Error("The AI model did not return a report. There might have been an issue with the model itself.");
     }
     return output;
   }
