@@ -62,24 +62,36 @@ export default function TasksPage() {
     }, [firestore])
     const { data: clients, isLoading: loadingClients } = useCollection<Client>(clientsQuery)
     
-    const { tasksByClient, unassignedTasks } = useMemo(() => {
-      if (!tasks || !clients) return { tasksByClient: {}, unassignedTasks: [] };
+    const { tasksByClient, clientOrder } = useMemo(() => {
+      if (!tasks || !clients) return { tasksByClient: {}, clientOrder: [] };
     
       const clientMap = new Map(clients.map(c => [c.id, c]));
-      const groupedTasks: Record<string, Task[]> = {};
-      const orphans: Task[] = [];
+      const groupedTasks: Record<string, { client: Client | null; tasks: Task[] }> = {};
+      const unassignedClientId = 'unassigned';
     
       for (const task of tasks) {
-        if (clientMap.has(task.clientId)) {
-          if (!groupedTasks[task.clientId]) {
-            groupedTasks[task.clientId] = [];
-          }
-          groupedTasks[task.clientId].push(task);
-        } else {
-          orphans.push(task);
+        const client = clientMap.get(task.clientId);
+        const clientId = client ? task.clientId : unassignedClientId;
+    
+        if (!groupedTasks[clientId]) {
+          groupedTasks[clientId] = {
+            client: client || null,
+            tasks: [],
+          };
         }
+        groupedTasks[clientId].tasks.push(task);
       }
-      return { tasksByClient: groupedTasks, unassignedTasks: orphans };
+    
+      // Create a sorted list of client IDs to render in order
+      const clientOrder = clients
+        .map(c => c.id)
+        .filter(id => groupedTasks[id]);
+      
+      if (groupedTasks[unassignedClientId]) {
+        clientOrder.push(unassignedClientId);
+      }
+    
+      return { tasksByClient: groupedTasks, clientOrder };
     }, [tasks, clients]);
 
 
@@ -179,25 +191,23 @@ export default function TasksPage() {
             <CardContent>
                 {loading && <p>Loading tasks...</p>}
                 {!loading && (
-                  <Accordion type="multiple" defaultValue={clients?.map(c => c.id)} className="w-full">
-                    {clients?.map(client => (
-                      tasksByClient[client.id]?.length > 0 && (
-                        <AccordionItem value={client.id} key={client.id}>
-                          <AccordionTrigger className="text-lg font-semibold">{client.name}</AccordionTrigger>
+                  <Accordion type="multiple" defaultValue={clientOrder} className="w-full">
+                    {clientOrder.map(clientId => {
+                      const group = tasksByClient[clientId];
+                      if (!group || group.tasks.length === 0) return null;
+                      
+                      const triggerTitle = group.client ? group.client.name : "Tasks without an assigned Client";
+                      const triggerClass = group.client ? "text-lg font-semibold" : "text-lg font-semibold text-amber-600";
+                      
+                      return (
+                        <AccordionItem value={clientId} key={clientId}>
+                          <AccordionTrigger className={triggerClass}>{triggerTitle}</AccordionTrigger>
                           <AccordionContent>
-                            <TaskTable tasks={tasksByClient[client.id]} />
+                            <TaskTable tasks={group.tasks} />
                           </AccordionContent>
                         </AccordionItem>
                       )
-                    ))}
-                    {unassignedTasks.length > 0 && (
-                       <AccordionItem value="unassigned" key="unassigned">
-                          <AccordionTrigger className="text-lg font-semibold text-amber-600">Tasks without an assigned Client</AccordionTrigger>
-                          <AccordionContent>
-                            <TaskTable tasks={unassignedTasks} />
-                          </AccordionContent>
-                        </AccordionItem>
-                    )}
+                    })}
                   </Accordion>
                 )}
             </CardContent>
