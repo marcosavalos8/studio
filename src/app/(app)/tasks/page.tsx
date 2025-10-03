@@ -62,13 +62,25 @@ export default function TasksPage() {
     }, [firestore])
     const { data: clients, isLoading: loadingClients } = useCollection<Client>(clientsQuery)
     
-    const tasksByClient = useMemo(() => {
-      if (!tasks || !clients) return {}
-      return clients.reduce((acc, client) => {
-        acc[client.id] = tasks.filter(task => task.clientId === client.id);
-        return acc;
-      }, {} as Record<string, Task[]>);
-    }, [tasks, clients])
+    const { tasksByClient, unassignedTasks } = useMemo(() => {
+      if (!tasks || !clients) return { tasksByClient: {}, unassignedTasks: [] };
+    
+      const clientMap = new Map(clients.map(c => [c.id, c]));
+      const groupedTasks: Record<string, Task[]> = {};
+      const orphans: Task[] = [];
+    
+      for (const task of tasks) {
+        if (clientMap.has(task.clientId)) {
+          if (!groupedTasks[task.clientId]) {
+            groupedTasks[task.clientId] = [];
+          }
+          groupedTasks[task.clientId].push(task);
+        } else {
+          orphans.push(task);
+        }
+      }
+      return { tasksByClient: groupedTasks, unassignedTasks: orphans };
+    }, [tasks, clients]);
 
 
     const handleEdit = (task: Task) => {
@@ -82,6 +94,74 @@ export default function TasksPage() {
     }
 
     const loading = loadingTasks || loadingClients;
+
+    const TaskTable = ({ tasks }: { tasks: Task[] }) => (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Task Name</TableHead>
+            <TableHead>Location</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Employee Pay</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {tasks.map((task) => (
+            <TableRow key={task.id}>
+              <TableCell className="font-medium">{task.name} <span className="text-muted-foreground">({task.variety || 'N/A'})</span></TableCell>
+              <TableCell>
+                <div className="flex flex-col">
+                  <span className="font-medium">{task.ranch || '-'}</span>
+                  <span className="text-muted-foreground">{task.block || '-'}</span>
+                </div>
+              </TableCell>
+              <TableCell>
+                <Badge
+                  className={cn({
+                    "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300": task.status === 'Active',
+                    "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300": task.status === 'Inactive',
+                    "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300": task.status === 'Completed',
+                  })}
+                  variant="outline"
+                >
+                  {task.status}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <div className="flex flex-col">
+                  <span className="font-medium">${task.employeeRate.toFixed(2)}/{task.employeePayType === 'hourly' ? 'hr' : 'piece'}</span>
+                  <span className="text-muted-foreground capitalize">{task.employeePayType}</span>
+                </div>
+              </TableCell>
+              <TableCell className="text-right">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="h-8 w-8 p-0">
+                      <span className="sr-only">Open menu</span>
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => handleEdit(task)}>
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                      onClick={() => handleDelete(task)}
+                    >
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
 
     return (
         <>
@@ -105,75 +185,19 @@ export default function TasksPage() {
                         <AccordionItem value={client.id} key={client.id}>
                           <AccordionTrigger className="text-lg font-semibold">{client.name}</AccordionTrigger>
                           <AccordionContent>
-                            <Table>
-                              <TableHeader>
-                                  <TableRow>
-                                  <TableHead>Task Name</TableHead>
-                                  <TableHead>Location</TableHead>
-                                  <TableHead>Status</TableHead>
-                                  <TableHead>Employee Pay</TableHead>
-                                  <TableHead className="text-right">Actions</TableHead>
-                                  </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                  {tasksByClient[client.id].map((task) => (
-                                  <TableRow key={task.id}>
-                                      <TableCell className="font-medium">{task.name} <span className="text-muted-foreground">({task.variety})</span></TableCell>
-                                      <TableCell>
-                                        <div className="flex flex-col">
-                                          <span className="font-medium">{task.ranch}</span>
-                                          <span className="text-muted-foreground">{task.block}</span>
-                                        </div>
-                                      </TableCell>
-                                      <TableCell>
-                                        <Badge
-                                            className={cn({
-                                            "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300": task.status === 'Active',
-                                            "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300": task.status === 'Inactive',
-                                            "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300": task.status === 'Completed',
-                                            })}
-                                            variant="outline"
-                                        >
-                                            {task.status}
-                                        </Badge>
-                                      </TableCell>
-                                      <TableCell>
-                                        <div className="flex flex-col">
-                                           <span className="font-medium">${task.employeeRate.toFixed(2)}/{task.employeePayType === 'hourly' ? 'hr' : 'piece'}</span>
-                                          <span className="text-muted-foreground capitalize">{task.employeePayType}</span>
-                                        </div>
-                                      </TableCell>
-                                      <TableCell className="text-right">
-                                          <DropdownMenu>
-                                          <DropdownMenuTrigger asChild>
-                                              <Button variant="ghost" className="h-8 w-8 p-0">
-                                              <span className="sr-only">Open menu</span>
-                                              <MoreHorizontal className="h-4 w-4" />
-                                              </Button>
-                                          </DropdownMenuTrigger>
-                                          <DropdownMenuContent align="end">
-                                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                              <DropdownMenuItem onClick={() => handleEdit(task)}>
-                                              Edit
-                                              </DropdownMenuItem>
-                                              <DropdownMenuSeparator />
-                                              <DropdownMenuItem
-                                              className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                                              onClick={() => handleDelete(task)}
-                                              >
-                                              Delete
-                                              </DropdownMenuItem>
-                                          </DropdownMenuContent>
-                                          </DropdownMenu>
-                                      </TableCell>
-                                  </TableRow>
-                                  ))}
-                              </TableBody>
-                            </Table>
+                            <TaskTable tasks={tasksByClient[client.id]} />
                           </AccordionContent>
                         </AccordionItem>
                       )
                     ))}
+                    {unassignedTasks.length > 0 && (
+                       <AccordionItem value="unassigned" key="unassigned">
+                          <AccordionTrigger className="text-lg font-semibold text-amber-600">Tasks without an assigned Client</AccordionTrigger>
+                          <AccordionContent>
+                            <TaskTable tasks={unassignedTasks} />
+                          </AccordionContent>
+                        </AccordionItem>
+                    )}
                   </Accordion>
                 )}
             </CardContent>
