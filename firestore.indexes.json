@@ -33,17 +33,11 @@
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         {
-          "fieldPath": "timestamp",
+          "fieldPath": "employeeId",
           "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "piecework",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
+        },
         {
-          "fieldPath": "timestamp",
+          "fieldPath": "endTime",
           "order": "ASCENDING"
         }
       ]
@@ -53,12 +47,26 @@
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         {
-          "fieldPath": "employeeId",
+          "fieldPath": "taskId",
           "order": "ASCENDING"
         },
         {
           "fieldPath": "endTime",
           "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "time_entries",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "taskId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
         }
       ]
     }
