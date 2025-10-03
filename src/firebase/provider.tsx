@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, ReactNode, useMemo } from 'react';
+import React, { createContext, useContext, ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
@@ -32,14 +32,13 @@ export const FirebaseContext = createContext<FirebaseContextState | undefined>(u
 export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   children,
 }) => {
-  // The context value now directly uses the imported, initialized services
-  const contextValue = useMemo((): FirebaseContextState => {
-    return {
-      firebaseApp,
-      firestore,
-      auth,
-    };
-  }, []); // Empty dependency array ensures this is computed only once
+  // Directly use the imported, pre-initialized services.
+  // This object is stable and doesn't need to be memoized.
+  const contextValue: FirebaseContextState = {
+    firebaseApp,
+    firestore,
+    auth,
+  };
 
   return (
     <FirebaseContext.Provider value={contextValue}>
@@ -80,7 +79,7 @@ export const useFirestore = (): Firestore => {
 type MemoFirebase <T> = T & {__memo?: boolean};
 
 export function useMemoFirebase<T>(factory: () => T, deps: React.DependencyList): T | (MemoFirebase<T>) {
-  const memoized = useMemo(factory, deps);
+  const memoized = React.useMemo(factory, deps);
   
   if(typeof memoized !== 'object' || memoized === null) return memoized;
   if (!('__memo' in memoized)) {

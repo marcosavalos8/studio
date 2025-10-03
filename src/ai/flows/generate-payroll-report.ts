@@ -11,7 +11,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 import {googleAI} from '@genkit-ai/google-genai';
-import { getWeek, getYear } from 'date-fns';
+import { getWeek, getYear, format, startOfDay } from 'date-fns';
 
 // Main input schema for the server action
 const GeneratePayrollReportInputSchema = z.object({
@@ -24,6 +24,21 @@ export type GeneratePayrollReportInput = z.infer<typeof GeneratePayrollReportInp
 
 
 // Define schemas for our processed data. This is what the tool will output.
+const DailyTaskDetailSchema = z.object({
+  taskName: z.string(),
+  hours: z.number(),
+  pieceworkCount: z.number(),
+  hourlyEarnings: z.number(),
+  pieceworkEarnings: z.number(),
+});
+
+const DailyBreakdownSchema = z.object({
+  date: z.string().describe("The date for this entry in YYYY-MM-DD format."),
+  tasks: z.array(DailyTaskDetailSchema),
+  totalDailyHours: z.number(),
+  totalDailyEarnings: z.number(),
+});
+
 const WeeklySummarySchema = z.object({
     weekNumber: z.number(),
     year: z.number(),
@@ -34,6 +49,7 @@ const WeeklySummarySchema = z.object({
     effectiveHourlyRate: z.number(),
     minimumWageTopUp: z.number(),
     paidRestBreaksTotal: z.number(),
+    dailyBreakdown: z.array(DailyBreakdownSchema),
 });
 
 const EmployeePayrollSummarySchema = z.object({
@@ -77,7 +93,7 @@ const processPayrollData = ai.defineTool(
     const employeeSummaries: z.infer<typeof EmployeePayrollSummarySchema>[] = [];
 
     for (const employee of employees) {
-        const weeklyData: Record<string, { totalHours: number; totalPieceworkEarnings: number; totalHourlyEarnings: number }> = {};
+        const weeklyData: Record<string, { totalHours: number; totalPieceworkEarnings: number; totalHourlyEarnings: number; dailyBreakdown: Record<string, { tasks: Record<string, z.infer<typeof DailyTaskDetailSchema>> }> }> = {};
 
         // Process time entries for hours worked
         const empTimeEntries = timeEntries.filter((te: any) => te.employeeId === employee.id && te.timestamp && te.endTime);
@@ -85,16 +101,30 @@ const processPayrollData = ai.defineTool(
             const start = new Date(entry.timestamp);
             const end = new Date(entry.endTime);
             const weekKey = `${getYear(start)}-${getWeek(start)}`;
+            const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
 
             if (!weeklyData[weekKey]) {
-                weeklyData[weekKey] = { totalHours: 0, totalPieceworkEarnings: 0, totalHourlyEarnings: 0 };
+                weeklyData[weekKey] = { totalHours: 0, totalPieceworkEarnings: 0, totalHourlyEarnings: 0, dailyBreakdown: {} };
             }
-            const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-            weeklyData[weekKey].totalHours += hours;
+            if (!weeklyData[weekKey].dailyBreakdown[dayKey]) {
+                weeklyData[weekKey].dailyBreakdown[dayKey] = { tasks: {} };
+            }
 
             const task = tasks.find((t: any) => t.id === entry.taskId);
-            if (task && task.employeePayType === 'hourly') {
-                weeklyData[weekKey].totalHourlyEarnings += hours * task.employeeRate;
+            if (task) {
+                if (!weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id]) {
+                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety})`, hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0 };
+                }
+
+                const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+                weeklyData[weekKey].totalHours += hours;
+                weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id].hours += hours;
+
+                if (task.employeePayType === 'hourly') {
+                    const earnings = hours * task.employeeRate;
+                    weeklyData[weekKey].totalHourlyEarnings += earnings;
+                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id].hourlyEarnings += earnings;
+                }
             }
         }
 
@@ -103,12 +133,27 @@ const processPayrollData = ai.defineTool(
          for (const entry of empPiecework) {
             const start = new Date(entry.timestamp);
             const weekKey = `${getYear(start)}-${getWeek(start)}`;
+            const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
+            
              if (!weeklyData[weekKey]) {
-                weeklyData[weekKey] = { totalHours: 0, totalPieceworkEarnings: 0, totalHourlyEarnings: 0 };
+                weeklyData[weekKey] = { totalHours: 0, totalPieceworkEarnings: 0, totalHourlyEarnings: 0, dailyBreakdown: {} };
             }
+            if (!weeklyData[weekKey].dailyBreakdown[dayKey]) {
+                weeklyData[weekKey].dailyBreakdown[dayKey] = { tasks: {} };
+            }
+
             const task = tasks.find((t: any) => t.id === entry.taskId);
-            if (task && task.employeePayType === 'piecework') {
-                weeklyData[weekKey].totalPieceworkEarnings += entry.pieceCount * task.employeeRate;
+            if (task) {
+                if (!weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id]) {
+                     weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety})`, hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0 };
+                }
+
+                if (task.employeePayType === 'piecework') {
+                    const earnings = entry.pieceCount * task.employeeRate;
+                    weeklyData[weekKey].totalPieceworkEarnings += earnings;
+                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id].pieceworkCount += entry.pieceCount;
+                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id].pieceworkEarnings += earnings;
+                }
             }
         }
 
@@ -119,16 +164,27 @@ const processPayrollData = ai.defineTool(
             const totalEarnings = week.totalHourlyEarnings + week.totalPieceworkEarnings;
             const effectiveHourlyRate = week.totalHours > 0 ? totalEarnings / week.totalHours : 0;
             
-            // Calculate minimum wage top-up
             let minimumWageTopUp = 0;
             if (week.totalHours > 0 && effectiveHourlyRate < WA_MINIMUM_WAGE) {
                 minimumWageTopUp = (WA_MINIMUM_WAGE * week.totalHours) - totalEarnings;
             }
 
-            // Calculate paid rest breaks
             const restBreakMinutes = Math.floor(week.totalHours / 4) * 10;
             const regularRateOfPay = effectiveHourlyRate > WA_MINIMUM_WAGE ? effectiveHourlyRate : WA_MINIMUM_WAGE;
             const paidRestBreaksTotal = (restBreakMinutes / 60) * regularRateOfPay;
+
+            const dailyBreakdown: z.infer<typeof DailyBreakdownSchema>[] = Object.entries(week.dailyBreakdown).map(([date, dayData]) => {
+                const tasks = Object.values(dayData.tasks);
+                const totalDailyHours = tasks.reduce((acc, t) => acc + t.hours, 0);
+                const totalDailyEarnings = tasks.reduce((acc, t) => acc + t.hourlyEarnings + t.pieceworkEarnings, 0);
+                return {
+                    date,
+                    tasks: tasks,
+                    totalDailyHours: parseFloat(totalDailyHours.toFixed(2)),
+                    totalDailyEarnings: parseFloat(totalDailyEarnings.toFixed(2)),
+                }
+            }).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
 
             weeklySummaries.push({
                 weekNumber,
@@ -140,6 +196,7 @@ const processPayrollData = ai.defineTool(
                 effectiveHourlyRate: parseFloat(effectiveHourlyRate.toFixed(2)),
                 minimumWageTopUp: parseFloat(minimumWageTopUp.toFixed(2)),
                 paidRestBreaksTotal: parseFloat(paidRestBreaksTotal.toFixed(2)),
+                dailyBreakdown: dailyBreakdown,
             });
         }
         

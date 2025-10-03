@@ -21,6 +21,44 @@ import {
 } from "@/components/ui/accordion"
 import { Loader2 } from 'lucide-react'
 
+function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData['employeeSummaries'][0]['weeklySummaries'][0]['dailyBreakdown']}) {
+  return (
+    <div className="space-y-2 pl-4">
+      {breakdown.map(day => (
+        <div key={day.date} className="bg-gray-50 p-3 rounded-md">
+          <p className="font-semibold">{format(new Date(day.date), "EEEE, LLL dd")}</p>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Task</TableHead>
+                <TableHead className="text-right">Hours</TableHead>
+                <TableHead className="text-right">Pieces</TableHead>
+                <TableHead className="text-right">Earnings</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {day.tasks.map((task, idx) => (
+                <TableRow key={idx}>
+                  <TableCell>{task.taskName}</TableCell>
+                  <TableCell className="text-right">{task.hours > 0 ? task.hours.toFixed(2) : '-'}</TableCell>
+                  <TableCell className="text-right">{task.pieceworkCount > 0 ? task.pieceworkCount : '-'}</TableCell>
+                  <TableCell className="text-right">${(task.hourlyEarnings + task.pieceworkEarnings).toFixed(2)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+            <TableFooter>
+               <TableRow>
+                  <TableCell colSpan={3} className="text-right font-medium">Total Daily</TableCell>
+                  <TableCell className="text-right font-medium">${day.totalDailyEarnings.toFixed(2)}</TableCell>
+                </TableRow>
+            </TableFooter>
+          </Table>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function ReportToPrint({ report }: { report: ProcessedPayrollData }) {
   const overallTotal = report.employeeSummaries.reduce((acc, emp) => acc + emp.finalPay, 0);
 
@@ -40,7 +78,7 @@ function ReportToPrint({ report }: { report: ProcessedPayrollData }) {
         </div>
         <Accordion type="multiple" className="w-full" defaultValue={report.employeeSummaries.map(e => e.employeeId)}>
             {report.employeeSummaries.map(employee => (
-                <AccordionItem value={employee.employeeId} key={employee.employeeId} className="border-b">
+                <AccordionItem value={employee.employeeId} key={employee.employeeId} className="border-b page-break-before">
                     <AccordionTrigger className="text-xl font-semibold hover:no-underline py-4">
                       <div className="flex justify-between w-full pr-4">
                         <span>{employee.employeeName}</span>
@@ -49,67 +87,41 @@ function ReportToPrint({ report }: { report: ProcessedPayrollData }) {
                     </AccordionTrigger>
                     <AccordionContent>
                       <div className="space-y-4 pl-4 pr-1 pb-4">
-                        {employee.weeklySummaries.map(week => (
-                          <div key={week.weekNumber} className="border rounded-md p-4">
-                            <h4 className="font-semibold text-lg mb-2">Week {week.weekNumber}, {week.year}</h4>
-                             <Table>
-                               <TableHeader>
-                                  <TableRow>
-                                    <TableHead>Description</TableHead>
-                                    <TableHead className="text-right">Amount</TableHead>
-                                  </TableRow>
-                               </TableHeader>
-                               <TableBody>
-                                  <TableRow>
-                                    <TableCell>Total Hours Worked</TableCell>
-                                    <TableCell className="text-right">{week.totalHours.toFixed(2)}</TableCell>
-                                  </TableRow>
-                                  <TableRow>
-                                    <TableCell>Total Earnings (Hourly + Piecework)</TableCell>
-                                    <TableCell className="text-right">${week.totalEarnings.toFixed(2)}</TableCell>
-                                  </TableRow>
-                                  <TableRow>
-                                    <TableCell>Effective Hourly Rate</TableCell>
-                                    <TableCell className="text-right">${week.effectiveHourlyRate.toFixed(2)}</TableCell>
-                                  </TableRow>
-                                   <TableRow>
-                                    <TableCell>Paid Rest Breaks (10 min / 4 hrs)</TableCell>
-                                    <TableCell className="text-right">+ ${week.paidRestBreaksTotal.toFixed(2)}</TableCell>
-                                  </TableRow>
-                                  {week.minimumWageTopUp > 0 && (
-                                     <TableRow className="bg-amber-100">
-                                      <TableCell className="font-semibold">Minimum Wage Top-up</TableCell>
-                                      <TableCell className="text-right font-semibold">+ ${week.minimumWageTopUp.toFixed(2)}</TableCell>
-                                    </TableRow>
-                                  )}
-                               </TableBody>
-                             </Table>
-                          </div>
-                        ))}
+                         <Accordion type="multiple" className="w-full" defaultValue={employee.weeklySummaries.map(w => `w-${w.weekNumber}`)}>
+                            {employee.weeklySummaries.map(week => (
+                              <AccordionItem value={`w-${week.weekNumber}`} key={week.weekNumber}>
+                                  <AccordionTrigger className="font-semibold text-lg mb-2 ml-4">
+                                      Week {week.weekNumber}, {week.year}
+                                  </AccordionTrigger>
+                                  <AccordionContent className="space-y-4 pl-4">
+                                      <DailyBreakdownDisplay breakdown={week.dailyBreakdown} />
+                                      <div className="border rounded-md p-4 mt-4">
+                                        <h5 className="font-semibold mb-2">Week {week.weekNumber} Financial Summary</h5>
+                                        <Table>
+                                            <TableBody>
+                                                <TableRow><TableCell>Total Hours Worked</TableCell><TableCell className="text-right">{week.totalHours.toFixed(2)}</TableCell></TableRow>
+                                                <TableRow><TableCell>Total Earnings (Hourly + Piecework)</TableCell><TableCell className="text-right">${week.totalEarnings.toFixed(2)}</TableCell></TableRow>
+                                                <TableRow><TableCell>Effective Hourly Rate</TableCell><TableCell className="text-right">${week.effectiveHourlyRate.toFixed(2)}</TableCell></TableRow>
+                                                <TableRow><TableCell>Paid Rest Breaks (10 min / 4 hrs)</TableCell><TableCell className="text-right">+ ${week.paidRestBreaksTotal.toFixed(2)}</TableCell></TableRow>
+                                                {week.minimumWageTopUp > 0 && <TableRow className="bg-amber-100"><TableCell className="font-semibold">Minimum Wage Top-up</TableCell><TableCell className="text-right font-semibold">+ ${week.minimumWageTopUp.toFixed(2)}</TableCell></TableRow>}
+                                            </TableBody>
+                                        </Table>
+                                      </div>
+                                  </AccordionContent>
+                              </AccordionItem>
+                          ))}
+                        </Accordion>
+                        
                          <div className="border rounded-md p-4 bg-gray-50">
-                            <h4 className="font-semibold text-lg mb-2">Employee Pay Summary</h4>
+                            <h4 className="font-semibold text-lg mb-2">Employee Pay Summary for Period</h4>
                              <Table>
                                <TableBody>
-                                  <TableRow>
-                                    <TableCell>Subtotal Earnings</TableCell>
-                                    <TableCell className="text-right">${employee.overallTotalEarnings.toFixed(2)}</TableCell>
-                                  </TableRow>
-                                  <TableRow>
-                                    <TableCell>Total Paid Rest Breaks</TableCell>
-                                    <TableCell className="text-right">+ ${employee.overallTotalPaidRestBreaks.toFixed(2)}</TableCell>
-                                  </TableRow>
-                                  {employee.overallTotalMinimumWageTopUp > 0 && (
-                                     <TableRow>
-                                      <TableCell>Total Minimum Wage Top-up</TableCell>
-                                      <TableCell className="text-right">+ ${employee.overallTotalMinimumWageTopUp.toFixed(2)}</TableCell>
-                                    </TableRow>
-                                  )}
+                                  <TableRow><TableCell>Subtotal Earnings</TableCell><TableCell className="text-right">${employee.overallTotalEarnings.toFixed(2)}</TableCell></TableRow>
+                                  <TableRow><TableCell>Total Paid Rest Breaks</TableCell><TableCell className="text-right">+ ${employee.overallTotalPaidRestBreaks.toFixed(2)}</TableCell></TableRow>
+                                  {employee.overallTotalMinimumWageTopUp > 0 && <TableRow><TableCell>Total Minimum Wage Top-up</TableCell><TableCell className="text-right">+ ${employee.overallTotalMinimumWageTopUp.toFixed(2)}</TableCell></TableRow>}
                                </TableBody>
                                <TableFooter>
-                                <TableRow className="text-lg font-bold">
-                                  <TableCell>Final Pay</TableCell>
-                                  <TableCell className="text-right">${employee.finalPay.toFixed(2)}</TableCell>
-                                </TableRow>
+                                <TableRow className="text-lg font-bold"><TableCell>Final Pay</TableCell><TableCell className="text-right">${employee.finalPay.toFixed(2)}</TableCell></TableRow>
                                </TableFooter>
                              </Table>
                           </div>
@@ -187,6 +199,9 @@ export default function PrintPayrollPage() {
                     @page {
                         size: A4 portrait;
                         margin: 0.5in;
+                    }
+                    .page-break-before {
+                        break-before: page;
                     }
                 }
             `}</style>
