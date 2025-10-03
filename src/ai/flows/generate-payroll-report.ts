@@ -46,7 +46,7 @@ const EmployeePayrollSummarySchema = z.object({
     finalPay: z.number(),
 });
 
-export const ProcessedPayrollDataSchema = z.object({
+const ProcessedPayrollDataSchema = z.object({
     startDate: z.string(),
     endDate: z.string(),
     employeeSummaries: z.array(EmployeePayrollSummarySchema),
