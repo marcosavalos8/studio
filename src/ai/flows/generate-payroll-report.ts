@@ -12,34 +12,35 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 import type {TimeEntry, Piecework, Task, Employee, Client} from '@/lib/types';
-import { getFirestore as getAdminFirestore, Timestamp } from 'firebase-admin/firestore';
-import { initializeServerApp } from '@/firebase/server-init';
+import { getFirestore, Timestamp, collection, getDocs, query, where } from 'firebase/firestore';
+import { initializeFirebase } from '@/firebase';
 
 
-async function getDb() {
-    const app = await initializeServerApp();
-    return getAdminFirestore(app);
+function getDb() {
+    const { firestore } = initializeFirebase();
+    return firestore;
 }
 
 
 async function getPayrollData(startDate: string, endDate: string) {
-    const db = await getDb();
+    const db = getDb();
     const start = new Date(startDate);
     const end = new Date(endDate);
 
-    const employeesSnap = await db.collection('employees').get();
+    const employeesSnap = await getDocs(collection(db, 'employees'));
     const employees = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
 
-    const tasksSnap = await db.collection('tasks').get();
+    const tasksSnap = await getDocs(collection(db, 'tasks'));
     const tasks = tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
     
-    const clientsSnap = await db.collection('clients').get();
+    const clientsSnap = await getDocs(collection(db, 'clients'));
     const clients = clientsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client));
 
-    const timeEntriesQuery = db.collection('time_entries')
-        .where('timestamp', '>=', start)
-        .where('timestamp', '<=', end);
-    const timeEntriesSnap = await timeEntriesQuery.get();
+    const timeEntriesQuery = query(collection(db, 'time_entries'),
+        where('timestamp', '>=', start),
+        where('timestamp', '<=', end)
+    );
+    const timeEntriesSnap = await getDocs(timeEntriesQuery);
     const timeEntries = timeEntriesSnap.docs.map(doc => {
         const data = doc.data();
         return { 
@@ -50,10 +51,11 @@ async function getPayrollData(startDate: string, endDate: string) {
         } as TimeEntry;
     });
 
-    const pieceworkQuery = db.collection('piecework')
-        .where('timestamp', '>=', start)
-        .where('timestamp', '<=', end);
-    const pieceworkSnap = await pieceworkQuery.get();
+    const pieceworkQuery = query(collection(db, 'piecework'),
+        where('timestamp', '>=', start),
+        where('timestamp', '<=', end)
+    );
+    const pieceworkSnap = await getDocs(pieceworkQuery);
     const piecework = pieceworkSnap.docs.map(doc => {
         const data = doc.data();
         return { 
