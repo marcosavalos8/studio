@@ -11,6 +11,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
+import {googleAI} from '@genkit-ai/google-genai';
 
 const GeneratePayrollReportInputSchema = z.object({
   startDate: z.string().describe('The start date for the payroll report (YYYY-MM-DD).'),
@@ -39,6 +40,7 @@ const prompt = ai.definePrompt({
   name: 'generatePayrollReportPrompt',
   input: {schema: PromptInputSchema},
   output: {schema: GeneratePayrollReportOutputSchema},
+  model: googleAI('gemini-1.5-pro'),
   prompt: `You are an expert in Washington (WA) labor laws.
   Your task is to generate a detailed and accurate payroll report for the period between {{startDate}} and {{endDate}}.
 
