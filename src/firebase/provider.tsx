@@ -1,11 +1,11 @@
 'use client';
 
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { FirebaseApp } from 'firebase/app';
-import { Firestore } from 'firebase/firestore';
-import { Auth } from 'firebase/auth';
-import { firebaseApp, auth, firestore } from '@/firebase';
+import { FirebaseApp, initializeApp } from 'firebase/app';
+import { Firestore, getFirestore } from 'firebase/firestore';
+import { Auth, getAuth } from 'firebase/auth';
+import { firebaseConfig } from '@/firebase/config';
 
 // Dynamically import the listener only on the client side
 const FirebaseErrorListener = dynamic(() =>
@@ -23,25 +23,28 @@ export interface FirebaseContextState {
   auth: Auth;
 }
 
-// React Context
 export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
 
-/**
- * FirebaseProvider manages and provides Firebase services.
- */
 export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   children,
 }) => {
-  // Directly use the imported, pre-initialized services.
-  // This object is stable and doesn't need to be memoized.
-  const contextValue: FirebaseContextState = {
-    firebaseApp,
-    firestore,
-    auth,
-  };
+  const [services, setServices] = useState<FirebaseContextState | null>(null);
+
+  useEffect(() => {
+    // This ensures Firebase is initialized only on the client side.
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const firestore = getFirestore(app);
+    setServices({ firebaseApp: app, firestore, auth });
+  }, []);
+
+  if (!services) {
+    // You can render a loading state here if needed, or just null
+    return null;
+  }
 
   return (
-    <FirebaseContext.Provider value={contextValue}>
+    <FirebaseContext.Provider value={services}>
       <FirebaseErrorListener />
       {children}
     </FirebaseContext.Provider>

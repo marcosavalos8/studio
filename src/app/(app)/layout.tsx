@@ -15,7 +15,6 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loading && !user) {
-      // Non-blocking call
       signInAnonymously(auth).catch((error) => {
         console.error("Anonymous sign-in failed:", error);
       });

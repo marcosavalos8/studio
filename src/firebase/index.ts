@@ -7,10 +7,7 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 
 // This function ensures we initialize firebase only once.
 const getFirebaseApp = (): FirebaseApp => {
-  if (getApps().length === 0) {
-    return initializeApp(firebaseConfig);
-  }
-  return getApp();
+  return getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 };
 
 const firebaseApp = getFirebaseApp();
