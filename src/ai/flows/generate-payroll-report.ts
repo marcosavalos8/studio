@@ -104,7 +104,7 @@ const processPayrollData = ai.defineTool(
         for (const entry of empTimeEntries) {
             const start = new Date(entry.timestamp);
             const end = new Date(entry.endTime);
-            const weekKey = `${getYear(start)}-${getWeek(start)}`;
+            const weekKey = `${getYear(start)}-${getWeek(start, { weekStartsOn: 1 })}`;
             const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
 
             if (!weeklyData[weekKey]) {
@@ -136,7 +136,7 @@ const processPayrollData = ai.defineTool(
         const empPiecework = piecework.filter((pw: any) => pw.employeeId === employee.id && pw.timestamp);
          for (const entry of empPiecework) {
             const start = new Date(entry.timestamp);
-            const weekKey = `${getYear(start)}-${getWeek(start)}`;
+            const weekKey = `${getYear(start)}-${getWeek(start, { weekStartsOn: 1 })}`;
             const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
             
              if (!weeklyData[weekKey]) {
@@ -174,7 +174,7 @@ const processPayrollData = ai.defineTool(
             }
 
             const restBreakMinutes = Math.floor(week.totalHours / 4) * 10;
-            const regularRateOfPay = effectiveHourlyRate > WA_MINIMUM_WAGE ? effectiveHourlyRate : WA_MINIMUM_WAGE;
+            const regularRateOfPay = (totalEarnings + minimumWageTopUp) / week.totalHours;
             const paidRestBreaksTotal = (restBreakMinutes / 60) * regularRateOfPay;
 
             const dailyBreakdown: z.infer<typeof DailyBreakdownSchema>[] = Object.entries(week.dailyBreakdown).map(([date, dayData]) => {
@@ -249,5 +249,3 @@ const generatePayrollReportFlow = ai.defineFlow(
     return processedData;
   }
 );
-
-    
