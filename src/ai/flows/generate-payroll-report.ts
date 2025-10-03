@@ -57,6 +57,8 @@ const prompt = ai.definePrompt({
   The final report must be in a clean, easy-to-read markdown format. Ensure all calculations are clearly explained.
   
   Structure the report with a main summary for the entire pay period, followed by a detailed breakdown for each employee.
+  
+  Generate a markdown report based on the provided data.
 `,
 });
 
