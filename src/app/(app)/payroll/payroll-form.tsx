@@ -65,6 +65,9 @@ function MarkdownDisplay({ content }: { content: string }) {
                   padding: 1.5rem;
                   margin: 0;
               }
+              .prose {
+                  background-color: transparent !important;
+              }
               @page {
                 size: auto;
                 margin: 0.5in;
