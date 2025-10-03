@@ -53,12 +53,18 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
   const overallTotal = report.employeeSummaries.reduce((acc, emp) => acc + emp.finalPay, 0);
 
   const handlePrint = () => {
-    sessionStorage.setItem('payrollReportData', JSON.stringify(report));
-    window.open('/payroll/print', '_blank');
+    try {
+        const reportString = JSON.stringify(report);
+        sessionStorage.setItem('payrollReportData', reportString);
+        window.open('/payroll/print', '_blank');
+    } catch (error) {
+        console.error("Failed to stringify report data for printing:", error);
+        alert("Could not prepare the report for printing. Please check the console for errors.");
+    }
   }
 
   return (
-    <div className="mt-6 bg-card p-4 sm:p-6 rounded-lg border" id="report-section">
+    <div className="mt-6 bg-card p-4 sm:p-6 rounded-lg border">
        <div className="flex justify-between items-start mb-6 print:mb-4">
             <div>
               <h2 className="text-2xl font-bold text-primary">Payroll Report</h2>
@@ -299,8 +305,8 @@ export function PayrollForm() {
               />
             </PopoverContent>
           </Popover>
-          {date?.from && <input type="hidden" name="from" value={date.from.toISOString()} />}
-          {date?.to && <input type="hidden" name="to" value={date.to.toISOString()} />}
+          {date?.from && <input type="hidden" name="from" value={format(date.from, 'yyyy-MM-dd')} />}
+          {date?.to && <input type="hidden" name="to" value={format(date.to, 'yyyy-MM-dd')} />}
           {jsonData && <input type="hidden" name="jsonData" value={jsonData} />}
         </div>
         <div>

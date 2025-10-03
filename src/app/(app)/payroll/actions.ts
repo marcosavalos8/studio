@@ -7,8 +7,8 @@ import { format } from "date-fns"
 
 const payrollSchema = z.object({
   dateRange: z.object({
-    from: z.date(),
-    to: z.date(),
+    from: z.string(),
+    to: z.string(),
   }),
   jsonData: z.string().min(1, 'JSON data is required'),
 })
@@ -21,8 +21,8 @@ type PayrollState = {
 export async function generateReportAction(prevState: PayrollState, formData: FormData): Promise<PayrollState> {
   const validatedFields = payrollSchema.safeParse({
     dateRange: {
-      from: new Date(formData.get('from') as string),
-      to: new Date(formData.get('to') as string),
+      from: formData.get('from') as string,
+      to: formData.get('to') as string,
     },
     jsonData: formData.get('jsonData'),
   });
@@ -37,8 +37,8 @@ export async function generateReportAction(prevState: PayrollState, formData: Fo
 
   try {
     const result = await generatePayrollReport({
-      startDate: format(from, 'yyyy-MM-dd'),
-      endDate: format(to, 'yyyy-MM-dd'),
+      startDate: from,
+      endDate: to,
       jsonData: jsonData,
     });
     return { report: result };
