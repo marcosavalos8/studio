@@ -11,91 +11,26 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
-import type {TimeEntry, Piecework, Task, Employee, Client} from '@/lib/types';
-import { getFirestore, Timestamp, collection, getDocs, query, where } from 'firebase/firestore';
-import { initializeFirebase } from '@/firebase';
-
-
-function getDb() {
-    const { firestore } = initializeFirebase();
-    return firestore;
-}
-
-
-async function getPayrollData(startDate: string, endDate: string) {
-    const db = getDb();
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-
-    const employeesSnap = await getDocs(collection(db, 'employees'));
-    const employees = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-
-    const tasksSnap = await getDocs(collection(db, 'tasks'));
-    const tasks = tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
-    
-    const clientsSnap = await getDocs(collection(db, 'clients'));
-    const clients = clientsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client));
-
-    const timeEntriesQuery = query(collection(db, 'time_entries'),
-        where('timestamp', '>=', start),
-        where('timestamp', '<=', end)
-    );
-    const timeEntriesSnap = await getDocs(timeEntriesQuery);
-    const timeEntries = timeEntriesSnap.docs.map(doc => {
-        const data = doc.data();
-        return { 
-            id: doc.id,
-            ...data,
-            timestamp: (data.timestamp as Timestamp).toDate(),
-            endTime: data.endTime ? (data.endTime as Timestamp).toDate() : undefined
-        } as TimeEntry;
-    });
-
-    const pieceworkQuery = query(collection(db, 'piecework'),
-        where('timestamp', '>=', start),
-        where('timestamp', '<=', end)
-    );
-    const pieceworkSnap = await getDocs(pieceworkQuery);
-    const piecework = pieceworkSnap.docs.map(doc => {
-        const data = doc.data();
-        return { 
-            id: doc.id,
-            ...data,
-            timestamp: (data.timestamp as Timestamp).toDate()
-        } as Piecework;
-    });
-
-    return {
-        employees,
-        tasks,
-        clients,
-        timeEntries,
-        piecework
-    };
-}
 
 const payrollDataTool = ai.defineTool(
     {
         name: 'getPayrollData',
-        description: 'Retrieves payroll data from the database for a given date range.',
+        description: 'Receives payroll data from the client to be processed.',
         inputSchema: z.object({
-            startDate: z.string().describe('The start date of the pay period (YYYY-MM-DD)'),
-            endDate: z.string().describe('The end date of the pay period (YYYY-MM-DD)'),
+            jsonData: z.string().describe('A JSON string containing employees, tasks, clients, time entries, and piecework records.'),
         }),
         outputSchema: z.any(),
     },
-    async ({startDate, endDate}) => {
+    async ({jsonData}) => {
         try {
-            const data = await getPayrollData(startDate, endDate);
-            // Return a structured object that's easier for the LLM to parse.
+            const data = JSON.parse(jsonData);
             return {
-                summary: `Found ${data.employees.length} employees, ${data.tasks.length} tasks, ${data.clients.length} clients, ${data.timeEntries.length} time entries, and ${data.piecework.length} piecework records.`,
+                summary: `Received data for ${data.employees.length} employees, ${data.tasks.length} tasks, ${data.clients.length} clients, ${data.timeEntries.length} time entries, and ${data.piecework.length} piecework records.`,
                 data: data,
             }
         } catch (e: any) {
-            console.error("Error fetching payroll data:", e);
-            // Provide a clear error message to the LLM.
-            return { error: `Failed to retrieve data from the database. The error was: ${e.message}` };
+            console.error("Error parsing payroll data:", e);
+            return { error: `Failed to parse data from the client. The error was: ${e.message}` };
         }
     }
 );
@@ -104,6 +39,7 @@ const payrollDataTool = ai.defineTool(
 const GeneratePayrollReportInputSchema = z.object({
   startDate: z.string().describe('The start date for the payroll report (YYYY-MM-DD).'),
   endDate: z.string().describe('The end date for the payroll report (YYYY-MM-DD).'),
+  jsonData: z.string().describe('A JSON string containing all necessary payroll data.'),
 });
 export type GeneratePayrollReportInput = z.infer<typeof GeneratePayrollReportInputSchema>;
 
@@ -124,7 +60,7 @@ const prompt = ai.definePrompt({
   prompt: `You are an expert in Washington (WA) labor laws.
   Your task is to generate a detailed and accurate payroll report.
 
-  First, use the 'getPayrollData' tool to fetch all necessary data for the period between {{startDate}} and {{endDate}}.
+  First, use the 'getPayrollData' tool to process the provided JSON data for the period between {{startDate}} and {{endDate}}. The 'jsonData' field in your tool call should be the 'jsonData' from the input.
 
   If the tool returns an error object, you MUST report that error to the user and stop processing.
 

@@ -1,3 +1,4 @@
+
 'use server'
 
 import { z } from "zod"
@@ -9,6 +10,7 @@ const payrollSchema = z.object({
     from: z.date(),
     to: z.date(),
   }),
+  jsonData: z.string().min(1, 'JSON data is required'),
 })
 
 type PayrollState = {
@@ -22,22 +24,27 @@ export async function generateReportAction(prevState: PayrollState, formData: Fo
       from: new Date(formData.get('from') as string),
       to: new Date(formData.get('to') as string),
     },
+    jsonData: formData.get('jsonData'),
   });
 
   if (!validatedFields.success) {
-    return { error: 'Invalid date range provided.' };
+    console.error(validatedFields.error.flatten().fieldErrors);
+    return { error: 'Invalid data provided.' };
   }
 
   const { from, to } = validatedFields.data.dateRange;
+  const { jsonData } = validatedFields.data;
 
   try {
     const result = await generatePayrollReport({
       startDate: format(from, 'yyyy-MM-dd'),
       endDate: format(to, 'yyyy-MM-dd'),
+      jsonData: jsonData,
     });
     return { report: result.report };
   } catch (e) {
     console.error(e);
-    return { error: 'Failed to generate report. Please try again.' };
+    const errorMessage = e instanceof Error ? e.message : 'Failed to generate report. Please try again.';
+    return { error: errorMessage };
   }
 }
