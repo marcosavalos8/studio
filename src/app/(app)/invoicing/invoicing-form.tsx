@@ -62,6 +62,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
   const handleGenerate = async () => {
     if (!firestore || !selectedClient || !date?.from || !date?.to) return
     setIsGenerating(true)
+    setInvoice(null);
 
     const clientData = clients.find(c => c.id === selectedClient.id)
     if (!clientData) {
@@ -70,9 +71,10 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
     }
 
     const clientTasks = tasks.filter(task => task.client === clientData.name)
+    const clientTaskIds = clientTasks.map(t => t.id);
     const invoiceItems: InvoiceItem[] = []
     
-    if (clientTasks.length === 0) {
+    if (clientTaskIds.length === 0) {
         setInvoice({
             client: clientData,
             date,
@@ -83,91 +85,105 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         return
     }
 
-    // Fetch piece logs
-    const pieceLogsQuery = query(
-      collection(firestore, "piecework"),
-      where("taskId", "in", clientTasks.map(t => t.id)),
-      where("timestamp", ">=", date.from),
-      where("timestamp", "<=", date.to)
-    )
-    const pieceLogsSnap = await getDocs(pieceLogsQuery)
-    const pieceLogs = pieceLogsSnap.docs.map(doc => doc.data() as Piecework)
+    try {
+        // Fetch piece logs
+        const pieceLogsQuery = query(
+        collection(firestore, "piecework"),
+        where("taskId", "in", clientTaskIds),
+        where("timestamp", ">=", date.from),
+        where("timestamp", "<=", date.to)
+        )
+        const pieceLogsSnap = await getDocs(pieceLogsQuery)
+        const pieceLogs = pieceLogsSnap.docs.map(doc => doc.data() as Piecework)
 
-    // Aggregate piecework logs
-    const pieceworkByTask: Record<string, number> = {}
-    pieceLogs.forEach(log => {
-      const taskIds = log.employeeId.includes(',') ? log.taskId.split(',') : [log.taskId];
-      taskIds.forEach(taskId => {
-        if (!pieceworkByTask[taskId]) {
-            pieceworkByTask[taskId] = 0
-        }
-        pieceworkByTask[taskId] += log.pieceCount / taskIds.length;
-      });
-    })
+        // Aggregate piecework logs
+        const pieceworkByTask: Record<string, number> = {}
+        pieceLogs.forEach(log => {
+        const taskIds = Array.isArray(log.taskId) ? log.taskId : [log.taskId];
+        taskIds.forEach(taskId => {
+            if (clientTaskIds.includes(taskId)) {
+                if (!pieceworkByTask[taskId]) {
+                    pieceworkByTask[taskId] = 0
+                }
+                // If a piece is shared, the count is divided among the tasks.
+                // Assuming pieceCount is per taskId in the array if multiple taskIds exist for one piece log.
+                pieceworkByTask[taskId] += log.pieceCount / taskIds.length;
+            }
+        });
+        })
 
-    for (const taskId in pieceworkByTask) {
-        const task = clientTasks.find(t => t.id === taskId)
-        if (task && task.clientRateType === 'piece') {
-            const quantity = pieceworkByTask[taskId];
-            const total = quantity * task.clientRate
-            invoiceItems.push({
-                description: `${task.name} (Piecework)`,
-                quantity: quantity,
-                rate: task.clientRate,
-                total: total
-            })
+        for (const taskId in pieceworkByTask) {
+            const task = clientTasks.find(t => t.id === taskId)
+            if (task && task.clientRateType === 'piece') {
+                const quantity = pieceworkByTask[taskId];
+                const total = quantity * task.clientRate
+                invoiceItems.push({
+                    description: `${task.name}${task.variety ? ' (' + task.variety + ')' : ''} (Piecework)`,
+                    quantity: parseFloat(quantity.toFixed(2)),
+                    rate: task.clientRate,
+                    total: total
+                })
+            }
         }
+
+
+        // Fetch time logs for hourly tasks
+        const timeLogsQuery = query(
+        collection(firestore, "time_entries"),
+        where("taskId", "in", clientTaskIds),
+        where("timestamp", "<=", date.to) // endTime can be after date.to, but start time must be before
+        );
+        const timeLogsSnap = await getDocs(timeLogsQuery);
+        const timeLogs = timeLogsSnap.docs
+            .map(doc => doc.data() as TimeEntry)
+            .filter(log => {
+                const startTime = (log.timestamp as unknown as Timestamp).toDate();
+                // Ensure the entry started within the date range
+                return log.endTime && startTime >= date.from!
+            });
+
+
+        // Aggregate hourly logs
+        const hoursByTask: Record<string, number> = {}
+        timeLogs.forEach(log => {
+            if (!hoursByTask[log.taskId]) {
+                hoursByTask[log.taskId] = 0
+            }
+            const start = (log.timestamp as unknown as Timestamp).toDate()
+            const end = (log.endTime as unknown as Timestamp).toDate()
+            const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
+            hoursByTask[log.taskId] += durationHours
+        });
+
+
+        for (const taskId in hoursByTask) {
+            const task = clientTasks.find(t => t.id === taskId)
+            if (task && task.clientRateType === 'hourly') {
+                const hours = hoursByTask[taskId];
+                const total = hours * task.clientRate
+                invoiceItems.push({
+                    description: `${task.name}${task.variety ? ' (' + task.variety + ')' : ''} (Hourly)`,
+                    quantity: parseFloat(hours.toFixed(2)),
+                    rate: task.clientRate,
+                    total: total
+                })
+            }
+        }
+
+        const total = invoiceItems.reduce((sum, item) => sum + item.total, 0)
+
+        setInvoice({
+        client: clientData,
+        date,
+        items: invoiceItems,
+        total,
+        })
+    } catch(err) {
+        console.error("Error generating invoice:", err)
+        // Optionally, show a toast or error message to the user
+    } finally {
+        setIsGenerating(false)
     }
-
-
-    // Fetch time logs for hourly tasks
-     const timeLogsQuery = query(
-      collection(firestore, "time_entries"),
-      where("taskId", "in", clientTasks.map(t => t.id)),
-      where("timestamp", ">=", date.from),
-      where("timestamp", "<=", date.to)
-    );
-    const timeLogsSnap = await getDocs(timeLogsQuery);
-    const timeLogs = timeLogsSnap.docs.map(doc => doc.data() as TimeEntry).filter(log => log.endTime);
-
-
-    // Aggregate hourly logs
-    const hoursByTask: Record<string, number> = {}
-    timeLogs.forEach(log => {
-        if (!hoursByTask[log.taskId]) {
-            hoursByTask[log.taskId] = 0
-        }
-        const start = (log.timestamp as unknown as Timestamp).toDate()
-        const end = (log.endTime as unknown as Timestamp).toDate()
-        const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
-        hoursByTask[log.taskId] += durationHours
-    });
-
-
-    for (const taskId in hoursByTask) {
-        const task = clientTasks.find(t => t.id === taskId)
-        if (task && task.clientRateType === 'hourly') {
-            const hours = hoursByTask[taskId];
-            const total = hours * task.clientRate
-            invoiceItems.push({
-                description: `${task.name} (Hourly)`,
-                quantity: parseFloat(hours.toFixed(2)),
-                rate: task.clientRate,
-                total: total
-            })
-        }
-    }
-
-    const total = invoiceItems.reduce((sum, item) => sum + item.total, 0)
-
-    setInvoice({
-      client: clientData,
-      date,
-      items: invoiceItems,
-      total,
-    })
-
-    setIsGenerating(false)
   }
 
   return (
@@ -229,7 +245,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
 
       {invoice && (
         <div className="mt-6 bg-card p-4 sm:p-6 rounded-lg border" id="invoice-section">
-          <div className="flex justify-between items-start mb-6">
+          <div className="flex justify-between items-start mb-6 print:mb-4">
             <div>
               <h2 className="text-2xl font-bold text-primary">INVOICE</h2>
               <div>To: {invoice.client.name}</div>
@@ -261,24 +277,48 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
                 </TableRow>
               )) : (
                 <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">No billable activity for this period.</TableCell>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-10">No billable activity for this period.</TableCell>
                 </TableRow>
               )}
             </TableBody>
-            <TableFooter>
-                <TableRow>
-                    <TableCell colSpan={3} className="text-right font-bold">Total</TableCell>
-                    <TableCell className="text-right font-bold">${invoice.total.toFixed(2)}</TableCell>
-                </TableRow>
-            </TableFooter>
+            {invoice.items.length > 0 && (
+                <TableFooter>
+                    <TableRow>
+                        <TableCell colSpan={3} className="text-right font-bold text-base">Total</TableCell>
+                        <TableCell className="text-right font-bold text-base">${invoice.total.toFixed(2)}</TableCell>
+                    </TableRow>
+                </TableFooter>
+            )}
           </Table>
 
-          <div className="flex justify-end mt-6">
+          <div className="flex justify-between items-center mt-6 print:hidden">
+            <div className="text-muted-foreground text-xs">
+                Payment Terms: {invoice.client.paymentTerms}
+            </div>
             <Button variant="outline" size="sm" onClick={() => window.print()}>
                 <Download className="mr-2 h-4 w-4" />
                 Download PDF
             </Button>
           </div>
+           <style jsx global>{`
+                @media print {
+                    body * {
+                        visibility: hidden;
+                    }
+                    #invoice-section, #invoice-section * {
+                        visibility: visible;
+                    }
+                    #invoice-section {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                        border: none;
+                        box-shadow: none;
+                        padding: 1.5rem;
+                    }
+                }
+            `}</style>
         </div>
       )}
     </div>

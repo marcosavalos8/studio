@@ -10,24 +10,22 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { getFirestore, collection, query, where, getDocs, Timestamp, initializeFirestore, Firestore } from 'firebase-admin/firestore';
+import { getFirestore, collection, query, where, getDocs, Timestamp } from 'firebase-admin/firestore';
 import {initializeApp, getApps, App} from 'firebase-admin/app';
 import type {TimeEntry, Piecework, Task, Employee} from '@/lib/types';
 
 
 // Ensure Firebase is initialized
-let app: App;
-let db: Firestore;
-
-if (getApps().length === 0) {
-  app = initializeApp();
-} else {
-  app = getApps()[0];
+function getDb() {
+  if (getApps().length === 0) {
+    initializeApp();
+  }
+  return getFirestore();
 }
-db = getFirestore(app);
 
 
 async function getPayrollData(startDate: string, endDate: string) {
+  const db = getDb();
   const start = new Date(startDate);
   const end = new Date(endDate);
   
