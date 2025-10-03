@@ -11,7 +11,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 import type {TimeEntry, Piecework, Task, Employee, Client} from '@/lib/types';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { initializeApp, getApps, credential } from 'firebase-admin/app';
 
 
@@ -53,7 +53,6 @@ async function getPayrollData(startDate: string, endDate: string) {
 
     const timeEntries: TimeEntry[] = [];
     const piecework: Piecework[] = [];
-    const { Timestamp } = require('firebase-admin/firestore');
 
     const timeEntriesQuery = db.collection('time_entries')
         .where('timestamp', '>=', start)
@@ -64,8 +63,8 @@ async function getPayrollData(startDate: string, endDate: string) {
         timeEntries.push({ 
             id: doc.id,
             ...data,
-            timestamp: (data.timestamp as typeof Timestamp).toDate(),
-            endTime: data.endTime ? (data.endTime as typeof Timestamp).toDate() : undefined
+            timestamp: (data.timestamp as Timestamp).toDate(),
+            endTime: data.endTime ? (data.endTime as Timestamp).toDate() : undefined
         } as TimeEntry)
     });
 
@@ -78,7 +77,7 @@ async function getPayrollData(startDate: string, endDate: string) {
         piecework.push({ 
             id: doc.id,
             ...data,
-            timestamp: (data.timestamp as typeof Timestamp).toDate()
+            timestamp: (data.timestamp as Timestamp).toDate()
         } as Piecework)
     });
 
