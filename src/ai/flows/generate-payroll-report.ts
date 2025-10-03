@@ -52,7 +52,7 @@ async function getPayrollData(startDate: string, endDate: string) {
   const clients = clientsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client));
 
   const timeEntries: TimeEntry[] = [];
-  const timeEntriesQuery = db.collection('time_entries')
+  const timeEntriesQuery = db.collectionGroup('time_entries')
       .where('timestamp', '>=', start)
       .where('timestamp', '<=', end);
   const timeEntriesSnap = await timeEntriesQuery.get();
@@ -68,7 +68,7 @@ async function getPayrollData(startDate: string, endDate: string) {
   });
 
   const piecework: Piecework[] = [];
-  const pieceworkQuery = db.collection('piecework')
+  const pieceworkQuery = db.collectionGroup('piecework')
       .where('timestamp', '>=', start)
       .where('timestamp', '<=', end);
   const pieceworkSnap = await pieceworkQuery.get();
