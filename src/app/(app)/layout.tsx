@@ -1,4 +1,3 @@
-
 'use client'
 
 import { AppHeader } from '@/components/layout/header'
@@ -9,6 +8,7 @@ import { useUser, useAuth } from '@/firebase/provider'
 import { useEffect } from 'react'
 import { signInAnonymously } from 'firebase/auth'
 import { Loader2 } from 'lucide-react'
+import { usePathname } from 'next/navigation'
 
 function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser()
@@ -39,16 +39,24 @@ export default function AppLayout({
 }: {
   children: React.ReactNode
 }) {
-  const path = (children as any)?.props?.childProp?.segment
-  if (path?.startsWith('employees/print-badge')) {
-    return <FirebaseClientProvider><AuthWrapper>{children}</AuthWrapper></FirebaseClientProvider>
+  const pathname = usePathname()
+  
+  if (pathname.startsWith('/employees/print-badge')) {
+    return (
+        <FirebaseClientProvider>
+            <AuthWrapper>
+                {children}
+            </AuthWrapper>
+        </FirebaseClientProvider>
+    );
   }
+
   return (
     <FirebaseClientProvider>
       <AuthWrapper>
         <SidebarProvider>
           <AppSidebar />
-          <SidebarInset className="bg-background p-0">
+          <SidebarInset>
             <AppHeader />
             <div className="p-4 sm:p-6 lg:p-8">{children}</div>
           </SidebarInset>
