@@ -94,19 +94,11 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         const pieceworkByTask: Record<string, number> = {};
         const hoursByTask: Record<string, number> = {};
 
-        const chunk = <T,>(arr: T[], size: number) =>
-            Array.from({ length: Math.ceil(arr.length / size) }, (v, i) =>
-                arr.slice(i * size, i * size + size)
-            );
-
-        const taskChunks = chunk(clientTaskIds, 30);
-
-        // 1. Piecework logs
-        for (const taskChunk of taskChunks) {
-            if (taskChunk.length > 0) {
+        const fetchPieceworkLogs = async () => {
+            if (clientTaskIds.length > 0) {
                 const pieceLogsQuery = query(
                     collection(firestore, "piecework"),
-                    where("taskId", "in", taskChunk),
+                    where("taskId", "in", clientTaskIds),
                     where("timestamp", ">=", date.from),
                     where("timestamp", "<=", date.to)
                 );
@@ -120,15 +112,13 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
                     pieceworkByTask[taskId] += log.pieceCount;
                 });
             }
-        }
-        
+        };
 
-        // 2. Time Entries
-        for (const taskChunk of taskChunks) {
-            if (taskChunk.length > 0) {
+        const fetchTimeEntries = async () => {
+             if (clientTaskIds.length > 0) {
                 const timeLogsQuery = query(
                     collection(firestore, "time_entries"),
-                    where("taskId", "in", taskChunk),
+                    where("taskId", "in", clientTaskIds),
                     where("timestamp", ">=", date.from),
                     where("timestamp", "<=", date.to)
                 );
@@ -150,8 +140,10 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
                     }
                 });
             }
-        }
+        };
 
+        await Promise.all([fetchPieceworkLogs(), fetchTimeEntries()]);
+        
         // --- Build Invoice Items ---
         for (const task of clientTasks) {
             if (task.clientRateType === 'piece' && pieceworkByTask[task.id]) {
