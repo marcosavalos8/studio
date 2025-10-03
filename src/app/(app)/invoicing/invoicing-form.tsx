@@ -116,6 +116,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
             collection(firestore, "time_entries"),
             where("taskId", "in", clientTaskIds),
             where("timestamp", "<=", date.to),
+            where("endTime", ">=", date.from)
         );
         const timeLogsSnap = await getDocs(timeLogsQuery);
 
@@ -126,8 +127,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
             // Firestore timestamps can be null in old records.
             const endTime = log.endTime ? (log.endTime as unknown as Timestamp).toDate() : null;
 
-            // Entry must have started before the end of the range and have an end time.
-            if (startTime < date.to! && endTime && endTime > date.from!) {
+            if (endTime) {
                  if (!hoursByTask[log.taskId]) {
                     hoursByTask[log.taskId] = 0;
                 }

@@ -22,31 +22,25 @@ async function getDb() {
     return db;
   }
   
-  // This check ensures admin SDK is only initialized in a true Genkit server environment,
-  // not during Next.js builds which can cause conflicts.
-  if (process.env.GENKIT_ENV) {
-    const { getFirestore } = await import('firebase-admin/firestore');
-    const { initializeApp, getApps, credential } = await import('firebase-admin/app');
+  const { getFirestore } = await import('firebase-admin/firestore');
+  const { initializeApp, getApps, credential } = await import('firebase-admin/app');
 
-    if (getApps().length === 0) {
-       try {
-        // When running in a managed environment like Firebase App Hosting,
-        // this will automatically use the available service account.
-        initializeApp();
-      } catch (e) {
-        console.warn("Default initializeApp failed, trying with config. This is expected in local dev.", e)
-        // For local development, you might need to specify credentials.
-        initializeApp({
-            credential: credential.applicationDefault(),
-            projectId: firebaseConfig.projectId,
-        });
-      }
+  if (getApps().length === 0) {
+      try {
+      // When running in a managed environment like Firebase App Hosting,
+      // this will automatically use the available service account.
+      initializeApp();
+    } catch (e) {
+      console.warn("Default initializeApp failed, trying with config. This is expected in local dev.", e)
+      // For local development, you might need to specify credentials.
+      initializeApp({
+          credential: credential.applicationDefault(),
+          projectId: firebaseConfig.projectId,
+      });
     }
-    db = getFirestore();
-    return db;
   }
-  
-  throw new Error("Firestore admin SDK is not available in this environment.");
+  db = getFirestore();
+  return db;
 }
 
 

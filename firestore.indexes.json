@@ -15,6 +15,16 @@
       ]
     },
     {
+      "collectionGroup": "piecework",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "timestamp",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "time_entries",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
@@ -52,6 +62,16 @@
         },
         {
           "fieldPath": "endTime",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "time_entries",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "timestamp",
           "order": "ASCENDING"
         }
       ]
