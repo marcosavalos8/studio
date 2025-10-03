@@ -29,7 +29,15 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
+        <AppHeader />
+        <div className="p-4 sm:p-6 lg:p-8">{children}</div>
+      </SidebarInset>
+    </SidebarProvider>
+  );
 }
 
 
@@ -41,13 +49,7 @@ export default function AppLayout({
   return (
     <FirebaseClientProvider>
       <AuthWrapper>
-        <SidebarProvider>
-          <AppSidebar />
-          <SidebarInset>
-            <AppHeader />
-            <div className="p-4 sm:p-6 lg:p-8">{children}</div>
-          </SidebarInset>
-        </SidebarProvider>
+        {children}
       </AuthWrapper>
     </FirebaseClientProvider>
   )
