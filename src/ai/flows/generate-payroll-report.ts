@@ -11,39 +11,35 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { getFirestore, collection, query, where, getDocs, Timestamp } from 'firebase-admin/firestore';
-import {initializeApp, getApps, App} from 'firebase-admin/app';
+import {initializeApp, getApps, App, credential} from 'firebase-admin/app';
 import type {TimeEntry, Piecework, Task, Employee} from '@/lib/types';
 
 
-// Ensure Firebase is initialized
+// Ensure Firebase is initialized for admin access
 function getDb() {
   if (getApps().length === 0) {
+    // This will use the GOOGLE_APPLICATION_CREDENTIALS environment variable
+    // for authentication, which is appropriate for a server environment.
     initializeApp();
   }
   return getFirestore();
 }
-
 
 async function getPayrollData(startDate: string, endDate: string) {
   const db = getDb();
   const start = new Date(startDate);
   const end = new Date(endDate);
   
-  const employeesRef = db.collection('employees');
-  const employeesSnap = await employeesRef.get();
+  const employeesSnap = await db.collection('employees').get();
   const employees = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
 
-  const tasksRef = db.collection('tasks');
-  const tasksSnap = await tasksRef.get();
+  const tasksSnap = await db.collection('tasks').get();
   const tasks = tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
 
-  const timeEntriesRef = db.collection('time_entries');
-  const timeEntriesQuery = query(
-    timeEntriesRef,
-    where('timestamp', '>=', start),
-    where('timestamp', '<=', end)
-  );
-  const timeEntriesSnap = await getDocs(timeEntriesQuery);
+  const timeEntriesQuery = db.collection('time_entries')
+    .where('timestamp', '>=', start)
+    .where('timestamp', '<=', end);
+  const timeEntriesSnap = await timeEntriesQuery.get();
   const timeEntries = timeEntriesSnap.docs.map(doc => {
       const data = doc.data();
       return { 
@@ -54,13 +50,10 @@ async function getPayrollData(startDate: string, endDate: string) {
      } as TimeEntry
   });
 
-  const pieceworkRef = db.collection('piecework');
-  const pieceworkQuery = query(
-      pieceworkRef,
-      where('timestamp', '>=', start),
-      where('timestamp', '<=', end)
-  );
-  const pieceworkSnap = await getDocs(pieceworkQuery);
+  const pieceworkQuery = db.collection('piecework')
+      .where('timestamp', '>=', start)
+      .where('timestamp', '<=', end);
+  const pieceworkSnap = await pieceworkQuery.get();
   const piecework = pieceworkSnap.docs.map(doc => {
        const data = doc.data();
       return { 
@@ -90,10 +83,16 @@ const payrollDataTool = ai.defineTool(
     },
     async ({startDate, endDate}) => {
         try {
-            return await getPayrollData(startDate, endDate);
-        } catch (e) {
+            const data = await getPayrollData(startDate, endDate);
+            // Return a structured object that's easier for the LLM to parse.
+            return {
+                summary: `Found ${data.employees.length} employees, ${data.tasks.length} tasks, ${data.timeEntries.length} time entries, and ${data.piecework.length} piecework records.`,
+                data: data,
+            }
+        } catch (e: any) {
             console.error("Error fetching payroll data:", e);
-            return { error: 'Failed to retrieve data from the database.' };
+            // Provide a clear error message to the LLM.
+            return { error: `Failed to retrieve data from the database. The error was: ${e.message}` };
         }
     }
 );
@@ -124,18 +123,18 @@ const prompt = ai.definePrompt({
 
   First, use the 'getPayrollData' tool to fetch all necessary data for the period between {{startDate}} and {{endDate}}.
 
-  If the data contains an error, report that error to the user and stop.
+  If the tool returns an error object, you MUST report that error to the user and stop processing.
 
-  Then, using the retrieved data, generate a payroll report that includes the following for each employee:
-  - Total hours worked on hourly tasks.
-  - Total piecework earnings from piecework tasks.
-  - A check for WA minimum wage compliance. For each work week, if an employee's total earnings (hourly + piecework) divided by total hours worked is less than the WA minimum wage, calculate the required top-up amount. The current WA minimum wage is $16.28 per hour.
-  - Calculation and inclusion of paid break time as required by WA law (a 10-minute paid rest break for every 4 hours worked). The breaks should be paid at the employee's regular rate of pay.
+  Using the retrieved data from the 'data' field of the tool's output, generate a payroll report that includes the following for each employee:
+  - A summary of total hours worked on hourly tasks and total earnings from those tasks.
+  - A summary of total pieces completed for piecework tasks and total earnings from those tasks.
+  - A check for WA minimum wage compliance. For each work week, if an employee's total earnings (hourly + piecework) divided by total hours worked is less than the WA minimum wage, calculate the required top-up amount. The current WA minimum wage is $16.28 per hour. A standard work week is Sunday to Saturday.
+  - Calculation and inclusion of paid rest breaks as required by WA law (a 10-minute paid rest break for every 4 hours worked). Breaks should be paid at the employee's regular rate of pay, which for piecework is the average hourly rate for the week.
   - Alerts for any missed breaks or potential compliance issues.
 
   The final report must be in a clean, easy-to-read markdown format. Ensure all calculations are clearly explained.
   
-  Structure the report with a main summary, followed by a detailed breakdown for each employee.
+  Structure the report with a main summary for the entire pay period, followed by a detailed breakdown for each employee.
 `,
 });
 
@@ -147,6 +146,9 @@ const generatePayrollReportFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await prompt(input);
-    return output!;
+    if (!output) {
+      throw new Error("The AI model did not return a report. There might have been an issue with data fetching or the model itself.");
+    }
+    return output;
   }
 );

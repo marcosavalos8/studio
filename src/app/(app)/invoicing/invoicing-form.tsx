@@ -34,6 +34,7 @@ import type { Client, Task, Piecework, TimeEntry } from "@/lib/types"
 import type { DateRange } from "react-day-picker"
 import { useFirestore } from "@/firebase"
 import { collection, getDocs, query, where } from "firebase/firestore"
+import { useToast } from "@/hooks/use-toast"
 
 type InvoicingFormProps = {
   clients: Client[]
@@ -49,6 +50,7 @@ type InvoiceItem = {
 
 export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
   const firestore = useFirestore()
+  const { toast } = useToast()
   const [date, setDate] = React.useState<DateRange | undefined>()
   const [selectedClient, setSelectedClient] = React.useState<Client | undefined>()
   const [isGenerating, setIsGenerating] = React.useState(false)
@@ -86,101 +88,99 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
     }
 
     try {
-        // Fetch piece logs
+        // --- Fetch and process all relevant data ---
+        
+        // 1. Piecework logs
         const pieceLogsQuery = query(
-        collection(firestore, "piecework"),
-        where("taskId", "in", clientTaskIds),
-        where("timestamp", ">=", date.from),
-        where("timestamp", "<=", date.to)
-        )
-        const pieceLogsSnap = await getDocs(pieceLogsQuery)
-        const pieceLogs = pieceLogsSnap.docs.map(doc => doc.data() as Piecework)
+            collection(firestore, "piecework"),
+            where("taskId", "in", clientTaskIds),
+            where("timestamp", ">=", date.from),
+            where("timestamp", "<=", date.to)
+        );
+        const pieceLogsSnap = await getDocs(pieceLogsQuery);
+        
+        const pieceworkByTask: Record<string, number> = {};
+        pieceLogsSnap.docs.forEach(doc => {
+            const log = doc.data() as Piecework;
+            // Handle both single string and array of strings for employeeId
+            const employeeIds = Array.isArray(log.employeeId) ? log.employeeId : log.employeeId.split(',');
+            const countPerEmployee = log.pieceCount / employeeIds.length;
 
-        // Aggregate piecework logs
-        const pieceworkByTask: Record<string, number> = {}
-        pieceLogs.forEach(log => {
-        const taskIds = Array.isArray(log.taskId) ? log.taskId : [log.taskId];
-        taskIds.forEach(taskId => {
-            if (clientTaskIds.includes(taskId)) {
-                if (!pieceworkByTask[taskId]) {
-                    pieceworkByTask[taskId] = 0
+             if (!pieceworkByTask[log.taskId]) {
+                pieceworkByTask[log.taskId] = 0;
+            }
+            pieceworkByTask[log.taskId] += log.pieceCount;
+        });
+
+        // 2. Time Entries
+        const timeLogsQuery = query(
+            collection(firestore, "time_entries"),
+            where("taskId", "in", clientTaskIds),
+            where("timestamp", "<=", date.to)
+        );
+        const timeLogsSnap = await getDocs(timeLogsQuery);
+
+        const hoursByTask: Record<string, number> = {};
+        timeLogsSnap.docs.forEach(doc => {
+            const log = doc.data() as TimeEntry;
+            const startTime = (log.timestamp as unknown as Timestamp).toDate();
+            const endTime = log.endTime ? (log.endTime as unknown as Timestamp).toDate() : null;
+
+            // Entry must have started before the end of the range and have an end time.
+            if (startTime < date.to! && endTime && endTime > date.from!) {
+                 if (!hoursByTask[log.taskId]) {
+                    hoursByTask[log.taskId] = 0;
                 }
-                // If a piece is shared, the count is divided among the tasks.
-                // Assuming pieceCount is per taskId in the array if multiple taskIds exist for one piece log.
-                pieceworkByTask[taskId] += log.pieceCount / taskIds.length;
+                const durationHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+                hoursByTask[log.taskId] += durationHours;
             }
         });
-        })
+
+        // --- Build Invoice Items ---
 
         for (const taskId in pieceworkByTask) {
-            const task = clientTasks.find(t => t.id === taskId)
+            const task = clientTasks.find(t => t.id === taskId);
             if (task && task.clientRateType === 'piece') {
                 const quantity = pieceworkByTask[taskId];
-                const total = quantity * task.clientRate
+                const total = quantity * task.clientRate;
                 invoiceItems.push({
                     description: `${task.name}${task.variety ? ' (' + task.variety + ')' : ''} (Piecework)`,
                     quantity: parseFloat(quantity.toFixed(2)),
                     rate: task.clientRate,
                     total: total
-                })
+                });
             }
         }
-
-
-        // Fetch time logs for hourly tasks
-        const timeLogsQuery = query(
-        collection(firestore, "time_entries"),
-        where("taskId", "in", clientTaskIds),
-        where("timestamp", "<=", date.to) // endTime can be after date.to, but start time must be before
-        );
-        const timeLogsSnap = await getDocs(timeLogsQuery);
-        const timeLogs = timeLogsSnap.docs
-            .map(doc => doc.data() as TimeEntry)
-            .filter(log => {
-                const startTime = (log.timestamp as unknown as Timestamp).toDate();
-                // Ensure the entry started within the date range
-                return log.endTime && startTime >= date.from!
-            });
-
-
-        // Aggregate hourly logs
-        const hoursByTask: Record<string, number> = {}
-        timeLogs.forEach(log => {
-            if (!hoursByTask[log.taskId]) {
-                hoursByTask[log.taskId] = 0
-            }
-            const start = (log.timestamp as unknown as Timestamp).toDate()
-            const end = (log.endTime as unknown as Timestamp).toDate()
-            const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
-            hoursByTask[log.taskId] += durationHours
-        });
-
-
+        
         for (const taskId in hoursByTask) {
-            const task = clientTasks.find(t => t.id === taskId)
+            const task = clientTasks.find(t => t.id === taskId);
             if (task && task.clientRateType === 'hourly') {
                 const hours = hoursByTask[taskId];
-                const total = hours * task.clientRate
+                const total = hours * task.clientRate;
                 invoiceItems.push({
                     description: `${task.name}${task.variety ? ' (' + task.variety + ')' : ''} (Hourly)`,
                     quantity: parseFloat(hours.toFixed(2)),
                     rate: task.clientRate,
                     total: total
-                })
+                });
             }
         }
 
         const total = invoiceItems.reduce((sum, item) => sum + item.total, 0)
 
         setInvoice({
-        client: clientData,
-        date,
-        items: invoiceItems,
-        total,
+            client: clientData,
+            date,
+            items: invoiceItems,
+            total,
         })
     } catch(err) {
         console.error("Error generating invoice:", err)
-        // Optionally, show a toast or error message to the user
+        toast({
+            variant: "destructive",
+            title: "Invoice Generation Failed",
+            description: "Could not fetch or process data for the invoice. Please check the console for errors."
+        })
     } finally {
         setIsGenerating(false)
     }
