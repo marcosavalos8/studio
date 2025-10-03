@@ -75,7 +75,8 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         return
     }
 
-    const clientTaskIds = tasks.filter(task => task.clientId === clientData.id).map(t => t.id);
+    const clientTasks = tasks.filter(task => task.clientId === clientData.id);
+    const clientTaskIds = clientTasks.map(t => t.id);
     const invoiceItems: InvoiceItem[] = []
     
     if (clientTaskIds.length === 0) {
@@ -90,60 +91,61 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
     }
 
     try {
-        // --- Fetch and process all relevant data ---
-        
-        // 1. Piecework logs
-        const pieceLogsQuery = query(
-            collection(firestore, "piecework"),
-            where("taskId", "in", clientTaskIds),
-            where("timestamp", ">=", date.from),
-            where("timestamp", "<=", date.to)
-        );
-        const pieceLogsSnap = await getDocs(pieceLogsQuery);
-        
         const pieceworkByTask: Record<string, number> = {};
-        pieceLogsSnap.forEach(doc => {
-            const log = doc.data() as Piecework;
-            const taskId = log.taskId;
-             if (!pieceworkByTask[taskId]) {
-                pieceworkByTask[taskId] = 0;
-            }
-            pieceworkByTask[taskId] += log.pieceCount;
-        });
+        const hoursByTask: Record<string, number> = {};
+
+        // To avoid 'in' query limitations (max 10), we might need to iterate if there are many tasks.
+        // For simplicity, assuming number of tasks per client is manageable.
+        // A more robust solution would chunk the clientTaskIds array.
+
+        // 1. Piecework logs
+        if (clientTaskIds.length > 0) {
+            const pieceLogsQuery = query(
+                collection(firestore, "piecework"),
+                where("taskId", "in", clientTaskIds),
+                where("timestamp", ">=", date.from),
+                where("timestamp", "<=", date.to)
+            );
+            const pieceLogsSnap = await getDocs(pieceLogsQuery);
+            pieceLogsSnap.forEach(doc => {
+                const log = doc.data() as Piecework;
+                const taskId = log.taskId;
+                if (!pieceworkByTask[taskId]) {
+                    pieceworkByTask[taskId] = 0;
+                }
+                pieceworkByTask[taskId] += log.pieceCount;
+            });
+        }
 
         // 2. Time Entries
-        const timeLogsQuery = query(
-            collection(firestore, "time_entries"),
-            where("taskId", "in", clientTaskIds),
-            where("timestamp", ">=", date.from),
-            where("timestamp", "<=", date.to)
-        );
-        const timeLogsSnap = await getDocs(timeLogsQuery);
+        if (clientTaskIds.length > 0) {
+            const timeLogsQuery = query(
+                collection(firestore, "time_entries"),
+                where("taskId", "in", clientTaskIds),
+                where("timestamp", ">=", date.from),
+                where("timestamp", "<=", date.to)
+            );
+            const timeLogsSnap = await getDocs(timeLogsQuery);
 
-        const hoursByTask: Record<string, number> = {};
-        timeLogsSnap.docs.forEach(doc => {
-            const log = doc.data() as TimeEntry;
-            const startTime = (log.timestamp as unknown as Timestamp).toDate();
-            // Firestore timestamps can be null in old records.
-            const endTime = log.endTime ? (log.endTime as unknown as Timestamp).toDate() : null;
+            timeLogsSnap.docs.forEach(doc => {
+                const log = doc.data() as TimeEntry;
+                const startTime = (log.timestamp as unknown as Timestamp).toDate();
+                const endTime = log.endTime ? (log.endTime as unknown as Timestamp).toDate() : null;
 
-            if (endTime) {
-                 if (!hoursByTask[log.taskId]) {
-                    hoursByTask[log.taskId] = 0;
+                if (endTime && endTime >= startTime) {
+                    if (!hoursByTask[log.taskId]) {
+                        hoursByTask[log.taskId] = 0;
+                    }
+                    const durationHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+                    hoursByTask[log.taskId] += durationHours;
                 }
-                const durationHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-                hoursByTask[log.taskId] += durationHours;
-            }
-        });
+            });
+        }
 
         // --- Build Invoice Items ---
-
-        for (const taskId of clientTaskIds) {
-            const task = tasks.find(t => t.id === taskId);
-            if (!task) continue;
-
-            if (task.clientRateType === 'piece' && pieceworkByTask[taskId]) {
-                const quantity = pieceworkByTask[taskId];
+        for (const task of clientTasks) {
+            if (task.clientRateType === 'piece' && pieceworkByTask[task.id]) {
+                const quantity = pieceworkByTask[task.id];
                 const total = quantity * task.clientRate;
                 invoiceItems.push({
                     description: `${task.name}${task.variety ? ' (' + task.variety + ')' : ''} (Piecework)`,
@@ -153,8 +155,8 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
                 });
             }
             
-            if (task.clientRateType === 'hourly' && hoursByTask[taskId]) {
-                const hours = hoursByTask[taskId];
+            if (task.clientRateType === 'hourly' && hoursByTask[task.id]) {
+                const hours = hoursByTask[task.id];
                 const total = hours * task.clientRate;
                 invoiceItems.push({
                     description: `${task.name}${task.variety ? ' (' + task.variety + ')' : ''} (Hourly)`,
@@ -242,6 +244,13 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         </Button>
       </div>
 
+      {isGenerating && (
+          <div className="mt-6 text-center">
+              <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+              <p className="text-muted-foreground">Generating invoice...</p>
+          </div>
+      )}
+
       {invoice && (
         <div className="mt-6 bg-card p-4 sm:p-6 rounded-lg border" id="invoice-section">
           <div className="flex justify-between items-start mb-6 print:mb-4">
@@ -320,7 +329,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
                     }
                     @page {
                       size: auto;
-                      margin: 0;
+                      margin: 0.5in;
                     }
                 }
             `}</style>

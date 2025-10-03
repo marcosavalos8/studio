@@ -40,7 +40,6 @@ async function getDb() {
   return db;
 }
 
-
 async function getPayrollData(startDate: string, endDate: string) {
   const db = await getDb();
   const start = new Date(startDate);
@@ -56,7 +55,7 @@ async function getPayrollData(startDate: string, endDate: string) {
   const clients = clientsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client));
 
   // Query all time entries and piecework within the date range
-  const timeEntriesQuery = db.collection('time_entries')
+  const timeEntriesQuery = db.collectionGroup('time_entries')
     .where('timestamp', '>=', start)
     .where('timestamp', '<=', end);
   const timeEntriesSnap = await timeEntriesQuery.get();
@@ -71,7 +70,7 @@ async function getPayrollData(startDate: string, endDate: string) {
      } as TimeEntry
   });
 
-  const pieceworkQuery = db.collection('piecework')
+  const pieceworkQuery = db.collectionGroup('piecework')
       .where('timestamp', '>=', start)
       .where('timestamp', '<=', end);
   const pieceworkSnap = await pieceworkQuery.get();
