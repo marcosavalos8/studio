@@ -3,7 +3,6 @@
 
 import { z } from "zod"
 import { generatePayrollReport, type ProcessedPayrollData } from "@/ai/flows/generate-payroll-report"
-import { format } from "date-fns"
 
 const payrollSchema = z.object({
   dateRange: z.object({
@@ -18,6 +17,24 @@ type PayrollState = {
   report?: ProcessedPayrollData;
   error?: string;
 }
+
+// Function to recursively convert Date objects to ISO strings
+function convertDatesToISOStrings(obj: any): any {
+  if (obj instanceof Date) {
+    return obj.toISOString();
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(convertDatesToISOStrings);
+  }
+  if (typeof obj === 'object' && obj !== null) {
+    return Object.keys(obj).reduce((acc, key) => {
+      acc[key] = convertDatesToISOStrings(obj[key]);
+      return acc;
+    }, {} as any);
+  }
+  return obj;
+}
+
 
 export async function generateReportAction(prevState: PayrollState, formData: FormData): Promise<PayrollState> {
   const validatedFields = payrollSchema.safeParse({
@@ -44,7 +61,11 @@ export async function generateReportAction(prevState: PayrollState, formData: Fo
       payDate: payDate,
       jsonData: jsonData,
     });
-    return { report: result };
+    
+    // Ensure all dates are strings before returning to the client
+    const serializableResult = convertDatesToISOStrings(result);
+    
+    return { report: serializableResult };
   } catch (e) {
     console.error(e);
     const errorMessage = e instanceof Error ? e.message : 'Failed to generate report. Please try again.';
