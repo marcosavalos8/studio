@@ -18,7 +18,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { generateReportAction } from "./actions"
 import type { DateRange } from "react-day-picker"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
+import { useFirestore } from "@/firebase"
 import { collection, query, where, Timestamp, getDocs } from 'firebase/firestore'
 import { Client, Employee, Piecework, Task, TimeEntry } from "@/lib/types"
 
@@ -126,13 +126,17 @@ export function PayrollForm() {
             const timeEntriesSnap = await getDocs(timeEntriesQuery);
             const timeEntries = timeEntriesSnap.docs.map(doc => {
                 const data = doc.data();
+                // Safely handle timestamp and endTime conversions
+                const timestamp = data.timestamp instanceof Timestamp ? data.timestamp.toDate().toISOString() : null;
+                const endTime = data.endTime instanceof Timestamp ? data.endTime.toDate().toISOString() : null;
+                
                 return { 
                     ...data,
                     id: doc.id,
-                    timestamp: data.timestamp ? (data.timestamp as Timestamp).toDate().toISOString() : null,
-                    endTime: data.endTime ? (data.endTime as Timestamp).toDate().toISOString() : undefined
+                    timestamp,
+                    endTime,
                 };
-            }).filter(entry => entry.timestamp); // Filter out entries with no timestamp
+            });
 
             const pieceworkQuery = query(collection(firestore, 'piecework'),
                 where('timestamp', '>=', start),
@@ -141,12 +145,15 @@ export function PayrollForm() {
             const pieceworkSnap = await getDocs(pieceworkQuery);
             const piecework = pieceworkSnap.docs.map(doc => {
                 const data = doc.data();
+                // Safely handle timestamp conversion
+                const timestamp = data.timestamp instanceof Timestamp ? data.timestamp.toDate().toISOString() : null;
+
                 return { 
                     ...data,
                     id: doc.id,
-                    timestamp: data.timestamp ? (data.timestamp as Timestamp).toDate().toISOString() : null
+                    timestamp
                 };
-            }).filter(entry => entry.timestamp); // Filter out entries with no timestamp
+            });
 
             setJsonData(JSON.stringify({
                 employees,
