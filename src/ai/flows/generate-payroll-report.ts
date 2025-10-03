@@ -9,7 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import {initializeApp, getApps, credential} from 'firebase-admin/app';
 import type {TimeEntry, Piecework, Task, Employee, Client} from '@/lib/types';
