@@ -11,16 +11,26 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { getFirestore, collection, getDocs, Timestamp } from 'firebase-admin/firestore';
-import {initializeApp, getApps} from 'firebase-admin/app';
+import {initializeApp, getApps, credential} from 'firebase-admin/app';
 import type {TimeEntry, Piecework, Task, Employee, Client} from '@/lib/types';
+import { firebaseConfig } from '@/firebase/config';
 
 
 // Ensure Firebase is initialized for admin access
 function getDb() {
   if (getApps().length === 0) {
-    // This will use the GOOGLE_APPLICATION_CREDENTIALS environment variable
-    // for authentication, which is appropriate for a server environment.
-    initializeApp();
+    // When running in a managed environment like Firebase App Hosting,
+    // initializeApp() will automatically use the available service account.
+    // For local development, you might need to specify credentials.
+    try {
+        initializeApp();
+    } catch(e) {
+        console.warn("Default initializeApp failed, trying with config. This is expected in local dev.", e)
+        initializeApp({
+            credential: credential.applicationDefault(),
+            projectId: firebaseConfig.projectId,
+        });
+    }
   }
   return getFirestore();
 }
