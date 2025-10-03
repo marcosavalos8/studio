@@ -11,8 +11,6 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 import type {TimeEntry, Piecework, Task, Employee, Client} from '@/lib/types';
-import { firebaseConfig } from '@/firebase/config';
-
 
 // Delay-load and cache the admin SDK to avoid initialization conflicts with Next.js
 let db: import('firebase-admin/firestore').Firestore;
@@ -27,17 +25,16 @@ async function getDb() {
 
   if (getApps().length === 0) {
       try {
-      // When running in a managed environment like Firebase App Hosting,
-      // this will automatically use the available service account.
-      initializeApp();
-    } catch (e) {
-      console.warn("Default initializeApp failed, trying with config. This is expected in local dev.", e)
-      // For local development, you might need to specify credentials.
-      initializeApp({
-          credential: credential.applicationDefault(),
-          projectId: firebaseConfig.projectId,
-      });
-    }
+        // When running in a managed environment like Firebase App Hosting,
+        // this will automatically use the available service account.
+        initializeApp();
+      } catch (e) {
+        console.warn("Default initializeApp failed. This is expected in local dev.", e)
+        // For local development, you might need to specify credentials from the environment.
+        initializeApp({
+            credential: credential.applicationDefault(),
+        });
+      }
   }
   db = getFirestore();
   return db;
@@ -59,7 +56,7 @@ async function getPayrollData(startDate: string, endDate: string) {
   const clients = clientsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client));
 
   // Query all time entries and piecework within the date range
-  const timeEntriesQuery = db.collectionGroup('time_entries')
+  const timeEntriesQuery = db.collection('time_entries')
     .where('timestamp', '>=', start)
     .where('timestamp', '<=', end);
   const timeEntriesSnap = await timeEntriesQuery.get();
@@ -74,7 +71,7 @@ async function getPayrollData(startDate: string, endDate: string) {
      } as TimeEntry
   });
 
-  const pieceworkQuery = db.collectionGroup('piecework')
+  const pieceworkQuery = db.collection('piecework')
       .where('timestamp', '>=', start)
       .where('timestamp', '<=', end);
   const pieceworkSnap = await pieceworkQuery.get();

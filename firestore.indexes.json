@@ -2,11 +2,11 @@
   "indexes": [
     {
       "collectionGroup": "piecework",
-      "queryScope": "COLLECTION_GROUP",
+      "queryScope": "COLLECTION",
       "fields": [
         {
           "fieldPath": "taskId",
-          "order": "ASCENDING"
+          "arrayConfig": "CONTAINS"
         },
         {
           "fieldPath": "timestamp",
@@ -16,11 +16,11 @@
     },
     {
       "collectionGroup": "time_entries",
-      "queryScope": "COLLECTION_GROUP",
+      "queryScope": "COLLECTION",
       "fields": [
         {
           "fieldPath": "taskId",
-          "order": "ASCENDING"
+          "arrayConfig": "CONTAINS"
         },
         {
           "fieldPath": "timestamp",
@@ -30,11 +30,11 @@
     },
     {
       "collectionGroup": "time_entries",
-      "queryScope": "COLLECTION_GROUP",
+      "queryScope": "COLLECTION",
       "fields": [
         {
           "fieldPath": "taskId",
-          "order": "ASCENDING"
+          "arrayConfig": "CONTAINS"
         },
         {
           "fieldPath": "endTime",
@@ -42,9 +42,9 @@
         }
       ]
     },
-    {
+     {
       "collectionGroup": "time_entries",
-      "queryScope": "COLLECTION_GROUP",
+      "queryScope": "COLLECTION",
       "fields": [
         {
           "fieldPath": "employeeId",

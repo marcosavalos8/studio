@@ -115,8 +115,8 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         const timeLogsQuery = query(
             collection(firestore, "time_entries"),
             where("taskId", "in", clientTaskIds),
-            where("timestamp", "<=", date.to),
-            where("endTime", ">=", date.from)
+            where("timestamp", ">=", date.from),
+            where("endTime", "<=", date.to)
         );
         const timeLogsSnap = await getDocs(timeLogsQuery);
 
