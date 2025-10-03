@@ -94,52 +94,65 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         const pieceworkByTask: Record<string, number> = {};
         const hoursByTask: Record<string, number> = {};
 
-        // To avoid 'in' query limitations (max 10), we might need to iterate if there are many tasks.
+        // To avoid 'in' query limitations (max 30), we might need to iterate if there are many tasks.
         // For simplicity, assuming number of tasks per client is manageable.
         // A more robust solution would chunk the clientTaskIds array.
+        const chunk = <T,>(arr: T[], size: number) =>
+            Array.from({ length: Math.ceil(arr.length / size) }, (v, i) =>
+                arr.slice(i * size, i * size + size)
+            );
+
+        const taskChunks = chunk(clientTaskIds, 30);
 
         // 1. Piecework logs
-        if (clientTaskIds.length > 0) {
-            const pieceLogsQuery = query(
-                collection(firestore, "piecework"),
-                where("taskId", "in", clientTaskIds),
-                where("timestamp", ">=", date.from),
-                where("timestamp", "<=", date.to)
-            );
-            const pieceLogsSnap = await getDocs(pieceLogsQuery);
-            pieceLogsSnap.forEach(doc => {
-                const log = doc.data() as Piecework;
-                const taskId = log.taskId;
-                if (!pieceworkByTask[taskId]) {
-                    pieceworkByTask[taskId] = 0;
-                }
-                pieceworkByTask[taskId] += log.pieceCount;
-            });
+        for (const taskChunk of taskChunks) {
+            if (taskChunk.length > 0) {
+                const pieceLogsQuery = query(
+                    collection(firestore, "piecework"),
+                    where("taskId", "in", taskChunk),
+                    where("timestamp", ">=", date.from),
+                    where("timestamp", "<=", date.to)
+                );
+                const pieceLogsSnap = await getDocs(pieceLogsQuery);
+                pieceLogsSnap.forEach(doc => {
+                    const log = doc.data() as Piecework;
+                    const taskId = log.taskId;
+                    if (!pieceworkByTask[taskId]) {
+                        pieceworkByTask[taskId] = 0;
+                    }
+                    pieceworkByTask[taskId] += log.pieceCount;
+                });
+            }
         }
+        
 
         // 2. Time Entries
-        if (clientTaskIds.length > 0) {
-            const timeLogsQuery = query(
-                collection(firestore, "time_entries"),
-                where("taskId", "in", clientTaskIds),
-                where("timestamp", ">=", date.from),
-                where("timestamp", "<=", date.to)
-            );
-            const timeLogsSnap = await getDocs(timeLogsQuery);
+        for (const taskChunk of taskChunks) {
+            if (taskChunk.length > 0) {
+                const timeLogsQuery = query(
+                    collection(firestore, "time_entries"),
+                    where("taskId", "in", taskChunk),
+                    where("timestamp", ">=", date.from),
+                    where("timestamp", "<=", date.to)
+                );
+                const timeLogsSnap = await getDocs(timeLogsQuery);
 
-            timeLogsSnap.docs.forEach(doc => {
-                const log = doc.data() as TimeEntry;
-                const startTime = (log.timestamp as unknown as Timestamp).toDate();
-                const endTime = log.endTime ? (log.endTime as unknown as Timestamp).toDate() : null;
+                timeLogsSnap.docs.forEach(doc => {
+                    const log = doc.data() as TimeEntry;
+                    if(log.endTime) {
+                      const startTime = (log.timestamp as unknown as Timestamp).toDate();
+                      const endTime = log.endTime ? (log.endTime as unknown as Timestamp).toDate() : null;
 
-                if (endTime && endTime >= startTime) {
-                    if (!hoursByTask[log.taskId]) {
-                        hoursByTask[log.taskId] = 0;
+                      if (endTime && endTime >= startTime) {
+                          if (!hoursByTask[log.taskId]) {
+                              hoursByTask[log.taskId] = 0;
+                          }
+                          const durationHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+                          hoursByTask[log.taskId] += durationHours;
+                      }
                     }
-                    const durationHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-                    hoursByTask[log.taskId] += durationHours;
-                }
-            });
+                });
+            }
         }
 
         // --- Build Invoice Items ---

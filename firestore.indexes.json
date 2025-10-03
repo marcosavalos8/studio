@@ -2,7 +2,7 @@
   "indexes": [
     {
       "collectionGroup": "time_entries",
-      "queryScope": "COLLECTION_GROUP",
+      "queryScope": "COLLECTION",
       "fields": [
         {
           "fieldPath": "timestamp",
@@ -12,7 +12,7 @@
     },
     {
       "collectionGroup": "piecework",
-      "queryScope": "COLLECTION_GROUP",
+      "queryScope": "COLLECTION",
       "fields": [
         {
           "fieldPath": "timestamp",
