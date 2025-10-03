@@ -42,11 +42,6 @@ import { useFirestore } from "@/firebase"
 import { collection, getDocs, query, where } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 
-type InvoicingFormProps = {
-  clients: Client[]
-  tasks: Task[]
-}
-
 type InvoiceItem = {
     description: string;
     quantity: number;
@@ -56,7 +51,10 @@ type InvoiceItem = {
 
 export type InvoiceData = {
   client: Client;
-  date: DateRange;
+  date: {
+    from: string | null | undefined;
+    to: string | null | undefined;
+  };
   items: InvoiceItem[];
   total: number;
 };
@@ -91,7 +89,10 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
     if (clientTaskIds.length === 0) {
         setInvoice({
             client: clientData,
-            date,
+            date: {
+              from: date.from?.toISOString(),
+              to: date.to?.toISOString()
+            },
             items: [],
             total: 0,
         })
@@ -176,7 +177,10 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
 
         setInvoice({
             client: clientData,
-            date,
+            date: {
+              from: date.from?.toISOString(),
+              to: date.to?.toISOString()
+            },
             items: invoiceItems,
             total,
         })
@@ -195,14 +199,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
   const handlePrint = () => {
     if (!invoice) return;
     try {
-        const serializableInvoice = {
-            ...invoice,
-            date: {
-                from: invoice.date.from?.toISOString(),
-                to: invoice.date.to?.toISOString()
-            }
-        }
-        const invoiceString = JSON.stringify(serializableInvoice);
+        const invoiceString = JSON.stringify(invoice);
         sessionStorage.setItem('invoiceData', invoiceString);
         window.open('/invoicing/print', '_blank');
     } catch (error) {
@@ -220,18 +217,24 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
     const client = invoice.client;
     const clientEmail = client.email || '';
     const subject = `Invoice from FieldTack WA`;
-    let body = `Dear ${client.name},\n\nPlease find your invoice attached for the period of ${format(invoice.date.from!, "LLL dd, y")} to ${format(invoice.date.to!, "LLL dd, y")}.\n\n`;
-    body += '------------------------------------\n';
-    body += 'Description\t\tQuantity\tRate\t\tTotal\n';
-    body += '------------------------------------\n';
-    invoice.items.forEach(item => {
-        body += `${item.description}\t\t${item.quantity}\t\t$${item.rate.toFixed(2)}\t\t$${item.total.toFixed(2)}\n`;
-    });
-    body += '------------------------------------\n';
-    body += `Total: $${invoice.total.toFixed(2)}\n\n`;
+    
+    // Store data and get print link
+    const invoiceString = JSON.stringify(invoice);
+    sessionStorage.setItem('invoiceData', invoiceString);
+    const printUrl = `${window.location.origin}/invoicing/print`;
+    
+    let body = `Dear ${client.name},\n\n`;
+    body += `Please find your invoice for the period of ${format(new Date(invoice.date.from!), "LLL dd, y")} to ${format(new Date(invoice.date.to!), "LLL dd, y")}.\n\n`;
+    body += `You can view and print the full invoice here:\n${printUrl}\n\n`;
+    body += `To save as a PDF:\n`;
+    body += `1. Open the link above.\n`;
+    body += `2. Press Ctrl+P or Cmd+P to open the print dialog.\n`;
+    body += `3. Change the 'Destination' to 'Save as PDF' and click 'Save'.\n\n`;
+    body += `Invoice Summary:\n`;
+    body += `Total Amount Due: $${invoice.total.toFixed(2)}\n`;
     body += `Payment Terms: ${client.paymentTerms}\n\n`;
     body += 'Thank you for your business!\n\n';
-    body += 'Sincerely,\nFieldTack WA Team';
+    body += 'Sincerely,\nThe FieldTack WA Team';
 
     const mailtoLink = `mailto:${clientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.location.href = mailtoLink;
@@ -312,7 +315,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
             <div className="text-right">
               <div className="font-semibold">FieldTack WA</div>
               <div className="text-sm text-muted-foreground">Invoice Date: {format(new Date(), "LLL dd, y")}</div>
-              <div className="text-sm text-muted-foreground">Period: {format(invoice.date.from!, "LLL dd, y")} - {format(invoice.date.to!, "LLL dd, y")}</div>
+              <div className="text-sm text-muted-foreground">Period: {format(new Date(invoice.date.from!), "LLL dd, y")} - {format(new Date(invoice.date.to!), "LLL dd, y")}</div>
             </div>
           </div>
 

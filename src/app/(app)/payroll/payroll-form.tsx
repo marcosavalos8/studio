@@ -71,27 +71,21 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
   
   const handleEmail = () => {
     const subject = `Payroll Report for ${format(new Date(report.startDate), "LLL dd, y")} - ${format(new Date(report.endDate), "LLL dd, y")}`;
-    let body = `Hello Accountant,\n\nPlease find the payroll summary below.\n\n`;
-    body += `Report Period: ${format(new Date(report.startDate), "LLL dd, y")} - ${format(new Date(report.endDate), "LLL dd, y")}\n`;
-    body += `Total Payroll: $${overallTotal.toFixed(2)}\n\n`;
-    body += '------------------------------------\n\n';
+    
+    // Store data and get print link
+    const reportString = JSON.stringify(report);
+    sessionStorage.setItem('payrollReportData', reportString);
+    const printUrl = `${window.location.origin}/payroll/print`;
 
-    report.employeeSummaries.forEach(employee => {
-        body += `Employee: ${employee.employeeName}\n`;
-        body += `Final Pay: $${employee.finalPay.toFixed(2)}\n\n`;
-        
-        employee.weeklySummaries.forEach(week => {
-            body += `  Week ${week.weekNumber}, ${week.year}:\n`;
-            body += `    - Total Hours: ${week.totalHours.toFixed(2)}\n`;
-            body += `    - Total Earnings: $${week.totalEarnings.toFixed(2)}\n`;
-            body += `    - Paid Rest Breaks: $${week.paidRestBreaksTotal.toFixed(2)}\n`;
-            if (week.minimumWageTopUp > 0) {
-              body += `    - Minimum Wage Top-up: $${week.minimumWageTopUp.toFixed(2)}\n`;
-            }
-            body += '\n';
-        });
-        body += '------------------------------------\n\n';
-    });
+    let body = `Hello Accountant,\n\nPlease find the payroll summary for the period of ${format(new Date(report.startDate), "LLL dd, y")} to ${format(new Date(report.endDate), "LLL dd, y")}.\n\n`;
+    body += `You can view and print the full report here:\n${printUrl}\n\n`;
+    body += `To save as a PDF:\n`;
+    body += `1. Open the link above.\n`;
+    body += `2. Press Ctrl+P or Cmd+P to open the print dialog.\n`;
+    body += `3. Change the 'Destination' to 'Save as PDF' and click 'Save'.\n\n`;
+    body += `Report Summary:\n`;
+    body += `Total Payroll: $${overallTotal.toFixed(2)}\n\n`;
+    body += 'Thank you!';
 
     const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.location.href = mailtoLink;
