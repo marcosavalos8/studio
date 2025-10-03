@@ -64,7 +64,7 @@ function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData[
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Task</TableHead>
+                <TableHead>Task / Location</TableHead>
                 <TableHead className="text-right">Hours</TableHead>
                 <TableHead className="text-right">Pieces</TableHead>
                 <TableHead className="text-right">Earnings</TableHead>
@@ -73,7 +73,10 @@ function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData[
             <TableBody>
               {day.tasks.map((task, idx) => (
                 <TableRow key={idx}>
-                  <TableCell>{task.taskName}</TableCell>
+                  <TableCell>
+                    <div>{task.taskName}</div>
+                    <div className="text-xs text-muted-foreground">{task.clientName} {task.ranch && ` - ${task.ranch}`}</div>
+                  </TableCell>
                   <TableCell className="text-right">{task.hours > 0 ? task.hours.toFixed(2) : '-'}</TableCell>
                   <TableCell className="text-right">{task.pieceworkCount > 0 ? task.pieceworkCount : '-'}</TableCell>
                   <TableCell className="text-right">${(task.hourlyEarnings + task.pieceworkEarnings).toFixed(2)}</TableCell>
@@ -397,3 +400,5 @@ export function PayrollForm() {
     </form>
   )
 }
+
+    

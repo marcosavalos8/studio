@@ -7,7 +7,7 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 
 let firebaseApp: FirebaseApp;
 
-// Ensure Firebase is initialized only once
+// This ensures we initialize firebase only once.
 if (!getApps().length) {
   firebaseApp = initializeApp(firebaseConfig);
 } else {
@@ -26,3 +26,5 @@ export * from './non-blocking-updates';
 export * from './non-blocking-login';
 export * from './errors';
 export * from './error-emitter';
+
+    

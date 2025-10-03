@@ -26,6 +26,8 @@ export type GeneratePayrollReportInput = z.infer<typeof GeneratePayrollReportInp
 // Define schemas for our processed data. This is what the tool will output.
 const DailyTaskDetailSchema = z.object({
   taskName: z.string(),
+  clientName: z.string(),
+  ranch: z.string().optional(),
   hours: z.number(),
   pieceworkCount: z.number(),
   hourlyEarnings: z.number(),
@@ -88,9 +90,11 @@ const processPayrollData = ai.defineTool(
   },
   async (input) => {
     const data = JSON.parse(input.jsonData);
-    const { employees, tasks, timeEntries, piecework } = data;
+    const { employees, tasks, timeEntries, piecework, clients } = data;
     const WA_MINIMUM_WAGE = 16.28;
     const employeeSummaries: z.infer<typeof EmployeePayrollSummarySchema>[] = [];
+    
+    const clientMap = new Map(clients.map((c: any) => [c.id, c.name]));
 
     for (const employee of employees) {
         const weeklyData: Record<string, { totalHours: number; totalPieceworkEarnings: number; totalHourlyEarnings: number; dailyBreakdown: Record<string, { tasks: Record<string, z.infer<typeof DailyTaskDetailSchema>> }> }> = {};
@@ -113,7 +117,7 @@ const processPayrollData = ai.defineTool(
             const task = tasks.find((t: any) => t.id === entry.taskId);
             if (task) {
                 if (!weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id]) {
-                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety})`, hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0 };
+                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety || 'N/A'})`, clientName: clientMap.get(task.clientId) || 'Unknown', ranch: task.ranch || '', hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0 };
                 }
 
                 const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
@@ -145,7 +149,7 @@ const processPayrollData = ai.defineTool(
             const task = tasks.find((t: any) => t.id === entry.taskId);
             if (task) {
                 if (!weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id]) {
-                     weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety})`, hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0 };
+                     weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety || 'N/A'})`, clientName: clientMap.get(task.clientId) || 'Unknown', ranch: task.ranch || '', hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0 };
                 }
 
                 if (task.employeePayType === 'piecework') {
@@ -245,3 +249,5 @@ const generatePayrollReportFlow = ai.defineFlow(
     return processedData;
   }
 );
+
+    
