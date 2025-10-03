@@ -129,10 +129,10 @@ export function PayrollForm() {
                 return { 
                     ...data,
                     id: doc.id,
-                    timestamp: (data.timestamp as Timestamp).toDate().toISOString(),
+                    timestamp: data.timestamp ? (data.timestamp as Timestamp).toDate().toISOString() : null,
                     endTime: data.endTime ? (data.endTime as Timestamp).toDate().toISOString() : undefined
                 };
-            });
+            }).filter(entry => entry.timestamp); // Filter out entries with no timestamp
 
             const pieceworkQuery = query(collection(firestore, 'piecework'),
                 where('timestamp', '>=', start),
@@ -144,9 +144,9 @@ export function PayrollForm() {
                 return { 
                     ...data,
                     id: doc.id,
-                    timestamp: (data.timestamp as Timestamp).toDate().toISOString()
+                    timestamp: data.timestamp ? (data.timestamp as Timestamp).toDate().toISOString() : null
                 };
-            });
+            }).filter(entry => entry.timestamp); // Filter out entries with no timestamp
 
             setJsonData(JSON.stringify({
                 employees,
