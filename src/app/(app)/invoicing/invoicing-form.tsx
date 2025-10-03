@@ -116,7 +116,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
             collection(firestore, "time_entries"),
             where("taskId", "in", clientTaskIds),
             where("timestamp", ">=", date.from),
-            where("endTime", "<=", date.to)
+            where("timestamp", "<=", date.to)
         );
         const timeLogsSnap = await getDocs(timeLogsQuery);
 
@@ -301,8 +301,8 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
           </div>
            <style jsx global>{`
                 @media print {
-                    body * {
-                        visibility: hidden;
+                    body {
+                      visibility: hidden;
                     }
                     #invoice-section, #invoice-section * {
                         visibility: visible;
@@ -312,9 +312,15 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
                         left: 0;
                         top: 0;
                         width: 100%;
+                        height: 100%;
                         border: none;
                         box-shadow: none;
                         padding: 1.5rem;
+                        margin: 0;
+                    }
+                    @page {
+                      size: auto;
+                      margin: 0;
                     }
                 }
             `}</style>

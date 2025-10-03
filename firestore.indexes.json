@@ -1,3 +1,4 @@
+
 {
   "indexes": [
     {
@@ -29,20 +30,6 @@
       ]
     },
     {
-      "collectionGroup": "time_entries",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "taskId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "endTime",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-     {
       "collectionGroup": "time_entries",
       "queryScope": "COLLECTION",
       "fields": [
