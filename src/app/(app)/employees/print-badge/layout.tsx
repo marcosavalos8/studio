@@ -1,8 +1,5 @@
 'use client'
 
-import { AppHeader } from '@/components/layout/header'
-import { AppSidebar } from '@/components/layout/sidebar'
-import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { FirebaseClientProvider } from '@/firebase/client-provider'
 import { useUser, useAuth } from '@/firebase/provider'
 import { useEffect } from 'react'
@@ -32,8 +29,7 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-
-export default function AppLayout({
+export default function PrintLayout({
   children,
 }: {
   children: React.ReactNode
@@ -41,14 +37,8 @@ export default function AppLayout({
   return (
     <FirebaseClientProvider>
       <AuthWrapper>
-        <SidebarProvider>
-          <AppSidebar />
-          <SidebarInset>
-            <AppHeader />
-            <div className="p-4 sm:p-6 lg:p-8">{children}</div>
-          </SidebarInset>
-        </SidebarProvider>
+        {children}
       </AuthWrapper>
     </FirebaseClientProvider>
-  )
+  );
 }
