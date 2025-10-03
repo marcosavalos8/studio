@@ -53,13 +53,11 @@ export function LiveActivity() {
 
         setIsLoading(true);
 
-        // Create maps to cache fetched documents and avoid re-fetching
         const employeeMap = new Map<string, Employee>();
         const taskMap = new Map<string, Task>();
         const clientMap = new Map<string, Client>();
 
         const promises = activeTimeEntries.map(async (entry) => {
-          // Fetch Employee
           let employee = employeeMap.get(entry.employeeId);
           if (!employee) {
             const empDoc = await getDoc(doc(firestore, 'employees', entry.employeeId));
@@ -69,7 +67,6 @@ export function LiveActivity() {
             }
           }
 
-          // Fetch Task
           let task = taskMap.get(entry.taskId);
           if (!task) {
             const taskDoc = await getDoc(doc(firestore, 'tasks', entry.taskId));
@@ -79,7 +76,6 @@ export function LiveActivity() {
             }
           }
           
-          // Fetch Client from Task
           let client: Client | undefined;
           if (task) {
             client = clientMap.get(task.clientId);
@@ -92,19 +88,23 @@ export function LiveActivity() {
             }
           }
           
+          if (!employee || !task || !client) {
+            return null;
+          }
+
           const clockInTime = (entry.timestamp as unknown as Timestamp).toDate();
 
           return {
               id: entry.id,
-              employeeName: employee?.name || 'Unknown',
-              employeeInitials: employee?.name.split(' ').map(n => n[0]).join('') || '??',
-              taskName: task?.name || 'Unknown Task',
-              clientName: client?.name || 'Unknown Client',
+              employeeName: employee.name,
+              employeeInitials: employee.name.split(' ').map(n => n[0]).join('') || '??',
+              taskName: task.name,
+              clientName: client.name,
               clockInTime: clockInTime,
           };
         });
 
-        const results = await Promise.all(promises);
+        const results = (await Promise.all(promises)).filter((item): item is ActivityItem => item !== null);
         results.sort((a, b) => b.clockInTime.getTime() - a.clockInTime.getTime())
         setActivityData(results);
         setIsLoading(false);
