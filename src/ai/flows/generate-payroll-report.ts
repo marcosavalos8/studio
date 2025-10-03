@@ -19,11 +19,11 @@ const GeneratePayrollReportInputSchema = z.object({
 });
 export type GeneratePayrollReportInput = z.infer<typeof GeneratePayrollReportInputSchema>;
 
-// This internal schema includes the parsed data for the prompt
+// This internal schema now expects a string for the JSON data.
 const PromptInputSchema = z.object({
   startDate: z.string(),
   endDate: z.string(),
-  payrollData: z.any(),
+  payrollData: z.string(), // Changed from z.any() to z.string()
 });
 
 const GeneratePayrollReportOutputSchema = z.object({
@@ -44,7 +44,7 @@ const prompt = ai.definePrompt({
 
   You have been provided with the following data:
   \`\`\`json
-  {{{json payrollData}}}
+  {{{payrollData}}}
   \`\`\`
 
   Using this data, generate a payroll report that includes the following for each employee:
@@ -67,18 +67,11 @@ const generatePayrollReportFlow = ai.defineFlow(
     outputSchema: GeneratePayrollReportOutputSchema,
   },
   async input => {
-    let parsedData;
-    try {
-        parsedData = JSON.parse(input.jsonData);
-    } catch (e: any) {
-        console.error("Error parsing payroll data:", e);
-        throw new Error(`Failed to parse data from the client. The error was: ${e.message}`);
-    }
-
+    // Pass the raw JSON string directly to the prompt.
     const {output} = await prompt({
         startDate: input.startDate,
         endDate: input.endDate,
-        payrollData: parsedData,
+        payrollData: input.jsonData,
     });
     
     if (!output) {
