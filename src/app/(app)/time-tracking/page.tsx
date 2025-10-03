@@ -112,7 +112,7 @@ export default function TimeTrackingPage() {
 
   const ranches = useMemo(() => {
     if (!tasksForClient) return [];
-    return [...new Set(tasksForClient.map(t => t.ranch).filter(Boolean))]
+    return [...new Set(tasksForClient.map(t => t.ranch).filter(Boolean))] as string[];
   }, [tasksForClient]);
   
   const blocks = useMemo(() => {
@@ -775,7 +775,8 @@ export default function TimeTrackingPage() {
                                         setScannedPieceQuantity(value === '' ? '' : parseInt(value, 10));
                                     }}
                                     onBlur={(e) => {
-                                        if (e.target.value === '' || parseInt(e.target.value) <= 0) {
+                                        const value = parseInt(e.target.value, 10);
+                                        if (isNaN(value) || value <= 0) {
                                             setScannedPieceQuantity(1);
                                         }
                                     }}
@@ -879,7 +880,8 @@ export default function TimeTrackingPage() {
                                 setManualPieceQuantity(value === '' ? '' : parseInt(value, 10));
                             }}
                             onBlur={(e) => {
-                                if (e.target.value === '' || parseInt(e.target.value) <= 0) {
+                                const value = parseInt(e.target.value, 10);
+                                if (isNaN(value) || value <= 0) {
                                     setManualPieceQuantity(1);
                                 }
                             }}
