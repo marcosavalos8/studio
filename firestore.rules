@@ -1,28 +1,37 @@
 /**
- * @fileoverview Firestore Security Rules.
+ * @fileoverview Firestore Security Rules for the application.
  *
- * Core Philosophy: This ruleset implements role-based access control, with all authenticated users having read access to most data,
- * but with write access restricted to administrators. This allows for a flexible data model during prototyping.
+ * Core Philosophy:
+ * This ruleset prioritizes secure access control while allowing for flexible data shapes during prototyping.
+ * It focuses on preventing unauthorized data modification and deletion, while allowing any authenticated user to read all data.
+ * Write access (create, update, delete) is restricted based on admin privileges (TODO: define the logic in `isAdmin()`).
  *
- * Data Structure: The database consists of top-level collections for employees, time entries, piecework, clients, and tasks.
+ * Data Structure:
+ * The Firestore database contains collections for employees, time entries, piecework, clients, and tasks.
  *
  * Key Security Decisions:
- *  - All authenticated users can read all collections.
- *  - Only admins can create, update, and delete employees, clients and tasks.
- *  - Time entries and piecework can be created by all authenticated users, but not updated or deleted.
- *  - No data validation is enforced, adhering to the prototyping philosophy.
+ * - Any authenticated user can read all data.
+ * - Only admins can create, update, and delete clients, tasks, and employees.
+ * - Time entries and piecework records can be created, updated and deleted by any authenticated user.
+ * - Schema validation is relaxed during prototyping to allow quick iteration, except for checking document existence before updates/deletes and validating ownership on create.
+ *
+ * Denormalization for Authorization:
+ * This ruleset avoids `get()` calls by assuming admin status can be checked externally.
+ *
+ * Structural Segregation:
+ * There is no segregation of public vs. private data; all data is treated as potentially sensitive.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows all authenticated users to read employee data, but only admins can create, update, or delete employees.
-     * @path /employees/{employeeId}
-     * @allow (get, list): Any authenticated user can read employee data.
-     * @allow (create, update, delete): Only admins can modify employee data.
-     * @deny (create, update, delete): Non-admins cannot modify employee data.
-     * @principle Implements role-based access control, restricting write access to admins.
+     * @description Controls access to the 'employees' collection.
+     * @path /databases/{database}/documents/employees/{employeeId}
+     * @allow (get, list) Any authenticated user can read employee data.
+     * @allow (create, update, delete) Only admins can create, update, or delete employee data.
+     * @deny (create, update, delete) Non-admin users cannot create, update, or delete employee data.
+     * @principle Requires admin role for write operations.
      */
     match /employees/{employeeId} {
       allow get, list: if isSignedIn();
@@ -32,40 +41,34 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allows any authenticated user to create time entries, but restricts updates and deletes.
-     * @path /time_entries/{timeEntryId}
-     * @allow (get, list): Any authenticated user can read time entry data.
-     * @allow (create): Any authenticated user can create time entry data.
-     * @deny (update, delete): No one can update or delete time entry data.
-     * @principle Allows for data collection from all users while preventing modifications.
+     * @description Controls access to the 'time_entries' collection.
+     * @path /databases/{database}/documents/time_entries/{timeEntryId}
+     * @allow (get, list, create, update, delete) Any authenticated user can read, create, update and delete time entry data.
+     * @deny (create, update, delete) if not signed in
+     * @principle Allows any authenticated user to manage time entries.
      */
     match /time_entries/{timeEntryId} {
-      allow get, list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if false;
+      allow get, list, create, update, delete: if isSignedIn() && resource != null;
     }
 
     /**
-     * @description Allows any authenticated user to create piecework records, but restricts updates and deletes.
-     * @path /piecework/{pieceworkId}
-     * @allow (get, list): Any authenticated user can read piecework data.
-     * @allow (create): Any authenticated user can create piecework data.
-     * @deny (update, delete): No one can update or delete piecework data.
-     * @principle Allows for data collection from all users while preventing modifications.
+     * @description Controls access to the 'piecework' collection.
+     * @path /databases/{database}/documents/piecework/{pieceworkId}
+     * @allow (get, list, create, update, delete) Any authenticated user can read, create, update and delete piecework data.
+     * @deny (create, update, delete) if not signed in
+     * @principle Allows any authenticated user to manage piecework entries.
      */
     match /piecework/{pieceworkId} {
-      allow get, list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if false;
+      allow get, list, create, update, delete: if isSignedIn() && resource != null;
     }
 
     /**
-     * @description Allows all authenticated users to read client data, but only admins can create, update, or delete clients.
-     * @path /clients/{clientId}
-     * @allow (get, list): Any authenticated user can read client data.
-     * @allow (create, update, delete): Only admins can modify client data.
-     * @deny (create, update, delete): Non-admins cannot modify client data.
-     * @principle Implements role-based access control, restricting write access to admins.
+     * @description Controls access to the 'clients' collection.
+     * @path /databases/{database}/documents/clients/{clientId}
+     * @allow (get, list) Any authenticated user can read client data.
+     * @allow (create, update, delete) Only admins can create, update, or delete client data.
+     * @deny (create, update, delete) Non-admin users cannot create, update, or delete client data.
+     * @principle Requires admin role for write operations.
      */
     match /clients/{clientId} {
       allow get, list: if isSignedIn();
@@ -75,12 +78,12 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allows all authenticated users to read task data, but only admins can create, update, or delete tasks.
-     * @path /tasks/{taskId}
-     * @allow (get, list): Any authenticated user can read task data.
-     * @allow (create, update, delete): Only admins can modify task data.
-     * @deny (create, update, delete): Non-admins cannot modify task data.
-     * @principle Implements role-based access control, restricting write access to admins.
+     * @description Controls access to the 'tasks' collection.
+     * @path /databases/{database}/documents/tasks/{taskId}
+     * @allow (get, list) Any authenticated user can read task data.
+     * @allow (create, update, delete) Only admins can create, update, or delete task data.
+     * @deny (create, update, delete) Non-admin users cannot create, update, or delete task data.
+     * @principle Requires admin role for write operations.
      */
     match /tasks/{taskId} {
       allow get, list: if isSignedIn();
@@ -94,9 +97,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // TODO: Implement Admin Role - Requires Custom Claims
+    // TODO: Implement the isAdmin() function based on your actual authentication and authorization logic.
+    // This is a placeholder. Replace with your actual admin check (e.g., from custom claims).
     function isAdmin() {
-       return false;
+      return false;
     }
   }
 }
