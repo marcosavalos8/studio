@@ -48,7 +48,7 @@ function MarkdownDisplay({ content }: { content: string }) {
       </div>
       <style jsx global>{`
           @media print {
-              body, body > * {
+              body {
                 visibility: hidden;
               }
               #report-section, #report-section * {
