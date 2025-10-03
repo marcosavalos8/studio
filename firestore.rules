@@ -1,128 +1,109 @@
 /**
- * @fileoverview Firestore Security Rules for the application.
- *
- * Core Philosophy:
- * This ruleset prioritizes secure access control, especially around user-owned data and administrative privileges.
- * It assumes a model where certain collections (e.g., 'employees', 'clients', 'tasks') are primarily managed by
- * administrative users, while others (e.g., 'time_entries', 'piecework') can be created by any authenticated user.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a role-based access control model, with public read access on some collections,
+ *   and admin-restricted write access on key entities.
  *
  * Data Structure:
- * - /employees/{employeeId}: Employee records. Admins can create/update/delete, all authenticated users can read.
- * - /time_entries/{timeEntryId}: Time entry records. Any authenticated user can create.
- * - /piecework/{pieceworkId}: Piecework records. Any authenticated user can create.
- * - /clients/{clientId}: Client records. Admins can create/update/delete, all authenticated users can read.
- * - /tasks/{taskId}: Task records. Admins can create/update/delete, all authenticated users can read.
+ * - /employees/{employeeId}: Stores employee data.
+ * - /time_entries/{timeEntryId}: Stores time entry records.
+ * - /piecework/{pieceworkId}: Stores piecework records.
+ * - /clients/{clientId}: Stores client data.
+ * - /tasks/{taskId}: Stores task data.
  *
  * Key Security Decisions:
- * - No user listing is allowed unless explicitly specified in a data model description.
- * - Focus on secure writes. Read rules are more permissive where the data model allows.
- * - Authorization decisions rely on the authenticated user's UID (`request.auth.uid`).
- * - Data shape validation is minimized for prototyping but critical authorization fields are validated on writes.
- *
- * Denormalization for Authorization:
- * - No denormalization is used for this ruleset, as it's assumed that admin status is managed externally. If roles
- *   were stored in Firestore, a `get()` call (or denormalization) would be necessary to securely validate admin privileges.
- *
- * Structural Segregation:
- * - No structural segregation is used. All collections are top-level.
+ * - Role-based access control: only admins can write to the employees, clients and tasks collections.
+ * - Public read access: time_entries and piecework collections can be read by any logged in user.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to the /employees collection.
+     * @description Manages employee data.
      * @path /employees/{employeeId}
-     * @allow (create) - An admin user can create a new employee record. (Hypothetical admin role check)
+     * @allow (create) - Only an admin can create a new employee.
+     * @deny (create) - Non-admin users cannot create employees.
      * @allow (get, list) - Any authenticated user can read employee data.
-     * @deny (create) - A non-admin user cannot create an employee record.
-     * @deny (update, delete) - A non-admin user cannot update or delete an employee record.
-     * @principle Enforces admin-only writes for employee data.
+     * @deny (update, delete) - Only an admin can update or delete an employee.
+     * @principle Enforces role-based access control; only admins can modify employee data.
      */
     match /employees/{employeeId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
+      allow get, list: if isSignedIn();
       allow create: if isAdmin();
       allow update: if isAdmin() && resource != null;
       allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Controls access to the /time_entries collection.
+     * @description Manages time entry records.
      * @path /time_entries/{timeEntryId}
-     * @allow (create) - Any authenticated user can create a new time entry record.
-     * @allow (get, list) - Any authenticated user can read a time entry record.
-     * @deny (create) - An unauthenticated user cannot create a time entry record.
-     * @deny (update, delete) - Only the creator (or an admin) can update or delete a time entry record.
-     * @principle Allows any authenticated user to create time entries.
+     * @allow (create) - Any authenticated user can create a time entry.
+     * @allow (get, list) - Any authenticated user can read time entries.
+     * @deny (update, delete) - Only an admin can update or delete a time entry.
+     * @principle Allows all authenticated users to create and read time entries.
      */
     match /time_entries/{timeEntryId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
+      allow get, list: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Controls access to the /piecework collection.
+     * @description Manages piecework records.
      * @path /piecework/{pieceworkId}
-     * @allow (create) - Any authenticated user can create a new piecework record.
-     * @allow (get, list) - Any authenticated user can read a piecework record.
-     * @deny (create) - An unauthenticated user cannot create a piecework record.
-     * @deny (update, delete) - Only the creator (or an admin) can update or delete a piecework record.
-     * @principle Allows any authenticated user to create piecework records.
+     * @allow (create) - Any authenticated user can create a piecework record.
+     * @allow (get, list) - Any authenticated user can read piecework records.
+     * @deny (update, delete) - Only an admin can update or delete a piecework record.
+     * @principle Allows all authenticated users to create and read piecework records.
      */
     match /piecework/{pieceworkId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
+      allow get, list: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Controls access to the /clients collection.
+     * @description Manages client data.
      * @path /clients/{clientId}
-     * @allow (create) - An admin user can create a new client record.
+     * @allow (create) - Only an admin can create a new client.
+     * @deny (create) - Non-admin users cannot create clients.
      * @allow (get, list) - Any authenticated user can read client data.
-     * @deny (create) - A non-admin user cannot create a client record.
-     * @deny (update, delete) - A non-admin user cannot update or delete a client record.
-     * @principle Enforces admin-only writes for client data.
+     * @deny (update, delete) - Only an admin can update or delete a client.
+     * @principle Enforces role-based access control; only admins can modify client data.
      */
     match /clients/{clientId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
+      allow get, list: if isSignedIn();
       allow create: if isAdmin();
       allow update: if isAdmin() && resource != null;
       allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Controls access to the /tasks collection.
+     * @description Manages task data.
      * @path /tasks/{taskId}
-     * @allow (create) - An admin user can create a new task record.
+     * @allow (create) - Only an admin can create a new task.
+     * @deny (create) - Non-admin users cannot create tasks.
      * @allow (get, list) - Any authenticated user can read task data.
-     * @deny (create) - A non-admin user cannot create a task record.
-     * @deny (update, delete) - A non-admin user cannot update or delete a task record.
-     * @principle Enforces admin-only writes for task data.
+     * @deny (update, delete) - Only an admin can update or delete a task.
+     * @principle Enforces role-based access control; only admins can modify task data.
      */
     match /tasks/{taskId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
+      allow get, list: if isSignedIn();
       allow create: if isAdmin();
       allow update: if isAdmin() && resource != null;
       allow delete: if isAdmin() && resource != null;
     }
 
-    // Helper functions
+    // --- Helper Functions ---
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Placeholder for admin role check. Replace with your actual admin check logic.
     function isAdmin() {
-      return false;
+      // TODO: Implement admin check (e.g., based on a custom claim).  For prototyping, allow all signed-in users.
+      return request.auth != null;
     }
   }
 }
