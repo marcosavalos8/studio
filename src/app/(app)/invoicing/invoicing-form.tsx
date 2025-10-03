@@ -59,6 +59,10 @@ export type InvoiceData = {
   total: number;
 };
 
+type InvoicingFormProps = {
+    clients: Client[];
+    tasks: Task[];
+};
 
 export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
   const firestore = useFirestore()
@@ -178,8 +182,8 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         setInvoice({
             client: clientData,
             date: {
-              from: date.from?.toISOString(),
-              to: date.to?.toISOString()
+              from: date.from.toISOString(),
+              to: date.to.toISOString()
             },
             items: invoiceItems,
             total,
@@ -213,7 +217,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
   }
 
   const handleEmail = () => {
-    if (!invoice) return;
+    if (!invoice || !invoice.date.from || !invoice.date.to) return;
     const client = invoice.client;
     const clientEmail = client.email || '';
     const subject = `Invoice from FieldTack WA`;
@@ -224,7 +228,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
     const printUrl = `${window.location.origin}/invoicing/print`;
     
     let body = `Dear ${client.name},\n\n`;
-    body += `Please find your invoice for the period of ${format(new Date(invoice.date.from!), "LLL dd, y")} to ${format(new Date(invoice.date.to!), "LLL dd, y")}.\n\n`;
+    body += `Please find your invoice for the period of ${format(new Date(invoice.date.from), "LLL dd, y")} to ${format(new Date(invoice.date.to), "LLL dd, y")}.\n\n`;
     body += `You can view and print the full invoice here:\n${printUrl}\n\n`;
     body += `To save as a PDF:\n`;
     body += `1. Open the link above.\n`;
@@ -315,7 +319,9 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
             <div className="text-right">
               <div className="font-semibold">FieldTack WA</div>
               <div className="text-sm text-muted-foreground">Invoice Date: {format(new Date(), "LLL dd, y")}</div>
-              <div className="text-sm text-muted-foreground">Period: {format(new Date(invoice.date.from!), "LLL dd, y")} - {format(new Date(invoice.date.to!), "LLL dd, y")}</div>
+              {invoice.date.from && invoice.date.to && (
+                <div className="text-sm text-muted-foreground">Period: {format(new Date(invoice.date.from), "LLL dd, y")} - {format(new Date(invoice.date.to), "LLL dd, y")}</div>
+              )}
             </div>
           </div>
 
@@ -368,7 +374,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
                   <Printer className="mr-2 h-4 w-4" />
                   Print / Save as PDF
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleEmail}>
+                <DropdownMenuItem onClick={handleEmail} disabled={!invoice.client.email}>
                   <Mail className="mr-2 h-4 w-4" />
                   Email Invoice
                 </DropdownMenuItem>

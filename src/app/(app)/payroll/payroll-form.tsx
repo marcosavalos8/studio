@@ -70,6 +70,7 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
   }
   
   const handleEmail = () => {
+    if (!report.startDate || !report.endDate) return;
     const subject = `Payroll Report for ${format(new Date(report.startDate), "LLL dd, y")} - ${format(new Date(report.endDate), "LLL dd, y")}`;
     
     // Store data and get print link
@@ -96,7 +97,9 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
        <div className="flex justify-between items-start mb-6">
             <div>
               <h2 className="text-2xl font-bold text-primary">Payroll Report</h2>
-              <div className="text-muted-foreground">For period: {format(new Date(report.startDate), "LLL dd, y")} - {format(new Date(report.endDate), "LLL dd, y")}</div>
+              {report.startDate && report.endDate && (
+                <div className="text-muted-foreground">For period: {format(new Date(report.startDate), "LLL dd, y")} - {format(new Date(report.endDate), "LLL dd, y")}</div>
+              )}
             </div>
             <div className="text-right">
               <div className="font-semibold">FieldTack WA</div>
@@ -265,7 +268,7 @@ export function PayrollForm() {
                     ...data,
                     id: doc.id,
                     timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || null,
-                    endTime: (data.endTime as Timestamp)?.toDate().toISOString() || null,
+                    endTime: (data.endTime as Timestamp)?.toDate()?.toISOString() || null,
                 };
             });
 
