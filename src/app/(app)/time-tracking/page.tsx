@@ -75,7 +75,7 @@ export default function TimeTrackingPage() {
   const [manualLogType, setManualLogType] = useState<ManualLogType>('clock-in');
   const [manualEmployeeSearch, setManualEmployeeSearch] = useState('');
   const [manualSelectedEmployee, setManualSelectedEmployee] = useState<Employee | null>(null);
-  const [manualPieceQuantity, setManualPieceQuantity] = useState(1);
+  const [manualPieceQuantity, setManualPieceQuantity] = useState<number | string>(1);
   const [manualNotes, setManualNotes] = useState('');
   const [isManualSubmitting, setIsManualSubmitting] = useState(false);
 
@@ -449,17 +449,24 @@ export default function TimeTrackingPage() {
         });
 
     } else if (manualLogType === 'piecework') {
+        const pieceCount = typeof manualPieceQuantity === 'number' ? manualPieceQuantity : parseInt(String(manualPieceQuantity), 10)
+        if (isNaN(pieceCount) || pieceCount <= 0) {
+            toast({ variant: 'destructive', title: 'Invalid Quantity', description: 'Please enter a valid number of pieces.' });
+            setIsManualSubmitting(false);
+            return;
+        }
+
         const newPiecework: Omit<Piecework, 'id'> = {
             employeeId: employeeId,
             taskId: selectedTask,
             timestamp: new Date(),
-            pieceCount: manualPieceQuantity,
+            pieceCount: pieceCount,
             pieceQrCode: 'manual_entry',
             qcNote: manualNotes,
         };
         addDoc(collection(firestore, 'piecework'), newPiecework)
             .then(() => {
-                toast({ title: "Piecework Recorded", description: `${manualPieceQuantity} piece(s) recorded for ${manualSelectedEmployee.name}.` });
+                toast({ title: "Piecework Recorded", description: `${pieceCount} piece(s) recorded for ${manualSelectedEmployee.name}.` });
                 setManualSelectedEmployee(null);
                 setManualEmployeeSearch('');
                 setManualPieceQuantity(1);
@@ -788,7 +795,17 @@ export default function TimeTrackingPage() {
                             type="number" 
                             placeholder="Enter number of pieces" 
                             value={manualPieceQuantity}
-                            onChange={(e) => setManualPieceQuantity(parseInt(e.target.value, 10) || 1)}
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                if (value === '' || (value.match(/^[0-9]+$/) && parseInt(value) > 0)) {
+                                    setManualPieceQuantity(value);
+                                }
+                            }}
+                            onBlur={(e) => {
+                                if (e.target.value === '') {
+                                    setManualPieceQuantity(1);
+                                }
+                            }}
                             min="1"
                         />
                     </div>
@@ -846,3 +863,4 @@ export default function TimeTrackingPage() {
     </div>
   );
 }
+
