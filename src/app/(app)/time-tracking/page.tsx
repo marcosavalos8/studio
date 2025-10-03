@@ -27,7 +27,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
-import { QrCode, ClipboardEdit, Users, User, CheckCircle, Package, LogIn, LogOut, Loader2, VideoOff } from "lucide-react"
+import { QrCode, ClipboardEdit, Users, User, CheckCircle, Package, LogIn, LogOut, Loader2, VideoOff, Hash, ScanLine } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
 import JSConfetti from 'js-confetti'
@@ -46,6 +46,7 @@ const QrScanner = dynamic(() => import('./qr-scanner').then(mod => mod.QrScanner
 
 type ScanMode = 'clock-in' | 'clock-out' | 'piece';
 type ManualLogType = 'clock-in' | 'clock-out' | 'start-break' | 'end-break' | 'piecework';
+type PieceEntryMode = 'scan' | 'manual';
 
 
 export default function TimeTrackingPage() {
@@ -54,9 +55,12 @@ export default function TimeTrackingPage() {
   
   const [scanMode, setScanMode] = useState<ScanMode>('clock-in');
   const [isSharedPiece, setIsSharedPiece] = useState(false);
+  const [pieceEntryMode, setPieceEntryMode] = useState<PieceEntryMode>('scan');
   
   const [scannedEmployees, setScannedEmployees] = useState<string[]>([]);
   const [scannedBin, setScannedBin] = useState<string | null>(null);
+  const [scannedPieceQuantity, setScannedPieceQuantity] = useState<number | string>(1);
+
 
   const [jsConfetti, setJsConfetti] = useState<JSConfetti | null>(null);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
@@ -175,7 +179,8 @@ export default function TimeTrackingPage() {
   useEffect(() => {
     setScannedEmployees([]);
     setScannedBin(null);
-  }, [scanMode, isSharedPiece, selectedTask]);
+    setScannedPieceQuantity(1);
+  }, [scanMode, isSharedPiece, selectedTask, pieceEntryMode]);
   
   // Reset manual employee selection when searching
   useEffect(() => {
@@ -241,9 +246,14 @@ export default function TimeTrackingPage() {
             setScannedEmployees(prev => isSharedPiece ? [...prev, employeeId] : [employeeId]);
             const employeeName = activeEmployees?.find(e => e.id === employeeId)?.name || employeeId;
             toast({ title: "Employee Scanned", description: employeeName });
-        } else { // It's a bin scan
-          setScannedBin(scannedData);
-          toast({ title: "Bin Scanned", description: scannedData });
+        } else { // It's a bin scan (or other data)
+          if (pieceEntryMode === 'scan') {
+            setScannedBin(scannedData);
+            toast({ title: "Bin Scanned", description: scannedData });
+          } else {
+            playBeep(false);
+            toast({ variant: "destructive", title: "Invalid Scan", description: "Expected an employee QR code in this mode."});
+          }
         }
       } else { // Clock-in or Clock-out
         if (isEmployeeScan) {
@@ -353,23 +363,38 @@ export default function TimeTrackingPage() {
             }
         });
     } else if (scanMode === 'piece') {
-        if (!scannedBin) {
-            toast({ variant: 'destructive', title: "Bin not scanned", description: "Please scan a bin QR code." });
-            setIsSubmitting(false);
-            return;
+        let pieceCount = 1;
+        let pieceQrCode = 'manual_quantity';
+        if (pieceEntryMode === 'scan') {
+          if (!scannedBin) {
+              toast({ variant: 'destructive', title: "Bin not scanned", description: "Please scan a bin QR code." });
+              setIsSubmitting(false);
+              return;
+          }
+          pieceQrCode = scannedBin;
+        } else { // manual quantity
+          const quantity = typeof scannedPieceQuantity === 'number' ? scannedPieceQuantity : parseInt(String(scannedPieceQuantity), 10);
+          if (isNaN(quantity) || quantity <= 0) {
+              toast({ variant: 'destructive', title: 'Invalid Quantity', description: 'Please enter a valid number of pieces.' });
+              setIsSubmitting(false);
+              return;
+          }
+          pieceCount = quantity;
         }
+
         const newPiecework: Omit<Piecework, 'id'> = {
             employeeId: scannedEmployees.join(','), // For shared, join IDs
             taskId: selectedTask,
             timestamp: new Date(),
-            pieceCount: 1, // Assume 1 bin per scan
-            pieceQrCode: scannedBin,
+            pieceCount: pieceCount,
+            pieceQrCode: pieceQrCode,
         };
         addDoc(pieceworkCollection, newPiecework)
             .then(() => {
-                toast({ title: "Piecework Recorded", description: `Bin ${scannedBin} recorded for ${scannedEmployees.length} employee(s).` });
+                toast({ title: "Piecework Recorded", description: `${pieceCount} piece(s) recorded for ${scannedEmployees.length} employee(s).` });
                 setScannedEmployees([]);
                 setScannedBin(null);
+                setScannedPieceQuantity(1);
             })
             .catch(async (serverError) => {
                 const permissionError = new FirestorePermissionError({
@@ -651,16 +676,38 @@ export default function TimeTrackingPage() {
                  </RadioGroup>
 
                  {scanMode === 'piece' && (
-                  <div className="flex items-center space-x-2 pt-4 border-t mt-4">
-                    <Switch
-                      id="shared-piece-switch"
-                      checked={isSharedPiece}
-                      onCheckedChange={setIsSharedPiece}
-                    />
-                    <Label htmlFor="shared-piece-switch" className="flex items-center gap-2">
-                      {isSharedPiece ? <Users className="h-4 w-4" /> : <User className="h-4 w-4" />}
-                      {isSharedPiece ? 'Shared Piece (Multiple Employees)' : 'Single Employee'}
-                    </Label>
+                  <div className="space-y-4 pt-4 border-t mt-4">
+                    <div className="flex items-center space-x-2">
+                        <Switch
+                        id="shared-piece-switch"
+                        checked={isSharedPiece}
+                        onCheckedChange={setIsSharedPiece}
+                        />
+                        <Label htmlFor="shared-piece-switch" className="flex items-center gap-2">
+                        {isSharedPiece ? <Users className="h-4 w-4" /> : <User className="h-4 w-4" />}
+                        {isSharedPiece ? 'Shared Piece (Multiple Employees)' : 'Single Employee'}
+                        </Label>
+                    </div>
+                    <RadioGroup
+                        value={pieceEntryMode}
+                        onValueChange={(value) => setPieceEntryMode(value as PieceEntryMode)}
+                        className="grid grid-cols-2 gap-4"
+                    >
+                        <Label htmlFor="piece-mode-scan" className="flex flex-1 items-center gap-3 rounded-md border p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5">
+                            <RadioGroupItem value="scan" id="piece-mode-scan" />
+                            <div className="flex items-center gap-2">
+                                <ScanLine className="h-5 w-5" />
+                                <p className="font-medium">Scan Bins</p>
+                            </div>
+                        </Label>
+                        <Label htmlFor="piece-mode-manual" className="flex flex-1 items-center gap-3 rounded-md border p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5">
+                            <RadioGroupItem value="manual" id="piece-mode-manual" />
+                            <div className="flex items-center gap-2">
+                                <Hash className="h-5 w-5" />
+                                <p className="font-medium">Enter Quantity</p>
+                            </div>
+                        </Label>
+                    </RadioGroup>
                   </div>
                  )}
                </div>
@@ -697,22 +744,51 @@ export default function TimeTrackingPage() {
                  {scanMode === 'piece' && (
                     <Card>
                         <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><Package/>Scanned Bin</CardTitle>
+                            <CardTitle className="flex items-center gap-2">
+                                {pieceEntryMode === 'scan' ? <Package/> : <Hash />}
+                                {pieceEntryMode === 'scan' ? 'Scanned Bin' : 'Piece Quantity'}
+                            </CardTitle>
                         </CardHeader>
                         <CardContent>
-                        {scannedBin ? (
-                            <div className="flex items-center gap-2 text-green-600">
-                                <CheckCircle className="h-5 w-5" />
-                                <p className="font-mono text-sm">{scannedBin}</p>
-                            </div>
+                        {pieceEntryMode === 'scan' ? (
+                            scannedBin ? (
+                                <div className="flex items-center gap-2 text-green-600">
+                                    <CheckCircle className="h-5 w-5" />
+                                    <p className="font-mono text-sm">{scannedBin}</p>
+                                </div>
+                            ) : (
+                                <p className="text-muted-foreground">No bin scanned yet.</p>
+                            )
                         ) : (
-                            <p className="text-muted-foreground">No bin scanned yet.</p>
+                            <div className="space-y-2">
+                                <Label htmlFor="scanned-quantity">Total Pieces / Bins</Label>
+                                <Input 
+                                    id="scanned-quantity" 
+                                    type="number"
+                                    placeholder="Enter total pieces"
+                                    value={scannedPieceQuantity}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        setScannedPieceQuantity(value === '' ? '' : parseInt(value, 10));
+                                    }}
+                                    onBlur={(e) => {
+                                        if (e.target.value === '' || parseInt(e.target.value) <= 0) {
+                                            setScannedPieceQuantity(1);
+                                        }
+                                    }}
+                                    min="1"
+                                />
+                            </div>
                         )}
                         </CardContent>
                     </Card>
                  )}
               </div>
-              <Button onClick={handleSubmit} disabled={isSubmitting || scannedEmployees.length === 0 || (scanMode === 'piece' && !scannedBin)} className="w-full">
+              <Button 
+                onClick={handleSubmit} 
+                disabled={isSubmitting || scannedEmployees.length === 0 || (scanMode === 'piece' && pieceEntryMode === 'scan' && !scannedBin)} 
+                className="w-full"
+               >
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                 Submit {scanMode === 'clock-in' ? 'Clock In(s)' : scanMode === 'clock-out' ? 'Clock Out(s)' : 'Piecework'}
               </Button>
@@ -797,12 +873,10 @@ export default function TimeTrackingPage() {
                             value={manualPieceQuantity}
                             onChange={(e) => {
                                 const value = e.target.value;
-                                if (value === '' || (value.match(/^[0-9]+$/) && parseInt(value) > 0)) {
-                                    setManualPieceQuantity(value);
-                                }
+                                setManualPieceQuantity(value === '' ? '' : parseInt(value, 10));
                             }}
                             onBlur={(e) => {
-                                if (e.target.value === '') {
+                                if (e.target.value === '' || parseInt(e.target.value) <= 0) {
                                     setManualPieceQuantity(1);
                                 }
                             }}
@@ -863,4 +937,3 @@ export default function TimeTrackingPage() {
     </div>
   );
 }
-
