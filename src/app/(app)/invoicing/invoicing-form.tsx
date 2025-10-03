@@ -62,7 +62,10 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
   } | null>(null)
 
   const handleGenerate = async () => {
-    if (!firestore || !selectedClient || !date?.from || !date?.to) return
+    if (!firestore || !selectedClient || !date?.from || !date?.to) {
+        toast({ title: 'Please select a client and a date range.', variant: 'destructive' });
+        return;
+    }
     setIsGenerating(true)
     setInvoice(null);
 
@@ -72,8 +75,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         return
     }
 
-    const clientTasks = tasks.filter(task => task.clientId === clientData.id)
-    const clientTaskIds = clientTasks.map(t => t.id);
+    const clientTaskIds = tasks.filter(task => task.clientId === clientData.id).map(t => t.id);
     const invoiceItems: InvoiceItem[] = []
     
     if (clientTaskIds.length === 0) {
@@ -100,9 +102,9 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         const pieceLogsSnap = await getDocs(pieceLogsQuery);
         
         const pieceworkByTask: Record<string, number> = {};
-        pieceLogsSnap.docs.forEach(doc => {
+        pieceLogsSnap.forEach(doc => {
             const log = doc.data() as Piecework;
-            const taskId = log.taskId
+            const taskId = log.taskId;
              if (!pieceworkByTask[taskId]) {
                 pieceworkByTask[taskId] = 0;
             }
@@ -113,7 +115,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         const timeLogsQuery = query(
             collection(firestore, "time_entries"),
             where("taskId", "in", clientTaskIds),
-            where("timestamp", "<=", date.to)
+            where("timestamp", "<=", date.to),
         );
         const timeLogsSnap = await getDocs(timeLogsQuery);
 
@@ -121,6 +123,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         timeLogsSnap.docs.forEach(doc => {
             const log = doc.data() as TimeEntry;
             const startTime = (log.timestamp as unknown as Timestamp).toDate();
+            // Firestore timestamps can be null in old records.
             const endTime = log.endTime ? (log.endTime as unknown as Timestamp).toDate() : null;
 
             // Entry must have started before the end of the range and have an end time.
@@ -135,9 +138,11 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
 
         // --- Build Invoice Items ---
 
-        for (const taskId in pieceworkByTask) {
-            const task = clientTasks.find(t => t.id === taskId);
-            if (task && task.clientRateType === 'piece') {
+        for (const taskId of clientTaskIds) {
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) continue;
+
+            if (task.clientRateType === 'piece' && pieceworkByTask[taskId]) {
                 const quantity = pieceworkByTask[taskId];
                 const total = quantity * task.clientRate;
                 invoiceItems.push({
@@ -147,11 +152,8 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
                     total: total
                 });
             }
-        }
-        
-        for (const taskId in hoursByTask) {
-            const task = clientTasks.find(t => t.id === taskId);
-            if (task && task.clientRateType === 'hourly') {
+            
+            if (task.clientRateType === 'hourly' && hoursByTask[taskId]) {
                 const hours = hoursByTask[taskId];
                 const total = hours * task.clientRate;
                 invoiceItems.push({
