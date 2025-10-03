@@ -193,7 +193,7 @@ export default function PrintPayrollPage() {
 
     return (
         <>
-            <style jsx global>{\`
+            <style jsx global>{`
                 @media print {
                     body {
                         background-color: #fff;
@@ -206,7 +206,7 @@ export default function PrintPayrollPage() {
                         break-before: page;
                     }
                 }
-            \`}</style>
+            `}</style>
             <ReportToPrint report={report} />
         </>
     );
