@@ -11,28 +11,22 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 import type {TimeEntry, Piecework, Task, Employee, Client} from '@/lib/types';
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
-import { initializeApp, getApps, credential } from 'firebase-admin/app';
+import { getFirestore, Timestamp, collection, getDocs, query, where } from 'firebase/firestore';
+import { initializeFirebase } from '@/firebase';
 
 
-// Delay-load and cache the admin SDK to avoid initialization conflicts with Next.js
-let db: import('firebase-admin/firestore').Firestore;
+// This flow runs on the server and needs to initialize its own client-side SDK instance.
+// It can't use the hooks or providers from the React context.
+let db: import('firebase/firestore').Firestore;
 
 async function getDb() {
   if (db) {
     return db;
   }
   
-  if (getApps().length === 0) {
-      try {
-        initializeApp({
-            credential: credential.applicationDefault(),
-        });
-      } catch (e) {
-        // This can happen in local dev if the app is already initialized.
-      }
-  }
-  db = getFirestore();
+  // Use the standard client-side initialization.
+  const { firestore } = initializeFirebase();
+  db = firestore;
   return db;
 }
 
@@ -42,22 +36,22 @@ async function getPayrollData(startDate: string, endDate: string) {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
-    const employeesSnap = await db.collection('employees').get();
+    const employeesSnap = await getDocs(collection(db, 'employees'));
     const employees = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
 
-    const tasksSnap = await db.collection('tasks').get();
+    const tasksSnap = await getDocs(collection(db, 'tasks'));
     const tasks = tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
     
-    const clientsSnap = await db.collection('clients').get();
+    const clientsSnap = await getDocs(collection(db, 'clients'));
     const clients = clientsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client));
 
     const timeEntries: TimeEntry[] = [];
     const piecework: Piecework[] = [];
 
-    const timeEntriesQuery = db.collection('time_entries')
-        .where('timestamp', '>=', start)
-        .where('timestamp', '<=', end);
-    const timeEntriesSnap = await timeEntriesQuery.get();
+    const timeEntriesQuery = query(collection(db, 'time_entries'),
+        where('timestamp', '>=', start),
+        where('timestamp', '<=', end));
+    const timeEntriesSnap = await getDocs(timeEntriesQuery);
     timeEntriesSnap.forEach(doc => {
         const data = doc.data();
         timeEntries.push({ 
@@ -68,10 +62,10 @@ async function getPayrollData(startDate: string, endDate: string) {
         } as TimeEntry)
     });
 
-    const pieceworkQuery = db.collection('piecework')
-        .where('timestamp', '>=', start)
-        .where('timestamp', '<=', end);
-    const pieceworkSnap = await pieceworkQuery.get();
+    const pieceworkQuery = query(collection(db, 'piecework'),
+        where('timestamp', '>=', start),
+        where('timestamp', '<=', end));
+    const pieceworkSnap = await getDocs(pieceworkQuery);
     pieceworkSnap.forEach(doc => {
         const data = doc.data();
         piecework.push({ 
