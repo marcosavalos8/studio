@@ -5,7 +5,7 @@
  *
  * - generatePayrollReport - A function that handles the payroll report generation process.
  * - GeneratePayrollReportInput - The input type for the generatePayrollReport function.
- * - GeneratePayrollReportOutput - The return type for the generatePayrollReport function.
+ * - ProcessedPayrollDataSchema - The return schema for the generatePayrollReport function, containing structured payroll data.
  */
 
 import {ai} from '@/ai/genkit';
@@ -20,18 +20,6 @@ const GeneratePayrollReportInputSchema = z.object({
   jsonData: z.string().describe('A JSON string containing all necessary payroll data.'),
 });
 export type GeneratePayrollReportInput = z.infer<typeof GeneratePayrollReportInputSchema>;
-
-// Main output schema for the server action
-const GeneratePayrollReportOutputSchema = z.object({
-  report: z.string().describe('The generated payroll report in markdown format.'),
-});
-export type GeneratePayrollReportOutput = z.infer<typeof GeneratePayrollReportOutputSchema>;
-
-// Exported function called by the server action
-export async function generatePayrollReport(input: GeneratePayrollReportInput): Promise<GeneratePayrollReportOutput> {
-  // The main flow now orchestrates the tool call and the formatting flow
-  return generatePayrollReportFlow(input);
-}
 
 
 // Define schemas for our processed data. This is what the tool will output.
@@ -58,11 +46,18 @@ const EmployeePayrollSummarySchema = z.object({
     finalPay: z.number(),
 });
 
-const ProcessedPayrollDataSchema = z.object({
+export const ProcessedPayrollDataSchema = z.object({
     startDate: z.string(),
     endDate: z.string(),
     employeeSummaries: z.array(EmployeePayrollSummarySchema),
 });
+export type ProcessedPayrollData = z.infer<typeof ProcessedPayrollDataSchema>;
+
+
+// Exported function called by the server action
+export async function generatePayrollReport(input: GeneratePayrollReportInput): Promise<ProcessedPayrollData> {
+  return generatePayrollReportFlow(input);
+}
 
 
 // This tool does the heavy lifting of calculating payroll based on WA rules.
@@ -174,59 +169,19 @@ const processPayrollData = ai.defineTool(
 );
 
 
-// This is a simple flow whose only job is to format the pre-processed data.
-const formatReportFlow = ai.defineFlow(
-  {
-    name: 'formatReportFlow',
-    inputSchema: ProcessedPayrollDataSchema,
-    outputSchema: GeneratePayrollReportOutputSchema,
-    model: googleAI('gemini-1.5-pro'),
-  },
-  async (processedData) => {
-    const { output } = await ai.generate({
-      prompt: `
-        You are a payroll assistant. You have been given pre-calculated payroll data that complies with Washington (WA) state labor laws.
-        Your task is to format this data into a clean, easy-to-read markdown report. Do not perform any new calculations.
-
-        The data provided is:
-        \`\`\`json
-        ${JSON.stringify(processedData, null, 2)}
-        \`\`\`
-        
-        Generate a markdown report with the following structure:
-        - A main title: "Payroll Report for [startDate] to [endDate]".
-        - A section for each employee, titled with their name.
-        - For each employee, include a sub-section for each weekly summary.
-        - In each weekly summary, list: Total Hours, Total Earnings, Effective Hourly Rate, Minimum Wage Top-up, and Paid Rest Breaks.
-        - After the weekly summaries, provide an overall summary for the employee including: Final Pay.
-        - Ensure all monetary values are prefixed with a '$' and formatted to two decimal places.
-      `,
-      output: {
-        schema: GeneratePayrollReportOutputSchema,
-      }
-    });
-
-    if (!output) {
-      throw new Error("The AI model failed to generate the report format.");
-    }
-    return output;
-  }
-);
-
 // This is the main flow that orchestrates the process.
+// It returns the structured data directly.
 const generatePayrollReportFlow = ai.defineFlow(
   {
     name: 'generatePayrollReportFlow',
     inputSchema: GeneratePayrollReportInputSchema,
-    outputSchema: GeneratePayrollReportOutputSchema,
+    outputSchema: ProcessedPayrollDataSchema,
   },
   async (input) => {
     // Step 1: Process the raw data using our reliable tool.
     const processedData = await processPayrollData(input);
 
-    // Step 2: Pass the clean, processed data to the formatting flow.
-    const report = await formatReportFlow(processedData);
-
-    return report;
+    // Step 2: Return the clean, processed data directly.
+    return processedData;
   }
 );

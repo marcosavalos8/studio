@@ -2,7 +2,7 @@
 'use server'
 
 import { z } from "zod"
-import { generatePayrollReport } from "@/ai/flows/generate-payroll-report"
+import { generatePayrollReport, type ProcessedPayrollData } from "@/ai/flows/generate-payroll-report"
 import { format } from "date-fns"
 
 const payrollSchema = z.object({
@@ -14,7 +14,7 @@ const payrollSchema = z.object({
 })
 
 type PayrollState = {
-  report?: string;
+  report?: ProcessedPayrollData;
   error?: string;
 }
 
@@ -41,7 +41,7 @@ export async function generateReportAction(prevState: PayrollState, formData: Fo
       endDate: format(to, 'yyyy-MM-dd'),
       jsonData: jsonData,
     });
-    return { report: result.report };
+    return { report: result };
   } catch (e) {
     console.error(e);
     const errorMessage = e instanceof Error ? e.message : 'Failed to generate report. Please try again.';

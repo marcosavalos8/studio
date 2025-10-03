@@ -21,6 +21,23 @@ import type { DateRange } from "react-day-picker"
 import { useFirestore } from "@/firebase"
 import { collection, query, where, Timestamp, getDocs } from 'firebase/firestore'
 import { Client, Employee, Piecework, Task, TimeEntry } from "@/lib/types"
+import type { ProcessedPayrollData } from "@/ai/flows/generate-payroll-report"
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableFooter, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from "@/components/ui/table"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import { Badge } from "@/components/ui/badge"
 
 function SubmitButton({disabled}: {disabled: boolean}) {
   const { pending } = useFormStatus()
@@ -32,50 +49,147 @@ function SubmitButton({disabled}: {disabled: boolean}) {
   )
 }
 
-function MarkdownDisplay({ content }: { content: string }) {
-  // A simple markdown-like display. For real markdown, use a library like 'react-markdown'.
+
+function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
+  const overallTotal = report.employeeSummaries.reduce((acc, emp) => acc + emp.finalPay, 0);
+
   return (
     <div className="mt-6 bg-card p-4 sm:p-6 rounded-lg border" id="report-section">
-      <div className="flex justify-between items-center mb-4 print:hidden">
-        <h3 className="text-lg font-semibold">Generated Report</h3>
+       <div className="flex justify-between items-start mb-6 print:mb-4">
+            <div>
+              <h2 className="text-2xl font-bold text-primary">Payroll Report</h2>
+              <div className="text-muted-foreground">For period: {format(new Date(report.startDate), "LLL dd, y")} - {format(new Date(report.endDate), "LLL dd, y")}</div>
+            </div>
+            <div className="text-right">
+              <div className="font-semibold">FieldTack WA</div>
+              <div className="text-sm text-muted-foreground">Report Generated: {format(new Date(), "LLL dd, y")}</div>
+              <div className="text-lg font-bold">Total Payroll: ${overallTotal.toFixed(2)}</div>
+            </div>
+        </div>
+        <Accordion type="multiple" className="w-full">
+            {report.employeeSummaries.map(employee => (
+                <AccordionItem value={employee.employeeId} key={employee.employeeId}>
+                    <AccordionTrigger className="text-lg font-semibold hover:no-underline">
+                      <div className="flex justify-between w-full pr-4">
+                        <span>{employee.employeeName}</span>
+                        <span className="text-primary">Final Pay: ${employee.finalPay.toFixed(2)}</span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-4">
+                        {employee.weeklySummaries.map(week => (
+                          <div key={week.weekNumber} className="border rounded-md p-4">
+                            <h4 className="font-semibold text-md mb-2">Week {week.weekNumber}, {week.year}</h4>
+                             <Table>
+                               <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Description</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
+                                  </TableRow>
+                               </TableHeader>
+                               <TableBody>
+                                  <TableRow>
+                                    <TableCell>Total Hours Worked</TableCell>
+                                    <TableCell className="text-right">{week.totalHours.toFixed(2)}</TableCell>
+                                  </TableRow>
+                                  <TableRow>
+                                    <TableCell>Total Earnings (Hourly + Piecework)</TableCell>
+                                    <TableCell className="text-right">${week.totalEarnings.toFixed(2)}</TableCell>
+                                  </TableRow>
+                                  <TableRow>
+                                    <TableCell>Effective Hourly Rate</TableCell>
+                                    <TableCell className="text-right">${week.effectiveHourlyRate.toFixed(2)}</TableCell>
+                                  </TableRow>
+                                   <TableRow>
+                                    <TableCell>Paid Rest Breaks (10 min / 4 hrs)</TableCell>
+                                    <TableCell className="text-right">+ ${week.paidRestBreaksTotal.toFixed(2)}</TableCell>
+                                  </TableRow>
+                                  {week.minimumWageTopUp > 0 && (
+                                     <TableRow className="bg-amber-50 dark:bg-amber-900/20">
+                                      <TableCell className="font-semibold">Minimum Wage Top-up</TableCell>
+                                      <TableCell className="text-right font-semibold">+ ${week.minimumWageTopUp.toFixed(2)}</TableCell>
+                                    </TableRow>
+                                  )}
+                               </TableBody>
+                             </Table>
+                          </div>
+                        ))}
+                         <div className="border rounded-md p-4 bg-muted/40">
+                            <h4 className="font-semibold text-md mb-2">Employee Pay Summary</h4>
+                             <Table>
+                               <TableBody>
+                                  <TableRow>
+                                    <TableCell>Subtotal Earnings</TableCell>
+                                    <TableCell className="text-right">${employee.overallTotalEarnings.toFixed(2)}</TableCell>
+                                  </TableRow>
+                                  <TableRow>
+                                    <TableCell>Total Paid Rest Breaks</TableCell>
+                                    <TableCell className="text-right">+ ${employee.overallTotalPaidRestBreaks.toFixed(2)}</TableCell>
+                                  </TableRow>
+                                  {employee.overallTotalMinimumWageTopUp > 0 && (
+                                     <TableRow>
+                                      <TableCell>Total Minimum Wage Top-up</TableCell>
+                                      <TableCell className="text-right">+ ${employee.overallTotalMinimumWageTopUp.toFixed(2)}</TableCell>
+                                    </TableRow>
+                                  )}
+                               </TableBody>
+                               <TableFooter>
+                                <TableRow className="text-base font-bold">
+                                  <TableCell>Final Pay</TableCell>
+                                  <TableCell className="text-right">${employee.finalPay.toFixed(2)}</TableCell>
+                                </TableRow>
+                               </TableFooter>
+                             </Table>
+                          </div>
+                      </div>
+                    </AccordionContent>
+                </AccordionItem>
+            ))}
+        </Accordion>
+
+      <div className="flex justify-end items-center mt-6 print:hidden">
         <Button variant="outline" size="sm" onClick={() => window.print()}>
           <Download className="mr-2 h-4 w-4" />
           Print / Save as PDF
         </Button>
       </div>
-      <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap font-mono bg-muted/50 p-4 rounded-md">
-        {content}
-      </div>
-      <style jsx global>{`
-          @media print {
-              body {
-                visibility: hidden;
-              }
-              #report-section, #report-section * {
-                  visibility: visible;
-              }
-              #report-section {
-                  position: absolute;
-                  left: 0;
-                  top: 0;
-                  width: 100%;
-                  height: 100%;
-                  border: none;
-                  box-shadow: none;
-                  padding: 1.5rem;
-                  margin: 0;
-              }
-              .prose {
-                  background-color: transparent !important;
-              }
-              @page {
-                size: auto;
-                margin: 0.5in;
-              }
-          }
-      `}</style>
+
+       <style jsx global>{`
+            @media print {
+                body > *:not(#report-section) {
+                    display: none;
+                }
+                body > #__next {
+                    display: block !important;
+                }
+                #__next > *:not(#report-section) {
+                    display: none;
+                }
+                #report-section, #report-section * {
+                    visibility: visible;
+                }
+                #report-section {
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    width: 100%;
+                    height: auto;
+                    border: none;
+                    box-shadow: none;
+                    padding: 0;
+                    margin: 0;
+                }
+                .prose {
+                    background-color: transparent !important;
+                }
+                @page {
+                    size: auto;
+                    margin: 0.5in;
+                }
+            }
+        `}</style>
     </div>
-  )
+  );
 }
 
 const initialState = {
@@ -190,7 +304,7 @@ export function PayrollForm() {
 
   return (
     <form action={formAction}>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 print:hidden">
         <div className="grid gap-2">
           <Popover>
             <PopoverTrigger asChild>
@@ -238,7 +352,7 @@ export function PayrollForm() {
         </div>
       </div>
       
-      {state.report && <MarkdownDisplay content={state.report} />}
+      {state.report && <ReportDisplay report={state.report} />}
     </form>
   )
 }
