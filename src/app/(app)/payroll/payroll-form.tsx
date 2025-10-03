@@ -126,9 +126,9 @@ export function PayrollForm() {
             const timeEntriesSnap = await getDocs(timeEntriesQuery);
             const timeEntries = timeEntriesSnap.docs.map(doc => {
                 const data = doc.data();
-                // Safely handle timestamp and endTime conversions
-                const timestamp = data.timestamp instanceof Timestamp ? data.timestamp.toDate().toISOString() : null;
-                const endTime = data.endTime instanceof Timestamp ? data.endTime.toDate().toISOString() : null;
+                // Safely handle timestamp and endTime conversions, checking for existence first.
+                const timestamp = (data.timestamp && data.timestamp instanceof Timestamp) ? data.timestamp.toDate().toISOString() : null;
+                const endTime = (data.endTime && data.endTime instanceof Timestamp) ? data.endTime.toDate().toISOString() : null;
                 
                 return { 
                     ...data,
@@ -145,8 +145,8 @@ export function PayrollForm() {
             const pieceworkSnap = await getDocs(pieceworkQuery);
             const piecework = pieceworkSnap.docs.map(doc => {
                 const data = doc.data();
-                // Safely handle timestamp conversion
-                const timestamp = data.timestamp instanceof Timestamp ? data.timestamp.toDate().toISOString() : null;
+                // Safely handle timestamp conversion, checking for existence first.
+                const timestamp = (data.timestamp && data.timestamp instanceof Timestamp) ? data.timestamp.toDate().toISOString() : null;
 
                 return { 
                     ...data,
