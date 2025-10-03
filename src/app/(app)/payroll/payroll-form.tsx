@@ -263,13 +263,12 @@ export function PayrollForm() {
             const timeEntriesSnap = await getDocs(timeEntriesQuery);
             const timeEntries = timeEntriesSnap.docs.map(doc => {
                 const data = doc.data();
-                
                 return { 
                     ...data,
                     id: doc.id,
                     timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || null,
                     endTime: (data.endTime as Timestamp)?.toDate()?.toISOString() || null,
-                };
+                } as any;
             });
 
             const pieceworkQuery = query(collection(firestore, 'piecework'),
@@ -279,12 +278,11 @@ export function PayrollForm() {
             const pieceworkSnap = await getDocs(pieceworkQuery);
             const piecework = pieceworkSnap.docs.map(doc => {
                 const data = doc.data();
-
                 return { 
                     ...data,
                     id: doc.id,
                     timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || null,
-                };
+                } as any;
             });
 
             setJsonData(JSON.stringify({
