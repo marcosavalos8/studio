@@ -10,6 +10,7 @@ const payrollSchema = z.object({
     from: z.string(),
     to: z.string(),
   }),
+  payDate: z.string(),
   jsonData: z.string().min(1, 'JSON data is required'),
 })
 
@@ -24,6 +25,7 @@ export async function generateReportAction(prevState: PayrollState, formData: Fo
       from: formData.get('from') as string,
       to: formData.get('to') as string,
     },
+    payDate: formData.get('payDate') as string,
     jsonData: formData.get('jsonData'),
   });
 
@@ -33,12 +35,13 @@ export async function generateReportAction(prevState: PayrollState, formData: Fo
   }
 
   const { from, to } = validatedFields.data.dateRange;
-  const { jsonData } = validatedFields.data;
+  const { payDate, jsonData } = validatedFields.data;
 
   try {
     const result = await generatePayrollReport({
       startDate: from,
       endDate: to,
+      payDate: payDate,
       jsonData: jsonData,
     });
     return { report: result };

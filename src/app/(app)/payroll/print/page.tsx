@@ -30,6 +30,7 @@ function ReportToPrint({ report }: { report: ProcessedPayrollData }) {
             <div>
               <h2 className="text-2xl font-bold text-primary">Payroll Report</h2>
               <div className="text-gray-500">For period: {format(new Date(report.startDate), "LLL dd, y")} - {format(new Date(report.endDate), "LLL dd, y")}</div>
+               <div className="text-gray-500">Pay Date: {format(new Date(report.payDate), "LLL dd, y")}</div>
             </div>
             <div className="text-right">
               <div className="font-semibold text-lg">FieldTack WA</div>

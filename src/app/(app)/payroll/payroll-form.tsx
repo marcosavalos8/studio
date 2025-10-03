@@ -43,6 +43,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import { Label } from "@/components/ui/label"
 
 function SubmitButton({disabled}: {disabled: boolean}) {
   const { pending } = useFormStatus()
@@ -97,9 +98,8 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
        <div className="flex justify-between items-start mb-6">
             <div>
               <h2 className="text-2xl font-bold text-primary">Payroll Report</h2>
-              {report.startDate && report.endDate && (
-                <div className="text-muted-foreground">For period: {format(new Date(report.startDate), "LLL dd, y")} - {format(new Date(report.endDate), "LLL dd, y")}</div>
-              )}
+              <div className="text-muted-foreground">For period: {format(new Date(report.startDate), "LLL dd, y")} - {format(new Date(report.endDate), "LLL dd, y")}</div>
+              <div className="text-muted-foreground">Pay Date: {format(new Date(report.payDate), "LLL dd, y")}</div>
             </div>
             <div className="text-right">
               <div className="font-semibold">FieldTack WA</div>
@@ -220,6 +220,7 @@ const initialState = {
 export function PayrollForm() {
   const [state, formAction] = useActionState(generateReportAction, initialState)
   const [date, setDate] = React.useState<DateRange | undefined>()
+  const [payDate, setPayDate] = React.useState<Date | undefined>(new Date())
   const [jsonData, setJsonData] = React.useState<string | null>(null);
   const [isFetchingData, setIsFetchingData] = React.useState(false);
   const { toast } = useToast()
@@ -311,51 +312,80 @@ export function PayrollForm() {
   return (
     <form action={formAction}>
       <div className="grid gap-4 sm:grid-cols-2 print:hidden">
-        <div className="grid gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                id="date"
-                variant={"outline"}
-                className={cn(
-                  "w-full justify-start text-left font-normal",
-                  !date && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {date?.from ? (
-                  date.to ? (
-                    <>
-                      {format(date.from, "LLL dd, y")} -{" "}
-                      {format(date.to, "LLL dd, y")}
-                    </>
-                  ) : (
-                    format(date.from, "LLL dd, y")
-                  )
-                ) : (
-                  <span>Pick a date range</span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                initialFocus
-                mode="range"
-                defaultMonth={date?.from}
-                selected={date}
-                onSelect={setDate}
-                numberOfMonths={2}
-              />
-            </PopoverContent>
-          </Popover>
-          {date?.from && <input type="hidden" name="from" value={format(date.from, 'yyyy-MM-dd')} />}
-          {date?.to && <input type="hidden" name="to" value={format(date.to, 'yyyy-MM-dd')} />}
-          {jsonData && <input type="hidden" name="jsonData" value={jsonData} />}
+        <div className="grid gap-4">
+            <div>
+              <Label>Period</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="date"
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !date && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date?.from ? (
+                      date.to ? (
+                        <>
+                          {format(date.from, "LLL dd, y")} -{" "}
+                          {format(date.to, "LLL dd, y")}
+                        </>
+                      ) : (
+                        format(date.from, "LLL dd, y")
+                      )
+                    ) : (
+                      <span>Pick a date range</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={date?.from}
+                    selected={date}
+                    onSelect={setDate}
+                    numberOfMonths={2}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div>
+                <Label>Pay Date</Label>
+                <Popover>
+                    <PopoverTrigger asChild>
+                        <Button
+                            variant={"outline"}
+                            className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !payDate && "text-muted-foreground"
+                            )}
+                        >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {payDate ? format(payDate, "PPP") : <span>Pick a date</span>}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                        <Calendar
+                            mode="single"
+                            selected={payDate}
+                            onSelect={setPayDate}
+                            initialFocus
+                        />
+                    </PopoverContent>
+                </Popover>
+            </div>
         </div>
         <div>
-          <SubmitButton disabled={!date || !jsonData || isFetchingData} />
+          <SubmitButton disabled={!date || !jsonData || isFetchingData || !payDate} />
            {isFetchingData && <p className="text-xs text-muted-foreground mt-2 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin"/>Fetching data for selected range...</p>}
         </div>
+          {date?.from && <input type="hidden" name="from" value={format(date.from, 'yyyy-MM-dd')} />}
+          {date?.to && <input type="hidden" name="to" value={format(date.to, 'yyyy-MM-dd')} />}
+          {payDate && <input type="hidden" name="payDate" value={format(payDate, 'yyyy-MM-dd')} />}
+          {jsonData && <input type="hidden" name="jsonData" value={jsonData} />}
       </div>
       
       {state.report && <ReportDisplay report={state.report} />}

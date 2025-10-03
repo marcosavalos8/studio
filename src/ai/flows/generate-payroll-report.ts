@@ -17,6 +17,7 @@ import { getWeek, getYear } from 'date-fns';
 const GeneratePayrollReportInputSchema = z.object({
   startDate: z.string().describe('The start date for the payroll report (YYYY-MM-DD).'),
   endDate: z.string().describe('The end date for the payroll report (YYYY-MM-DD).'),
+  payDate: z.string().describe('The date the payment is issued (YYYY-MM-DD).'),
   jsonData: z.string().describe('A JSON string containing all necessary payroll data.'),
 });
 export type GeneratePayrollReportInput = z.infer<typeof GeneratePayrollReportInputSchema>;
@@ -49,6 +50,7 @@ const EmployeePayrollSummarySchema = z.object({
 const ProcessedPayrollDataSchema = z.object({
     startDate: z.string(),
     endDate: z.string(),
+    payDate: z.string(),
     employeeSummaries: z.array(EmployeePayrollSummarySchema),
 });
 export type ProcessedPayrollData = z.infer<typeof ProcessedPayrollDataSchema>;
@@ -163,6 +165,7 @@ const processPayrollData = ai.defineTool(
     return {
         startDate: input.startDate,
         endDate: input.endDate,
+        payDate: input.payDate,
         employeeSummaries,
     };
   }
