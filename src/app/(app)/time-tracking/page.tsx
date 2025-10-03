@@ -108,9 +108,12 @@ export default function TimeTrackingPage() {
   const tasksForClient = useMemo(() => {
     if (!allTasks || !selectedClient) return [];
     return allTasks.filter(t => t.clientId === selectedClient);
-  }, [allTasks, selectedClient, clients]);
+  }, [allTasks, selectedClient]);
 
-  const ranches = useMemo(() => tasksForClient ? [...new Set(tasksForClient.map(t => t.ranch).filter(Boolean))] : [], [tasksForClient]);
+  const ranches = useMemo(() => {
+    if (!tasksForClient) return [];
+    return [...new Set(tasksForClient.map(t => t.ranch).filter(Boolean))]
+  }, [tasksForClient]);
   
   const blocks = useMemo(() => {
     if (!selectedRanch || !tasksForClient) return [];
