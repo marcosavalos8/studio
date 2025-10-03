@@ -37,7 +37,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { Badge } from "@/components/ui/badge"
 
 function SubmitButton({disabled}: {disabled: boolean}) {
   const { pending } = useFormStatus()
@@ -50,8 +49,13 @@ function SubmitButton({disabled}: {disabled: boolean}) {
 }
 
 
-function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
+export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
   const overallTotal = report.employeeSummaries.reduce((acc, emp) => acc + emp.finalPay, 0);
+
+  const handlePrint = () => {
+    sessionStorage.setItem('payrollReportData', JSON.stringify(report));
+    window.open('/payroll/print', '_blank');
+  }
 
   return (
     <div className="mt-6 bg-card p-4 sm:p-6 rounded-lg border" id="report-section">
@@ -66,7 +70,7 @@ function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
               <div className="text-lg font-bold">Total Payroll: ${overallTotal.toFixed(2)}</div>
             </div>
         </div>
-        <Accordion type="multiple" className="w-full">
+        <Accordion type="multiple" className="w-full" defaultValue={report.employeeSummaries.map(e => e.employeeId)}>
             {report.employeeSummaries.map(employee => (
                 <AccordionItem value={employee.employeeId} key={employee.employeeId}>
                     <AccordionTrigger className="text-lg font-semibold hover:no-underline">
@@ -147,47 +151,12 @@ function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
             ))}
         </Accordion>
 
-      <div className="flex justify-end items-center mt-6 print:hidden">
-        <Button variant="outline" size="sm" onClick={() => window.print()}>
+      <div className="flex justify-end items-center mt-6">
+        <Button variant="outline" size="sm" onClick={handlePrint}>
           <Download className="mr-2 h-4 w-4" />
           Print / Save as PDF
         </Button>
       </div>
-
-       <style jsx global>{`
-            @media print {
-                body > *:not(#report-section) {
-                    display: none;
-                }
-                body > #__next {
-                    display: block !important;
-                }
-                #__next > *:not(#report-section) {
-                    display: none;
-                }
-                #report-section, #report-section * {
-                    visibility: visible;
-                }
-                #report-section {
-                    position: absolute;
-                    left: 0;
-                    top: 0;
-                    width: 100%;
-                    height: auto;
-                    border: none;
-                    box-shadow: none;
-                    padding: 0;
-                    margin: 0;
-                }
-                .prose {
-                    background-color: transparent !important;
-                }
-                @page {
-                    size: auto;
-                    margin: 0.5in;
-                }
-            }
-        `}</style>
     </div>
   );
 }
