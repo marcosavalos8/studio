@@ -18,28 +18,48 @@ export const clients: Omit<Client, 'id'>[] = [
   { name: 'Columbia Basin Produce', billingAddress: '789 Produce Ave, Pasco, WA', paymentTerms: 'Net 45' },
 ];
 
-export const tasks: Omit<Task, 'id'>[] = [
-  { name: 'Apple Picking', variety: 'Gala', client: 'Green Valley Farms', clientRate: 20, clientRateType: 'piece', employeePayType: 'piecework', employeeRate: 0.5, status: 'Active' },
-  { name: 'Cherry Sorting', client: 'Sunrise Orchards', clientRate: 25, clientRateType: 'hourly', employeePayType: 'hourly', employeeRate: 18, status: 'Active' },
-  { name: 'Vineyard Pruning', client: 'Green Valley Farms', clientRate: 22, clientRateType: 'hourly', employeePayType: 'hourly', employeeRate: 19, status: 'Inactive' },
-  { name: 'Packing Boxes', variety: 'Mixed', client: 'Columbia Basin Produce', clientRate: 0.8, clientRateType: 'piece', employeePayType: 'piecework', employeeRate: 0.2, status: 'Active' },
-  { name: 'Harvesting Asparagus', client: 'Columbia Basin Produce', clientRate: 1.2, clientRateType: 'piece', employeePayType: 'piecework', employeeRate: 0.3, status: 'Completed' },
+// This is a simplified representation to link tasks to clients by name for seeding.
+// In a real app, you'd use the generated IDs.
+const tasksWithClientNames: Omit<Task, 'id' | 'clientId'> & { clientName: string }[] = [
+    { name: 'Apple Picking', variety: 'Gala', clientName: 'Green Valley Farms', clientRate: 20, clientRateType: 'piece', employeePayType: 'piecework', employeeRate: 0.5, status: 'Active' },
+    { name: 'Cherry Sorting', clientName: 'Sunrise Orchards', clientRate: 25, clientRateType: 'hourly', employeePayType: 'hourly', employeeRate: 18, status: 'Active' },
+    { name: 'Vineyard Pruning', clientName: 'Green Valley Farms', clientRate: 22, clientRateType: 'hourly', employeePayType: 'hourly', employeeRate: 19, status: 'Inactive' },
+    { name: 'Packing Boxes', variety: 'Mixed', clientName: 'Columbia Basin Produce', clientRate: 0.8, clientRateType: 'piece', employeePayType: 'piecework', employeeRate: 0.2, status: 'Active' },
+    { name: 'Harvesting Asparagus', clientName: 'Columbia Basin Produce', clientRate: 1.2, clientRateType: 'piece', employeePayType: 'piecework', employeeRate: 0.3, status: 'Completed' },
 ];
+
 
 // NOTE: This is an example of how you might seed data.
 // This function is not called anywhere and is for demonstration purposes.
 async function seedDatabase() {
     const db = getFirestore();
     try {
-        for (const employee of employees) {
-            await addDoc(collection(db, "employees"), employee);
+        const employeeRefs = await Promise.all(employees.map(employee => addDoc(collection(db, "employees"), employee)));
+        
+        const clientRefs = await Promise.all(clients.map(async (client) => {
+            const docRef = await addDoc(collection(db, "clients"), client);
+            return { ...client, id: docRef.id };
+        }));
+
+        const clientMap = new Map(clientRefs.map(c => [c.name, c.id]));
+
+        for (const task of tasksWithClientNames) {
+            const clientId = clientMap.get(task.clientName);
+            if (clientId) {
+                const taskData: Omit<Task, 'id'> = {
+                    name: task.name,
+                    variety: task.variety,
+                    clientId: clientId,
+                    clientRate: task.clientRate,
+                    clientRateType: task.clientRateType,
+                    employeePayType: task.employeePayType,
+                    employeeRate: task.employeeRate,
+                    status: task.status,
+                };
+                await addDoc(collection(db, "tasks"), taskData);
+            }
         }
-        for (const client of clients) {
-            await addDoc(collection(db, "clients"), client);
-        }
-        for (const task of tasks) {
-            await addDoc(collection(db, "tasks"), task);
-        }
+        
         console.log("Database seeded successfully!");
     } catch (error) {
         console.error("Error seeding database: ", error);
