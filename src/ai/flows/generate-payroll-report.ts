@@ -19,13 +19,13 @@ import { firebaseConfig } from '@/firebase/config';
 // Ensure Firebase is initialized for admin access
 function getDb() {
   if (getApps().length === 0) {
-    // When running in a managed environment like Firebase App Hosting,
-    // initializeApp() will automatically use the available service account.
-    // For local development, you might need to specify credentials.
     try {
+        // When running in a managed environment like Firebase App Hosting,
+        // this will automatically use the available service account.
         initializeApp();
     } catch(e) {
         console.warn("Default initializeApp failed, trying with config. This is expected in local dev.", e)
+        // For local development, you might need to specify credentials.
         initializeApp({
             credential: credential.applicationDefault(),
             projectId: firebaseConfig.projectId,

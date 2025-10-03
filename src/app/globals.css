@@ -79,7 +79,7 @@
   body {
     @apply bg-background text-foreground;
   }
-  .day-selected {
+  .rdp-day_selected {
     background-color: hsl(var(--primary)) !important;
     color: hsl(var(--primary-foreground)) !important;
   }
