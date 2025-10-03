@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo } from 'react'
+import React, { useMemo, useEffect, useState } from 'react'
 import {
   Card,
   CardContent,
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/table"
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase'
-import { collection, query, where, Timestamp } from 'firebase/firestore'
+import { collection, query, where, Timestamp, getDocs, doc, getDoc } from 'firebase/firestore'
 import type { TimeEntry, Employee, Task, Client } from '@/lib/types'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -33,6 +33,8 @@ interface ActivityItem {
 
 export function LiveActivity() {
     const firestore = useFirestore()
+    const [isLoading, setIsLoading] = useState(true);
+    const [activityData, setActivityData] = useState<ActivityItem[]>([]);
 
     const activeTimeEntriesQuery = useMemoFirebase(() => {
         if (!firestore) return null
@@ -40,51 +42,78 @@ export function LiveActivity() {
     }, [firestore])
     const { data: activeTimeEntries, isLoading: loadingEntries } = useCollection<TimeEntry>(activeTimeEntriesQuery)
 
-    const employeesQuery = useMemoFirebase(() => {
-        if (!firestore) return null
-        return collection(firestore, 'employees')
-    }, [firestore])
-    const { data: employees, isLoading: loadingEmployees } = useCollection<Employee>(employeesQuery)
+    useEffect(() => {
+      const fetchRelatedData = async () => {
+        if (loadingEntries || !firestore) return;
+        if (!activeTimeEntries) {
+          setActivityData([]);
+          setIsLoading(false);
+          return;
+        }
 
-    const tasksQuery = useMemoFirebase(() => {
-        if (!firestore) return null
-        return collection(firestore, 'tasks')
-    }, [firestore])
-    const { data: tasks, isLoading: loadingTasks } = useCollection<Task>(tasksQuery)
+        setIsLoading(true);
 
-    const clientsQuery = useMemoFirebase(() => {
-      if (!firestore) return null
-      return collection(firestore, 'clients')
-    }, [firestore])
-    const { data: clients, isLoading: loadingClients } = useCollection<Client>(clientsQuery)
+        // Create maps to cache fetched documents and avoid re-fetching
+        const employeeMap = new Map<string, Employee>();
+        const taskMap = new Map<string, Task>();
+        const clientMap = new Map<string, Client>();
 
+        const promises = activeTimeEntries.map(async (entry) => {
+          // Fetch Employee
+          let employee = employeeMap.get(entry.employeeId);
+          if (!employee) {
+            const empDoc = await getDoc(doc(firestore, 'employees', entry.employeeId));
+            if (empDoc.exists()) {
+              employee = { id: empDoc.id, ...empDoc.data() } as Employee;
+              employeeMap.set(entry.employeeId, employee);
+            }
+          }
 
-    const isLoading = loadingEntries || loadingEmployees || loadingTasks || loadingClients;
+          // Fetch Task
+          let task = taskMap.get(entry.taskId);
+          if (!task) {
+            const taskDoc = await getDoc(doc(firestore, 'tasks', entry.taskId));
+            if (taskDoc.exists()) {
+              task = { id: taskDoc.id, ...taskDoc.data() } as Task;
+              taskMap.set(entry.taskId, task);
+            }
+          }
+          
+          // Fetch Client from Task
+          let client: Client | undefined;
+          if (task) {
+            client = clientMap.get(task.clientId);
+            if (!client) {
+              const clientDoc = await getDoc(doc(firestore, 'clients', task.clientId));
+              if (clientDoc.exists()) {
+                client = { id: clientDoc.id, ...clientDoc.data() } as Client;
+                clientMap.set(task.clientId, client);
+              }
+            }
+          }
+          
+          const clockInTime = (entry.timestamp as unknown as Timestamp).toDate();
 
-    const activityData = useMemo<ActivityItem[]>(() => {
-        if (!activeTimeEntries || !employees || !tasks || !clients) return []
+          return {
+              id: entry.id,
+              employeeName: employee?.name || 'Unknown',
+              employeeInitials: employee?.name.split(' ').map(n => n[0]).join('') || '??',
+              taskName: task?.name || 'Unknown Task',
+              clientName: client?.name || 'Unknown Client',
+              clockInTime: clockInTime,
+          };
+        });
 
-        const employeeMap = new Map(employees.map(e => [e.id, e]));
-        const taskMap = new Map(tasks.map(t => [t.id, t]));
-        const clientMap = new Map(clients.map(c => [c.id, c]));
+        const results = await Promise.all(promises);
+        results.sort((a, b) => b.clockInTime.getTime() - a.clockInTime.getTime())
+        setActivityData(results);
+        setIsLoading(false);
+      }
 
-        return activeTimeEntries.map(entry => {
-            const employee = employeeMap.get(entry.employeeId);
-            const task = taskMap.get(entry.taskId);
-            const client = task ? clientMap.get(task.clientId) : undefined;
-            const clockInTime = (entry.timestamp as unknown as Timestamp).toDate();
+      fetchRelatedData();
 
-            return {
-                id: entry.id,
-                employeeName: employee?.name || 'Unknown',
-                employeeInitials: employee?.name.split(' ').map(n => n[0]).join('') || '??',
-                taskName: task?.name || 'Unknown Task',
-                clientName: client?.name || 'Unknown Client',
-                clockInTime: clockInTime,
-            };
-        }).sort((a, b) => b.clockInTime.getTime() - a.clockInTime.getTime());
+    }, [activeTimeEntries, firestore, loadingEntries])
 
-    }, [activeTimeEntries, employees, tasks, clients])
 
     return (
         <Card>
