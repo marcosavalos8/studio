@@ -32,6 +32,7 @@ const clientSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   billingAddress: z.string().min(1, 'Billing address is required'),
   paymentTerms: z.string().min(1, 'Payment terms are required'),
+  email: z.string().email('Invalid email address').optional().or(z.literal('')),
 })
 
 type AddClientDialogProps = {
@@ -48,6 +49,7 @@ export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) 
       name: '',
       billingAddress: '',
       paymentTerms: 'Net 30',
+      email: '',
     },
   })
 
@@ -105,6 +107,19 @@ export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) 
                   <FormLabel>Client Name</FormLabel>
                   <FormControl>
                     <Input placeholder="e.g., Green Valley Farms" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Contact Email</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., accounting@gvfarms.com" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -11,6 +11,7 @@ export type Client = {
   name: string;
   billingAddress: string;
   paymentTerms: string;
+  email?: string;
 };
 
 export type Task = {

@@ -76,6 +76,7 @@ export default function ClientsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Client Name</TableHead>
+                <TableHead>Contact Email</TableHead>
                 <TableHead>Billing Address</TableHead>
                 <TableHead>Payment Terms</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -84,12 +85,13 @@ export default function ClientsPage() {
             <TableBody>
                {isLoading && (
                   <TableRow>
-                      <TableCell colSpan={4} className="text-center">Loading...</TableCell>
+                      <TableCell colSpan={5} className="text-center">Loading...</TableCell>
                   </TableRow>
               )}
               {clients && clients.map((client) => (
                 <TableRow key={client.id}>
                   <TableCell className="font-medium">{client.name}</TableCell>
+                  <TableCell>{client.email || '-'}</TableCell>
                   <TableCell>{client.billingAddress}</TableCell>
                   <TableCell>{client.paymentTerms}</TableCell>
                   <TableCell className="text-right">

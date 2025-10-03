@@ -1,0 +1,282 @@
+{
+  "entities": {
+    "Task": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Task",
+      "type": "object",
+      "description": "Represents a task or project.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the task."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the task or project."
+        },
+        "clientId": {
+          "type": "string",
+          "description": "Reference to Client. (Relationship: Client 1:N Task)"
+        },
+        "ranch": {
+          "type": "string",
+          "description": "The ranch where the task is performed."
+        },
+        "block": {
+          "type": "string",
+          "description": "The specific block within the ranch."
+        },
+        "clientRate": {
+          "type": "number",
+          "description": "Client rate for the task (per hour or per piece)."
+        },
+        "employeePaymentType": {
+          "type": "string",
+          "description": "Type of payment for the employee (Hourly or Piecework)."
+        },
+        "employeeRate": {
+          "type": "number",
+          "description": "Employee rate for the task."
+        },
+        "variety": {
+          "type": "string",
+          "description": "The specific variety for the task (e.g., Gala for Apple Picking)."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Active", "Inactive", "Completed"],
+          "description": "The current status of the task."
+        },
+        "clientRateType": {
+          "type": "string",
+          "enum": ["hourly", "piece"],
+          "description": "How the client is billed for this task."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "clientId",
+        "clientRate",
+        "employeePaymentType",
+        "employeeRate",
+        "status",
+        "clientRateType"
+      ]
+    },
+    "Client": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Client",
+      "type": "object",
+      "description": "Represents a client.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the client."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the client."
+        },
+        "billingAddress": {
+          "type": "string",
+          "description": "Billing address of the client."
+        },
+        "paymentTerms": {
+          "type": "string",
+          "description": "Payment terms for the client."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Contact email for the client."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "billingAddress",
+        "paymentTerms"
+      ]
+    },
+    "Employee": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Employee",
+      "type": "object",
+      "description": "Represents an employee.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the employee."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the employee."
+        },
+        "qrCode": {
+          "type": "string",
+          "description": "Unique QR code for the employee."
+        },
+        "role": {
+          "type": "string",
+          "description": "Role of the employee (Worker or Supervisor)."
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the employee (Active, Inactive)."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "qrCode",
+        "role",
+        "status"
+      ]
+    },
+    "TimeEntry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "TimeEntry",
+      "type": "object",
+      "description": "Represents a time entry record.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the time entry record."
+        },
+        "employeeId": {
+          "type": "string",
+          "description": "Reference to Employee. (Relationship: Employee 1:N TimeEntry)"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Reference to Task. (Relationship: Task 1:N TimeEntry)"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp of the time entry.",
+          "format": "date-time"
+        },
+        "latitude": {
+          "type": "number",
+          "description": "Latitude of the time entry location."
+        },
+        "longitude": {
+          "type": "number",
+          "description": "Longitude of the time entry location."
+        },
+        "synchronized": {
+          "type": "boolean",
+          "description": "Indicates whether the record is synchronized with the server."
+        },
+        "isBreak": {
+          "type": "boolean",
+          "description": "Indicates whether the time entry is a break."
+        },
+        "breakReason": {
+          "type": "string",
+          "description": "Reason for the break."
+        },
+        "endTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The end time of the work session."
+        }
+      },
+      "required": [
+        "id",
+        "employeeId",
+        "taskId",
+        "timestamp",
+        "isBreak"
+      ]
+    },
+    "Piecework": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Piecework",
+      "type": "object",
+      "description": "Represents a piecework record.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the piecework record."
+        },
+        "employeeId": {
+          "type": "string",
+          "description": "Reference to Employee. (Relationship: Employee 1:N Piecework)"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp of the piecework record.",
+          "format": "date-time"
+        },
+        "pieceCount": {
+          "type": "number",
+          "description": "Number of pieces recorded."
+        },
+        "pieceQrCode": {
+          "type": "string",
+          "description": "QR code of the piece scanned."
+        },
+        "qcNote": {
+          "type": "string",
+          "description": "Quality control note for the piecework."
+        },
+        "synchronized": {
+          "type": "boolean",
+          "description": "Indicates whether the record is synchronized with the server."
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Reference to the Task."
+        }
+      },
+      "required": [
+        "id",
+        "employeeId",
+        "timestamp",
+        "pieceCount",
+        "pieceQrCode",
+        "taskId"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "/employees/{employeeId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Employee"
+      },
+      "description": "Stores employee data. All authenticated users can read, but only admins can write."
+    },
+    "/time_entries/{timeEntryId}": {
+      "schema": {
+        "$ref": "#/backend/entities/TimeEntry"
+      },
+      "description": "Stores time entry records. Accessible by any authenticated user."
+    },
+    "/piecework/{pieceworkId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Piecework"
+      },
+      "description": "Stores piecework records. Accessible by any authenticated user."
+    },
+    "/clients/{clientId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Client"
+      },
+      "description": "Stores client data. All authenticated users can read, but only admins can write."
+    },
+    "/tasks/{taskId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Task"
+      },
+      "description": "Stores task data. All authenticated users can read, but only admins can write."
+    }
+  }
+}

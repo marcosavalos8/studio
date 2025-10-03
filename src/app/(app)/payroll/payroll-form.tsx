@@ -5,7 +5,7 @@ import * as React from "react"
 import { useActionState } from "react"
 import { useFormStatus } from "react-dom"
 import { format } from "date-fns"
-import { Calendar as CalendarIcon, Loader2, Download } from "lucide-react"
+import { Calendar as CalendarIcon, Loader2, Download, Printer, Mail, MoreVertical } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useToast } from "@/hooks/use-toast"
 import { generateReportAction } from "./actions"
 import type { DateRange } from "react-day-picker"
@@ -62,10 +68,38 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
         alert("Could not prepare the report for printing. Please check the console for errors.");
     }
   }
+  
+  const handleEmail = () => {
+    const subject = `Payroll Report for ${format(new Date(report.startDate), "LLL dd, y")} - ${format(new Date(report.endDate), "LLL dd, y")}`;
+    let body = `Hello Accountant,\n\nPlease find the payroll summary below.\n\n`;
+    body += `Report Period: ${format(new Date(report.startDate), "LLL dd, y")} - ${format(new Date(report.endDate), "LLL dd, y")}\n`;
+    body += `Total Payroll: $${overallTotal.toFixed(2)}\n\n`;
+    body += '------------------------------------\n\n';
+
+    report.employeeSummaries.forEach(employee => {
+        body += `Employee: ${employee.employeeName}\n`;
+        body += `Final Pay: $${employee.finalPay.toFixed(2)}\n\n`;
+        
+        employee.weeklySummaries.forEach(week => {
+            body += `  Week ${week.weekNumber}, ${week.year}:\n`;
+            body += `    - Total Hours: ${week.totalHours.toFixed(2)}\n`;
+            body += `    - Total Earnings: $${week.totalEarnings.toFixed(2)}\n`;
+            body += `    - Paid Rest Breaks: $${week.paidRestBreaksTotal.toFixed(2)}\n`;
+            if (week.minimumWageTopUp > 0) {
+              body += `    - Minimum Wage Top-up: $${week.minimumWageTopUp.toFixed(2)}\n`;
+            }
+            body += '\n';
+        });
+        body += '------------------------------------\n\n';
+    });
+
+    const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailtoLink;
+  };
 
   return (
     <div className="mt-6 bg-card p-4 sm:p-6 rounded-lg border">
-       <div className="flex justify-between items-start mb-6 print:mb-4">
+       <div className="flex justify-between items-start mb-6">
             <div>
               <h2 className="text-2xl font-bold text-primary">Payroll Report</h2>
               <div className="text-muted-foreground">For period: {format(new Date(report.startDate), "LLL dd, y")} - {format(new Date(report.endDate), "LLL dd, y")}</div>
@@ -158,10 +192,24 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
         </Accordion>
 
       <div className="flex justify-end items-center mt-6">
-        <Button variant="outline" size="sm" onClick={handlePrint}>
-          <Download className="mr-2 h-4 w-4" />
-          Print / Save as PDF
-        </Button>
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <MoreVertical className="h-4 w-4" />
+                   <span className="sr-only">Actions</span>
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handlePrint}>
+                    <Printer className="mr-2 h-4 w-4" />
+                    Print / Save as PDF
+                </DropdownMenuItem>
+                 <DropdownMenuItem onClick={handleEmail}>
+                    <Mail className="mr-2 h-4 w-4" />
+                    Email Report
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

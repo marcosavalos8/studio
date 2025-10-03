@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { format } from "date-fns"
-import { Calendar as CalendarIcon, Loader2, Download } from "lucide-react"
+import { Calendar as CalendarIcon, Loader2, Download, Printer, Mail, MoreVertical } from "lucide-react"
 import { Timestamp } from 'firebase/firestore'
 
 
@@ -30,6 +30,12 @@ import {
   TableRow,
   TableFooter
 } from "@/components/ui/table"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import type { Client, Task, Piecework, TimeEntry } from "@/lib/types"
 import type { DateRange } from "react-day-picker"
 import { useFirestore } from "@/firebase"
@@ -48,18 +54,21 @@ type InvoiceItem = {
     total: number;
 }
 
+export type InvoiceData = {
+  client: Client;
+  date: DateRange;
+  items: InvoiceItem[];
+  total: number;
+};
+
+
 export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
   const firestore = useFirestore()
   const { toast } = useToast()
   const [date, setDate] = React.useState<DateRange | undefined>()
   const [selectedClient, setSelectedClient] = React.useState<Client | undefined>()
   const [isGenerating, setIsGenerating] = React.useState(false)
-  const [invoice, setInvoice] = React.useState<{
-    client: Client;
-    date: DateRange;
-    items: InvoiceItem[];
-    total: number;
-  } | null>(null)
+  const [invoice, setInvoice] = React.useState<InvoiceData | null>(null)
 
   const handleGenerate = async () => {
     if (!firestore || !selectedClient || !date?.from || !date?.to) {
@@ -94,8 +103,6 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         const pieceworkByTask: Record<string, number> = {};
         const hoursByTask: Record<string, number> = {};
 
-        // To avoid complex queries, fetch logs in chunks if necessary (though 'in' queries are limited to 30 items)
-        // For simplicity, we fetch all and filter client-side if clientTaskIds > 30, but a chunking strategy is better for production.
         const pieceLogsQuery = query(
             collection(firestore, "piecework"),
             where("timestamp", ">=", date.from),
@@ -184,6 +191,51 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         setIsGenerating(false)
     }
   }
+  
+  const handlePrint = () => {
+    if (!invoice) return;
+    try {
+        const serializableInvoice = {
+            ...invoice,
+            date: {
+                from: invoice.date.from?.toISOString(),
+                to: invoice.date.to?.toISOString()
+            }
+        }
+        const invoiceString = JSON.stringify(serializableInvoice);
+        sessionStorage.setItem('invoiceData', invoiceString);
+        window.open('/invoicing/print', '_blank');
+    } catch (error) {
+        console.error("Failed to stringify invoice data for printing:", error);
+        toast({
+            title: "Print Error",
+            description: "Could not prepare the invoice for printing.",
+            variant: "destructive"
+        });
+    }
+  }
+
+  const handleEmail = () => {
+    if (!invoice) return;
+    const client = invoice.client;
+    const clientEmail = client.email || '';
+    const subject = `Invoice from FieldTack WA`;
+    let body = `Dear ${client.name},\n\nPlease find your invoice attached for the period of ${format(invoice.date.from!, "LLL dd, y")} to ${format(invoice.date.to!, "LLL dd, y")}.\n\n`;
+    body += '------------------------------------\n';
+    body += 'Description\t\tQuantity\tRate\t\tTotal\n';
+    body += '------------------------------------\n';
+    invoice.items.forEach(item => {
+        body += `${item.description}\t\t${item.quantity}\t\t$${item.rate.toFixed(2)}\t\t$${item.total.toFixed(2)}\n`;
+    });
+    body += '------------------------------------\n';
+    body += `Total: $${invoice.total.toFixed(2)}\n\n`;
+    body += `Payment Terms: ${client.paymentTerms}\n\n`;
+    body += 'Thank you for your business!\n\n';
+    body += 'Sincerely,\nFieldTack WA Team';
+
+    const mailtoLink = `mailto:${clientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailtoLink;
+  };
 
   return (
     <div>
@@ -250,7 +302,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
       )}
 
       {invoice && (
-        <div className="mt-6 bg-card p-4 sm:p-6 rounded-lg border" id="invoice-section">
+        <div className="mt-6 bg-card p-4 sm:p-6 rounded-lg border">
           <div className="flex justify-between items-start mb-6 print:mb-4">
             <div>
               <h2 className="text-2xl font-bold text-primary">INVOICE</h2>
@@ -297,40 +349,29 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
             )}
           </Table>
 
-          <div className="flex justify-between items-center mt-6 print:hidden">
+          <div className="flex justify-between items-center mt-6">
             <div className="text-muted-foreground text-xs">
                 Payment Terms: {invoice.client.paymentTerms}
             </div>
-            <Button variant="outline" size="sm" onClick={() => window.print()}>
-                <Download className="mr-2 h-4 w-4" />
-                Print / Save as PDF
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <MoreVertical className="h-4 w-4" />
+                  <span className="sr-only">Actions</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handlePrint}>
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print / Save as PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleEmail}>
+                  <Mail className="mr-2 h-4 w-4" />
+                  Email Invoice
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-           <style jsx global>{`
-                @media print {
-                    body {
-                      visibility: hidden;
-                    }
-                    #invoice-section, #invoice-section * {
-                        visibility: visible;
-                    }
-                    #invoice-section {
-                        position: absolute;
-                        left: 0;
-                        top: 0;
-                        width: 100%;
-                        height: 100%;
-                        border: none;
-                        box-shadow: none;
-                        padding: 1.5rem;
-                        margin: 0;
-                    }
-                    @page {
-                      size: auto;
-                      margin: 0.5in;
-                    }
-                }
-            `}</style>
         </div>
       )}
     </div>
