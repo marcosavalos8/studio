@@ -37,6 +37,20 @@
         "employeeRate": {
           "type": "number",
           "description": "Employee rate for the task."
+        },
+        "variety": {
+          "type": "string",
+          "description": "The specific variety for the task (e.g., Gala for Apple Picking)."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Active", "Inactive", "Completed"],
+          "description": "The current status of the task."
+        },
+        "clientRateType": {
+          "type": "string",
+          "enum": ["hourly", "piece"],
+          "description": "How the client is billed for this task."
         }
       },
       "required": [
@@ -45,7 +59,9 @@
         "clientId",
         "clientRate",
         "employeePaymentType",
-        "employeeRate"
+        "employeeRate",
+        "status",
+        "clientRateType"
       ]
     },
     "Client": {
@@ -155,6 +171,11 @@
         "breakReason": {
           "type": "string",
           "description": "Reason for the break."
+        },
+        "endTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The end time of the work session."
         }
       },
       "required": [
@@ -162,9 +183,6 @@
         "employeeId",
         "taskId",
         "timestamp",
-        "latitude",
-        "longitude",
-        "synchronized",
         "isBreak"
       ]
     },
@@ -202,6 +220,10 @@
         "synchronized": {
           "type": "boolean",
           "description": "Indicates whether the record is synchronized with the server."
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Reference to the Task."
         }
       },
       "required": [
@@ -210,7 +232,7 @@
         "timestamp",
         "pieceCount",
         "pieceQrCode",
-        "synchronized"
+        "taskId"
       ]
     }
   },

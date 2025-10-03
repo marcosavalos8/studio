@@ -10,9 +10,9 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { getFirestore, collection, query, where, getDocs, Timestamp } from 'firebase-admin/firestore';
-import {initializeApp, getApps, App, credential} from 'firebase-admin/app';
-import type {TimeEntry, Piecework, Task, Employee} from '@/lib/types';
+import { getFirestore, collection, getDocs, Timestamp } from 'firebase-admin/firestore';
+import {initializeApp, getApps} from 'firebase-admin/app';
+import type {TimeEntry, Piecework, Task, Employee, Client} from '@/lib/types';
 
 
 // Ensure Firebase is initialized for admin access
@@ -35,6 +35,9 @@ async function getPayrollData(startDate: string, endDate: string) {
 
   const tasksSnap = await db.collection('tasks').get();
   const tasks = tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
+  
+  const clientsSnap = await db.collection('clients').get();
+  const clients = clientsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client));
 
   const timeEntriesQuery = db.collection('time_entries')
     .where('timestamp', '>=', start)
@@ -66,6 +69,7 @@ async function getPayrollData(startDate: string, endDate: string) {
   return {
     employees,
     tasks,
+    clients,
     timeEntries,
     piecework
   };
@@ -86,7 +90,7 @@ const payrollDataTool = ai.defineTool(
             const data = await getPayrollData(startDate, endDate);
             // Return a structured object that's easier for the LLM to parse.
             return {
-                summary: `Found ${data.employees.length} employees, ${data.tasks.length} tasks, ${data.timeEntries.length} time entries, and ${data.piecework.length} piecework records.`,
+                summary: `Found ${data.employees.length} employees, ${data.tasks.length} tasks, ${data.clients.length} clients, ${data.timeEntries.length} time entries, and ${data.piecework.length} piecework records.`,
                 data: data,
             }
         } catch (e: any) {

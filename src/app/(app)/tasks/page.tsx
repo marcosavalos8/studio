@@ -65,7 +65,7 @@ export default function TasksPage() {
     const tasksByClient = useMemo(() => {
       if (!tasks || !clients) return {}
       return clients.reduce((acc, client) => {
-        acc[client.name] = tasks.filter(task => task.client === client.name);
+        acc[client.id] = tasks.filter(task => task.clientId === client.id);
         return acc;
       }, {} as Record<string, Task[]>);
     }, [tasks, clients])
@@ -101,7 +101,7 @@ export default function TasksPage() {
                 {!loading && (
                   <Accordion type="multiple" defaultValue={clients?.map(c => c.id)} className="w-full">
                     {clients?.map(client => (
-                      tasksByClient[client.name]?.length > 0 && (
+                      tasksByClient[client.id]?.length > 0 && (
                         <AccordionItem value={client.id} key={client.id}>
                           <AccordionTrigger className="text-lg font-semibold">{client.name}</AccordionTrigger>
                           <AccordionContent>
@@ -116,7 +116,7 @@ export default function TasksPage() {
                                   </TableRow>
                               </TableHeader>
                               <TableBody>
-                                  {tasksByClient[client.name].map((task) => (
+                                  {tasksByClient[client.id].map((task) => (
                                   <TableRow key={task.id}>
                                       <TableCell className="font-medium">{task.name} <span className="text-muted-foreground">({task.variety})</span></TableCell>
                                       <TableCell>

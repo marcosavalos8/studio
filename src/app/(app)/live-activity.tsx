@@ -66,12 +66,12 @@ export function LiveActivity() {
 
         const employeeMap = new Map(employees.map(e => [e.id, e]));
         const taskMap = new Map(tasks.map(t => [t.id, t]));
-        const clientMap = new Map(clients.map(c => [c.name, c]));
+        const clientMap = new Map(clients.map(c => [c.id, c]));
 
         return activeTimeEntries.map(entry => {
             const employee = employeeMap.get(entry.employeeId);
             const task = taskMap.get(entry.taskId);
-            const client = task ? clientMap.get(task.client) : undefined;
+            const client = task ? clientMap.get(task.clientId) : undefined;
             const clockInTime = (entry.timestamp as unknown as Timestamp).toDate();
 
             return {

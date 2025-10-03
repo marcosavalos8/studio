@@ -42,7 +42,7 @@ const taskSchema = z.object({
   variety: z.string().optional(),
   ranch: z.string().optional(),
   block: z.string().optional(),
-  client: z.string().min(1, 'Client is required'),
+  clientId: z.string().min(1, 'Client is required'),
   clientRate: z.coerce.number().min(0, 'Rate must be positive'),
   clientRateType: z.enum(['hourly', 'piece']),
   employeePayType: z.enum(['hourly', 'piecework']),
@@ -66,7 +66,7 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
       variety: '',
       ranch: '',
       block: '',
-      client: '',
+      clientId: '',
       clientRate: 0,
       clientRateType: 'hourly',
       employeePayType: 'hourly',
@@ -137,7 +137,7 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
             />
             <FormField
               control={form.control}
-              name="client"
+              name="clientId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Client</FormLabel>
@@ -149,7 +149,7 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
                     </FormControl>
                     <SelectContent>
                       {clients.map(client => (
-                        <SelectItem key={client.id} value={client.name}>{client.name}</SelectItem>
+                        <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

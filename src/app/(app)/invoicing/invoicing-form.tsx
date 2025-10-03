@@ -72,7 +72,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         return
     }
 
-    const clientTasks = tasks.filter(task => task.client === clientData.name)
+    const clientTasks = tasks.filter(task => task.clientId === clientData.id)
     const clientTaskIds = clientTasks.map(t => t.id);
     const invoiceItems: InvoiceItem[] = []
     
@@ -102,14 +102,11 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         const pieceworkByTask: Record<string, number> = {};
         pieceLogsSnap.docs.forEach(doc => {
             const log = doc.data() as Piecework;
-            // Handle both single string and array of strings for employeeId
-            const employeeIds = Array.isArray(log.employeeId) ? log.employeeId : log.employeeId.split(',');
-            const countPerEmployee = log.pieceCount / employeeIds.length;
-
-             if (!pieceworkByTask[log.taskId]) {
-                pieceworkByTask[log.taskId] = 0;
+            const taskId = log.taskId
+             if (!pieceworkByTask[taskId]) {
+                pieceworkByTask[taskId] = 0;
             }
-            pieceworkByTask[log.taskId] += log.pieceCount;
+            pieceworkByTask[taskId] += log.pieceCount;
         });
 
         // 2. Time Entries

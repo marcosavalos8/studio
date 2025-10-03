@@ -103,9 +103,7 @@ export default function TimeTrackingPage() {
 
   const tasksForClient = useMemo(() => {
     if (!allTasks || !selectedClient) return [];
-    const clientData = clients?.find(c => c.id === selectedClient);
-    if (!clientData) return [];
-    return allTasks.filter(t => t.client === clientData.name);
+    return allTasks.filter(t => t.clientId === selectedClient);
   }, [allTasks, selectedClient, clients]);
 
   const ranches = useMemo(() => tasksForClient ? [...new Set(tasksForClient.map(t => t.ranch).filter(Boolean))] : [], [tasksForClient]);
@@ -827,7 +825,7 @@ export default function TimeTrackingPage() {
                         </SelectTrigger>
                         <SelectContent>
                             {allTasks?.filter(t => t.status === 'Active').map(task => (
-                                <SelectItem key={task.id} value={task.id}>{task.name} ({task.client})</SelectItem>
+                                <SelectItem key={task.id} value={task.id}>{task.name} ({clients?.find(c=>c.id === task.clientId)?.name})</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>

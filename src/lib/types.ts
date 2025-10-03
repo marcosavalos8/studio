@@ -19,7 +19,7 @@ export type Task = {
   variety?: string;
   ranch?: string;
   block?: string;
-  client: string; // client name
+  clientId: string; // client id
   clientRate: number;
   clientRateType: 'hourly' | 'piece';
   employeePayType: 'hourly' | 'piecework';
