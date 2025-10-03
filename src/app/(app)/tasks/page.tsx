@@ -63,35 +63,37 @@ export default function TasksPage() {
     const { data: clients, isLoading: loadingClients } = useCollection<Client>(clientsQuery)
     
     const { tasksByClient, clientOrder } = useMemo(() => {
-      if (!tasks || !clients) return { tasksByClient: {}, clientOrder: [] };
+        if (!tasks || !clients) return { tasksByClient: {}, clientOrder: [] };
     
-      const clientMap = new Map(clients.map(c => [c.id, c]));
-      const groupedTasks: Record<string, { client: Client | null; tasks: Task[] }> = {};
-      const unassignedClientId = 'unassigned';
+        const clientMap = new Map(clients.map(c => [c.id, c]));
+        const unassignedClientId = 'unassigned';
     
-      for (const task of tasks) {
-        const client = clientMap.get(task.clientId);
-        const clientId = client ? task.clientId : unassignedClientId;
+        // Group tasks by clientId
+        const groupedTasks = tasks.reduce((acc, task) => {
+            const clientId = task.clientId && clientMap.has(task.clientId) ? task.clientId : unassignedClientId;
+            if (!acc[clientId]) {
+                acc[clientId] = {
+                    client: clientMap.get(clientId) || null,
+                    tasks: []
+                };
+            }
+            acc[clientId].tasks.push(task);
+            return acc;
+        }, {} as Record<string, { client: Client | null; tasks: Task[] }>);
     
-        if (!groupedTasks[clientId]) {
-          groupedTasks[clientId] = {
-            client: client || null,
-            tasks: [],
-          };
-        }
-        groupedTasks[clientId].tasks.push(task);
-      }
+        // Sort the client order based on the client names
+        const clientOrder = Object.keys(groupedTasks).sort((a, b) => {
+            if (a === unassignedClientId) return 1; // Always put unassigned last
+            if (b === unassignedClientId) return -1;
+            const clientA = groupedTasks[a].client;
+            const clientB = groupedTasks[b].client;
+            if (clientA && clientB) {
+                return clientA.name.localeCompare(clientB.name);
+            }
+            return 0; // Should not happen if not unassigned
+        });
     
-      // Create a sorted list of client IDs to render in order
-      const clientOrder = clients
-        .map(c => c.id)
-        .filter(id => groupedTasks[id]);
-      
-      if (groupedTasks[unassignedClientId]) {
-        clientOrder.push(unassignedClientId);
-      }
-    
-      return { tasksByClient: groupedTasks, clientOrder };
+        return { tasksByClient: groupedTasks, clientOrder };
     }, [tasks, clients]);
 
 
