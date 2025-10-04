@@ -37,6 +37,7 @@ import type { Task, TimeEntry, Piecework, Employee, Client } from '@/lib/types'
 import { Skeleton } from '@/components/ui/skeleton'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { errorEmitter } from '@/firebase/error-emitter'
+import { withAuth } from '@/components/withAuth'
 
 const QrScanner = dynamic(() => import('./qr-scanner').then(mod => mod.QrScannerComponent), {
   ssr: false,
@@ -49,7 +50,7 @@ type ManualLogType = 'clock-in' | 'clock-out' | 'start-break' | 'end-break' | 'p
 type PieceEntryMode = 'scan' | 'manual';
 
 
-export default function TimeTrackingPage() {
+function TimeTrackingPage() {
   const firestore = useFirestore()
   const { toast } = useToast()
   
@@ -57,8 +58,7 @@ export default function TimeTrackingPage() {
   const [isSharedPiece, setIsSharedPiece] = useState(false);
   const [pieceEntryMode, setPieceEntryMode] = useState<PieceEntryMode>('scan');
   
-  // For automatic piecework submission
-  const [pieceworkEmployee, setPieceworkEmployee] = useState<Employee | null>(null);
+  const [scannedSharedEmployees, setScannedSharedEmployees] = useState<string[]>([]);
 
   const [jsConfetti, setJsConfetti] = useState<JSConfetti | null>(null);
 
@@ -80,7 +80,7 @@ export default function TimeTrackingPage() {
 
   // Debounce state
   const [recentScans, setRecentScans] = useState<{ employeeId: string; taskId: string; mode: ScanMode; timestamp: number }[]>([]);
-  const DEBOUNCE_MS = 5000; // 5 seconds
+  const DEBOUNCE_MS = 30000; // 30 seconds
 
   const clientsQuery = useMemo(() => {
     if (!firestore) return null
@@ -157,7 +157,7 @@ export default function TimeTrackingPage() {
 
   // Reset scans when mode changes
   useEffect(() => {
-    setPieceworkEmployee(null);
+    setScannedSharedEmployees([]);
   }, [scanMode, isSharedPiece, selectedTask, pieceEntryMode]);
   
   // Reset manual employee selection when searching
@@ -211,13 +211,12 @@ export default function TimeTrackingPage() {
      const q = query(
         collection(firestore, 'time_entries'),
         where('employeeId', '==', employee.id),
-        where('taskId', '==', taskId),
-        where('endTime', '==', null)
+        where('endTime', '==', null) // Only clock out active entries
     );
     try {
         const querySnapshot = await getDocs(q);
         if (querySnapshot.empty) {
-            toast({ variant: 'destructive', title: "Clock Out Failed", description: `No active clock-in found for ${employee.name} on this task.` });
+            toast({ variant: 'destructive', title: "Clock Out Failed", description: `No active clock-in found for ${employee.name}.` });
         } else {
             const batch = writeBatch(firestore);
             const updatedData = { endTime: new Date() };
@@ -237,11 +236,11 @@ export default function TimeTrackingPage() {
     }
   }, [firestore, toast]);
 
-  const recordPiecework = useCallback(async (employee: Employee, taskId: string, binQr: string) => {
+  const recordPiecework = useCallback(async (employeeIds: string[], taskId: string, binQr: string) => {
     if (!firestore) return;
     
     const newPiecework: Omit<Piecework, 'id'> = {
-      employeeId: employee.id,
+      employeeId: employeeIds.join(','),
       taskId: taskId,
       timestamp: new Date(),
       pieceCount: 1, // Assume 1 bin per scan
@@ -249,7 +248,8 @@ export default function TimeTrackingPage() {
     };
     try {
       await addDoc(collection(firestore, 'piecework'), newPiecework);
-      toast({ title: "Piecework Recorded", description: `1 piece recorded for ${employee.name}.` });
+      const employeeNames = employeeIds.map(id => activeEmployees?.find(e => e.qrCode === id)?.name || 'Unknown').join(', ');
+      toast({ title: "Piecework Recorded", description: `1 piece recorded for ${employeeNames}.` });
       jsConfetti?.addConfetti({ confettiNumber: 30, confettiColors: ['#f59e0b', '#10b981', '#3b82f6'] });
     } catch(serverError) {
       const permissionError = new FirestorePermissionError({
@@ -259,7 +259,7 @@ export default function TimeTrackingPage() {
       });
       errorEmitter.emit('permission-error', permissionError);
     }
-  }, [firestore, toast, jsConfetti]);
+  }, [firestore, toast, jsConfetti, activeEmployees]);
 
 
   const handleScanResult = useCallback(async (scannedData: string) => {
@@ -269,41 +269,51 @@ export default function TimeTrackingPage() {
       }
 
       const now = Date.now();
-      const recentValidScans = recentScans.filter(scan => now - scan.timestamp < DEBOUNCE_MS);
-      setRecentScans(recentValidScans);
+      setRecentScans(prev => prev.filter(scan => now - scan.timestamp < DEBOUNCE_MS));
       
       const scannedEmployee = activeEmployees?.find(e => e.qrCode === scannedData);
       
-      const isDebounced = scannedEmployee && recentValidScans.some(
-          scan => scan.employeeId === scannedEmployee.id && scan.taskId === selectedTask && scan.mode === scanMode
+      const isDebounced = recentScans.some(
+          scan => (scan.employeeId === scannedEmployee?.qrCode || scan.employeeId === scannedData) && scan.taskId === selectedTask && scan.mode === scanMode
       );
-
+      
       if (isDebounced) {
-          toast({ variant: "destructive", title: "Duplicate Scan", description: `This action was already performed for ${scannedEmployee?.name} recently.` });
+          toast({ variant: "destructive", title: "Duplicate Scan", description: `This action was already performed recently.` });
           return;
       }
       
       if (scannedEmployee) {
-        setRecentScans(prev => [...prev, { employeeId: scannedEmployee.id, taskId: selectedTask, mode: scanMode, timestamp: now }]);
+        setRecentScans(prev => [...prev, { employeeId: scannedEmployee.qrCode, taskId: selectedTask, mode: scanMode, timestamp: now }]);
         
         if (scanMode === 'clock-in') {
           await clockInEmployee(scannedEmployee, selectedTask);
         } else if (scanMode === 'clock-out') {
           await clockOutEmployee(scannedEmployee, selectedTask);
         } else if (scanMode === 'piece') {
-          setPieceworkEmployee(scannedEmployee);
-          toast({ title: "Employee Scanned", description: `${scannedEmployee.name} ready for piecework. Scan a bin.` });
+           if (isSharedPiece) {
+             if (scannedSharedEmployees.includes(scannedEmployee.qrCode)) {
+                toast({ variant: "destructive", title: "Duplicate Employee", description: `${scannedEmployee.name} is already on the list.` });
+                return;
+             }
+             setScannedSharedEmployees(prev => [...prev, scannedEmployee.qrCode]);
+           } else {
+             setScannedSharedEmployees([scannedEmployee.qrCode]);
+             toast({ title: "Employee Scanned", description: `${scannedEmployee.name} ready. Scan a bin.` });
+           }
         }
       } else { // Not an employee QR
-        if (scanMode === 'piece' && pieceworkEmployee) {
-          await recordPiecework(pieceworkEmployee, selectedTask, scannedData);
-          setPieceworkEmployee(null); // Reset for next scan
+        if (scanMode === 'piece' && scannedSharedEmployees.length > 0) {
+          setRecentScans(prev => [...prev, { employeeId: scannedData, taskId: selectedTask, mode: scanMode, timestamp: now }]);
+          await recordPiecework(scannedSharedEmployees, selectedTask, scannedData);
+          if (!isSharedPiece) {
+            setScannedSharedEmployees([]);
+          }
         } else {
           const errorMsg = scanMode === 'piece' ? "Scan an employee QR code first." : "Not a valid employee QR code.";
           toast({ variant: "destructive", title: "Invalid Scan", description: errorMsg });
         }
       }
-  }, [selectedTask, activeEmployees, recentScans, toast, jsConfetti, scanMode, clockInEmployee, clockOutEmployee, recordPiecework, pieceworkEmployee]);
+  }, [selectedTask, activeEmployees, recentScans, toast, scanMode, clockInEmployee, clockOutEmployee, recordPiecework, isSharedPiece, scannedSharedEmployees, setScannedSharedEmployees]);
 
 
   const handleManualSubmit = async () => {
@@ -351,6 +361,24 @@ export default function TimeTrackingPage() {
     setManualEmployeeSearch('');
     setManualPieceQuantity(1);
     setManualNotes('');
+    setIsManualSubmitting(false);
+  };
+
+  const handleManualPieceSubmit = async () => {
+    if (!firestore || !selectedTask || scannedSharedEmployees.length === 0) {
+      toast({ variant: 'destructive', title: 'Missing Information', description: 'Please select a task and scan at least one employee.' });
+      return;
+    }
+    const pieceCount = typeof manualPieceQuantity === 'number' ? manualPieceQuantity : parseInt(String(manualPieceQuantity), 10);
+    if (isNaN(pieceCount) || pieceCount <= 0) {
+      toast({ variant: 'destructive', title: 'Invalid Quantity', description: 'Please enter a valid number of pieces.' });
+      return;
+    }
+
+    setIsManualSubmitting(true);
+    await recordPiecework(scannedSharedEmployees, selectedTask, 'manual_entry');
+    setScannedSharedEmployees([]);
+    setManualPieceQuantity(1);
     setIsManualSubmitting(false);
   };
 
@@ -513,23 +541,83 @@ export default function TimeTrackingPage() {
                     </Label>
                  </RadioGroup>
                </div>
-
-              <QrScanner onScanResult={handleScanResult} />
               
-              {scanMode === 'piece' && pieceworkEmployee && (
+              {scanMode === 'piece' && (
+                <div className="p-4 border rounded-lg space-y-4">
+                   <div className="flex items-center space-x-2">
+                      <Switch id="shared-piece-switch" checked={isSharedPiece} onCheckedChange={setIsSharedPiece}/>
+                      <Label htmlFor="shared-piece-switch">Shared Piece (Multiple Workers)</Label>
+                    </div>
+                    <RadioGroup value={pieceEntryMode} onValueChange={(v) => setPieceEntryMode(v as PieceEntryMode)} className="flex gap-4">
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="scan" id="piece-scan" />
+                        <Label htmlFor="piece-scan">Scan Bins</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="manual" id="piece-manual" />
+                        <Label htmlFor="piece-manual">Manual Count</Label>
+                      </div>
+                    </RadioGroup>
+                </div>
+              )}
+              
+              {pieceEntryMode === 'scan' ? (
+                <QrScanner onScanResult={handleScanResult} />
+              ) : (
+                <div className="p-4 border rounded-lg space-y-4">
+                  <div className="space-y-2">
+                      <Label htmlFor="quantity">Quantity (Pieces/Bins)</Label>
+                      <Input 
+                          id="quantity" 
+                          type="number" 
+                          placeholder="Enter number of pieces" 
+                          value={manualPieceQuantity}
+                          onChange={(e) => {
+                              const value = e.target.value;
+                              setManualPieceQuantity(value === '' ? '' : parseInt(value, 10));
+                          }}
+                           onBlur={(e) => {
+                                const value = parseInt(e.target.value, 10);
+                                if (isNaN(value) || value <= 0) {
+                                    setManualPieceQuantity(1);
+                                }
+                            }}
+                          min="1"
+                      />
+                  </div>
+                  <Button className="w-full" onClick={handleManualPieceSubmit} disabled={isManualSubmitting || scannedSharedEmployees.length === 0}>
+                      {isManualSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                      Submit Pieces
+                  </Button>
+                </div>
+              )}
+              
+              {scanMode === 'piece' && scannedSharedEmployees.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <User/>
-                        Employee Scanned
+                    <CardTitle className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <Users/>
+                            Scanned Employees ({scannedSharedEmployees.length})
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => setScannedSharedEmployees([])}>Clear List</Button>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                      <div className="flex items-center gap-2 text-blue-600">
-                          <CheckCircle className="h-5 w-5" />
-                          <p className="font-mono text-sm">{pieceworkEmployee.name}</p>
-                          <p className="text-muted-foreground text-sm ml-auto">Ready: Scan a Bin QR</p>
-                      </div>
+                      <ul className="space-y-1">
+                          {scannedSharedEmployees.map((id) => {
+                              const name = activeEmployees?.find(e => e.qrCode === id)?.name || id;
+                              return (
+                                  <li key={id} className="flex items-center gap-2 text-green-600">
+                                      <CheckCircle className="h-5 w-5" />
+                                      <p className="font-mono text-sm">{name}</p>
+                                  </li>
+                              );
+                          })}
+                      </ul>
+                      <p className="text-muted-foreground text-sm mt-4">
+                        {isSharedPiece ? `Ready: Scan another employee or ${pieceEntryMode === 'scan' ? 'a bin' : 'submit count'}.` : `Ready: ${pieceEntryMode === 'scan' ? 'Scan a bin' : 'Submit count'}.`}
+                      </p>
                   </CardContent>
                 </Card>
               )}
@@ -680,3 +768,6 @@ export default function TimeTrackingPage() {
     </div>
   );
 }
+
+
+export default withAuth(TimeTrackingPage);
