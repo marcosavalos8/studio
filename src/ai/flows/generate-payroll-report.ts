@@ -102,163 +102,163 @@ const processPayrollData = ai.defineTool(
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
 
     for (const employee of employees) {
-        const weeklyData: Record<string, { 
-            totalHours: number; 
-            totalPieceworkEarnings: number; 
-            totalHourlyEarnings: number; 
-            clientIds: Set<string>;
-            dailyBreakdown: Record<string, { tasks: Record<string, DailyTaskDetail> }> 
-        }> = {};
+      // Step 1: Aggregate all data for the employee into a structured map
+      const aggregatedData: Record<string, // weekKey
+        Record<string, // dayKey
+          Record<string, // taskId
+            { hours: number; pieceworkCount: number; }
+          >
+        >
+      > = {};
 
-        const empTimeEntries = timeEntries.filter((te: any) => te.employeeId === employee.id && te.timestamp && te.endTime);
-        for (const entry of empTimeEntries) {
-            const start = new Date(entry.timestamp);
-            const weekKey = `${getYear(start)}-${getWeek(start, { weekStartsOn: 1 })}`;
-            const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
+      const empTimeEntries = timeEntries.filter((te: any) => te.employeeId === employee.id && te.timestamp && te.endTime);
+      for (const entry of empTimeEntries) {
+        const start = new Date(entry.timestamp);
+        const weekKey = `${getYear(start)}-${getWeek(start, { weekStartsOn: 1 })}`;
+        const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
 
-            if (!weeklyData[weekKey]) {
-                weeklyData[weekKey] = { totalHours: 0, totalPieceworkEarnings: 0, totalHourlyEarnings: 0, clientIds: new Set(), dailyBreakdown: {} };
-            }
-            if (!weeklyData[weekKey].dailyBreakdown[dayKey]) {
-                weeklyData[weekKey].dailyBreakdown[dayKey] = { tasks: {} };
-            }
-
-            const task = taskMap.get(entry.taskId);
-            if (task) {
-                weeklyData[weekKey].clientIds.add(task.clientId);
-                if (!weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id]) {
-                    const clientName = clientMap.get(task.clientId)?.name || 'Unknown';
-                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety || 'N/A'})`, clientName, ranch: task.ranch || '', block: task.block || '', hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0, totalEarnings: 0 };
-                }
-
-                const hours = (new Date(entry.endTime).getTime() - start.getTime()) / (1000 * 60 * 60);
-                weeklyData[weekKey].totalHours += hours;
-                weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id].hours += hours;
-
-                if (task.employeePayType === 'hourly') {
-                    const earnings = hours * task.employeeRate;
-                    weeklyData[weekKey].totalHourlyEarnings += earnings;
-                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id].hourlyEarnings += earnings;
-                }
-            }
-        }
+        if (!aggregatedData[weekKey]) aggregatedData[weekKey] = {};
+        if (!aggregatedData[weekKey][dayKey]) aggregatedData[weekKey][dayKey] = {};
+        if (!aggregatedData[weekKey][dayKey][entry.taskId]) aggregatedData[weekKey][dayKey][entry.taskId] = { hours: 0, pieceworkCount: 0 };
         
-        const empPiecework = piecework.filter((pw: Piecework) => {
-             const employeeIdsInEntry = String(pw.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
-             return employeeIdsInEntry.some(idOrQr => idOrQr === employee.id || idOrQr === employee.qrCode);
-          });
+        const hours = (new Date(entry.endTime).getTime() - start.getTime()) / (1000 * 60 * 60);
+        aggregatedData[weekKey][dayKey][entry.taskId].hours += hours;
+      }
 
-         for (const entry of empPiecework) {
-            const start = new Date(entry.timestamp);
-            const weekKey = `${getYear(start)}-${getWeek(start, { weekStartsOn: 1 })}`;
-            const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
-            
-            if (!weeklyData[weekKey]) {
-                weeklyData[weekKey] = { totalHours: 0, totalPieceworkEarnings: 0, totalHourlyEarnings: 0, clientIds: new Set(), dailyBreakdown: {} };
-            }
-            if (!weeklyData[weekKey].dailyBreakdown[dayKey]) {
-                weeklyData[weekKey].dailyBreakdown[dayKey] = { tasks: {} };
-            }
+      const empPiecework = piecework.filter((pw: Piecework) => {
+          const employeeIdsInEntry = String(pw.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
+          // Handle both QR code and internal ID for matching
+          return employeeIdsInEntry.includes(employee.id) || employeeIdsInEntry.includes(employee.qrCode);
+      });
 
-            const task = taskMap.get(entry.taskId);
-            if (task) {
-                weeklyData[weekKey].clientIds.add(task.clientId);
-                if (!weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id]) {
-                     const clientName = clientMap.get(task.clientId)?.name || 'Unknown';
-                     weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety || 'N/A'})`, clientName, ranch: task.ranch || '', block: task.block || '', hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0, totalEarnings: 0 };
-                }
+      for (const entry of empPiecework) {
+        const start = new Date(entry.timestamp);
+        const weekKey = `${getYear(start)}-${getWeek(start, { weekStartsOn: 1 })}`;
+        const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
+        
+        if (!aggregatedData[weekKey]) aggregatedData[weekKey] = {};
+        if (!aggregatedData[weekKey][dayKey]) aggregatedData[weekKey][dayKey] = {};
+        if (!aggregatedData[weekKey][dayKey][entry.taskId]) aggregatedData[weekKey][dayKey][entry.taskId] = { hours: 0, pieceworkCount: 0 };
 
-                if (task.employeePayType === 'piecework') {
-                    const employeeIdsInEntry = String(entry.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
-                    const numEmployees = employeeIdsInEntry.length > 0 ? employeeIdsInEntry.length : 1;
-                    const individualPieceCount = (entry.pieceCount || 0) / numEmployees;
-                    const individualEarnings = individualPieceCount * task.employeeRate;
+        const employeeIdsInEntry = String(entry.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
+        const numEmployees = employeeIdsInEntry.length > 0 ? employeeIdsInEntry.length : 1;
+        const individualPieceCount = (entry.pieceCount || 0) / numEmployees;
 
-                    weeklyData[weekKey].totalPieceworkEarnings += individualEarnings;
-                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id].pieceworkCount += individualPieceCount;
-                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id].pieceworkEarnings += individualEarnings;
-                }
-            }
-        }
+        aggregatedData[weekKey][dayKey][entry.taskId].pieceworkCount += individualPieceCount;
+      }
+      
+      // Step 2: Process the aggregated data to calculate summaries
+      const weeklySummaries: WeeklySummary[] = [];
 
-        const weeklySummaries: WeeklySummary[] = [];
-        for (const weekKey in weeklyData) {
-            const [year, weekNumber] = weekKey.split('-').map(Number);
-            const week = weeklyData[weekKey];
+      for (const weekKey in aggregatedData) {
+        let weeklyTotalHours = 0;
+        let weeklyTotalHourlyEarnings = 0;
+        let weeklyTotalPieceworkEarnings = 0;
+        const clientIdsInWeek = new Set<string>();
+        const dailyBreakdownsForWeek: DailyBreakdown[] = [];
 
-            const clientWages = Array.from(week.clientIds).map(id => clientMap.get(id)?.minimumWage).filter(Boolean) as number[];
-            const applicableMinimumWage = clientWages.length > 0 ? Math.max(...clientWages) : STATE_MINIMUM_WAGE;
-            
-            const dailyBreakdown: DailyBreakdown[] = Object.entries(week.dailyBreakdown).map(([date, dayData]) => {
-                const tasks = Object.values(dayData.tasks);
-                let totalDailyHours = 0;
+        const dayKeys = Object.keys(aggregatedData[weekKey]).sort();
+        for (const dayKey of dayKeys) {
+            let dailyTotalHours = 0;
+            const taskDetailsForDay: DailyTaskDetail[] = [];
+
+            const taskIds = Object.keys(aggregatedData[weekKey][dayKey]);
+            for (const taskId of taskIds) {
+                const task = taskMap.get(taskId);
+                if (!task) continue;
+
+                clientIdsInWeek.add(task.clientId);
+                const clientName = clientMap.get(task.clientId)?.name || 'Unknown';
+                const dayData = aggregatedData[weekKey][dayKey][taskId];
                 
-                tasks.forEach(task => {
-                    task.totalEarnings = task.hourlyEarnings + task.pieceworkEarnings;
-                    totalDailyHours += task.hours;
+                const hourlyEarnings = task.employeePayType === 'hourly' ? dayData.hours * task.employeeRate : 0;
+                const pieceworkEarnings = task.employeePayType === 'piecework' ? dayData.pieceworkCount * task.employeeRate : 0;
+                const totalEarnings = hourlyEarnings + pieceworkEarnings;
+
+                dailyTotalHours += dayData.hours;
+                
+                taskDetailsForDay.push({
+                    taskName: `${task.name} (${task.variety || 'N/A'})`,
+                    clientName,
+                    ranch: task.ranch || '',
+                    block: task.block || '',
+                    hours: dayData.hours,
+                    pieceworkCount: dayData.pieceworkCount,
+                    hourlyEarnings,
+                    pieceworkEarnings,
+                    totalEarnings,
                 });
-                
-                const totalDailyEarnings = tasks.reduce((acc, t) => acc + t.totalEarnings, 0);
-
-                return {
-                    date,
-                    tasks: tasks,
-                    totalDailyHours: parseFloat(totalDailyHours.toFixed(2)),
-                    totalDailyEarnings: parseFloat(totalDailyEarnings.toFixed(2)),
-                }
-            }).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-            
-            const totalEarnings = week.totalHourlyEarnings + week.totalPieceworkEarnings;
-            
-            let effectiveHourlyRate = 0;
-            if (week.totalHours > 0) {
-                effectiveHourlyRate = totalEarnings / week.totalHours;
             }
-            
-            let minimumWageTopUp = 0;
-            if (week.totalHours > 0 && effectiveHourlyRate < applicableMinimumWage) {
-                minimumWageTopUp = (applicableMinimumWage * week.totalHours) - totalEarnings;
-            }
-            
-            const totalEarningsWithTopUp = totalEarnings + minimumWageTopUp;
-            const regularRateOfPay = week.totalHours > 0 ? totalEarningsWithTopUp / week.totalHours : applicableMinimumWage;
 
-            const restBreakMinutes = Math.floor(week.totalHours / 4) * 10;
-            const paidRestBreaksTotal = (restBreakMinutes / 60) * regularRateOfPay;
+            const totalDailyEarnings = taskDetailsForDay.reduce((acc, t) => acc + t.totalEarnings, 0);
 
-            weeklySummaries.push({
-                weekNumber,
-                year,
-                totalHours: parseFloat(week.totalHours.toFixed(2)),
-                totalPieceworkEarnings: parseFloat(week.totalPieceworkEarnings.toFixed(2)),
-                totalHourlyEarnings: parseFloat(week.totalHourlyEarnings.toFixed(2)),
-                totalEarnings: parseFloat(totalEarnings.toFixed(2)),
-                effectiveHourlyRate: parseFloat(effectiveHourlyRate.toFixed(2)),
-                minimumWageTopUp: parseFloat(minimumWageTopUp.toFixed(2)),
-                paidRestBreaksTotal: parseFloat(paidRestBreaksTotal.toFixed(2)),
-                dailyBreakdown: dailyBreakdown,
+            dailyBreakdownsForWeek.push({
+                date: dayKey,
+                tasks: taskDetailsForDay,
+                totalDailyHours: parseFloat(dailyTotalHours.toFixed(2)),
+                totalDailyEarnings: parseFloat(totalDailyEarnings.toFixed(2)),
             });
+
+            weeklyTotalHours += dailyTotalHours;
+            weeklyTotalHourlyEarnings += taskDetailsForDay.reduce((acc, t) => acc + t.hourlyEarnings, 0);
+            weeklyTotalPieceworkEarnings += taskDetailsForDay.reduce((acc, t) => acc + t.pieceworkEarnings, 0);
+        }
+
+        const [year, weekNumber] = weekKey.split('-').map(Number);
+        
+        const clientWages = Array.from(clientIdsInWeek).map(id => clientMap.get(id)?.minimumWage).filter(Boolean) as number[];
+        const applicableMinimumWage = clientWages.length > 0 ? Math.max(...clientWages) : STATE_MINIMUM_WAGE;
+        
+        const weeklyTotalEarnings = weeklyTotalHourlyEarnings + weeklyTotalPieceworkEarnings;
+        
+        let effectiveHourlyRate = 0;
+        if (weeklyTotalHours > 0) {
+            effectiveHourlyRate = weeklyTotalEarnings / weeklyTotalHours;
         }
         
+        let minimumWageTopUp = 0;
+        if (weeklyTotalHours > 0 && effectiveHourlyRate < applicableMinimumWage) {
+            minimumWageTopUp = (applicableMinimumWage * weeklyTotalHours) - weeklyTotalEarnings;
+        }
+        
+        const totalEarningsWithTopUp = weeklyTotalEarnings + minimumWageTopUp;
+        const regularRateOfPay = weeklyTotalHours > 0 ? totalEarningsWithTopUp / weeklyTotalHours : applicableMinimumWage;
+
+        const restBreakMinutes = Math.floor(weeklyTotalHours / 4) * 10;
+        const paidRestBreaksTotal = (restBreakMinutes / 60) * regularRateOfPay;
+
+        weeklySummaries.push({
+            weekNumber,
+            year,
+            totalHours: parseFloat(weeklyTotalHours.toFixed(2)),
+            totalPieceworkEarnings: parseFloat(weeklyTotalPieceworkEarnings.toFixed(2)),
+            totalHourlyEarnings: parseFloat(weeklyTotalHourlyEarnings.toFixed(2)),
+            totalEarnings: parseFloat(weeklyTotalEarnings.toFixed(2)),
+            effectiveHourlyRate: parseFloat(effectiveHourlyRate.toFixed(2)),
+            minimumWageTopUp: parseFloat(minimumWageTopUp.toFixed(2)),
+            paidRestBreaksTotal: parseFloat(paidRestBreaksTotal.toFixed(2)),
+            dailyBreakdown: dailyBreakdownsForWeek,
+        });
+      }
+
+      if (weeklySummaries.length > 0) {
         const overallTotalEarnings = weeklySummaries.reduce((acc, s) => acc + s.totalEarnings, 0);
         const overallTotalHours = weeklySummaries.reduce((acc, s) => acc + s.totalHours, 0);
         const overallTotalMinimumWageTopUp = weeklySummaries.reduce((acc, s) => acc + s.minimumWageTopUp, 0);
         const overallTotalPaidRestBreaks = weeklySummaries.reduce((acc, s) => acc + s.paidRestBreaksTotal, 0);
-        
         const finalPay = overallTotalEarnings + overallTotalMinimumWageTopUp + overallTotalPaidRestBreaks;
 
-        if (weeklySummaries.length > 0) {
-            employeeSummaries.push({
-                employeeId: employee.id,
-                employeeName: employee.name,
-                weeklySummaries,
-                overallTotalEarnings: parseFloat(overallTotalEarnings.toFixed(2)),
-                overallTotalHours: parseFloat(overallTotalHours.toFixed(2)),
-                overallTotalMinimumWageTopUp: parseFloat(overallTotalMinimumWageTopUp.toFixed(2)),
-                overallTotalPaidRestBreaks: parseFloat(overallTotalPaidRestBreaks.toFixed(2)),
-                finalPay: parseFloat(finalPay.toFixed(2)),
-            });
-        }
+        employeeSummaries.push({
+            employeeId: employee.id,
+            employeeName: employee.name,
+            weeklySummaries,
+            overallTotalEarnings: parseFloat(overallTotalEarnings.toFixed(2)),
+            overallTotalHours: parseFloat(overallTotalHours.toFixed(2)),
+            overallTotalMinimumWageTopUp: parseFloat(overallTotalMinimumWageTopUp.toFixed(2)),
+            overallTotalPaidRestBreaks: parseFloat(overallTotalPaidRestBreaks.toFixed(2)),
+            finalPay: parseFloat(finalPay.toFixed(2)),
+        });
+      }
     }
 
     return {
