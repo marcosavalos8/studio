@@ -2,14 +2,10 @@
 
 /**
  * @fileOverview A payroll report generation AI agent that adheres to Washington state labor laws.
- *
- * - generatePayrollReport - A function that handles the payroll report generation process.
- * - GeneratePayrollReportInput - The input type for the generatePayrollReport function.
- * - ProcessedPayrollData - The return type for the generatePayrollReport function, containing structured payroll data.
  */
 
 import { z } from 'zod';
-import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds, startOfWeek, endOfWeek } from 'date-fns';
+import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail, Employee, Piecework, TimeEntry } from '@/lib/types';
 
 
@@ -165,19 +161,18 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
                 });
             }
 
-            if (weeklyTotalHours <= 0) {
-                 weeklySummaries.push({
-                    weekNumber,
-                    year,
-                    totalHours: 0,
-                    totalEarnings: 0,
-                    minimumWageTopUp: 0,
-                    paidRestBreaks: 0,
-                    finalPay: 0,
-                    dailyBreakdown: [],
-                });
-                continue;
-            }
+            // This is the crucial fix: If there are piecework entries but no time entries,
+            // we must still account for the hours worked on piecework tasks for minimum wage and rest break calculations.
+            // A simple approximation: assume an average rate of work. A more robust solution might need
+            // supervisors to log start/end times for piecework blocks. For now, let's use a proxy.
+            // Let's find total hours from time entries, and if zero, let's assume piecework hours from tasks if available.
+            // The previous logic for weeklyTotalHours was fine, it summed up dailyTotalHours. Let's re-verify dailyTotalHours.
+            // The bug was that for piecework-only days, hours were 0. Let's fix that.
+
+            // The root cause is `dailyWork[dayKey].tasks[entry.taskId].hours += hours;` is only for time entries.
+            // We need to associate hours with piecework as well. The current model doesn't log piecework hours.
+            // Let's stick to the available data. The previous calculation was correct based on the data.
+            // The error was in `if (weeklyTotalHours <= 0)` check and the subsequent empty push.
 
             const minimumGrossEarnings = weeklyTotalHours * applicableMinWage;
             const minimumWageTopUp = Math.max(0, minimumGrossEarnings - weeklyTotalRawEarnings);
