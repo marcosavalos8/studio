@@ -30,6 +30,7 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
 
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
+    const employeeMap = new Map(reportEmployees.map((e: Employee) => [e.id, e]));
 
     const reportInterval = {
         start: startOfDay(parseISO(input.startDate)),
@@ -46,18 +47,34 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
         const empTimeEntries = timeEntries.filter((e: TimeEntry) => e.employeeId === employeeId && isWithinInterval(parseISO(String(e.timestamp)), reportInterval));
         const empPiecework = piecework.filter((pw: Piecework) => {
             const employeeIdsOnTicket = String(pw.employeeId).split(',').map(id => id.trim());
-            return (employeeIdsOnTicket.includes(employeeId) || employeeIdsOnTicket.includes(employee.qrCode)) && isWithinInterval(parseISO(String(pw.timestamp)), reportInterval);
+            const emp = employeeMap.get(employeeId);
+            return (employeeIdsOnTicket.includes(employeeId) || (emp && employeeIdsOnTicket.includes(emp.qrCode))) && isWithinInterval(parseISO(String(pw.timestamp)), reportInterval);
         });
-
+        
         if (empTimeEntries.length === 0 && empPiecework.length === 0) {
             continue; // Skip employee if they have no activity in the period
         }
 
         const workByWeek: Record<string, { time: TimeEntry[], pieces: Piecework[] }> = {};
 
-        // Group all work entries into weeks
-        const allDates = eachDayOfInterval(reportInterval);
-        allDates.forEach(date => {
+        const allWorkEntries = [...empTimeEntries, ...empPiecework];
+        if(allWorkEntries.length === 0) continue;
+
+        // Determine the full range of dates to create week keys
+        const firstDate = allWorkEntries.reduce((min, entry) => {
+            const d = parseISO(String(entry.timestamp));
+            return d < min ? d : min;
+        }, parseISO(String(allWorkEntries[0].timestamp)));
+        
+        const lastDate = allWorkEntries.reduce((max, entry) => {
+            const d = parseISO(String(entry.timestamp));
+            return d > max ? d : max;
+        }, parseISO(String(allWorkEntries[0].timestamp)));
+
+
+        const relevantDates = eachDayOfInterval({start: firstDate, end: lastDate});
+        
+        relevantDates.forEach(date => {
             const weekKey = `${getYear(date)}-${getWeek(date, { weekStartsOn: 1 })}`;
             if (!workByWeek[weekKey]) {
                 workByWeek[weekKey] = { time: [], pieces: [] };
@@ -110,11 +127,21 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
                 const dayKey = format(date, 'yyyy-MM-dd');
                 
                 const employeeIdsOnTicket = String(entry.employeeId).split(',').map(id => id.trim()).filter(Boolean);
-                const pieceCountPerEmployee = entry.pieceCount / employeeIdsOnTicket.length;
+                 const employeeQRsOnTicket = employeeIdsOnTicket.map(idOrQr => {
+                    const empById = employeeMap.get(idOrQr);
+                    if(empById) return empById.qrCode;
+                    return idOrQr; // assume it is a qr if not an id
+                });
+                
+                const currentEmpQr = employeeMap.get(employeeId)?.qrCode;
+                
+                if (currentEmpQr && employeeQRsOnTicket.includes(currentEmpQr)) {
+                    const pieceCountPerEmployee = entry.pieceCount / employeeQRsOnTicket.length;
 
-                if (!dailyWork[dayKey]) dailyWork[dayKey] = { tasks: {} };
-                if (!dailyWork[dayKey].tasks[entry.taskId]) dailyWork[dayKey].tasks[entry.taskId] = { hours: 0, pieces: 0 };
-                dailyWork[dayKey].tasks[entry.taskId].pieces += pieceCountPerEmployee;
+                    if (!dailyWork[dayKey]) dailyWork[dayKey] = { tasks: {} };
+                    if (!dailyWork[dayKey].tasks[entry.taskId]) dailyWork[dayKey].tasks[entry.taskId] = { hours: 0, pieces: 0 };
+                    dailyWork[dayKey].tasks[entry.taskId].pieces += pieceCountPerEmployee;
+                }
             });
             
             const dailyBreakdownsForWeek: DailyBreakdown[] = [];
@@ -176,7 +203,7 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
             const minimumWageTopUp = Math.max(0, minimumGrossEarnings - weeklyTotalRawEarnings);
 
             const totalEarningsBeforeRest = weeklyTotalRawEarnings + minimumWageTopUp;
-            const regularRateOfPay = totalEarningsBeforeRest / weeklyTotalHours;
+            const regularRateOfPay = weeklyTotalHours > 0 ? totalEarningsBeforeRest / weeklyTotalHours : 0;
             
             const paidRestBreakHours = Math.floor(weeklyTotalHours / 4) * (10 / 60);
             const paidRestBreaksPay = paidRestBreakHours * regularRateOfPay;
@@ -195,10 +222,10 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
             });
         }
         
-        if (weeklySummaries.length > 0) {
-            const totalPayForPeriod = weeklySummaries.reduce((acc, week) => acc + week.finalPay, 0);
+        const totalPayForPeriod = weeklySummaries.reduce((acc, week) => acc + week.finalPay, 0);
 
-            employeeSummaries.push({
+        if (totalPayForPeriod > 0 || weeklySummaries.some(w => w.totalHours > 0)) {
+             employeeSummaries.push({
                 employeeId: employee.id,
                 employeeName: employee.name,
                 weeklySummaries,
