@@ -68,8 +68,6 @@ export type DailyTaskDetail = {
   block?: string;
   hours: number;
   pieceworkCount: number;
-  hourlyEarnings: number;
-  pieceworkEarnings: number;
   totalEarnings: number;
 };
 
@@ -84,12 +82,7 @@ export type WeeklySummary = {
     weekNumber: number;
     year: number;
     totalHours: number;
-    totalPieceworkEarnings: number;
-    totalHourlyEarnings: number;
     totalEarnings: number;
-    effectiveHourlyRate: number;
-    minimumWageTopUp: number;
-    paidRestBreaksTotal: number;
     dailyBreakdown: DailyBreakdown[];
 };
 
@@ -97,10 +90,6 @@ export type EmployeePayrollSummary = {
     employeeId: string;
     employeeName: string;
     weeklySummaries: WeeklySummary[];
-    overallTotalEarnings: number;
-    overallTotalHours: number;
-    overallTotalMinimumWageTopUp: number;
-    overallTotalPaidRestBreaks: number;
     finalPay: number;
 };
 

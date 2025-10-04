@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview A payroll report generation AI agent that understands Washington (WA) labor laws.
+ * @fileOverview A payroll report generation AI agent.
  *
  * - generatePayrollReport - A function that handles the payroll report generation process.
  * - GeneratePayrollReportInput - The input type for the generatePayrollReport function.
@@ -13,8 +13,6 @@ import {z} from 'zod';
 import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds } from 'date-fns';
 import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail, Employee, Piecework, TimeEntry } from '@/lib/types';
 
-
-const STATE_MINIMUM_WAGE = 16.28;
 
 // Main input schema for the server action
 const GeneratePayrollReportInputSchema = z.object({
@@ -33,8 +31,6 @@ const DailyTaskDetailSchema = z.object({
   block: z.string().optional(),
   hours: z.number(),
   pieceworkCount: z.number(),
-  hourlyEarnings: z.number(),
-  pieceworkEarnings: z.number(),
   totalEarnings: z.number(),
 });
 
@@ -49,12 +45,7 @@ const WeeklySummarySchema = z.object({
     weekNumber: z.number(),
     year: z.number(),
     totalHours: z.number(),
-    totalPieceworkEarnings: z.number(),
-    totalHourlyEarnings: z.number(),
     totalEarnings: z.number(),
-    effectiveHourlyRate: z.number(),
-    minimumWageTopUp: z.number(),
-    paidRestBreaksTotal: z.number(),
     dailyBreakdown: z.array(DailyBreakdownSchema),
 });
 
@@ -62,10 +53,6 @@ const EmployeePayrollSummarySchema = z.object({
     employeeId: z.string(),
     employeeName: z.string(),
     weeklySummaries: z.array(WeeklySummarySchema),
-    overallTotalEarnings: z.number(),
-    overallTotalHours: z.number(),
-    overallTotalMinimumWageTopUp: z.number(),
-    overallTotalPaidRestBreaks: z.number(),
     finalPay: z.number(),
 });
 
@@ -83,11 +70,11 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
 }
 
 
-// This tool does the heavy lifting of calculating payroll based on WA rules.
+// This tool does the heavy lifting of calculating a simple payroll.
 const processPayrollData = ai.defineTool(
   {
     name: 'processPayrollData',
-    description: 'Processes raw payroll data to calculate earnings, overtime, and compliance adjustments based on Washington state labor laws.',
+    description: 'Processes raw payroll data to calculate simple earnings.',
     inputSchema: GeneratePayrollReportInputSchema,
     outputSchema: ProcessedPayrollDataSchema,
   },
@@ -182,9 +169,7 @@ const processPayrollData = ai.defineTool(
             const [year, weekNumber] = weekKey.split('-').map(Number);
             
             let weeklyTotalHours = 0;
-            let weeklyTotalPieceworkEarnings = 0;
-            let weeklyTotalHourlyEarnings = 0;
-            const clientIdsInWeek = new Set<string>();
+            let weeklyTotalEarnings = 0;
             const dailyBreakdownsForWeek: DailyBreakdown[] = [];
 
             const sortedDays = Object.keys(weekData).sort((a,b) => new Date(a).getTime() - new Date(b).getTime());
@@ -199,27 +184,15 @@ const processPayrollData = ai.defineTool(
                     const task = taskMap.get(taskId);
                     if (!task) continue;
 
-                    clientIdsInWeek.add(task.clientId);
                     const clientName = clientMap.get(task.clientId)?.name || 'Unknown Client';
                     const { hours, pieces } = dayData[taskId];
-
-                    let hourlyEarnings = 0;
-                    if (task.employeePayType === 'hourly') {
-                        hourlyEarnings = hours * task.employeeRate;
-                    }
-
-                    let pieceworkEarnings = 0;
-                    if (task.employeePayType === 'piecework') {
-                        pieceworkEarnings = pieces * task.employeeRate;
-                    }
                     
+                    const hourlyEarnings = task.employeePayType === 'hourly' ? hours * task.employeeRate : 0;
+                    const pieceworkEarnings = task.employeePayType === 'piecework' ? pieces * task.employeeRate : 0;
                     const totalEarningsForTask = hourlyEarnings + pieceworkEarnings;
                     
                     dailyTotalHours += hours;
                     dailyTotalEarnings += totalEarningsForTask;
-                    
-                    weeklyTotalHourlyEarnings += hourlyEarnings;
-                    weeklyTotalPieceworkEarnings += pieceworkEarnings;
 
                     taskDetailsForDay.push({
                         taskName: `${task.name} (${task.variety || 'N/A'})`,
@@ -228,13 +201,13 @@ const processPayrollData = ai.defineTool(
                         block: task.block,
                         hours: hours,
                         pieceworkCount: pieces,
-                        hourlyEarnings,
-                        pieceworkEarnings,
                         totalEarnings: totalEarningsForTask,
                     });
                 }
                 
                 weeklyTotalHours += dailyTotalHours;
+                weeklyTotalEarnings += dailyTotalEarnings;
+
                 dailyBreakdownsForWeek.push({
                     date: dayKey,
                     tasks: taskDetailsForDay,
@@ -243,57 +216,23 @@ const processPayrollData = ai.defineTool(
                 });
             }
 
-            const weeklyTotalEarnings = weeklyTotalHourlyEarnings + weeklyTotalPieceworkEarnings;
-            
-            const clientMinimumWages = Array.from(clientIdsInWeek)
-                .map(id => clientMap.get(id)?.minimumWage)
-                .filter((wage): wage is number => typeof wage === 'number' && wage > 0);
-
-            const applicableMinimumWage = clientMinimumWages.length > 0 ? Math.max(...clientMinimumWages) : STATE_MINIMUM_WAGE;
-
-            let effectiveHourlyRate = weeklyTotalHours > 0 ? weeklyTotalEarnings / weeklyTotalHours : 0;
-            
-            let minimumWageTopUp = 0;
-            if (weeklyTotalHours > 0 && effectiveHourlyRate < applicableMinimumWage) {
-                minimumWageTopUp = (applicableMinimumWage * weeklyTotalHours) - weeklyTotalEarnings;
-            }
-
-            const totalEarningsWithTopUp = weeklyTotalEarnings + minimumWageTopUp;
-            const regularRateOfPay = weeklyTotalHours > 0 ? totalEarningsWithTopUp / weeklyTotalHours : applicableMinimumWage;
-            
-            const restBreakMinutes = Math.floor(weeklyTotalHours / 4) * 10;
-            const paidRestBreaksTotal = (restBreakMinutes / 60) * regularRateOfPay;
-
             weeklySummaries.push({
                 weekNumber,
                 year,
                 totalHours: parseFloat(weeklyTotalHours.toFixed(2)),
-                totalPieceworkEarnings: parseFloat(weeklyTotalPieceworkEarnings.toFixed(2)),
-                totalHourlyEarnings: parseFloat(weeklyTotalHourlyEarnings.toFixed(2)),
                 totalEarnings: parseFloat(weeklyTotalEarnings.toFixed(2)),
-                effectiveHourlyRate: parseFloat(effectiveHourlyRate.toFixed(2)),
-                minimumWageTopUp: parseFloat(minimumWageTopUp.toFixed(2)),
-                paidRestBreaksTotal: parseFloat(paidRestBreaksTotal.toFixed(2)),
                 dailyBreakdown: dailyBreakdownsForWeek,
             });
         }
         
         if (weeklySummaries.length === 0) continue;
 
-        const overallTotalEarnings = weeklySummaries.reduce((acc, s) => acc + s.totalEarnings, 0);
-        const overallTotalHours = weeklySummaries.reduce((acc, s) => acc + s.totalHours, 0);
-        const overallTotalMinimumWageTopUp = weeklySummaries.reduce((acc, s) => acc + s.minimumWageTopUp, 0);
-        const overallTotalPaidRestBreaks = weeklySummaries.reduce((acc, s) => acc + s.paidRestBreaksTotal, 0);
-        const finalPay = overallTotalEarnings + overallTotalMinimumWageTopUp + overallTotalPaidRestBreaks;
+        const finalPay = weeklySummaries.reduce((acc, s) => acc + s.totalEarnings, 0);
 
         employeeSummaries.push({
             employeeId: employee.id,
             employeeName: employee.name,
             weeklySummaries,
-            overallTotalEarnings: parseFloat(overallTotalEarnings.toFixed(2)),
-            overallTotalHours: parseFloat(overallTotalHours.toFixed(2)),
-            overallTotalMinimumWageTopUp: parseFloat(overallTotalMinimumWageTopUp.toFixed(2)),
-            overallTotalPaidRestBreaks: parseFloat(overallTotalPaidRestBreaks.toFixed(2)),
             finalPay: parseFloat(finalPay.toFixed(2)),
         });
     }
@@ -319,5 +258,3 @@ const generatePayrollReportFlow = ai.defineFlow(
     return processedData;
   }
 );
-
-    

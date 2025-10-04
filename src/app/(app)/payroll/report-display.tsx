@@ -46,7 +46,7 @@ function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData[
                   </TableCell>
                   <TableCell className="text-right">{task.hours > 0 ? task.hours.toFixed(2) : '-'}</TableCell>
                   <TableCell className="text-right">{task.pieceworkCount > 0 ? task.pieceworkCount.toFixed(2) : '-'}</TableCell>
-                  <TableCell className="text-right">${(task.hourlyEarnings + task.pieceworkEarnings).toFixed(2)}</TableCell>
+                  <TableCell className="text-right">${task.totalEarnings.toFixed(2)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -161,15 +161,14 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                                                 <AccordionContent className="space-y-4 pl-4">
                                                     <DailyBreakdownDisplay breakdown={week.dailyBreakdown} />
                                                     <div className="border rounded-md p-4 mt-4">
-                                                    <h5 className="font-semibold mb-2">Week {week.weekNumber} Financial Summary</h5>
+                                                    <h5 className="font-semibold mb-2">Week {week.weekNumber} Summary</h5>
                                                     <Table>
                                                         <TableBody>
                                                             <TableRow><TableCell>Total Hours Worked</TableCell><TableCell className="text-right">{week.totalHours.toFixed(2)}</TableCell></TableRow>
-                                                            <TableRow><TableCell>Total Earnings (Hourly + Piecework)</TableCell><TableCell className="text-right">${week.totalEarnings.toFixed(2)}</TableCell></TableRow>
-                                                            <TableRow><TableCell>Effective Hourly Rate</TableCell><TableCell className="text-right">${week.effectiveHourlyRate.toFixed(2)}</TableCell></TableRow>
-                                                            <TableRow><TableCell>Paid Rest Breaks (10 min / 4 hrs)</TableCell><TableCell className="text-right">+ ${week.paidRestBreaksTotal.toFixed(2)}</TableCell></TableRow>
-                                                            {week.minimumWageTopUp > 0 && <TableRow className="bg-amber-100 dark:bg-amber-900/50"><TableCell className="font-semibold">Minimum Wage Top-up</TableCell><TableCell className="text-right font-semibold">+ ${week.minimumWageTopUp.toFixed(2)}</TableCell></TableRow>}
                                                         </TableBody>
+                                                         <TableFooter>
+                                                            <TableRow className="font-semibold"><TableCell>Total Weekly Earnings</TableCell><TableCell className="text-right">${week.totalEarnings.toFixed(2)}</TableCell></TableRow>
+                                                        </TableFooter>
                                                     </Table>
                                                     </div>
                                                 </AccordionContent>
@@ -180,11 +179,6 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                                     <div className="border rounded-md p-4 bg-muted/50">
                                         <h4 className="font-semibold text-lg mb-2">Employee Pay Summary for Period</h4>
                                         <Table>
-                                            <TableBody>
-                                                <TableRow><TableCell>Subtotal Earnings</TableCell><TableCell className="text-right">${employee.overallTotalEarnings.toFixed(2)}</TableCell></TableRow>
-                                                <TableRow><TableCell>Total Paid Rest Breaks</TableCell><TableCell className="text-right">+ ${employee.overallTotalPaidRestBreaks.toFixed(2)}</TableCell></TableRow>
-                                                {employee.overallTotalMinimumWageTopUp > 0 && <TableRow><TableCell>Total Minimum Wage Top-up</TableCell><TableCell className="text-right">+ ${employee.overallTotalMinimumWageTopUp.toFixed(2)}</TableCell></TableRow>}
-                                            </TableBody>
                                             <TableFooter>
                                             <TableRow className="text-lg font-bold"><TableCell>Final Pay</TableCell><TableCell className="text-right">${employee.finalPay.toFixed(2)}</TableCell></TableRow>
                                             </TableFooter>
