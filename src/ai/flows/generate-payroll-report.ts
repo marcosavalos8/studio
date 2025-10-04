@@ -192,14 +192,14 @@ const processPayrollData = ai.defineTool(
             const dailyBreakdown: DailyBreakdown[] = Object.entries(week.dailyBreakdown).map(([date, dayData]) => {
                 const tasks = Object.values(dayData.tasks);
                 let totalDailyHours = 0;
-                let totalDailyEarnings = 0;
-
+                
                 tasks.forEach(task => {
                     task.totalEarnings = task.hourlyEarnings + task.pieceworkEarnings;
                     totalDailyHours += task.hours;
-                    totalDailyEarnings += task.totalEarnings;
                 });
                 
+                const totalDailyEarnings = tasks.reduce((acc, t) => acc + t.totalEarnings, 0);
+
                 return {
                     date,
                     tasks: tasks,
