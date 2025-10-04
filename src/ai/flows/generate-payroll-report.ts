@@ -144,11 +144,8 @@ const processPayrollData = ai.defineTool(
         }
         
         const empPiecework = piecework.filter((pw: Piecework) => {
-            const employeeIdsInEntry = String(pw.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
-            const employeeInvolved = employeeIdsInEntry.some(qrOrId => {
-              return qrOrId === employee.id || qrOrId === employee.qrCode;
-            });
-            return employeeInvolved;
+             const employeeIdsInEntry = String(pw.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
+             return employeeIdsInEntry.some(idOrQr => idOrQr === employee.id || idOrQr === employee.qrCode);
           });
 
          for (const entry of empPiecework) {
