@@ -99,7 +99,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
 
         const [pieceLogsSnap, timeLogsSnap] = await Promise.all([
             getDocs(pieceLogsQuery),
-            getDocs(timeLogsSnap)
+            getDocs(timeLogsQuery)
         ]);
         
         // Then filter by client's tasks in code
