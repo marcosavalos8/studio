@@ -1,10 +1,11 @@
+
 'use client'
 
 import * as React from "react"
 import { useActionState } from "react"
 import { useFormStatus } from "react-dom"
 import { format } from "date-fns"
-import { Calendar as CalendarIcon, Loader2, Download, Printer, Mail, MoreVertical, ChevronDown, Users } from "lucide-react"
+import { Calendar as CalendarIcon, Loader2, Download, Printer, Mail, MoreVertical, ChevronDown, Users, DollarSign } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -44,6 +45,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 function SubmitButton({disabled}: {disabled: boolean}) {
@@ -232,6 +234,7 @@ export function PayrollForm() {
   const [state, formAction] = useActionState(generateReportAction, initialState)
   const [date, setDate] = React.useState<DateRange | undefined>()
   const [payDate, setPayDate] = React.useState<Date | undefined>(new Date())
+  const [minimumWage, setMinimumWage] = React.useState<number | string>(16.28);
   const [isFetchingData, setIsFetchingData] = React.useState(false);
   const { toast } = useToast()
   const firestore = useFirestore();
@@ -375,7 +378,6 @@ export function PayrollForm() {
 
   const jsonData = getFilteredJsonData();
   const allEmployeesSelected = employeesInRange.length > 0 && selectedEmployeeIds.size === employeesInRange.length;
-  const someEmployeesSelected = selectedEmployeeIds.size > 0 && selectedEmployeeIds.size < employeesInRange.length;
 
   return (
     <form action={formAction}>
@@ -445,9 +447,25 @@ export function PayrollForm() {
                     </PopoverContent>
                 </Popover>
             </div>
+            <div>
+              <Label htmlFor="min-wage">Minimum Wage ($/hr)</Label>
+              <div className="relative">
+                <DollarSign className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="min-wage"
+                  name="minimumWage"
+                  type="number"
+                  step="0.01"
+                  value={minimumWage}
+                  onChange={(e) => setMinimumWage(e.target.value)}
+                  className="pl-8"
+                  placeholder="16.28"
+                />
+              </div>
+            </div>
         </div>
         <div>
-          <SubmitButton disabled={!date || !jsonData || isFetchingData || !payDate || selectedEmployeeIds.size === 0} />
+          <SubmitButton disabled={!date || !jsonData || isFetchingData || !payDate || selectedEmployeeIds.size === 0 || !minimumWage} />
            {isFetchingData && <p className="text-xs text-muted-foreground mt-2 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin"/>Fetching data for selected range...</p>}
            {!isFetchingData && employeesInRange.length > 0 && <p className="text-xs text-muted-foreground mt-2">{selectedEmployeeIds.size} of {employeesInRange.length} employees selected.</p>}
         </div>
@@ -504,6 +522,7 @@ export function PayrollForm() {
       {date?.from && <input type="hidden" name="from" value={format(date.from, 'yyyy-MM-dd')} />}
       {date?.to && <input type="hidden" name="to" value={format(date.to, 'yyyy-MM-dd')} />}
       {payDate && <input type="hidden" name="payDate" value={format(payDate, 'yyyy-MM-dd')} />}
+      {minimumWage && <input type="hidden" name="minimumWage" value={minimumWage} />}
       {jsonData && <input type="hidden" name="jsonData" value={jsonData} />}
       
       {state.report && <ReportDisplay report={state.report} />}

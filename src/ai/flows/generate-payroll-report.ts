@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -18,6 +19,7 @@ const GeneratePayrollReportInputSchema = z.object({
   startDate: z.string().describe('The start date for the payroll report (YYYY-MM-DD).'),
   endDate: z.string().describe('The end date for the payroll report (YYYY-MM-DD).'),
   payDate: z.string().describe('The date the payment is issued (YYYY-MM-DD).'),
+  minimumWage: z.number().describe('The applicable minimum wage for this payroll report.'),
   jsonData: z.string().describe('A JSON string containing all necessary payroll data.'),
 });
 export type GeneratePayrollReportInput = z.infer<typeof GeneratePayrollReportInputSchema>;
@@ -92,7 +94,7 @@ const processPayrollData = ai.defineTool(
   async (input) => {
     const data = JSON.parse(input.jsonData);
     const { employees, tasks, timeEntries, piecework, clients } = data;
-    const WA_MINIMUM_WAGE = 16.28;
+    const MINIMUM_WAGE = input.minimumWage;
     const employeeSummaries: z.infer<typeof EmployeePayrollSummarySchema>[] = [];
     
     const clientMap = new Map(clients.map((c: any) => [c.id, c.name]));
@@ -171,12 +173,12 @@ const processPayrollData = ai.defineTool(
             let effectiveHourlyRate = week.totalHours > 0 ? totalEarnings / week.totalHours : 0;
             
             let minimumWageTopUp = 0;
-            if (week.totalHours > 0 && effectiveHourlyRate < WA_MINIMUM_WAGE) {
-                minimumWageTopUp = (WA_MINIMUM_WAGE * week.totalHours) - totalEarnings;
+            if (week.totalHours > 0 && effectiveHourlyRate < MINIMUM_WAGE) {
+                minimumWageTopUp = (MINIMUM_WAGE * week.totalHours) - totalEarnings;
             }
 
             const totalEarningsWithTopUp = totalEarnings + minimumWageTopUp;
-            const regularRateOfPay = week.totalHours > 0 ? totalEarningsWithTopUp / week.totalHours : WA_MINIMUM_WAGE;
+            const regularRateOfPay = week.totalHours > 0 ? totalEarningsWithTopUp / week.totalHours : MINIMUM_WAGE;
 
             const restBreakMinutes = Math.floor(week.totalHours / 4) * 10;
             const paidRestBreaksTotal = (restBreakMinutes / 60) * regularRateOfPay;
