@@ -99,7 +99,6 @@ const processPayrollData = ai.defineTool(
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
     
-    // Universal employee map: find by ID or QR code
     const employeeIdMap = new Map(employees.map((e: Employee) => [e.id, e]));
     const employeeQrMap = new Map(employees.map((e: Employee) => [e.qrCode, e]));
     const findEmployee = (identifier: string): Employee | undefined => {
@@ -108,7 +107,6 @@ const processPayrollData = ai.defineTool(
 
 
     // --- Phase 1: Aggregate Raw Data ---
-    // Structure: { employeeId: { "YYYY-MM-DD": { taskId: { hours: X, pieces: Y } } } }
     const workData: Record<string, Record<string, Record<string, { hours: number, pieces: number }>>> = {};
 
     const reportInterval = {
@@ -116,10 +114,7 @@ const processPayrollData = ai.defineTool(
         end: startOfDay(parseISO(input.endDate)),
     };
     
-    // Initialize structure for all selected employees in the report
-    for (const employee of employees) {
-        workData[employee.id] = {};
-    }
+    employees.forEach((emp: Employee) => workData[emp.id] = {});
 
     // Process time entries
     for (const entry of timeEntries) {
@@ -174,7 +169,6 @@ const processPayrollData = ai.defineTool(
         const empWork = workData[employee.id];
         if (!empWork || Object.keys(empWork).length === 0) continue;
 
-        // Group daily work by week
         const workByWeek: Record<string, Record<string, any>> = {};
         for (const dayKey in empWork) {
             const date = parseISO(dayKey);
@@ -316,5 +310,3 @@ const generatePayrollReportFlow = ai.defineFlow(
     return processedData;
   }
 );
-
-    

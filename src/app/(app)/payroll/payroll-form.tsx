@@ -82,8 +82,8 @@ export function PayrollForm() {
             const clients = clientsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client));
 
             const timeEntriesQuery = query(collection(firestore, 'time_entries'),
-                where('timestamp', '>=', start),
-                where('timestamp', '<=', end)
+                where('timestamp', '>=', Timestamp.fromDate(start)),
+                where('timestamp', '<=', Timestamp.fromDate(end))
             );
             const timeEntriesSnap = await getDocs(timeEntriesQuery);
             const timeEntries = timeEntriesSnap.docs.map(doc => {
@@ -97,8 +97,8 @@ export function PayrollForm() {
             });
 
             const pieceworkQuery = query(collection(firestore, 'piecework'),
-                where('timestamp', '>=', start),
-                where('timestamp', '<=', end)
+                where('timestamp', '>=', Timestamp.fromDate(start)),
+                where('timestamp', '<=', Timestamp.fromDate(end))
             );
             const pieceworkSnap = await getDocs(pieceworkQuery);
             const piecework = pieceworkSnap.docs.map(doc => {
