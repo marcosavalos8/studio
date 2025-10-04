@@ -148,7 +148,7 @@ const processPayrollData = ai.defineTool(
 
         // Process piecework entries
         const empPiecework = piecework.filter((pw: any) => {
-            const employeeIds = pw.employeeId.split(',');
+            const employeeIds = String(pw.employeeId || '').split(',');
             return employeeIds.includes(employee.id);
         });
 
@@ -173,8 +173,8 @@ const processPayrollData = ai.defineTool(
                 }
 
                 if (task.employeePayType === 'piecework') {
-                    const employeeIdsInEntry = entry.employeeId.split(',');
-                    const numEmployees = employeeIdsInEntry.length;
+                    const employeeIdsInEntry = String(entry.employeeId || '').split(',');
+                    const numEmployees = employeeIdsInEntry.length > 0 ? employeeIdsInEntry.length : 1;
                     const individualPieceCount = entry.pieceCount / numEmployees;
                     const individualEarnings = individualPieceCount * task.employeeRate;
 
@@ -282,5 +282,3 @@ const generatePayrollReportFlow = ai.defineFlow(
     return processedData;
   }
 );
-
-    

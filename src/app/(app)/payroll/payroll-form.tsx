@@ -97,8 +97,7 @@ function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData[
   )
 }
 
-
-export function ReportDisplay({ report, onClose }: { report: ProcessedPayrollData, onClose: () => void }) {
+function ReportDisplay({ report, onClose }: { report: ProcessedPayrollData; onClose: () => void; }) {
   const overallTotal = report.employeeSummaries.reduce((acc, emp) => acc + emp.finalPay, 0);
 
   const handlePrint = () => {
@@ -239,9 +238,8 @@ const initialState = {
   error: undefined,
 }
 
-export function PayrollForm() {
+function PayrollFormGenerator() {
   const [state, formAction] = useActionState(generateReportAction, initialState)
-  const [showReport, setShowReport] = React.useState(false);
   const [date, setDate] = React.useState<DateRange | undefined>()
   const [payDate, setPayDate] = React.useState<Date | undefined>(new Date())
   const [isFetchingData, setIsFetchingData] = React.useState(false);
@@ -251,11 +249,8 @@ export function PayrollForm() {
   const [allData, setAllData] = React.useState<any>(null);
   const [employeesInRange, setEmployeesInRange] = React.useState<Employee[]>([]);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = React.useState<Set<string>>(new Set());
-
+  
   React.useEffect(() => {
-    if (state.report) {
-      setShowReport(true);
-    }
     if (state.error) {
       toast({
         variant: "destructive",
@@ -321,8 +316,12 @@ export function PayrollForm() {
             const employeeIdsWithActivity = new Set<string>();
             timeEntries.forEach(entry => employeeIdsWithActivity.add(entry.employeeId));
             piecework.forEach(entry => {
-              const ids = entry.employeeId.split(',');
-              ids.forEach((id: string) => employeeIdsWithActivity.add(id.trim()));
+              const ids = String(entry.employeeId || '').split(',');
+              ids.forEach((id: string) => {
+                if (id.trim()) {
+                    employeeIdsWithActivity.add(id.trim())
+                }
+              });
             });
 
             const activeEmployees = Array.from(employeeIdsWithActivity)
@@ -374,7 +373,7 @@ export function PayrollForm() {
     const filteredEmployees = allData.allEmployees.filter((e: Employee) => selectedEmployeeIds.has(e.id));
     const filteredTimeEntries = allData.timeEntries.filter((te: TimeEntry) => selectedEmployeeIds.has(te.employeeId));
     const filteredPiecework = allData.piecework.filter((pw: Piecework) => {
-        const ids = pw.employeeId.split(',');
+        const ids = String(pw.employeeId || '').split(',');
         return ids.some(id => selectedEmployeeIds.has(id.trim()));
     });
 
@@ -390,8 +389,12 @@ export function PayrollForm() {
   const jsonData = getFilteredJsonData();
   const allEmployeesSelected = employeesInRange.length > 0 && selectedEmployeeIds.size === employeesInRange.length;
 
-  if (state.report && showReport) {
-    return <ReportDisplay report={state.report} onClose={() => setShowReport(false)} />;
+  if (state.report) {
+    return <ReportDisplay report={state.report} onClose={() => { 
+        // This is a bit of a hack to reset the form action state.
+        // There isn't a built-in way to do this with useActionState yet.
+        window.location.reload(); 
+    }} />;
   }
 
   return (
@@ -467,7 +470,8 @@ export function PayrollForm() {
           <div>
             <SubmitButton disabled={!date || !jsonData || isFetchingData || !payDate || selectedEmployeeIds.size === 0} />
              {isFetchingData && <p className="text-xs text-muted-foreground mt-2 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin"/>Fetching data for selected range...</p>}
-             {!isFetchingData && employeesInRange.length > 0 && <p className="text-xs text-muted-foreground mt-2">{selectedEmployeeIds.size} of {employeesInRange.length} employees selected.</p>}
+             {!isFetchingData && date?.from && employeesInRange.length > 0 && <p className="text-xs text-muted-foreground mt-2">{selectedEmployeeIds.size} of {employeesInRange.length} employees selected.</p>}
+             {!isFetchingData && date?.from && employeesInRange.length === 0 && <p className="text-xs text-amber-600 mt-2">No employee activity found for this date range.</p>}
           </div>
         </div>
         
@@ -526,4 +530,8 @@ export function PayrollForm() {
       </form>
     </div>
   )
+}
+
+export function PayrollForm() {
+    return <PayrollFormGenerator />
 }
