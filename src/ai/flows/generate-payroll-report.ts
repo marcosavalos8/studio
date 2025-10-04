@@ -10,7 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
-import { getWeek, getYear, format, startOfDay } from 'date-fns';
+import { getWeek, getYear, format, startOfDay, parseISO } from 'date-fns';
 import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail, Employee, Piecework, TimeEntry } from '@/lib/types';
 
 
@@ -96,7 +96,7 @@ const processPayrollData = ai.defineTool(
     const { employees, tasks, timeEntries, piecework, clients } = data;
     
     const employeeSummaries: EmployeePayrollSummary[] = [];
-    
+
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
     
@@ -104,29 +104,46 @@ const processPayrollData = ai.defineTool(
     const employeeIdMap = new Map(employees.map((e: Employee) => [e.id, e]));
     const employeeQrMap = new Map(employees.map((e: Employee) => [e.qrCode, e]));
 
+    // Helper to find employee from either map
+    const findEmployee = (identifier: string): Employee | undefined => {
+        return employeeIdMap.get(identifier) || employeeQrMap.get(identifier);
+    }
+    
+    const startDate = parseISO(input.startDate);
+    const endDate = parseISO(input.endDate);
+
     for (const employee of employees) {
+      if (!employee.id) continue;
+
       // Phase 1: Aggregate Raw Data (Hours and Pieces) per employee
       const empWorkData: Record<string, { hours: number; pieceworkCount: number; taskId: string }> = {}; // Key: "dayKey-taskId"
 
-      const empTimeEntries: TimeEntry[] = timeEntries.filter((te: any) => te.employeeId === employee.id && te.timestamp && te.endTime);
+      const empTimeEntries: TimeEntry[] = timeEntries.filter((te: any) => {
+         const entryDate = parseISO(te.timestamp);
+         return te.employeeId === employee.id && te.endTime && entryDate >= startDate && entryDate <= endDate;
+      });
+
       for (const entry of empTimeEntries) {
-        const start = new Date(entry.timestamp);
+        const start = parseISO(entry.timestamp);
         const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
         const mapKey = `${dayKey}-${entry.taskId}`;
         
         if (!empWorkData[mapKey]) empWorkData[mapKey] = { hours: 0, pieceworkCount: 0, taskId: entry.taskId };
         
-        const hours = (new Date(entry.endTime as Date).getTime() - start.getTime()) / (1000 * 60 * 60);
+        const hours = (parseISO(entry.endTime as any).getTime() - start.getTime()) / (1000 * 60 * 60);
         empWorkData[mapKey].hours += hours;
       }
       
       const empPiecework: Piecework[] = piecework.filter((pw: Piecework) => {
+         const entryDate = parseISO(pw.timestamp as any);
+         if (entryDate < startDate || entryDate > endDate) return false;
+         
          const employeeIdsInEntry = String(pw.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
-         return employeeIdsInEntry.includes(employee.id) || employeeIdsInEntry.includes(employee.qrCode);
+         return employeeIdsInEntry.some(id => id === employee.id || id === employee.qrCode);
       });
 
       for (const entry of empPiecework) {
-        const start = new Date(entry.timestamp);
+        const start = parseISO(entry.timestamp as any);
         const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
         const mapKey = `${dayKey}-${entry.taskId}`;
 
@@ -143,7 +160,7 @@ const processPayrollData = ai.defineTool(
       const workByWeek: Record<string, Record<string, { hours: number; pieceworkCount: number; taskId: string }>> = {};
       for (const mapKey in empWorkData) {
           const [dayKey, taskId] = mapKey.split('-');
-          const start = new Date(dayKey);
+          const start = parseISO(dayKey);
           const weekKey = `${getYear(start)}-${getWeek(start, { weekStartsOn: 1 })}`;
           if (!workByWeek[weekKey]) workByWeek[weekKey] = {};
           workByWeek[weekKey][mapKey] = empWorkData[mapKey];
@@ -157,6 +174,7 @@ const processPayrollData = ai.defineTool(
         let weeklyTotalHours = 0;
         let weeklyTotalPieceworkEarnings = 0;
         let weeklyTotalHourlyEarnings = 0;
+        let weeklyTotalEarnings = 0;
         const clientIdsInWeek = new Set<string>();
         const dailyBreakdownsForWeek: DailyBreakdown[] = [];
 
@@ -211,12 +229,12 @@ const processPayrollData = ai.defineTool(
             });
 
             weeklyTotalHours += dailyTotalHours;
+            weeklyTotalEarnings += dailyTotalEarnings;
             weeklyTotalHourlyEarnings += taskDetailsForDay.reduce((acc, t) => acc + t.hourlyEarnings, 0);
             weeklyTotalPieceworkEarnings += taskDetailsForDay.reduce((acc, t) => acc + t.pieceworkEarnings, 0);
         }
         
         const [year, weekNumber] = weekKey.split('-').map(Number);
-        const weeklyTotalEarnings = weeklyTotalHourlyEarnings + weeklyTotalPieceworkEarnings;
         
         const clientWages = Array.from(clientIdsInWeek).map(id => (clientMap.get(id) as any)?.minimumWage).filter(Boolean) as number[];
         const applicableMinimumWage = clientWages.length > 0 ? Math.max(...clientWages) : STATE_MINIMUM_WAGE;

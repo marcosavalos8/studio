@@ -116,7 +116,10 @@ export function PayrollForm() {
               const ids = String(entry.employeeId || '').split(',');
               ids.forEach((id: string) => {
                 if (id.trim()) {
-                    employeeIdsWithActivity.add(id.trim())
+                    const emp = allEmployees.find(e => e.id === id.trim() || e.qrCode === id.trim());
+                    if (emp) {
+                      employeeIdsWithActivity.add(emp.id);
+                    }
                 }
               });
             });
