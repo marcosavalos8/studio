@@ -109,6 +109,9 @@ function InvoiceDisplay({ invoice, onClose }: { invoice: InvoiceData; onClose: (
                     width: 100%;
                     padding: 1rem;
                 }
+                .print\:hidden {
+                    display: none;
+                }
             }
         `}</style>
          <Button onClick={onClose} className="mb-4 print:hidden">
@@ -349,8 +352,8 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
   }
 
   return (
-    <div>
-      <div className="grid gap-4 sm:grid-cols-3 print:hidden">
+    <div className="print:hidden">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Select onValueChange={(value) => setSelectedClient(clients.find(c => c.id === value))}>
           <SelectTrigger>
             <SelectValue placeholder="Select a client" />
