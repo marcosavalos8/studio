@@ -4,7 +4,7 @@ import * as React from "react"
 import { useActionState } from "react"
 import { useFormStatus } from "react-dom"
 import { format } from "date-fns"
-import { Calendar as CalendarIcon, Loader2, Download, Printer, Mail, MoreVertical, ChevronDown } from "lucide-react"
+import { Calendar as CalendarIcon, Loader2, Download, Printer, Mail, MoreVertical, ChevronDown, Users } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -20,11 +20,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
 import { generateReportAction } from "./actions"
 import type { DateRange } from "react-day-picker"
 import { useFirestore } from "@/firebase"
-import { collection, query, where, Timestamp, getDocs } from 'firebase/firestore'
+import { collection, query, where, Timestamp, getDocs, doc } from 'firebase/firestore'
 import { Client, Employee, Piecework, Task, TimeEntry } from "@/lib/types"
 import type { ProcessedPayrollData } from "@/ai/flows/generate-payroll-report"
 import { 
@@ -43,6 +44,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 function SubmitButton({disabled}: {disabled: boolean}) {
   const { pending } = useFormStatus()
@@ -228,10 +230,13 @@ export function PayrollForm() {
   const [state, formAction] = useActionState(generateReportAction, initialState)
   const [date, setDate] = React.useState<DateRange | undefined>()
   const [payDate, setPayDate] = React.useState<Date | undefined>(new Date())
-  const [jsonData, setJsonData] = React.useState<string | null>(null);
   const [isFetchingData, setIsFetchingData] = React.useState(false);
   const { toast } = useToast()
   const firestore = useFirestore();
+
+  const [allData, setAllData] = React.useState<any>(null);
+  const [employeesInRange, setEmployeesInRange] = React.useState<Employee[]>([]);
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = React.useState<Set<string>>(new Set());
 
   React.useEffect(() => {
     if (state.error) {
@@ -246,7 +251,9 @@ export function PayrollForm() {
   React.useEffect(() => {
     const fetchPayrollData = async () => {
         if (!date?.from || !date.to || !firestore) {
-            setJsonData(null);
+            setAllData(null);
+            setEmployeesInRange([]);
+            setSelectedEmployeeIds(new Set());
             return;
         }
 
@@ -256,7 +263,8 @@ export function PayrollForm() {
             const end = date.to;
 
             const employeesSnap = await getDocs(collection(firestore, 'employees'));
-            const employees = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+            const allEmployees = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+            const allEmployeesMap = new Map(allEmployees.map(e => [e.id, e]));
 
             const tasksSnap = await getDocs(collection(firestore, 'tasks'));
             const tasks = tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
@@ -292,14 +300,24 @@ export function PayrollForm() {
                     timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || null,
                 } as any;
             });
+            
+            const employeeIdsWithActivity = new Set<string>();
+            timeEntries.forEach(entry => employeeIdsWithActivity.add(entry.employeeId));
+            piecework.forEach(entry => {
+              // Handle both single and shared piecework employee IDs
+              const ids = entry.employeeId.split(',');
+              ids.forEach((id: string) => employeeIdsWithActivity.add(id));
+            });
 
-            setJsonData(JSON.stringify({
-                employees,
-                tasks,
-                clients,
-                timeEntries,
-                piecework
-            }));
+            const activeEmployees = Array.from(employeeIdsWithActivity)
+                .map(id => allEmployeesMap.get(id))
+                .filter((e): e is Employee => !!e)
+                .sort((a,b) => a.name.localeCompare(b.name));
+            
+            setAllData({ allEmployees, tasks, clients, timeEntries, piecework });
+            setEmployeesInRange(activeEmployees);
+            setSelectedEmployeeIds(new Set(activeEmployees.map(e => e.id)));
+
         } catch (error) {
             console.error("Failed to fetch payroll data:", error);
             toast({
@@ -307,7 +325,7 @@ export function PayrollForm() {
                 title: "Data Fetch Error",
                 description: "Could not fetch payroll data from Firestore. Please check console for details."
             });
-            setJsonData(null);
+            setAllData(null);
         } finally {
             setIsFetchingData(false);
         }
@@ -316,9 +334,50 @@ export function PayrollForm() {
     fetchPayrollData();
   }, [date, firestore, toast]);
 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+        setSelectedEmployeeIds(new Set(employeesInRange.map(e => e.id)));
+    } else {
+        setSelectedEmployeeIds(new Set());
+    }
+  };
+
+  const handleEmployeeSelect = (employeeId: string, checked: boolean) => {
+    const newSet = new Set(selectedEmployeeIds);
+    if (checked) {
+        newSet.add(employeeId);
+    } else {
+        newSet.delete(employeeId);
+    }
+    setSelectedEmployeeIds(newSet);
+  };
+
+  const getFilteredJsonData = () => {
+    if (!allData) return null;
+    
+    const filteredEmployees = allData.allEmployees.filter((e: Employee) => selectedEmployeeIds.has(e.id));
+    const filteredTimeEntries = allData.timeEntries.filter((te: TimeEntry) => selectedEmployeeIds.has(te.employeeId));
+    const filteredPiecework = allData.piecework.filter((pw: Piecework) => {
+        const ids = pw.employeeId.split(',');
+        return ids.some(id => selectedEmployeeIds.has(id));
+    });
+
+    return JSON.stringify({
+        employees: filteredEmployees,
+        tasks: allData.tasks,
+        clients: allData.clients,
+        timeEntries: filteredTimeEntries,
+        piecework: filteredPiecework
+    });
+  }
+
+  const jsonData = getFilteredJsonData();
+  const allEmployeesSelected = employeesInRange.length > 0 && selectedEmployeeIds.size === employeesInRange.length;
+  const someEmployeesSelected = selectedEmployeeIds.size > 0 && selectedEmployeeIds.size < employeesInRange.length;
+
   return (
     <form action={formAction}>
-      <div className="grid gap-4 sm:grid-cols-2 print:hidden">
+      <div className="grid gap-4 sm:grid-cols-2 print:hidden mb-4">
         <div className="grid gap-4">
             <div>
               <Label>Period</Label>
@@ -386,14 +445,64 @@ export function PayrollForm() {
             </div>
         </div>
         <div>
-          <SubmitButton disabled={!date || !jsonData || isFetchingData || !payDate} />
+          <SubmitButton disabled={!date || !jsonData || isFetchingData || !payDate || selectedEmployeeIds.size === 0} />
            {isFetchingData && <p className="text-xs text-muted-foreground mt-2 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin"/>Fetching data for selected range...</p>}
+           {!isFetchingData && employeesInRange.length > 0 && <p className="text-xs text-muted-foreground mt-2">{selectedEmployeeIds.size} of {employeesInRange.length} employees selected.</p>}
         </div>
-          {date?.from && <input type="hidden" name="from" value={format(date.from, 'yyyy-MM-dd')} />}
-          {date?.to && <input type="hidden" name="to" value={format(date.to, 'yyyy-MM-dd')} />}
-          {payDate && <input type="hidden" name="payDate" value={format(payDate, 'yyyy-MM-dd')} />}
-          {jsonData && <input type="hidden" name="jsonData" value={jsonData} />}
       </div>
+      
+      {isFetchingData && (
+        <div className="mt-4">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            <p className="text-muted-foreground">Finding employees with activity...</p>
+        </div>
+      )}
+
+      {!isFetchingData && employeesInRange.length > 0 && (
+         <Card className="print:hidden">
+            <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Users className="h-5 w-5"/>
+                        <span>Include Employees in Payroll</span>
+                    </div>
+                     <div className="flex items-center space-x-2">
+                        <Checkbox 
+                            id="select-all" 
+                            checked={allEmployeesSelected}
+                            onCheckedChange={handleSelectAll}
+                        />
+                        <label
+                          htmlFor="select-all"
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          Select All
+                        </label>
+                      </div>
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {employeesInRange.map(employee => (
+                    <div key={employee.id} className="flex items-center space-x-2">
+                        <Checkbox
+                            id={`employee-${employee.id}`}
+                            checked={selectedEmployeeIds.has(employee.id)}
+                            onCheckedChange={(checked) => handleEmployeeSelect(employee.id, !!checked)}
+                        />
+                        <label htmlFor={`employee-${employee.id}`} className="text-sm font-medium leading-none">
+                            {employee.name}
+                        </label>
+                    </div>
+                ))}
+            </CardContent>
+         </Card>
+      )}
+
+
+      {date?.from && <input type="hidden" name="from" value={format(date.from, 'yyyy-MM-dd')} />}
+      {date?.to && <input type="hidden" name="to" value={format(date.to, 'yyyy-MM-dd')} />}
+      {payDate && <input type="hidden" name="payDate" value={format(payDate, 'yyyy-MM-dd')} />}
+      {jsonData && <input type="hidden" name="jsonData" value={jsonData} />}
       
       {state.report && <ReportDisplay report={state.report} />}
     </form>
