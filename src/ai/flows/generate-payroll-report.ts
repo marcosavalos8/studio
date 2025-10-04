@@ -48,16 +48,17 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
             if (!pw.timestamp || !isWithinInterval(parseISO(String(pw.timestamp)), reportInterval)) {
                 return false;
             }
+            // An employee can be identified by ID or QR code in a shared ticket
             const employeeIdsOnTicket = String(pw.employeeId).split(',').map(id => id.trim());
-            // This can check against ID or QR code. The payroll form now sends full employee objects.
             return employeeIdsOnTicket.some(idOrQr => idOrQr === employee.id || idOrQr === employee.qrCode);
         });
         
         const workByWeek: Record<string, { time: TimeEntry[], pieces: Piecework[] }> = {};
 
-        // Group all work entries by week
+        // Group all work entries by week. This pre-populates the weeks to ensure we process them.
         const allWorkEntries = [...empTimeEntries, ...empPiecework];
         if (allWorkEntries.length > 0 && allWorkEntries[0].timestamp) {
+            // Determine the range of dates with activity to avoid iterating over empty dates.
             const firstDate = allWorkEntries.reduce((min, entry) => {
                 const d = parseISO(String(entry.timestamp));
                 return d < min ? d : min;
@@ -215,7 +216,6 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
         
         const totalPayForPeriod = weeklySummaries.reduce((acc, week) => acc + week.finalPay, 0);
 
-        // Always push the employee summary, even if pay is zero, to ensure all selected employees are in the report.
         employeeSummaries.push({
             employeeId: employee.id,
             employeeName: employee.name,
