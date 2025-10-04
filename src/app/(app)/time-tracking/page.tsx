@@ -31,7 +31,6 @@ import { useToast } from "@/hooks/use-toast"
 import { QrCode, ClipboardEdit, Users, User, CheckCircle, Package, LogIn, LogOut, Loader2, VideoOff } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
-import JSConfetti from 'js-confetti'
 import { useCollection, useFirestore } from '@/firebase'
 import { collection, query, where, getDocs, writeBatch, doc, addDoc, updateDoc } from 'firebase/firestore'
 import type { Task, TimeEntry, Piecework, Employee, Client } from '@/lib/types'
@@ -49,6 +48,7 @@ const QrScanner = dynamic(() => import('./qr-scanner').then(mod => mod.QrScanner
 type ScanMode = 'clock-in' | 'clock-out' | 'piece';
 type ManualLogType = 'clock-in' | 'clock-out' | 'start-break' | 'end-break' | 'piecework';
 type PieceEntryMode = 'scan' | 'manual';
+type SoundType = 'clock-in' | 'clock-out' | 'piece';
 
 
 function TimeTrackingPage() {
@@ -61,7 +61,7 @@ function TimeTrackingPage() {
   
   const [scannedSharedEmployees, setScannedSharedEmployees] = useState<string[]>([]);
 
-  const [jsConfetti, setJsConfetti] = useState<JSConfetti | null>(null);
+  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
 
   // Bulk clock out
   const [isBulkClockingOut, setIsBulkClockingOut] = useState(false);
@@ -87,8 +87,8 @@ function TimeTrackingPage() {
   const [isManualSubmitting, setIsManualSubmitting] = useState(false);
 
   // Debounce state
-  const [recentScans, setRecentScans] = useState<{ employeeId: string; taskId: string; mode: ScanMode; timestamp: number }[]>([]);
-  const DEBOUNCE_MS = 5000; // 5 seconds
+  const [recentScans, setRecentScans] = useState<{ scanData: string; mode: ScanMode; timestamp: number }[]>([]);
+  const DEBOUNCE_MS = 3000; // 3 seconds
 
   const clientsQuery = useMemo(() => {
     if (!firestore) return null
@@ -142,10 +142,47 @@ function TimeTrackingPage() {
     return activeEmployees.filter(emp => emp.name.toLowerCase().includes(manualEmployeeSearch.toLowerCase()));
   }, [activeEmployees, manualEmployeeSearch]);
 
-
   useEffect(() => {
-    setJsConfetti(new JSConfetti());
-  }, []);
+    // Creating AudioContext on user interaction is best practice
+    const initializeAudio = () => {
+      if (window.AudioContext && !audioContext) {
+        setAudioContext(new window.AudioContext());
+        document.removeEventListener('click', initializeAudio);
+      }
+    };
+    document.addEventListener('click', initializeAudio);
+    return () => document.removeEventListener('click', initializeAudio);
+  }, [audioContext]);
+
+  const playSound = useCallback((type: SoundType) => {
+    if (!audioContext) return;
+
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.01);
+
+    switch (type) {
+      case 'clock-in':
+        oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+        break;
+      case 'clock-out':
+        oscillator.frequency.setValueAtTime(400, audioContext.currentTime);
+        break;
+      case 'piece':
+        oscillator.frequency.setValueAtTime(600, audioContext.currentTime);
+        break;
+    }
+    oscillator.type = 'sine';
+
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.15);
+    gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.15);
+  }, [audioContext]);
 
   // Reset selections when client changes
   useEffect(() => {
@@ -202,6 +239,7 @@ function TimeTrackingPage() {
       batch.set(newTimeEntryRef, newTimeEntry);
       
       await batch.commit();
+      playSound('clock-in');
       toast({ title: "Clock In Successful", description: `Clocked in ${employee.name}.` });
     } catch(serverError) {
         const permissionError = new FirestorePermissionError({
@@ -211,7 +249,7 @@ function TimeTrackingPage() {
         });
         errorEmitter.emit('permission-error', permissionError);
     }
-  }, [firestore, toast]);
+  }, [firestore, toast, playSound]);
   
   const clockOutEmployee = useCallback(async (employee: Employee, taskId: string) => {
     if (!firestore) return;
@@ -232,6 +270,7 @@ function TimeTrackingPage() {
                 batch.update(doc.ref, updatedData);
             });
             await batch.commit();
+            playSound('clock-out');
             toast({ title: "Clock Out Successful", description: `Clocked out ${employee.name}.` });
         }
     } catch (serverError) {
@@ -242,7 +281,7 @@ function TimeTrackingPage() {
         });
         errorEmitter.emit('permission-error', permissionError);
     }
-  }, [firestore, toast]);
+  }, [firestore, toast, playSound]);
 
   const recordPiecework = useCallback(async (employeeIds: string[], taskId: string, binQr: string) => {
     if (!firestore) return;
@@ -256,9 +295,9 @@ function TimeTrackingPage() {
     };
     try {
       await addDoc(collection(firestore, 'piecework'), newPiecework);
+      playSound('piece');
       const employeeNames = employeeIds.map(id => activeEmployees?.find(e => e.qrCode === id)?.name || 'Unknown').join(', ');
       toast({ title: "Piecework Recorded", description: `1 piece recorded for ${employeeNames}.` });
-      jsConfetti?.addConfetti({ confettiNumber: 30, confettiColors: ['#f59e0b', '#10b981', '#3b82f6'] });
     } catch(serverError) {
       const permissionError = new FirestorePermissionError({
           path: 'piecework',
@@ -267,7 +306,7 @@ function TimeTrackingPage() {
       });
       errorEmitter.emit('permission-error', permissionError);
     }
-  }, [firestore, toast, jsConfetti, activeEmployees]);
+  }, [firestore, toast, activeEmployees, playSound]);
 
 
  const handleScanResult = useCallback(async (scannedData: string) => {
@@ -275,30 +314,23 @@ function TimeTrackingPage() {
           toast({ variant: "destructive", title: "Task not selected", description: "Please select a client, ranch, block, and task before scanning." });
           return;
       }
-
       const now = Date.now();
       
-      let isDebounced = false;
-        setRecentScans(prev => {
-            const activeScans = prev.filter(scan => now - scan.timestamp < DEBOUNCE_MS);
-            isDebounced = activeScans.some(scan => 
-                scan.employeeId === scannedData && 
-                scan.taskId === selectedTask && 
-                scan.mode === scanMode
-            );
-            return activeScans;
-        });
+      const isDebounced = recentScans.some(scan => 
+          now - scan.timestamp < DEBOUNCE_MS &&
+          scan.scanData === scannedData &&
+          scan.mode === scanMode
+      );
 
       if (isDebounced) {
-          toast({ variant: "destructive", title: "Duplicate Scan", description: `This action was already performed recently.` });
-          return;
+          return; // Silently ignore debounced scans
       }
+
+      setRecentScans(prev => [...prev.filter(s => now - s.timestamp < DEBOUNCE_MS), { scanData: scannedData, mode: scanMode, timestamp: now }]);
       
       const scannedEmployee = activeEmployees?.find(e => e.qrCode === scannedData);
       
       if (scannedEmployee) {
-        setRecentScans(prev => [...prev, { employeeId: scannedData, taskId: selectedTask, mode: scanMode, timestamp: now }]);
-        
         if (scanMode === 'clock-in') {
           await clockInEmployee(scannedEmployee, selectedTask);
         } else if (scanMode === 'clock-out') {
@@ -306,27 +338,24 @@ function TimeTrackingPage() {
         } else if (scanMode === 'piece') {
            if (isSharedPiece) {
             setScannedSharedEmployees(prev => {
-              if (prev.includes(scannedEmployee.qrCode)) {
+              if (prev.includes(scannedEmployee.id)) {
                 toast({ variant: "destructive", title: "Duplicate Employee", description: `${scannedEmployee.name} is already on the list.` });
                 return prev;
               }
-              return [...prev, scannedEmployee.qrCode];
+               toast({ title: "Employee Added", description: `Added ${scannedEmployee.name} to group.` });
+               playSound('clock-in');
+              return [...prev, scannedEmployee.id];
             });
            } else {
-             setScannedSharedEmployees([scannedEmployee.qrCode]);
+             setScannedSharedEmployees([scannedEmployee.id]);
              toast({ title: "Employee Scanned", description: `${scannedEmployee.name} ready. Scan a bin.` });
+             playSound('clock-in');
            }
         }
       } else { // Not an employee QR
-        let currentScannedEmployees: string[] = [];
-        setScannedSharedEmployees(prev => {
-            currentScannedEmployees = prev;
-            return prev;
-        });
-
-        if (scanMode === 'piece' && currentScannedEmployees.length > 0) {
-          setRecentScans(prev => [...prev, { employeeId: scannedData, taskId: selectedTask, mode: scanMode, timestamp: now }]);
-          await recordPiecework(currentScannedEmployees, selectedTask, scannedData);
+        if (scanMode === 'piece' && scannedSharedEmployees.length > 0) {
+          const employeeQrCodes = scannedSharedEmployees.map(id => activeEmployees?.find(e => e.id === id)?.qrCode).filter(Boolean) as string[];
+          await recordPiecework(employeeQrCodes, selectedTask, scannedData);
           if (!isSharedPiece) {
             setScannedSharedEmployees([]);
           }
@@ -335,16 +364,7 @@ function TimeTrackingPage() {
           toast({ variant: "destructive", title: "Invalid Scan", description: errorMsg });
         }
       }
-  }, [
-    selectedTask, 
-    toast, 
-    scanMode, 
-    isSharedPiece, 
-    activeEmployees, 
-    clockInEmployee, 
-    clockOutEmployee, 
-    recordPiecework, 
-]);
+  }, [selectedTask, toast, scanMode, isSharedPiece, activeEmployees, clockInEmployee, clockOutEmployee, recordPiecework, recentScans, playSound, scannedSharedEmployees]);
 
 
   const handleManualSubmit = async () => {
@@ -377,6 +397,7 @@ function TimeTrackingPage() {
         };
         try {
           await addDoc(collection(firestore, 'piecework'), newPiecework);
+          playSound('piece');
           toast({ title: "Piecework Recorded", description: `${pieceCount} piece(s) recorded for ${manualSelectedEmployee.name}.` });
         } catch(serverError) {
           const permissionError = new FirestorePermissionError({
@@ -694,10 +715,10 @@ function TimeTrackingPage() {
                   </CardHeader>
                   <CardContent>
                       <ul className="space-y-1">
-                          {scannedSharedEmployees.map((qrCode) => {
-                              const name = activeEmployees?.find(e => e.qrCode === qrCode)?.name || qrCode;
+                          {scannedSharedEmployees.map((id) => {
+                              const name = activeEmployees?.find(e => e.id === id)?.name || id;
                               return (
-                                  <li key={qrCode} className="flex items-center gap-2 text-green-600">
+                                  <li key={id} className="flex items-center gap-2 text-green-600">
                                       <CheckCircle className="h-5 w-5" />
                                       <p className="font-mono text-sm">{name}</p>
                                   </li>
@@ -938,5 +959,4 @@ function TimeTrackingPage() {
 
 
 export default withAuth(TimeTrackingPage);
-
-  
+    
