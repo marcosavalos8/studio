@@ -8,9 +8,8 @@
  * - ProcessedPayrollData - The return type for the generatePayrollReport function, containing structured payroll data.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'zod';
-import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds } from 'date-fns';
+import { z } from 'zod';
+import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds, eachDayOfInterval, startOfWeek, endOfWeek } from 'date-fns';
 import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail, Employee, Piecework, TimeEntry } from '@/lib/types';
 
 
@@ -24,180 +23,128 @@ const GeneratePayrollReportInputSchema = z.object({
 export type GeneratePayrollReportInput = z.infer<typeof GeneratePayrollReportInputSchema>;
 
 
-const DailyTaskDetailSchema = z.object({
-  taskName: z.string(),
-  clientName: z.string(),
-  ranch: z.string().optional(),
-  block: z.string().optional(),
-  hours: z.number(),
-  pieceworkCount: z.number(),
-  totalEarnings: z.number(),
-});
-
-const DailyBreakdownSchema = z.object({
-  date: z.string().describe("The date for this entry in YYYY-MM-DD format."),
-  tasks: z.array(DailyTaskDetailSchema),
-  totalDailyHours: z.number(),
-  totalDailyEarnings: z.number(),
-});
-
-const WeeklySummarySchema = z.object({
-    weekNumber: z.number(),
-    year: z.number(),
-    totalHours: z.number(),
-    totalEarnings: z.number(), // This is the sum of raw earnings from tasks
-    minimumWageTopUp: z.number(),
-    paidRestBreaks: z.number(),
-    finalPay: z.number(), // totalEarnings + topUp + restBreaks
-    dailyBreakdown: z.array(DailyBreakdownSchema),
-});
-
-const EmployeePayrollSummarySchema = z.object({
-    employeeId: z.string(),
-    employeeName: z.string(),
-    weeklySummaries: z.array(WeeklySummarySchema),
-    finalPay: z.number(),
-});
-
-const ProcessedPayrollDataSchema = z.object({
-    startDate: z.string(),
-    endDate: z.string(),
-    payDate: z.string(),
-    employeeSummaries: z.array(EmployeePayrollSummarySchema),
-});
-
-
-// Exported function called by the server action
 export async function generatePayrollReport(input: GeneratePayrollReportInput): Promise<ProcessedPayrollData> {
     const STATE_MINIMUM_WAGE = 16.28;
     const data = JSON.parse(input.jsonData);
-    const { employees, tasks, timeEntries, piecework, clients } = data;
+    const { employees: reportEmployees, tasks, timeEntries, piecework, clients } = data;
 
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
-    const employeeMap = new Map(employees.map((e: Employee) => [e.id, e]));
-
-    // Helper to find an employee by ID or QR code from the *filtered* list of employees for the report
-    const findEmployee = (identifier: string): Employee | undefined => {
-        return employees.find((e: Employee) => e.id === identifier || e.qrCode === identifier);
-    }
 
     const reportInterval = {
         start: startOfDay(parseISO(input.startDate)),
         end: startOfDay(parseISO(input.endDate)),
     };
 
-    // employeeId -> day (yyyy-MM-dd) -> taskId -> { hours, pieces }
-    const workData: Record<string, Record<string, Record<string, { hours: number, pieces: number }>>> = {};
-
-    // 1. Aggregate all work data first
-
-    // Aggregate hours from time entries
-    timeEntries.forEach((entry: TimeEntry) => {
-        if (!entry.timestamp || !entry.endTime || !entry.employeeId || !entry.taskId) return;
-        
-        const entryStart = parseISO(String(entry.timestamp));
-        const entryEnd = parseISO(String(entry.endTime));
-
-        if (!isWithinInterval(entryStart, reportInterval)) return;
-
-        const employeeId = entry.employeeId;
-        if (!employeeMap.has(employeeId)) return; // Ensure employee is in the selected list
-
-        const hours = differenceInMilliseconds(entryEnd, entryStart) / (1000 * 60 * 60);
-        if (hours <= 0) return;
-
-        const dayKey = format(entryStart, 'yyyy-MM-dd');
-
-        if (!workData[employeeId]) workData[employeeId] = {};
-        if (!workData[employeeId][dayKey]) workData[employeeId][dayKey] = {};
-        if (!workData[employeeId][dayKey][entry.taskId]) workData[employeeId][dayKey][entry.taskId] = { hours: 0, pieces: 0 };
-        
-        workData[employeeId][dayKey][entry.taskId].hours += hours;
-    });
-
-    // Aggregate pieces from piecework entries
-    piecework.forEach((entry: Piecework) => {
-        if (!entry.timestamp || !entry.employeeId || !entry.taskId || !entry.pieceCount) return;
-        
-        const entryStart = parseISO(String(entry.timestamp));
-        if (!isWithinInterval(entryStart, reportInterval)) return;
-        
-        const employeeIdentifiers = String(entry.employeeId).split(',').map(id => id.trim()).filter(Boolean);
-        if (employeeIdentifiers.length === 0) return;
-        
-        const employeesOnTicket = employeeIdentifiers.map(findEmployee).filter((e): e is Employee => !!e);
-        if (employeesOnTicket.length === 0) return;
-
-        const pieceCountPerEmployee = entry.pieceCount / employeesOnTicket.length;
-        const dayKey = format(entryStart, 'yyyy-MM-dd');
-
-        for (const emp of employeesOnTicket) {
-             const employeeId = emp.id;
-             if (!workData[employeeId]) workData[employeeId] = {};
-             if (!workData[employeeId][dayKey]) workData[employeeId][dayKey] = {};
-             if (!workData[employeeId][dayKey][entry.taskId]) workData[employeeId][dayKey][entry.taskId] = { hours: 0, pieces: 0 };
-            
-             workData[employeeId][dayKey][entry.taskId].pieces += pieceCountPerEmployee;
-        }
-    });
-
-    // 2. Process aggregated data to calculate earnings
     const employeeSummaries: EmployeePayrollSummary[] = [];
 
-    // Iterate over employees who actually have work data in the period
-    for (const employeeId in workData) {
-        const employee = employeeMap.get(employeeId);
-        if (!employee) continue;
+    // Iterate over only the employees selected for the report
+    for (const employee of reportEmployees as Employee[]) {
+        const employeeId = employee.id;
 
-        const empWork = workData[employeeId];
-        const workByWeek: Record<string, Record<string, any>> = {};
+        // Filter work for the current employee within the date range
+        const empTimeEntries = timeEntries.filter((e: TimeEntry) => e.employeeId === employeeId && isWithinInterval(parseISO(String(e.timestamp)), reportInterval));
+        const empPiecework = piecework.filter((pw: Piecework) => {
+            const employeeIdsOnTicket = String(pw.employeeId).split(',').map(id => id.trim());
+            return (employeeIdsOnTicket.includes(employeeId) || employeeIdsOnTicket.includes(employee.qrCode)) && isWithinInterval(parseISO(String(pw.timestamp)), reportInterval);
+        });
 
-        // Group daily work into weeks (using ISO week standard where Monday is the first day)
-        for (const dayKey in empWork) {
-            const date = parseISO(dayKey);
-            const weekKey = `${getYear(date)}-${getWeek(date, { weekStartsOn: 1 })}`;
-            if (!workByWeek[weekKey]) workByWeek[weekKey] = {};
-            workByWeek[weekKey][dayKey] = empWork[dayKey];
+        if (empTimeEntries.length === 0 && empPiecework.length === 0) {
+            continue; // Skip employee if they have no activity in the period
         }
 
-        const weeklySummaries: WeeklySummary[] = [];
+        const workByWeek: Record<string, { time: TimeEntry[], pieces: Piecework[] }> = {};
+
+        // Group all work entries into weeks
+        const allDates = eachDayOfInterval(reportInterval);
+        allDates.forEach(date => {
+            const weekKey = `${getYear(date)}-${getWeek(date, { weekStartsOn: 1 })}`;
+            if (!workByWeek[weekKey]) {
+                workByWeek[weekKey] = { time: [], pieces: [] };
+            }
+        });
+
+        empTimeEntries.forEach((entry: TimeEntry) => {
+            const date = parseISO(String(entry.timestamp));
+            const weekKey = `${getYear(date)}-${getWeek(date, { weekStartsOn: 1 })}`;
+            if (workByWeek[weekKey]) {
+                workByWeek[weekKey].time.push(entry);
+            }
+        });
+
+        empPiecework.forEach((entry: Piecework) => {
+            const date = parseISO(String(entry.timestamp));
+            const weekKey = `${getYear(date)}-${getWeek(date, { weekStartsOn: 1 })}`;
+            if (workByWeek[weekKey]) {
+                workByWeek[weekKey].pieces.push(entry);
+            }
+        });
         
+        const weeklySummaries: WeeklySummary[] = [];
+
         for (const weekKey in workByWeek) {
-            const weekData = workByWeek[weekKey];
+            const { time, pieces } = workByWeek[weekKey];
+            if (time.length === 0 && pieces.length === 0) continue;
+
             const [year, weekNumber] = weekKey.split('-').map(Number);
             
-            let weeklyTotalHours = 0;
-            let weeklyTotalRawEarnings = 0;
-            const dailyBreakdownsForWeek: DailyBreakdown[] = [];
+            const dailyWork: Record<string, { tasks: Record<string, { hours: number, pieces: number }> }> = {};
             let applicableMinWage = STATE_MINIMUM_WAGE;
 
-            const sortedDays = Object.keys(weekData).sort((a,b) => new Date(a).getTime() - new Date(b).getTime());
+            // Process time entries for the week
+            time.forEach(entry => {
+                if (!entry.timestamp || !entry.endTime) return;
+                const date = parseISO(String(entry.timestamp));
+                const dayKey = format(date, 'yyyy-MM-dd');
+                const hours = differenceInMilliseconds(parseISO(String(entry.endTime)), date) / (1000 * 60 * 60);
+                if (hours <= 0) return;
 
-            for(const dayKey of sortedDays) {
-                const dayData = weekData[dayKey];
+                if (!dailyWork[dayKey]) dailyWork[dayKey] = { tasks: {} };
+                if (!dailyWork[dayKey].tasks[entry.taskId]) dailyWork[dayKey].tasks[entry.taskId] = { hours: 0, pieces: 0 };
+                dailyWork[dayKey].tasks[entry.taskId].hours += hours;
+            });
+            
+            // Process piecework entries for the week
+            pieces.forEach(entry => {
+                const date = parseISO(String(entry.timestamp));
+                const dayKey = format(date, 'yyyy-MM-dd');
+                
+                const employeeIdsOnTicket = String(entry.employeeId).split(',').map(id => id.trim()).filter(Boolean);
+                const pieceCountPerEmployee = entry.pieceCount / employeeIdsOnTicket.length;
+
+                if (!dailyWork[dayKey]) dailyWork[dayKey] = { tasks: {} };
+                if (!dailyWork[dayKey].tasks[entry.taskId]) dailyWork[dayKey].tasks[entry.taskId] = { hours: 0, pieces: 0 };
+                dailyWork[dayKey].tasks[entry.taskId].pieces += pieceCountPerEmployee;
+            });
+            
+            const dailyBreakdownsForWeek: DailyBreakdown[] = [];
+            let weeklyTotalHours = 0;
+            let weeklyTotalRawEarnings = 0;
+
+            const sortedDays = Object.keys(dailyWork).sort((a,b) => new Date(a).getTime() - new Date(b).getTime());
+
+            for (const dayKey of sortedDays) {
                 let dailyTotalHours = 0;
                 let dailyTotalEarnings = 0;
                 const taskDetailsForDay: DailyTaskDetail[] = [];
-
-                for (const taskId in dayData) {
+                
+                for (const taskId in dailyWork[dayKey].tasks) {
                     const task = taskMap.get(taskId);
                     if (!task) continue;
-                    
+
                     const client = clientMap.get(task.clientId);
                     if (client?.minimumWage && client.minimumWage > applicableMinWage) {
                         applicableMinWage = client.minimumWage;
                     }
-                    
-                    const { hours, pieces } = dayData[taskId];
-                    
+
+                    const { hours, pieces } = dailyWork[dayKey].tasks[taskId];
                     let earningsForTask = 0;
                     if (task.employeePayType === 'hourly') {
                         earningsForTask = hours * task.employeeRate;
                     } else if (task.employeePayType === 'piecework') {
                         earningsForTask = pieces * task.employeeRate;
                     }
-                    
+
                     dailyTotalHours += hours;
                     dailyTotalEarnings += earningsForTask;
 
@@ -223,13 +170,14 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
                 });
             }
 
+            if (weeklyTotalHours <= 0) continue;
+
             const minimumGrossEarnings = weeklyTotalHours * applicableMinWage;
             const minimumWageTopUp = Math.max(0, minimumGrossEarnings - weeklyTotalRawEarnings);
 
             const totalEarningsBeforeRest = weeklyTotalRawEarnings + minimumWageTopUp;
-            const regularRateOfPay = weeklyTotalHours > 0 ? totalEarningsBeforeRest / weeklyTotalHours : 0;
+            const regularRateOfPay = totalEarningsBeforeRest / weeklyTotalHours;
             
-            // Paid rest breaks: 10 mins for every 4 hours.
             const paidRestBreakHours = Math.floor(weeklyTotalHours / 4) * (10 / 60);
             const paidRestBreaksPay = paidRestBreakHours * regularRateOfPay;
 
@@ -247,14 +195,16 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
             });
         }
         
-        const totalPayForPeriod = weeklySummaries.reduce((acc, week) => acc + week.finalPay, 0);
+        if (weeklySummaries.length > 0) {
+            const totalPayForPeriod = weeklySummaries.reduce((acc, week) => acc + week.finalPay, 0);
 
-        employeeSummaries.push({
-            employeeId: employee.id,
-            employeeName: employee.name,
-            weeklySummaries,
-            finalPay: parseFloat(totalPayForPeriod.toFixed(2)),
-        });
+            employeeSummaries.push({
+                employeeId: employee.id,
+                employeeName: employee.name,
+                weeklySummaries,
+                finalPay: parseFloat(totalPayForPeriod.toFixed(2)),
+            });
+        }
     }
 
     return {
