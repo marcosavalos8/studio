@@ -96,7 +96,6 @@ const processPayrollData = ai.defineTool(
         return employeeIdMap.get(identifier) || employeeQrMap.get(identifier);
     };
     
-    // 1. Aggregate all raw work data
     const workData: Record<string, Record<string, Record<string, { hours: number, pieces: number }>>> = {};
     const reportInterval = {
         start: startOfDay(parseISO(input.startDate)),
@@ -148,7 +147,6 @@ const processPayrollData = ai.defineTool(
         }
     }
 
-    // 2. Process aggregated data for each employee
     const employeeSummaries: EmployeePayrollSummary[] = [];
 
     for (const employeeId in workData) {
@@ -167,7 +165,6 @@ const processPayrollData = ai.defineTool(
         }
 
         const weeklySummaries: WeeklySummary[] = [];
-        let totalPayForPeriod = 0;
         
         for (const weekKey in workByWeek) {
             const weekData = workByWeek[weekKey];
@@ -242,10 +239,10 @@ const processPayrollData = ai.defineTool(
                 totalEarnings: parseFloat(finalWeeklyPay.toFixed(2)),
                 dailyBreakdown: dailyBreakdownsForWeek,
             });
-
-            totalPayForPeriod += finalWeeklyPay;
         }
         
+        const totalPayForPeriod = weeklySummaries.reduce((acc, week) => acc + week.totalEarnings, 0);
+
         employeeSummaries.push({
             employeeId: employee.id,
             employeeName: employee.name,
