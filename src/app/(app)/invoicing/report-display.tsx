@@ -36,6 +36,9 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
         <div className="report-container bg-white text-black p-8 rounded-lg border shadow-sm">
             <style jsx global>{`
                 @media print {
+                    body {
+                        background-color: #fff;
+                    }
                     body * {
                         visibility: hidden;
                     }
@@ -50,11 +53,16 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
                         border: none;
                         box-shadow: none;
                         margin: 0;
-                        padding: 0;
+                        padding: 2rem;
+                        color: #000;
                     }
                     .print\\:hidden {
                         display: none;
                     }
+                }
+                 @page {
+                    size: auto;
+                    margin: 0.5in;
                 }
             `}</style>
             <div className="flex justify-between items-start mb-12">

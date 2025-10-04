@@ -14,23 +14,29 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 
 const PASSWORD_KEY = 'secure_page_access_granted';
-const CORRECT_PASSWORD = process.env.NEXT_PUBLIC_PAYROLL_PASSWORD || '1234';
 
 export function withAuth<P extends object>(WrappedComponent: React.ComponentType<P>) {
   const WithAuthComponent: React.FC<P> = (props) => {
     const [isAuthorized, setIsAuthorized] = useState(false);
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [correctPassword, setCorrectPassword] = useState('1234'); // Default password
 
     useEffect(() => {
-      // Check session storage on mount
-      if (sessionStorage.getItem(PASSWORD_KEY) === 'true') {
-        setIsAuthorized(true);
-      }
+        // This will only run on the client side
+        const envPassword = process.env.NEXT_PUBLIC_PAYROLL_PASSWORD;
+        if (envPassword) {
+            setCorrectPassword(envPassword);
+        }
+        
+        // Check session storage on mount
+        if (sessionStorage.getItem(PASSWORD_KEY) === 'true') {
+            setIsAuthorized(true);
+        }
     }, []);
 
     const handlePasswordSubmit = () => {
-      if (password === CORRECT_PASSWORD) {
+      if (password === correctPassword) {
         sessionStorage.setItem(PASSWORD_KEY, 'true');
         setIsAuthorized(true);
         setError('');
@@ -49,7 +55,7 @@ export function withAuth<P extends object>(WrappedComponent: React.ComponentType
           <DialogHeader>
             <DialogTitle>Authorization Required</DialogTitle>
             <DialogDescription>
-              Please enter the password to access this page.
+              Please enter the password to access this page. The default is '1234'. You can change this in the .env.local file.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">

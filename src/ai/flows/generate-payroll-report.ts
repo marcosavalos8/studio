@@ -206,20 +206,18 @@ const processPayrollData = ai.defineTool(
                 }
             }).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
             
-            // ** THE DEFINITIVE FIX IS HERE **
-            // 1. Calculate total earnings from the reliable component parts.
             const totalEarnings = week.totalHourlyEarnings + week.totalPieceworkEarnings;
             
-            // 2. Use the CORRECT totalEarnings to calculate the effective rate.
-            const effectiveHourlyRate = week.totalHours > 0 ? totalEarnings / week.totalHours : 0;
+            let effectiveHourlyRate = 0;
+            if (week.totalHours > 0) {
+                effectiveHourlyRate = totalEarnings / week.totalHours;
+            }
             
-            // 3. Calculate top-up based on the correct effective rate.
             let minimumWageTopUp = 0;
             if (week.totalHours > 0 && effectiveHourlyRate < applicableMinimumWage) {
                 minimumWageTopUp = (applicableMinimumWage * week.totalHours) - totalEarnings;
             }
 
-            // 4. Calculate rest breaks based on a regular rate of pay that includes the top-up.
             const totalEarningsWithTopUp = totalEarnings + minimumWageTopUp;
             const regularRateOfPay = week.totalHours > 0 ? totalEarningsWithTopUp / week.totalHours : applicableMinimumWage;
 
@@ -232,8 +230,8 @@ const processPayrollData = ai.defineTool(
                 totalHours: parseFloat(week.totalHours.toFixed(2)),
                 totalPieceworkEarnings: parseFloat(week.totalPieceworkEarnings.toFixed(2)),
                 totalHourlyEarnings: parseFloat(week.totalHourlyEarnings.toFixed(2)),
-                totalEarnings: parseFloat(totalEarnings.toFixed(2)), // This will now be correct
-                effectiveHourlyRate: parseFloat(effectiveHourlyRate.toFixed(2)), // This will now be correct
+                totalEarnings: parseFloat(totalEarnings.toFixed(2)),
+                effectiveHourlyRate: parseFloat(effectiveHourlyRate.toFixed(2)),
                 minimumWageTopUp: parseFloat(minimumWageTopUp.toFixed(2)),
                 paidRestBreaksTotal: parseFloat(paidRestBreaksTotal.toFixed(2)),
                 dailyBreakdown: dailyBreakdown,

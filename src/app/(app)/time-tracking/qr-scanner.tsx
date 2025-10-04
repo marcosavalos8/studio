@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
     Alert,
     AlertDescription,
@@ -24,6 +24,11 @@ export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
     useEffect(() => {
         setIsClient(true);
     }, []);
+
+    const onScan = useCallback((result: string) => {
+        onScanResult(result);
+    }, [onScanResult]);
+
 
     useEffect(() => {
         if (!isClient) return;
@@ -61,32 +66,37 @@ export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
 
         let animationFrameId: number;
         let lastScanTime = 0;
-        const scanInterval = 1000; // Scan once per second
+        const scanInterval = 2000; // DEBOUNCE: Only process a scan every 2 seconds
 
         const scan = () => {
             animationFrameId = requestAnimationFrame(scan);
             const now = Date.now();
-            if (now - lastScanTime < scanInterval) {
+            if (now - lastScanTime < 50) { // Limit how often we draw to canvas to save CPU
               return;
             }
-            lastScanTime = now;
 
             if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
                 const video = videoRef.current;
                 const canvas = canvasRef.current;
                 if (canvas) {
-                    const context = canvas.getContext('2d');
+                    const context = canvas.getContext('2d', { willReadFrequently: true });
                     if (context) {
                         canvas.height = video.videoHeight;
                         canvas.width = video.videoWidth;
                         context.drawImage(video, 0, 0, canvas.width, canvas.height);
                         const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                        
+                        if (now - lastScanTime < scanInterval) { // Check debounce timer
+                            return;
+                        }
+
                         const code = jsQR(imageData.data, imageData.width, imageData.height, {
                             inversionAttempts: 'dontInvert',
                         });
 
                         if (code && code.data) {
-                           onScanResult(code.data);
+                           lastScanTime = now; // Reset timer on successful scan
+                           onScan(code.data);
                         }
                     }
                 }
@@ -98,7 +108,7 @@ export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
         return () => {
             cancelAnimationFrame(animationFrameId);
         };
-    }, [hasCameraPermission, onScanResult]);
+    }, [hasCameraPermission, onScan]);
     
     if (!isClient) {
       return <Skeleton className="w-full aspect-video bg-muted rounded-md flex items-center justify-center"><VideoOff className="h-10 w-10 text-muted-foreground" /></Skeleton>
