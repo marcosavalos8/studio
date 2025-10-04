@@ -34,7 +34,7 @@ function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData[
                 <TableHead>Task / Location</TableHead>
                 <TableHead className="text-right">Hours</TableHead>
                 <TableHead className="text-right">Pieces</TableHead>
-                <TableHead className="text-right">Earnings</TableHead>
+                <TableHead className="text-right">Raw Earnings</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -161,13 +161,16 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                                                 <AccordionContent className="space-y-4 pl-4">
                                                     <DailyBreakdownDisplay breakdown={week.dailyBreakdown} />
                                                     <div className="border rounded-md p-4 mt-4">
-                                                    <h5 className="font-semibold mb-2">Week {week.weekNumber} Summary</h5>
+                                                    <h5 className="font-semibold mb-2">Week {week.weekNumber} Summary & Adjustments</h5>
                                                     <Table>
                                                         <TableBody>
                                                             <TableRow><TableCell>Total Hours Worked</TableCell><TableCell className="text-right">{week.totalHours.toFixed(2)}</TableCell></TableRow>
+                                                            <TableRow><TableCell>Raw Task Earnings</TableCell><TableCell className="text-right">${week.totalEarnings.toFixed(2)}</TableCell></TableRow>
+                                                            <TableRow><TableCell>Minimum Wage Top-Up</TableCell><TableCell className="text-right text-amber-600">+ ${week.minimumWageTopUp.toFixed(2)}</TableCell></TableRow>
+                                                            <TableRow><TableCell>Paid Rest Breaks (10min / 4hr)</TableCell><TableCell className="text-right text-blue-600">+ ${week.paidRestBreaks.toFixed(2)}</TableCell></TableRow>
                                                         </TableBody>
                                                          <TableFooter>
-                                                            <TableRow className="font-semibold"><TableCell>Total Weekly Earnings</TableCell><TableCell className="text-right">${week.totalEarnings.toFixed(2)}</TableCell></TableRow>
+                                                            <TableRow className="font-semibold"><TableCell>Total Weekly Pay</TableCell><TableCell className="text-right">${week.finalPay.toFixed(2)}</TableCell></TableRow>
                                                         </TableFooter>
                                                     </Table>
                                                     </div>

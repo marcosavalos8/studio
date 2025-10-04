@@ -82,7 +82,10 @@ export type WeeklySummary = {
     weekNumber: number;
     year: number;
     totalHours: number;
-    totalEarnings: number;
+    totalEarnings: number; // Raw earnings from tasks
+    minimumWageTopUp: number;
+    paidRestBreaks: number;
+    finalPay: number; // totalEarnings + topUp + restBreaks
     dailyBreakdown: DailyBreakdown[];
 };
 
