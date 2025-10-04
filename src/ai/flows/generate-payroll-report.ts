@@ -30,8 +30,7 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
 
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
-    const employeeMap = new Map(reportEmployees.map((e: Employee) => [e.id, e]));
-
+    
     const reportInterval = {
         start: startOfDay(parseISO(input.startDate)),
         end: startOfDay(parseISO(input.endDate)),
@@ -50,20 +49,14 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
                 return false;
             }
             const employeeIdsOnTicket = String(pw.employeeId).split(',').map(id => id.trim());
-            // This can check against ID or QR code
+            // This can check against ID or QR code. The payroll form now sends full employee objects.
             return employeeIdsOnTicket.some(idOrQr => idOrQr === employee.id || idOrQr === employee.qrCode);
         });
         
-        if (empTimeEntries.length === 0 && empPiecework.length === 0) {
-            continue; // Skip employee if they have no activity in the period
-        }
-
         const workByWeek: Record<string, { time: TimeEntry[], pieces: Piecework[] }> = {};
 
+        // Group all work entries by week
         const allWorkEntries = [...empTimeEntries, ...empPiecework];
-        if(allWorkEntries.length === 0) continue;
-
-        // Determine the full range of dates to create week keys
         if (allWorkEntries.length > 0 && allWorkEntries[0].timestamp) {
             const firstDate = allWorkEntries.reduce((min, entry) => {
                 const d = parseISO(String(entry.timestamp));
@@ -75,9 +68,7 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
                 return d > max ? d : max;
             }, parseISO(String(allWorkEntries[0].timestamp)));
 
-
             const relevantDates = eachDayOfInterval({start: firstDate, end: lastDate});
-            
             relevantDates.forEach(date => {
                 const weekKey = `${getYear(date)}-${getWeek(date, { weekStartsOn: 1 })}`;
                 if (!workByWeek[weekKey]) {
@@ -85,7 +76,6 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
                 }
             });
         }
-
 
         empTimeEntries.forEach((entry: TimeEntry) => {
             if (!entry.timestamp) return;
@@ -205,7 +195,8 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
             const totalEarningsBeforeRest = weeklyTotalRawEarnings + minimumWageTopUp;
             const regularRateOfPay = weeklyTotalHours > 0 ? totalEarningsBeforeRest / weeklyTotalHours : 0;
             
-            const paidRestBreakHours = Math.floor(weeklyTotalHours / 3.5) * (10 / 60);
+            // Paid Rest: 10 minutes for every 4 hours worked.
+            const paidRestBreakHours = Math.floor(weeklyTotalHours / 4) * (10 / 60);
             const paidRestBreaksPay = paidRestBreakHours * regularRateOfPay;
 
             const finalWeeklyPay = totalEarningsBeforeRest + paidRestBreaksPay;
