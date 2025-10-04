@@ -97,12 +97,17 @@ const processPayrollData = ai.defineTool(
     
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
-    const employeeIdMap = new Map(employees.map((e: Employee) => [e.id, e]));
-    const employeeQrMap = new Map(employees.map((e: Employee) => [e.qrCode, e]));
-    
+
+    const employeeIdMap = new Map<string, Employee>();
+    const employeeQrMap = new Map<string, Employee>();
+    employees.forEach((e: Employee) => {
+        if (e.id) employeeIdMap.set(e.id, e);
+        if (e.qrCode) employeeQrMap.set(e.qrCode, e);
+    });
+
     const findEmployee = (identifier: string): Employee | undefined => {
         return employeeIdMap.get(identifier) || employeeQrMap.get(identifier);
-    }
+    };
 
     const workData: Record<string, Record<string, Record<string, { hours: number, pieces: number }>>> = {};
     const reportInterval = {
@@ -273,24 +278,22 @@ const processPayrollData = ai.defineTool(
             });
         }
         
-        if (weeklySummaries.length > 0) {
-            const overallTotalEarnings = weeklySummaries.reduce((acc, s) => acc + s.totalEarnings, 0);
-            const overallTotalHours = weeklySummaries.reduce((acc, s) => acc + s.totalHours, 0);
-            const overallTotalMinimumWageTopUp = weeklySummaries.reduce((acc, s) => acc + s.minimumWageTopUp, 0);
-            const overallTotalPaidRestBreaks = weeklySummaries.reduce((acc, s) => acc + s.paidRestBreaksTotal, 0);
-            const finalPay = overallTotalEarnings + overallTotalMinimumWageTopUp + overallTotalPaidRestBreaks;
+        const overallTotalEarnings = weeklySummaries.reduce((acc, s) => acc + s.totalEarnings, 0);
+        const overallTotalHours = weeklySummaries.reduce((acc, s) => acc + s.totalHours, 0);
+        const overallTotalMinimumWageTopUp = weeklySummaries.reduce((acc, s) => acc + s.minimumWageTopUp, 0);
+        const overallTotalPaidRestBreaks = weeklySummaries.reduce((acc, s) => acc + s.paidRestBreaksTotal, 0);
+        const finalPay = overallTotalEarnings + overallTotalMinimumWageTopUp + overallTotalPaidRestBreaks;
 
-            employeeSummaries.push({
-                employeeId: employee.id,
-                employeeName: employee.name,
-                weeklySummaries,
-                overallTotalEarnings: parseFloat(overallTotalEarnings.toFixed(2)),
-                overallTotalHours: parseFloat(overallTotalHours.toFixed(2)),
-                overallTotalMinimumWageTopUp: parseFloat(overallTotalMinimumWageTopUp.toFixed(2)),
-                overallTotalPaidRestBreaks: parseFloat(overallTotalPaidRestBreaks.toFixed(2)),
-                finalPay: parseFloat(finalPay.toFixed(2)),
-            });
-        }
+        employeeSummaries.push({
+            employeeId: employee.id,
+            employeeName: employee.name,
+            weeklySummaries,
+            overallTotalEarnings: parseFloat(overallTotalEarnings.toFixed(2)),
+            overallTotalHours: parseFloat(overallTotalHours.toFixed(2)),
+            overallTotalMinimumWageTopUp: parseFloat(overallTotalMinimumWageTopUp.toFixed(2)),
+            overallTotalPaidRestBreaks: parseFloat(overallTotalPaidRestBreaks.toFixed(2)),
+            finalPay: parseFloat(finalPay.toFixed(2)),
+        });
     }
 
     return {
@@ -314,3 +317,5 @@ const generatePayrollReportFlow = ai.defineFlow(
     return processedData;
   }
 );
+
+    
