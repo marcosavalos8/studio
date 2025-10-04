@@ -2,9 +2,8 @@
 
 import * as React from "react"
 import { useActionState } from "react"
-import { useFormStatus } from "react-dom"
 import { format } from "date-fns"
-import { Calendar as CalendarIcon, Loader2, MoreVertical, Printer, Mail, Users, X } from "lucide-react"
+import { Calendar as CalendarIcon, Loader2, Users } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -21,19 +20,9 @@ import type { DateRange } from "react-day-picker"
 import { useFirestore } from "@/firebase"
 import { collection, query, where, Timestamp, getDocs } from 'firebase/firestore'
 import { Client, Employee, Piecework, Task, TimeEntry } from "@/lib/types"
-import type { ProcessedPayrollData } from "@/ai/flows/generate-payroll-report"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-
-function SubmitButton({disabled}: {disabled: boolean}) {
-  const { pending } = useFormStatus()
-  return (
-    <Button type="submit" disabled={pending || disabled}>
-      {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-      Generate Report
-    </Button>
-  )
-}
+import { PayrollReportDisplay } from "./report-display"
 
 const initialState = {
   report: undefined,
@@ -41,7 +30,7 @@ const initialState = {
 }
 
 export function PayrollForm() {
-  const [state, formAction] = useActionState(generateReportAction, initialState)
+  const [state, formAction, isPending] = useActionState(generateReportAction, initialState)
   const [date, setDate] = React.useState<DateRange | undefined>()
   const [payDate, setPayDate] = React.useState<Date | undefined>(new Date())
   const [isFetchingData, setIsFetchingData] = React.useState(false);
@@ -73,8 +62,8 @@ export function PayrollForm() {
 
         setIsFetchingData(true);
         try {
-            const start = date.from;
-            const end = date.to;
+            const start = new Date(date.from.setHours(0, 0, 0, 0));
+            const end = new Date(date.to.setHours(23, 59, 59, 999));
 
             const employeesSnap = await getDocs(collection(firestore, 'employees'));
             const allEmployees = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
@@ -173,8 +162,6 @@ export function PayrollForm() {
     if (!allData) return null;
     
     const filteredEmployees = allData.allEmployees.filter((e: Employee) => selectedEmployeeIds.has(e.id));
-    // The AI flow needs all time/piece entries to calculate context, even for non-selected employees, so we don't filter them.
-    // The AI flow itself will filter down to the final list of employees based on the `filteredEmployees` array.
     return JSON.stringify({
         employees: filteredEmployees,
         tasks: allData.tasks,
@@ -184,17 +171,19 @@ export function PayrollForm() {
     });
   }
 
-  const handlePrint = () => {
-    if (!state.report) return;
-    sessionStorage.setItem('print-payroll-data', JSON.stringify(state.report));
-    window.open('/payroll/print', '_blank');
-  };
 
   const jsonData = getFilteredJsonData();
   const allEmployeesSelected = employeesInRange.length > 0 && selectedEmployeeIds.size === employeesInRange.length;
 
+  if (state.report) {
+    return <PayrollReportDisplay report={state.report} onBack={() => {
+        // This is a bit of a hack to reset the useActionState
+        window.location.reload();
+    }} />;
+  }
+
   return (
-    <div className="print:hidden">
+    <div>
       <form action={formAction}>
         <div className="grid gap-4 sm:grid-cols-2 mb-4">
           <div className="grid gap-4">
@@ -264,19 +253,13 @@ export function PayrollForm() {
               </div>
           </div>
           <div>
-            <SubmitButton disabled={!date || !jsonData || isFetchingData || !payDate || selectedEmployeeIds.size === 0} />
+            <Button type="submit" disabled={isPending || !date || !jsonData || isFetchingData || !payDate || selectedEmployeeIds.size === 0}>
+                {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Generate Report
+            </Button>
              {isFetchingData && <p className="text-xs text-muted-foreground mt-2 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin"/>Fetching data for selected range...</p>}
              {!isFetchingData && date?.from && employeesInRange.length > 0 && <p className="text-xs text-muted-foreground mt-2">{selectedEmployeeIds.size} of {employeesInRange.length} employees selected.</p>}
              {!isFetchingData && date?.from && employeesInRange.length === 0 && <p className="text-xs text-amber-600 mt-2">No employee activity found for this date range.</p>}
-             
-            {state.report && (
-              <div className="mt-4 flex gap-2">
-                <Button onClick={handlePrint} variant="outline">
-                  <Printer className="mr-2 h-4 w-4" />
-                  Print / Save as PDF
-                </Button>
-              </div>
-            )}
           </div>
         </div>
         
@@ -333,7 +316,6 @@ export function PayrollForm() {
         {payDate && <input type="hidden" name="payDate" value={format(payDate, 'yyyy-MM-dd')} />}
         {jsonData && <input type="hidden" name="jsonData" value={jsonData} />}
       </form>
-      {state.report && <p className="text-green-600 mt-4 text-center">Report generated successfully below. You can now print it.</p>}
     </div>
   )
 }

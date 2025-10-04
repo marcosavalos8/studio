@@ -2,9 +2,8 @@
 
 import * as React from "react"
 import { format } from "date-fns"
-import { Calendar as CalendarIcon, Loader2, Download, Printer, Mail, MoreVertical, X } from "lucide-react"
+import { Calendar as CalendarIcon, Loader2 } from "lucide-react"
 import { Timestamp } from 'firebase/firestore'
-
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -26,7 +25,8 @@ import type { DateRange } from "react-day-picker"
 import { useFirestore } from "@/firebase"
 import { collection, getDocs, query, where } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
-import { DailyInvoiceItem, DetailedInvoiceData } from "./page"
+import { type DetailedInvoiceData, type DailyInvoiceItem } from "./page"
+import { InvoiceReportDisplay } from './report-display'
 
 
 type InvoicingFormProps = {
@@ -41,12 +41,6 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
   const [selectedClient, setSelectedClient] = React.useState<Client | undefined>()
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [invoiceData, setInvoiceData] = React.useState<DetailedInvoiceData | null>(null);
-
-  const handlePrint = () => {
-    if (!invoiceData) return;
-    sessionStorage.setItem('print-invoice-data', JSON.stringify(invoiceData));
-    window.open('/invoicing/print', '_blank');
-  };
 
   const handleGenerate = async () => {
     if (!firestore || !selectedClient || !date?.from || !date?.to) {
@@ -65,12 +59,17 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
     const clientTasks = tasks.filter(task => task.clientId === clientData.id);
     const clientTaskIds = clientTasks.map(t => t.id);
     
+    // Set a default start time and end time for the date range
+    const startDate = new Date(date.from.setHours(0, 0, 0, 0));
+    const endDate = new Date(date.to.setHours(23, 59, 59, 999));
+
+
     if (clientTaskIds.length === 0) {
         const finalInvoiceData: DetailedInvoiceData = {
             client: clientData,
             date: {
-              from: date.from.toISOString(),
-              to: date.to.toISOString()
+              from: startDate.toISOString(),
+              to: endDate.toISOString()
             },
             dailyItems: [],
             subtotal: 0,
@@ -88,15 +87,15 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
 
         const pieceLogsQuery = query(
             collection(firestore, "piecework"),
-            where("timestamp", ">=", date.from),
-            where("timestamp", "<=", date.to),
+            where("timestamp", ">=", startDate),
+            where("timestamp", "<=", endDate),
             where("taskId", "in", clientTaskIds)
         );
         
         const timeLogsQuery = query(
             collection(firestore, "time_entries"),
-            where("timestamp", ">=", date.from),
-            where("timestamp", "<=", date.to),
+            where("timestamp", ">=", startDate),
+            where("timestamp", "<=", endDate),
             where("taskId", "in", clientTaskIds)
         );
 
@@ -117,13 +116,13 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
             const log = doc.data() as TimeEntry;
             if (log.endTime) {
                 const startTime = (log.timestamp as unknown as Timestamp).toDate();
-                const endTime = (log.endTime as unknown as Timestamp).toDate();
+                const endTimeVal = (log.endTime as unknown as Timestamp).toDate();
                 const logDate = format(startTime, 'yyyy-MM-dd');
                 
-                if (endTime >= startTime) {
+                if (endTimeVal >= startTime) {
                     if (!hoursByDay[logDate]) hoursByDay[logDate] = {};
                     if (!hoursByDay[logDate][log.taskId]) hoursByDay[logDate][log.taskId] = 0;
-                    const durationHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+                    const durationHours = (endTimeVal.getTime() - startTime.getTime()) / (1000 * 60 * 60);
                     hoursByDay[logDate][log.taskId] += durationHours;
                 }
             }
@@ -190,8 +189,8 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         const finalInvoiceData: DetailedInvoiceData = {
             client: clientData,
             date: {
-              from: date.from.toISOString(),
-              to: date.to.toISOString()
+              from: startDate.toISOString(),
+              to: endDate.toISOString()
             },
             dailyItems,
             subtotal,
@@ -211,6 +210,11 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         setIsGenerating(false)
     }
   }
+  
+  if (invoiceData) {
+    return <InvoiceReportDisplay report={invoiceData} onBack={() => setInvoiceData(null)} />;
+  }
+
 
   return (
     <div>
@@ -268,15 +272,6 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
           Generate Invoice
         </Button>
       </div>
-
-        {invoiceData && (
-            <div className="mt-4 flex gap-2">
-                <Button onClick={handlePrint} variant="outline">
-                    <Printer className="mr-2 h-4 w-4" />
-                    Print / Save as PDF
-                </Button>
-            </div>
-        )}
 
       {isGenerating && (
           <div className="mt-6 text-center">
