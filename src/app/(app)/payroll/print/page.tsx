@@ -146,34 +146,23 @@ function PrintPayrollPageContent() {
     const searchParams = useSearchParams();
 
     useEffect(() => {
-        // Fallback for email link flow
         const printId = searchParams.get('id');
-        if (printId) {
-            const data = sessionStorage.getItem(printId);
-            if (data) {
-                try {
-                    setReport(JSON.parse(data));
-                    sessionStorage.removeItem(printId); // Clean up
-                } catch (e) {
-                    setError("Failed to parse report data. Please close this tab and try again.");
-                }
-            }
+        if (!printId) {
+            setError("No report ID found. Please close this tab and try again.");
+            return;
         }
-        
-        // Listener for direct print flow
-        const channel = new BroadcastChannel("print_channel");
-        const handleMessage = (event: MessageEvent) => {
-            if (event.data.type === 'PRINT_PAYROLL') {
-                setReport(event.data.data);
-                channel.close();
-            }
-        };
-        channel.addEventListener('message', handleMessage);
 
-        return () => {
-            channel.removeEventListener('message', handleMessage);
-            channel.close();
-        };
+        const data = sessionStorage.getItem(printId);
+        if (data) {
+            try {
+                setReport(JSON.parse(data));
+                sessionStorage.removeItem(printId); // Clean up immediately after retrieving
+            } catch (e) {
+                setError("Failed to parse report data. The data may be corrupted.");
+            }
+        } else {
+             setError("Could not find report data to print. Please close this tab and try generating the report again.");
+        }
     }, [searchParams]);
 
     useEffect(() => {

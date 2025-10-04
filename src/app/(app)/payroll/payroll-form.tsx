@@ -102,15 +102,9 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
   const overallTotal = report.employeeSummaries.reduce((acc, emp) => acc + emp.finalPay, 0);
 
   const handlePrint = () => {
-    const channel = new BroadcastChannel("print_channel");
-    const printWindow = window.open('/payroll/print', '_blank');
-
-    printWindow?.addEventListener('load', () => {
-        setTimeout(() => {
-            channel.postMessage({ type: 'PRINT_PAYROLL', data: report });
-            channel.close();
-        }, 500); // Small delay to ensure the print page's scripts are loaded
-    });
+    const printId = `payroll_${Date.now()}`;
+    sessionStorage.setItem(printId, JSON.stringify(report));
+    window.open(`/payroll/print?id=${printId}`, '_blank');
   }
   
   const handleEmail = () => {

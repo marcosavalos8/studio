@@ -210,15 +210,9 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
   
   const handlePrint = () => {
     if (!invoice) return;
-    const channel = new BroadcastChannel("print_channel");
-    const printWindow = window.open('/invoicing/print', '_blank');
-    
-    printWindow?.addEventListener('load', () => {
-        setTimeout(() => {
-            channel.postMessage({ type: 'PRINT_INVOICE', data: invoice });
-            channel.close();
-        }, 500); // Small delay to ensure the print page's scripts are loaded
-    });
+    const printId = `invoice_${Date.now()}`;
+    sessionStorage.setItem(printId, JSON.stringify(invoice));
+    window.open(`/invoicing/print?id=${printId}`, '_blank');
   }
 
   const handleEmail = () => {

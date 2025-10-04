@@ -90,35 +90,24 @@ function PrintInvoicePageContent() {
     const searchParams = useSearchParams();
 
     useEffect(() => {
-        // Fallback for email link flow
         const printId = searchParams.get('id');
-        if (printId) {
-            const data = sessionStorage.getItem(printId);
-            if (data) {
-                try {
-                    const parsedData = JSON.parse(data);
-                    setInvoice(parsedData);
-                    sessionStorage.removeItem(printId); // Clean up
-                } catch (e) {
-                    setError("Failed to parse invoice data. Please close this tab and try again.");
-                }
-            }
+        if (!printId) {
+            setError("No invoice ID found. Please close this tab and try again.");
+            return;
         }
-        
-        // Listener for direct print flow
-        const channel = new BroadcastChannel("print_channel");
-        const handleMessage = (event: MessageEvent) => {
-            if (event.data.type === 'PRINT_INVOICE') {
-                setInvoice(event.data.data);
-                channel.close();
-            }
-        };
-        channel.addEventListener('message', handleMessage);
 
-        return () => {
-            channel.removeEventListener('message', handleMessage);
-            channel.close();
-        };
+        const data = sessionStorage.getItem(printId);
+        if (data) {
+            try {
+                const parsedData = JSON.parse(data);
+                setInvoice(parsedData);
+                sessionStorage.removeItem(printId); // Clean up immediately after retrieving
+            } catch (e) {
+                setError("Failed to parse invoice data. The data may be corrupted.");
+            }
+        } else {
+            setError("Could not find invoice data to print. Please close this tab and try generating the invoice again.");
+        }
     }, [searchParams]);
 
     useEffect(() => {
