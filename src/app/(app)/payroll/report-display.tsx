@@ -154,7 +154,7 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                                     <div className="space-y-4">
                                     <Accordion type="multiple" className="w-full" defaultValue={employee.weeklySummaries.map(w => `w-${w.weekNumber}`)}>
                                         {employee.weeklySummaries.map(week => (
-                                            <AccordionItem value={`w-${w.weekNumber}`} key={week.weekNumber}>
+                                            <AccordionItem value={`w-${week.weekNumber}`} key={week.weekNumber}>
                                                 <AccordionTrigger className="font-semibold text-lg mb-2 ml-4">
                                                     Week {week.weekNumber}, {week.year}
                                                 </AccordionTrigger>
