@@ -149,7 +149,7 @@ const processPayrollData = ai.defineTool(
         // Process piecework entries
         const empPiecework = piecework.filter((pw: any) => {
             const employeeIds = String(pw.employeeId || '').split(',');
-            return employeeIds.includes(employee.id);
+            return employeeIds.includes(employee.id) || employeeIds.includes(employee.qrCode);
         });
 
          for (const entry of empPiecework) {
@@ -206,7 +206,6 @@ const processPayrollData = ai.defineTool(
                 }
             }).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-            // FIX: Correctly sum total earnings from daily breakdowns
             const totalEarnings = dailyBreakdown.reduce((acc, day) => acc + day.totalDailyEarnings, 0);
             
             let effectiveHourlyRate = week.totalHours > 0 ? totalEarnings / week.totalHours : 0;
@@ -283,3 +282,5 @@ const generatePayrollReportFlow = ai.defineFlow(
     return processedData;
   }
 );
+
+    
