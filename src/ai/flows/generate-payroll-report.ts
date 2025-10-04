@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod';
-import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds, startOfWeek, endOfWeek } from 'date-fns';
+import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds, startOfWeek, endOfWeek, endOfDay } from 'date-fns';
 import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail, Employee, Piecework, TimeEntry } from '@/lib/types';
 
 
@@ -33,12 +33,11 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
 
     const reportInterval = {
         start: startOfDay(parseISO(input.startDate)),
-        end: endOfWeek(parseISO(input.endDate), { weekStartsOn: 1 }),
+        end: endOfDay(parseISO(input.endDate)),
     };
 
     const employeeSummaries: EmployeePayrollSummary[] = [];
 
-    // Iterate over only the employees selected for the report
     for (const employee of reportEmployees as Employee[]) {
         const employeeId = employee.id;
 
@@ -49,7 +48,6 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
              if (!pw.timestamp || !isWithinInterval(parseISO(String(pw.timestamp)), reportInterval)) {
                 return;
             }
-            // An employee can be identified by ID or QR code in the piecework record
             const employeeIdentifiersOnTicket = String(pw.employeeId).split(',').map(id => id.trim());
             
             const isEmployeeOnThisTicket = employeeIdentifiersOnTicket.some(identifier => {
@@ -59,7 +57,6 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
             });
             
             if (isEmployeeOnThisTicket) {
-                // Find all employees on the ticket that are also in the current report run
                 const relevantEmployeesOnTicket = employeeIdentifiersOnTicket.map(identifier => {
                     const emp = allEmployeesById.get(identifier) || allEmployeesByQr.get(identifier);
                     return emp;
@@ -75,7 +72,6 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
                 }
             }
         });
-
 
         if (empTimeEntries.length === 0 && empPiecework.length === 0) {
             continue;
@@ -185,6 +181,9 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
                 });
             }
 
+            if (weeklyTotalHours <= 0 && weeklyTotalRawEarnings <= 0) {
+                continue; // Skip weeks with no work
+            }
 
             const minimumGrossEarnings = weeklyTotalHours * applicableMinWage;
             const minimumWageTopUp = Math.max(0, minimumGrossEarnings - weeklyTotalRawEarnings);
@@ -209,14 +208,16 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
             });
         }
         
-        const totalPayForPeriod = weeklySummaries.reduce((acc, week) => acc + week.finalPay, 0);
+        if (weeklySummaries.length > 0) {
+            const totalPayForPeriod = weeklySummaries.reduce((acc, week) => acc + week.finalPay, 0);
 
-        employeeSummaries.push({
-            employeeId: employee.id,
-            employeeName: employee.name,
-            weeklySummaries,
-            finalPay: parseFloat(totalPayForPeriod.toFixed(2)),
-        });
+            employeeSummaries.push({
+                employeeId: employee.id,
+                employeeName: employee.name,
+                weeklySummaries,
+                finalPay: parseFloat(totalPayForPeriod.toFixed(2)),
+            });
+        }
     }
 
     return {
