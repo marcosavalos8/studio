@@ -74,7 +74,7 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
 const processPayrollData = ai.defineTool(
   {
     name: 'processPayrollData',
-    description: 'Processes raw payroll data to calculate simple earnings.',
+    description: 'Processes raw payroll data to calculate simple earnings, including minimum wage adjustments.',
     inputSchema: GeneratePayrollReportInputSchema,
     outputSchema: ProcessedPayrollDataSchema,
   },
@@ -95,7 +95,8 @@ const processPayrollData = ai.defineTool(
     const findEmployee = (identifier: string): Employee | undefined => {
         return employeeIdMap.get(identifier) || employeeQrMap.get(identifier);
     };
-
+    
+    // 1. Aggregate all raw work data
     const workData: Record<string, Record<string, Record<string, { hours: number, pieces: number }>>> = {};
     const reportInterval = {
         start: startOfDay(parseISO(input.startDate)),
@@ -147,6 +148,7 @@ const processPayrollData = ai.defineTool(
         }
     }
 
+    // 2. Process aggregated data for each employee
     const employeeSummaries: EmployeePayrollSummary[] = [];
 
     for (const employeeId in workData) {
@@ -165,6 +167,7 @@ const processPayrollData = ai.defineTool(
         }
 
         const weeklySummaries: WeeklySummary[] = [];
+        let totalPayForPeriod = 0;
         
         for (const weekKey in workByWeek) {
             const weekData = workByWeek[weekKey];
@@ -173,6 +176,7 @@ const processPayrollData = ai.defineTool(
             let weeklyTotalHours = 0;
             let weeklyTotalEarnings = 0;
             const dailyBreakdownsForWeek: DailyBreakdown[] = [];
+            let highestMinWageForWeek = 16.28; // WA State minimum wage
 
             const sortedDays = Object.keys(weekData).sort((a,b) => new Date(a).getTime() - new Date(b).getTime());
 
@@ -185,8 +189,14 @@ const processPayrollData = ai.defineTool(
                 for (const taskId in dayData) {
                     const task = taskMap.get(taskId);
                     if (!task) continue;
+                    
+                    const client = clientMap.get(task.clientId);
+                    const clientName = client?.name || 'Unknown Client';
+                    
+                    if (client && client.minimumWage && client.minimumWage > highestMinWageForWeek) {
+                        highestMinWageForWeek = client.minimumWage;
+                    }
 
-                    const clientName = clientMap.get(task.clientId)?.name || 'Unknown Client';
                     const { hours, pieces } = dayData[taskId];
                     
                     const hourlyEarnings = task.employeePayType === 'hourly' ? hours * task.employeeRate : 0;
@@ -218,22 +228,29 @@ const processPayrollData = ai.defineTool(
                 });
             }
 
+            const minimumWageGuarantee = weeklyTotalHours * highestMinWageForWeek;
+            let finalWeeklyPay = weeklyTotalEarnings;
+
+            if (weeklyTotalEarnings < minimumWageGuarantee) {
+                finalWeeklyPay = minimumWageGuarantee;
+            }
+
             weeklySummaries.push({
                 weekNumber,
                 year,
                 totalHours: parseFloat(weeklyTotalHours.toFixed(2)),
-                totalEarnings: parseFloat(weeklyTotalEarnings.toFixed(2)),
+                totalEarnings: parseFloat(finalWeeklyPay.toFixed(2)),
                 dailyBreakdown: dailyBreakdownsForWeek,
             });
+
+            totalPayForPeriod += finalWeeklyPay;
         }
         
-        const finalPay = weeklySummaries.reduce((acc, s) => acc + s.totalEarnings, 0);
-
         employeeSummaries.push({
             employeeId: employee.id,
             employeeName: employee.name,
             weeklySummaries,
-            finalPay: parseFloat(finalPay.toFixed(2)),
+            finalPay: parseFloat(totalPayForPeriod.toFixed(2)),
         });
     }
 
