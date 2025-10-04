@@ -35,7 +35,7 @@ const DailyTaskDetailSchema = z.object({
   pieceworkCount: z.number(),
   hourlyEarnings: z.number(),
   pieceworkEarnings: z.number(),
-  totalEarnings: z.number(),
+  totalEarnings: z-number(),
 });
 
 const DailyBreakdownSchema = z.object({
@@ -319,3 +319,5 @@ const generatePayrollReportFlow = ai.defineFlow(
     return processedData;
   }
 );
+
+    
