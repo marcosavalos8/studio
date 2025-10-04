@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod';
-import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds, startOfWeek, endOfWeek, endOfDay } from 'date-fns';
+import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds, startOfWeek } from 'date-fns';
 import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail, Employee, Piecework, TimeEntry } from '@/lib/types';
 
 
@@ -28,12 +28,15 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
 
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
+    
+    // Create maps for quick lookup by ID and QRCode
     const allEmployeesById = new Map(allEmployees.map((e: Employee) => [e.id, e]));
     const allEmployeesByQr = new Map(allEmployees.map((e: Employee) => [e.qrCode, e]));
 
+
     const reportInterval = {
         start: startOfDay(parseISO(input.startDate)),
-        end: endOfDay(parseISO(input.endDate)),
+        end: startOfDay(parseISO(input.endDate)),
     };
 
     const employeeSummaries: EmployeePayrollSummary[] = [];
@@ -48,15 +51,18 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
              if (!pw.timestamp || !isWithinInterval(parseISO(String(pw.timestamp)), reportInterval)) {
                 return;
             }
+            // Handle comma-separated employee identifiers (can be IDs or QRCodes)
             const employeeIdentifiersOnTicket = String(pw.employeeId).split(',').map(id => id.trim());
             
             const isEmployeeOnThisTicket = employeeIdentifiersOnTicket.some(identifier => {
+                // Check if the identifier matches the current employee being processed
                 const empFromId = allEmployeesById.get(identifier);
                 const empFromQr = allEmployeesByQr.get(identifier);
                 return (empFromId && empFromId.id === employeeId) || (empFromQr && empFromQr.id === employeeId);
             });
             
             if (isEmployeeOnThisTicket) {
+                // Find how many *selected* employees are on this ticket to divide the piece count
                 const relevantEmployeesOnTicket = employeeIdentifiersOnTicket.map(identifier => {
                     const emp = allEmployeesById.get(identifier) || allEmployeesByQr.get(identifier);
                     return emp;
@@ -180,7 +186,7 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
                     totalDailyEarnings: parseFloat(dailyTotalEarnings.toFixed(2)),
                 });
             }
-
+            
             if (weeklyTotalHours <= 0 && weeklyTotalRawEarnings <= 0) {
                 continue; // Skip weeks with no work
             }
@@ -208,6 +214,7 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
             });
         }
         
+        // Only add employee to the final report if they have calculated summaries
         if (weeklySummaries.length > 0) {
             const totalPayForPeriod = weeklySummaries.reduce((acc, week) => acc + week.finalPay, 0);
 
