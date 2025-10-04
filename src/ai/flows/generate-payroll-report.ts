@@ -139,7 +139,10 @@ const processPayrollData = ai.defineTool(
          if (entryDate < startDate || entryDate > endDate) return false;
          
          const employeeIdsInEntry = String(pw.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
-         return employeeIdsInEntry.some(id => id === employee.id || id === employee.qrCode);
+         return employeeIdsInEntry.some(id => {
+            const foundEmp = findEmployee(id);
+            return foundEmp?.id === employee.id;
+         });
       });
 
       for (const entry of empPiecework) {
@@ -186,7 +189,7 @@ const processPayrollData = ai.defineTool(
             workByDay[dayKey][taskId] = workInWeek[mapKey];
         }
 
-        const sortedDays = Object.keys(workByDay).sort();
+        const sortedDays = Object.keys(workByDay).sort((a,b) => new Date(a).getTime() - new Date(b).getTime());
 
         for (const dayKey of sortedDays) {
             let dailyTotalHours = 0;
