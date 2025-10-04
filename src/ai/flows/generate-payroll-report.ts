@@ -123,13 +123,14 @@ const processPayrollData = ai.defineTool(
         const entryStart = parseISO(entry.timestamp);
         if (!isWithinInterval(entryStart, reportInterval)) continue;
 
-        const dayKey = format(entryStart, 'yyyy-MM-dd');
         const hours = (parseISO(entry.endTime).getTime() - entryStart.getTime()) / (1000 * 60 * 60);
         
         if (hours <= 0) continue;
 
         const employee = findEmployee(entry.employeeId);
         if (!employee) continue;
+
+        const dayKey = format(entryStart, 'yyyy-MM-dd');
 
         if (!workData[employee.id]) workData[employee.id] = {};
         if (!workData[employee.id][dayKey]) workData[employee.id][dayKey] = {};
