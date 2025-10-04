@@ -99,8 +99,11 @@ const processPayrollData = ai.defineTool(
     
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
-    const employeeMap = new Map(employees.map((e: Employee) => [e.id, e]));
     
+    // Create robust maps for finding employees by ID or QR code
+    const employeeIdMap = new Map(employees.map((e: Employee) => [e.id, e]));
+    const employeeQrMap = new Map(employees.map((e: Employee) => [e.qrCode, e]));
+
     for (const employee of employees) {
       // Phase 1: Aggregate Raw Data (Hours and Pieces) per employee
       const empWorkData: Record<string, { hours: number; pieceworkCount: number; taskId: string }> = {}; // Key: "dayKey-taskId"
@@ -117,7 +120,11 @@ const processPayrollData = ai.defineTool(
         empWorkData[mapKey].hours += hours;
       }
       
-      const empPiecework: Piecework[] = piecework.filter((pw: Piecework) => String(pw.employeeId || '').split(',').map(id => id.trim()).includes(employee.qrCode) || String(pw.employeeId || '').split(',').map(id => id.trim()).includes(employee.id));
+      const empPiecework: Piecework[] = piecework.filter((pw: Piecework) => {
+         const employeeIdsInEntry = String(pw.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
+         return employeeIdsInEntry.includes(employee.id) || employeeIdsInEntry.includes(employee.qrCode);
+      });
+
       for (const entry of empPiecework) {
         const start = new Date(entry.timestamp);
         const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
@@ -150,7 +157,6 @@ const processPayrollData = ai.defineTool(
         let weeklyTotalHours = 0;
         let weeklyTotalPieceworkEarnings = 0;
         let weeklyTotalHourlyEarnings = 0;
-        let weeklyTotalEarnings = 0;
         const clientIdsInWeek = new Set<string>();
         const dailyBreakdownsForWeek: DailyBreakdown[] = [];
 
@@ -205,12 +211,12 @@ const processPayrollData = ai.defineTool(
             });
 
             weeklyTotalHours += dailyTotalHours;
-            weeklyTotalEarnings += dailyTotalEarnings;
             weeklyTotalHourlyEarnings += taskDetailsForDay.reduce((acc, t) => acc + t.hourlyEarnings, 0);
             weeklyTotalPieceworkEarnings += taskDetailsForDay.reduce((acc, t) => acc + t.pieceworkEarnings, 0);
         }
         
         const [year, weekNumber] = weekKey.split('-').map(Number);
+        const weeklyTotalEarnings = weeklyTotalHourlyEarnings + weeklyTotalPieceworkEarnings;
         
         const clientWages = Array.from(clientIdsInWeek).map(id => (clientMap.get(id) as any)?.minimumWage).filter(Boolean) as number[];
         const applicableMinimumWage = clientWages.length > 0 ? Math.max(...clientWages) : STATE_MINIMUM_WAGE;
