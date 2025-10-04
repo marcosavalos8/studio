@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod';
-import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
+import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds, startOfWeek, endOfWeek } from 'date-fns';
 import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail, Employee, Piecework, TimeEntry } from '@/lib/types';
 
 
@@ -24,9 +24,12 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
     const data = JSON.parse(input.jsonData);
     const { employees: reportEmployees, tasks, timeEntries, piecework, clients, allEmployees } = data;
 
+    const reportEmployeeIds = new Set(reportEmployees.map((e: Employee) => e.id));
+
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
-    const allEmployeesMap = new Map(allEmployees.map((e: Employee) => [e.id, e]));
+    const allEmployeesById = new Map(allEmployees.map((e: Employee) => [e.id, e]));
+    const allEmployeesByQr = new Map(allEmployees.map((e: Employee) => [e.qrCode, e]));
 
     const reportInterval = {
         start: startOfDay(parseISO(input.startDate)),
@@ -40,14 +43,39 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
         const employeeId = employee.id;
 
         const empTimeEntries = timeEntries.filter((e: TimeEntry) => e.employeeId === employeeId && e.timestamp && e.endTime && isWithinInterval(parseISO(String(e.timestamp)), reportInterval));
-        const empPiecework = piecework.filter((pw: Piecework) => {
-            if (!pw.timestamp || !isWithinInterval(parseISO(String(pw.timestamp)), reportInterval)) {
-                return false;
+        
+        const empPiecework: Piecework[] = [];
+        piecework.forEach((pw: Piecework) => {
+             if (!pw.timestamp || !isWithinInterval(parseISO(String(pw.timestamp)), reportInterval)) {
+                return;
             }
-            const employeeIdsOnTicket = String(pw.employeeId).split(',').map(id => id.trim());
-            const employeeQR = allEmployeesMap.get(employeeId)?.qrCode
-            return employeeIdsOnTicket.some(idOrQr => idOrQr === employeeId || idOrQr === employeeQR);
+            // An employee can be identified by ID or QR code in the piecework record
+            const employeeIdentifiersOnTicket = String(pw.employeeId).split(',').map(id => id.trim());
+            
+            const isEmployeeOnThisTicket = employeeIdentifiersOnTicket.some(identifier => {
+                const empFromId = allEmployeesById.get(identifier);
+                const empFromQr = allEmployeesByQr.get(identifier);
+                return (empFromId && empFromId.id === employeeId) || (empFromQr && empFromQr.id === employeeId);
+            });
+            
+            if (isEmployeeOnThisTicket) {
+                // Find all employees on the ticket that are also in the current report run
+                const relevantEmployeesOnTicket = employeeIdentifiersOnTicket.map(identifier => {
+                    const emp = allEmployeesById.get(identifier) || allEmployeesByQr.get(identifier);
+                    return emp;
+                }).filter((e): e is Employee => !!e && reportEmployeeIds.has(e.id));
+                
+                const numRelevantEmployees = relevantEmployeesOnTicket.length;
+
+                if (numRelevantEmployees > 0) {
+                    empPiecework.push({
+                        ...pw,
+                        pieceCount: pw.pieceCount / numRelevantEmployees,
+                    });
+                }
+            }
         });
+
 
         if (empTimeEntries.length === 0 && empPiecework.length === 0) {
             continue;
@@ -55,8 +83,7 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
         
         const workByWeek: Record<string, { time: TimeEntry[], pieces: Piecework[] }> = {};
         
-        const allWorkForEmployee = [...empTimeEntries, ...empPiecework];
-        allWorkForEmployee.forEach(entry => {
+        [...empTimeEntries, ...empPiecework].forEach(entry => {
             if (!entry.timestamp) return;
             const date = parseISO(String(entry.timestamp));
             const weekStart = startOfWeek(date, { weekStartsOn: 1 });
@@ -98,13 +125,10 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
                 if (!entry.timestamp) return;
                 const date = parseISO(String(entry.timestamp));
                 const dayKey = format(date, 'yyyy-MM-dd');
-                
-                const employeeIdsOnTicket = String(entry.employeeId).split(',').map(id => id.trim()).filter(Boolean);
-                const pieceCountPerEmployee = employeeIdsOnTicket.length > 0 ? entry.pieceCount / employeeIdsOnTicket.length : 0;
 
                 if (!dailyWork[dayKey]) dailyWork[dayKey] = { tasks: {} };
                 if (!dailyWork[dayKey].tasks[entry.taskId]) dailyWork[dayKey].tasks[entry.taskId] = { hours: 0, pieces: 0 };
-                dailyWork[dayKey].tasks[entry.taskId].pieces += pieceCountPerEmployee;
+                dailyWork[dayKey].tasks[entry.taskId].pieces += entry.pieceCount;
             });
             
             const dailyBreakdownsForWeek: DailyBreakdown[] = [];
@@ -161,18 +185,6 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
                 });
             }
 
-            // This is the crucial fix: If there are piecework entries but no time entries,
-            // we must still account for the hours worked on piecework tasks for minimum wage and rest break calculations.
-            // A simple approximation: assume an average rate of work. A more robust solution might need
-            // supervisors to log start/end times for piecework blocks. For now, let's use a proxy.
-            // Let's find total hours from time entries, and if zero, let's assume piecework hours from tasks if available.
-            // The previous logic for weeklyTotalHours was fine, it summed up dailyTotalHours. Let's re-verify dailyTotalHours.
-            // The bug was that for piecework-only days, hours were 0. Let's fix that.
-
-            // The root cause is `dailyWork[dayKey].tasks[entry.taskId].hours += hours;` is only for time entries.
-            // We need to associate hours with piecework as well. The current model doesn't log piecework hours.
-            // Let's stick to the available data. The previous calculation was correct based on the data.
-            // The error was in `if (weeklyTotalHours <= 0)` check and the subsequent empty push.
 
             const minimumGrossEarnings = weeklyTotalHours * applicableMinWage;
             const minimumWageTopUp = Math.max(0, minimumGrossEarnings - weeklyTotalRawEarnings);
