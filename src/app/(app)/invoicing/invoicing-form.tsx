@@ -21,189 +21,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableFooter
-} from "@/components/ui/table"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import type { Client, Task, Piecework, TimeEntry } from "@/lib/types"
 import type { DateRange } from "react-day-picker"
 import { useFirestore } from "@/firebase"
 import { collection, getDocs, query, where } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
+import { DailyInvoiceItem, DetailedInvoiceData } from "./page"
 
-type InvoiceItem = {
-    description: string;
-    quantity: number;
-    rate: number;
-    total: number;
-}
-
-export type InvoiceData = {
-  client: Client;
-  date: {
-    from: string | null | undefined;
-    to: string | null | undefined;
-  };
-  items: InvoiceItem[];
-  subtotal: number;
-  commission: number;
-  total: number;
-};
 
 type InvoicingFormProps = {
     clients: Client[];
     tasks: Task[];
 };
-
-function InvoiceDisplay({ invoice, onClose }: { invoice: InvoiceData; onClose: () => void; }) {
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleEmail = () => {
-    if (!invoice || !invoice.date.from || !invoice.date.to) return;
-    const client = invoice.client;
-    const clientEmail = client.email || '';
-    const subject = `Invoice from FieldTack WA`;
-    
-    let body = `Dear ${client.name},\n\n`;
-    body += `Please find your invoice for the period of ${format(new Date(invoice.date.from), "LLL dd, y")} to ${format(new Date(invoice.date.to), "LLL dd, y")}.\n\n`;
-    body += `To save this invoice as a PDF, please use your browser's print function (Ctrl+P or Cmd+P) and select 'Save as PDF'.\n\n`;
-    body += `Invoice Summary:\n`;
-    body += `Total Amount Due: $${invoice.total.toFixed(2)}\n`;
-    body += `Payment Terms: ${client.paymentTerms}\n\n`;
-    body += 'Thank you for your business!\n\n';
-    body += 'Sincerely,\nThe FieldTack WA Team';
-
-    const mailtoLink = `mailto:${clientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailtoLink;
-  };
-  
-  if (!invoice.date.from || !invoice.date.to) return null;
-
-  return (
-    <div className="printable-report-container">
-        <style jsx global>{`
-            @media print {
-                body * {
-                    visibility: hidden;
-                }
-                .printable-report-container, .printable-report-container * {
-                    visibility: visible;
-                }
-                .printable-report-container {
-                    position: absolute;
-                    left: 0;
-                    top: 0;
-                    width: 100%;
-                    padding: 1rem;
-                }
-                .print\:hidden {
-                    display: none;
-                }
-            }
-        `}</style>
-         <Button onClick={onClose} className="mb-4 print:hidden">
-            <X className="mr-2 h-4 w-4" />
-            Close Invoice
-        </Button>
-        <div className="mt-6 bg-card p-4 sm:p-6 rounded-lg border print:border-none print:shadow-none print:p-0">
-            <div className="flex justify-between items-start mb-6 print:mb-4">
-              <div>
-                <h2 className="text-2xl font-bold text-primary">INVOICE</h2>
-                <div>To: {invoice.client.name}</div>
-                <div className="text-muted-foreground">{invoice.client.billingAddress}</div>
-              </div>
-              <div className="text-right">
-                <div className="font-semibold">FieldTack WA</div>
-                <div className="text-sm text-muted-foreground">Invoice Date: {format(new Date(), "LLL dd, y")}</div>
-                  <div className="text-sm text-muted-foreground">Period: {format(new Date(invoice.date.from), "LLL dd, y")} - {format(new Date(invoice.date.to), "LLL dd, y")}</div>
-              </div>
-            </div>
-
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="text-center">Quantity</TableHead>
-                  <TableHead className="text-center">Rate</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invoice.items.length > 0 ? invoice.items.map((item: any, index: number) => (
-                  <TableRow key={index}>
-                    <TableCell>{item.description}</TableCell>
-                    <TableCell className="text-center">{item.quantity}</TableCell>
-                    <TableCell className="text-center">${item.rate.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">${item.total.toFixed(2)}</TableCell>
-                  </TableRow>
-                )) : (
-                  <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground py-10">No billable activity for this period.</TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-              {invoice.items.length > 0 && (
-                  <TableFooter>
-                      <TableRow>
-                          <TableCell colSpan={3} className="text-right font-medium">Subtotal</TableCell>
-                          <TableCell className="text-right font-medium">${invoice.subtotal.toFixed(2)}</TableCell>
-                      </TableRow>
-                      {invoice.commission > 0 && (
-                        <TableRow>
-                          <TableCell colSpan={3} className="text-right">Commission ({invoice.client.commissionRate}%)</TableCell>
-                          <TableCell className="text-right">${invoice.commission.toFixed(2)}</TableCell>
-                        </TableRow>
-                      )}
-                      <TableRow>
-                          <TableCell colSpan={3} className="text-right font-bold text-base">Total</TableCell>
-                          <TableCell className="text-right font-bold text-base">${invoice.total.toFixed(2)}</TableCell>
-                      </TableRow>
-                  </TableFooter>
-              )}
-            </Table>
-
-            <div className="flex justify-between items-center mt-6">
-              <div className="text-muted-foreground text-xs">
-                  Payment Terms: {invoice.client.paymentTerms}
-              </div>
-              <div className="print:hidden">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <MoreVertical className="h-4 w-4" />
-                      <span className="sr-only">Actions</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={handlePrint}>
-                      <Printer className="mr-2 h-4 w-4" />
-                      Print / Save as PDF
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleEmail} disabled={!invoice.client.email}>
-                      <Mail className="mr-2 h-4 w-4" />
-                      Email Invoice
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </div>
-    </div>
-  )
-}
 
 export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
   const firestore = useFirestore()
@@ -211,7 +40,13 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
   const [date, setDate] = React.useState<DateRange | undefined>()
   const [selectedClient, setSelectedClient] = React.useState<Client | undefined>()
   const [isGenerating, setIsGenerating] = React.useState(false)
-  const [invoice, setInvoice] = React.useState<InvoiceData | null>(null)
+  const [invoiceData, setInvoiceData] = React.useState<DetailedInvoiceData | null>(null);
+
+  const handlePrint = () => {
+    if (!invoiceData) return;
+    sessionStorage.setItem('print-invoice-data', JSON.stringify(invoiceData));
+    window.open('/invoicing/print', '_blank');
+  };
 
   const handleGenerate = async () => {
     if (!firestore || !selectedClient || !date?.from || !date?.to) {
@@ -219,7 +54,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         return;
     }
     setIsGenerating(true)
-    setInvoice(null);
+    setInvoiceData(null);
 
     const clientData = clients.find(c => c.id === selectedClient.id)
     if (!clientData) {
@@ -229,38 +64,40 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
 
     const clientTasks = tasks.filter(task => task.clientId === clientData.id);
     const clientTaskIds = clientTasks.map(t => t.id);
-    const invoiceItems: InvoiceItem[] = []
     
     if (clientTaskIds.length === 0) {
-        setInvoice({
+        const finalInvoiceData: DetailedInvoiceData = {
             client: clientData,
             date: {
-              from: date.from?.toISOString(),
-              to: date.to?.toISOString()
+              from: date.from.toISOString(),
+              to: date.to.toISOString()
             },
-            items: [],
+            dailyItems: [],
             subtotal: 0,
             commission: 0,
             total: 0,
-        })
+        };
+        setInvoiceData(finalInvoiceData);
         setIsGenerating(false)
         return
     }
 
     try {
-        const pieceworkByTask: Record<string, number> = {};
-        const hoursByTask: Record<string, number> = {};
+        const pieceworkByDay: Record<string, Record<string, number>> = {}; // { [date]: { [taskId]: pieceCount } }
+        const hoursByDay: Record<string, Record<string, number>> = {}; // { [date]: { [taskId]: hours } }
 
         const pieceLogsQuery = query(
             collection(firestore, "piecework"),
             where("timestamp", ">=", date.from),
-            where("timestamp", "<=", date.to)
+            where("timestamp", "<=", date.to),
+            where("taskId", "in", clientTaskIds)
         );
         
         const timeLogsQuery = query(
             collection(firestore, "time_entries"),
             where("timestamp", ">=", date.from),
-            where("timestamp", "<=", date.to)
+            where("timestamp", "<=", date.to),
+            where("taskId", "in", clientTaskIds)
         );
 
         const [pieceLogsSnap, timeLogsSnap] = await Promise.all([
@@ -270,71 +107,99 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         
         pieceLogsSnap.forEach(doc => {
             const log = doc.data() as Piecework;
-            if (clientTaskIds.includes(log.taskId)) {
-                if (!pieceworkByTask[log.taskId]) {
-                    pieceworkByTask[log.taskId] = 0;
-                }
-                pieceworkByTask[log.taskId] += log.pieceCount;
-            }
+            const logDate = format((log.timestamp as unknown as Timestamp).toDate(), 'yyyy-MM-dd');
+            if (!pieceworkByDay[logDate]) pieceworkByDay[logDate] = {};
+            if (!pieceworkByDay[logDate][log.taskId]) pieceworkByDay[logDate][log.taskId] = 0;
+            pieceworkByDay[logDate][log.taskId] += log.pieceCount;
         });
 
         timeLogsSnap.forEach(doc => {
             const log = doc.data() as TimeEntry;
-             if (clientTaskIds.includes(log.taskId) && log.endTime) {
+            if (log.endTime) {
                 const startTime = (log.timestamp as unknown as Timestamp).toDate();
-                const endTime = log.endTime ? (log.endTime as unknown as Timestamp).toDate() : new Date();
-
+                const endTime = (log.endTime as unknown as Timestamp).toDate();
+                const logDate = format(startTime, 'yyyy-MM-dd');
+                
                 if (endTime >= startTime) {
-                    if (!hoursByTask[log.taskId]) {
-                        hoursByTask[log.taskId] = 0;
-                    }
+                    if (!hoursByDay[logDate]) hoursByDay[logDate] = {};
+                    if (!hoursByDay[logDate][log.taskId]) hoursByDay[logDate][log.taskId] = 0;
                     const durationHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-                    hoursByTask[log.taskId] += durationHours;
+                    hoursByDay[logDate][log.taskId] += durationHours;
                 }
             }
         });
-
         
-        // --- Build Invoice Items ---
-        for (const task of clientTasks) {
-            if (task.clientRateType === 'piece' && pieceworkByTask[task.id]) {
-                const quantity = pieceworkByTask[task.id];
-                const total = quantity * task.clientRate;
-                invoiceItems.push({
-                    description: `${task.name}${task.variety ? ' (' + task.variety + ')' : ''} (Piecework)`,
-                    quantity: parseFloat(quantity.toFixed(2)),
-                    rate: task.clientRate,
-                    total: total
-                });
+        const allDates = new Set([...Object.keys(pieceworkByDay), ...Object.keys(hoursByDay)]);
+        const sortedDates = Array.from(allDates).sort();
+
+        const dailyItems: DailyInvoiceItem[] = [];
+
+        for (const dateStr of sortedDates) {
+            const itemsForDay: DailyInvoiceItem['items'] = [];
+            let dailyTotal = 0;
+
+            const taskIdsOnDate = new Set([
+              ...Object.keys(pieceworkByDay[dateStr] || {}),
+              ...Object.keys(hoursByDay[dateStr] || {})
+            ]);
+
+            for (const taskId of taskIdsOnDate) {
+                const task = clientTasks.find(t => t.id === taskId);
+                if (!task) continue;
+
+                if (task.clientRateType === 'piece' && pieceworkByDay[dateStr]?.[taskId]) {
+                    const quantity = pieceworkByDay[dateStr][taskId];
+                    const total = quantity * task.clientRate;
+                    itemsForDay.push({
+                        description: `${task.name}${task.variety ? ' (' + task.variety + ')' : ''}`,
+                        unit: 'pieces',
+                        quantity: parseFloat(quantity.toFixed(2)),
+                        rate: task.clientRate,
+                        total: total
+                    });
+                    dailyTotal += total;
+                }
+
+                if (task.clientRateType === 'hourly' && hoursByDay[dateStr]?.[taskId]) {
+                    const hours = hoursByDay[dateStr][taskId];
+                    const total = hours * task.clientRate;
+                    itemsForDay.push({
+                        description: `${task.name}${task.variety ? ' (' + task.variety + ')' : ''}`,
+                        unit: 'hours',
+                        quantity: parseFloat(hours.toFixed(2)),
+                        rate: task.clientRate,
+                        total: total
+                    });
+                    dailyTotal += total;
+                }
             }
-            
-            if (task.clientRateType === 'hourly' && hoursByTask[task.id]) {
-                const hours = hoursByTask[task.id];
-                const total = hours * task.clientRate;
-                invoiceItems.push({
-                    description: `${task.name}${task.variety ? ' (' + task.variety + ')' : ''} (Hourly)`,
-                    quantity: parseFloat(hours.toFixed(2)),
-                    rate: task.clientRate,
-                    total: total
+
+            if (itemsForDay.length > 0) {
+                dailyItems.push({
+                    date: dateStr,
+                    items: itemsForDay,
+                    dailyTotal: dailyTotal
                 });
             }
         }
 
-        const subtotal = invoiceItems.reduce((sum, item) => sum + item.total, 0)
-        const commission = clientData.commissionRate ? subtotal * (clientData.commissionRate / 100) : 0
-        const total = subtotal + commission
+        const subtotal = dailyItems.reduce((sum, day) => sum + day.dailyTotal, 0);
+        const commission = clientData.commissionRate ? subtotal * (clientData.commissionRate / 100) : 0;
+        const total = subtotal + commission;
 
-        setInvoice({
+        const finalInvoiceData: DetailedInvoiceData = {
             client: clientData,
             date: {
               from: date.from.toISOString(),
               to: date.to.toISOString()
             },
-            items: invoiceItems,
+            dailyItems,
             subtotal,
             commission,
             total,
-        })
+        };
+        setInvoiceData(finalInvoiceData);
+
     } catch(err) {
         console.error("Error generating invoice:", err)
         toast({
@@ -347,12 +212,8 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
     }
   }
 
-  if (invoice) {
-    return <InvoiceDisplay invoice={invoice} onClose={() => setInvoice(null)} />
-  }
-
   return (
-    <div className="print:hidden">
+    <div>
       <div className="grid gap-4 sm:grid-cols-3">
         <Select onValueChange={(value) => setSelectedClient(clients.find(c => c.id === value))}>
           <SelectTrigger>
@@ -407,6 +268,15 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
           Generate Invoice
         </Button>
       </div>
+
+        {invoiceData && (
+            <div className="mt-4 flex gap-2">
+                <Button onClick={handlePrint} variant="outline">
+                    <Printer className="mr-2 h-4 w-4" />
+                    Print / Save as PDF
+                </Button>
+            </div>
+        )}
 
       {isGenerating && (
           <div className="mt-6 text-center">

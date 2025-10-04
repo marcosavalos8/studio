@@ -14,12 +14,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
 import { generateReportAction } from "./actions"
@@ -28,21 +22,6 @@ import { useFirestore } from "@/firebase"
 import { collection, query, where, Timestamp, getDocs } from 'firebase/firestore'
 import { Client, Employee, Piecework, Task, TimeEntry } from "@/lib/types"
 import type { ProcessedPayrollData } from "@/ai/flows/generate-payroll-report"
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableFooter, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table"
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -56,189 +35,12 @@ function SubmitButton({disabled}: {disabled: boolean}) {
   )
 }
 
-function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData['employeeSummaries'][0]['weeklySummaries'][0]['dailyBreakdown']}) {
-  return (
-    <div className="space-y-2 pl-4">
-      {breakdown.map(day => (
-        <div key={day.date} className="bg-muted/40 p-3 rounded-md">
-          <p className="font-semibold">{format(new Date(day.date), "EEEE, LLL dd")}</p>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Task / Location</TableHead>
-                <TableHead className="text-right">Hours</TableHead>
-                <TableHead className="text-right">Pieces</TableHead>
-                <TableHead className="text-right">Earnings</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {day.tasks.map((task, idx) => (
-                <TableRow key={idx}>
-                  <TableCell>
-                    <div>{task.taskName}</div>
-                    <div className="text-xs text-muted-foreground">{task.clientName} {task.ranch && ` - ${task.ranch}`}</div>
-                  </TableCell>
-                  <TableCell className="text-right">{task.hours > 0 ? task.hours.toFixed(2) : '-'}</TableCell>
-                  <TableCell className="text-right">{task.pieceworkCount > 0 ? task.pieceworkCount : '-'}</TableCell>
-                  <TableCell className="text-right">${(task.hourlyEarnings + task.pieceworkEarnings).toFixed(2)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-            <TableFooter>
-               <TableRow>
-                  <TableCell colSpan={3} className="text-right font-medium">Total Daily Earnings</TableCell>
-                  <TableCell className="text-right font-medium">${day.totalDailyEarnings.toFixed(2)}</TableCell>
-                </TableRow>
-            </TableFooter>
-          </Table>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function ReportDisplay({ report, onClose }: { report: ProcessedPayrollData; onClose: () => void; }) {
-  const overallTotal = report.employeeSummaries.reduce((acc, emp) => acc + emp.finalPay, 0);
-
-  const handlePrint = () => {
-    window.print();
-  }
-  
-  const handleEmail = () => {
-    if (!report.startDate || !report.endDate) return;
-    const subject = `Payroll Report for ${format(new Date(report.startDate), "LLL dd, y")} - ${format(new Date(report.endDate), "LLL dd, y")}`;
-    
-    let body = `Hello Accountant,\n\nPlease find the payroll summary for the period of ${format(new Date(report.startDate), "LLL dd, y")} to ${format(new Date(report.endDate), "LLL dd, y")}.\n\n`;
-    body += `To save this report as a PDF, please use your browser's print function (Ctrl+P or Cmd+P) and select 'Save as PDF' as the destination.\n\n`;
-    body += `Report Summary:\n`;
-    body += `Total Payroll: $${overallTotal.toFixed(2)}\n\n`;
-    body += 'Thank you!';
-
-    const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailtoLink;
-  };
-
-  return (
-    <div className="printable-report-container">
-        <style jsx global>{`
-            @media print {
-                body * {
-                    visibility: hidden;
-                }
-                .printable-report-container, .printable-report-container * {
-                    visibility: visible;
-                }
-                .printable-report-container {
-                    position: absolute;
-                    left: 0;
-                    top: 0;
-                    width: 100%;
-                }
-                 .page-before {
-                   break-before: page;
-                }
-                .print\:hidden {
-                    display: none;
-                }
-            }
-        `}</style>
-         <Button onClick={onClose} className="mb-4 print:hidden">
-            <X className="mr-2 h-4 w-4" />
-            Close Report
-        </Button>
-      <div className="mt-6 bg-card p-4 sm:p-6 rounded-lg border print:border-none print:shadow-none print:p-0">
-         <div className="flex justify-between items-start mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-primary">Payroll Report</h2>
-                <div className="text-muted-foreground">For period: {format(new Date(report.startDate), "LLL dd, y")} - {format(new Date(report.endDate), "LLL dd, y")}</div>
-                <div className="text-muted-foreground">Pay Date: {format(new Date(report.payDate), "LLL dd, y")}</div>
-              </div>
-              <div className="text-right">
-                <div className="font-semibold">FieldTack WA</div>
-                <div className="text-sm text-muted-foreground">Report Generated: {format(new Date(), "LLL dd, y")}</div>
-                <div className="text-lg font-bold">Total Payroll: ${overallTotal.toFixed(2)}</div>
-              </div>
-          </div>
-          <Accordion type="multiple" className="w-full" defaultValue={report.employeeSummaries.map(e => e.employeeId)}>
-              {report.employeeSummaries.map(employee => (
-                  <AccordionItem value={employee.employeeId} key={employee.employeeId} className="print:border-b print:page-before">
-                      <AccordionTrigger className="text-lg font-semibold hover:no-underline print:no-underline print:text-xl">
-                        <div className="flex justify-between w-full pr-4">
-                          <span>{employee.employeeName}</span>
-                          <span className="text-primary">Final Pay: ${employee.finalPay.toFixed(2)}</span>
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <div className="space-y-4">
-                          <Accordion type="multiple" className="w-full" defaultValue={employee.weeklySummaries.map(w => `w-${w.weekNumber}`)}>
-                            {employee.weeklySummaries.map(week => (
-                                <AccordionItem value={`w-${week.weekNumber}`} key={week.weekNumber}>
-                                    <AccordionTrigger className="font-semibold text-md mb-2 ml-4 print:text-lg">
-                                        Week {week.weekNumber}, {week.year}
-                                    </AccordionTrigger>
-                                    <AccordionContent className="space-y-4 pl-4">
-                                        <DailyBreakdownDisplay breakdown={week.dailyBreakdown} />
-                                        <div className="border rounded-md p-4 mt-4 print:border-gray-200">
-                                          <h5 className="font-semibold mb-2">Week {week.weekNumber} Financial Summary</h5>
-                                          <Table>
-                                              <TableBody>
-                                                  <TableRow><TableCell>Total Hours Worked</TableCell><TableCell className="text-right">{week.totalHours.toFixed(2)}</TableCell></TableRow>
-                                                  <TableRow><TableCell>Total Earnings (Hourly + Piecework)</TableCell><TableCell className="text-right">${week.totalEarnings.toFixed(2)}</TableCell></TableRow>
-                                                  <TableRow><TableCell>Effective Hourly Rate</TableCell><TableCell className="text-right">${week.effectiveHourlyRate.toFixed(2)}</TableCell></TableRow>
-                                                  <TableRow><TableCell>Paid Rest Breaks (10 min / 4 hrs)</TableCell><TableCell className="text-right">+ ${week.paidRestBreaksTotal.toFixed(2)}</TableCell></TableRow>
-                                                  {week.minimumWageTopUp > 0 && <TableRow className="bg-amber-50 dark:bg-amber-900/20 print:bg-amber-50"><TableCell className="font-semibold">Minimum Wage Top-up</TableCell><TableCell className="text-right font-semibold">+ ${week.minimumWageTopUp.toFixed(2)}</TableCell></TableRow>}
-                                              </TableBody>
-                                          </Table>
-                                        </div>
-                                    </AccordionContent>
-                                </AccordionItem>
-                            ))}
-                          </Accordion>
-
-                           <div className="border rounded-md p-4 bg-muted/40 print:bg-gray-50">
-                              <h4 className="font-semibold text-md mb-2 print:text-lg">Employee Pay Summary for Period</h4>
-                               <Table>
-                                 <TableBody>
-                                    <TableRow><TableCell>Subtotal Earnings</TableCell><TableCell className="text-right">${employee.overallTotalEarnings.toFixed(2)}</TableCell></TableRow>
-                                    <TableRow><TableCell>Total Paid Rest Breaks</TableCell><TableCell className="text-right">+ ${employee.overallTotalPaidRestBreaks.toFixed(2)}</TableCell></TableRow>
-                                    {employee.overallTotalMinimumWageTopUp > 0 && <TableRow><TableCell>Total Minimum Wage Top-up</TableCell><TableCell className="text-right">+ ${employee.overallTotalMinimumWageTopUp.toFixed(2)}</TableCell></TableRow>}
-                                 </TableBody>
-                                 <TableFooter>
-                                  <TableRow className="text-base font-bold print:text-lg"><TableCell>Final Pay</TableCell><TableCell className="text-right">${employee.finalPay.toFixed(2)}</TableCell></TableRow>
-                                 </TableFooter>
-                               </Table>
-                            </div>
-                        </div>
-                      </AccordionContent>
-                  </AccordionItem>
-              ))}
-          </Accordion>
-
-        <div className="flex justify-end items-center mt-6 print:hidden">
-          <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <MoreVertical className="h-4 w-4" />
-                     <span className="sr-only">Actions</span>
-                  </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handlePrint}><Printer className="mr-2 h-4 w-4" />Print / Save as PDF</DropdownMenuItem>
-                   <DropdownMenuItem onClick={handleEmail}><Mail className="mr-2 h-4 w-4" />Email Report</DropdownMenuItem>
-              </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 const initialState = {
   report: undefined,
   error: undefined,
 }
 
-function PayrollFormGenerator() {
+export function PayrollForm() {
   const [state, formAction] = useActionState(generateReportAction, initialState)
   const [date, setDate] = React.useState<DateRange | undefined>()
   const [payDate, setPayDate] = React.useState<Date | undefined>(new Date())
@@ -258,7 +60,7 @@ function PayrollFormGenerator() {
         description: state.error,
       })
     }
-  }, [state, toast])
+  }, [state.error, toast])
   
   React.useEffect(() => {
     const fetchPayrollData = async () => {
@@ -314,8 +116,8 @@ function PayrollFormGenerator() {
             });
             
             const employeeIdsWithActivity = new Set<string>();
-            timeEntries.forEach(entry => employeeIdsWithActivity.add(entry.employeeId));
-            piecework.forEach(entry => {
+            timeEntries.forEach((entry: TimeEntry) => employeeIdsWithActivity.add(entry.employeeId));
+            piecework.forEach((entry: Piecework) => {
               const ids = String(entry.employeeId || '').split(',');
               ids.forEach((id: string) => {
                 if (id.trim()) {
@@ -371,31 +173,25 @@ function PayrollFormGenerator() {
     if (!allData) return null;
     
     const filteredEmployees = allData.allEmployees.filter((e: Employee) => selectedEmployeeIds.has(e.id));
-    const filteredTimeEntries = allData.timeEntries.filter((te: TimeEntry) => selectedEmployeeIds.has(te.employeeId));
-    const filteredPiecework = allData.piecework.filter((pw: Piecework) => {
-        const ids = String(pw.employeeId || '').split(',');
-        return ids.some(id => selectedEmployeeIds.has(id.trim()));
-    });
-
+    // The AI flow needs all time/piece entries to calculate context, even for non-selected employees, so we don't filter them.
+    // The AI flow itself will filter down to the final list of employees based on the `filteredEmployees` array.
     return JSON.stringify({
         employees: filteredEmployees,
         tasks: allData.tasks,
         clients: allData.clients,
-        timeEntries: filteredTimeEntries,
-        piecework: filteredPiecework
+        timeEntries: allData.timeEntries,
+        piecework: allData.piecework
     });
   }
 
+  const handlePrint = () => {
+    if (!state.report) return;
+    sessionStorage.setItem('print-payroll-data', JSON.stringify(state.report));
+    window.open('/payroll/print', '_blank');
+  };
+
   const jsonData = getFilteredJsonData();
   const allEmployeesSelected = employeesInRange.length > 0 && selectedEmployeeIds.size === employeesInRange.length;
-
-  if (state.report) {
-    return <ReportDisplay report={state.report} onClose={() => { 
-        // This is a bit of a hack to reset the form action state.
-        // There isn't a built-in way to do this with useActionState yet.
-        window.location.reload(); 
-    }} />;
-  }
 
   return (
     <div className="print:hidden">
@@ -472,6 +268,15 @@ function PayrollFormGenerator() {
              {isFetchingData && <p className="text-xs text-muted-foreground mt-2 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin"/>Fetching data for selected range...</p>}
              {!isFetchingData && date?.from && employeesInRange.length > 0 && <p className="text-xs text-muted-foreground mt-2">{selectedEmployeeIds.size} of {employeesInRange.length} employees selected.</p>}
              {!isFetchingData && date?.from && employeesInRange.length === 0 && <p className="text-xs text-amber-600 mt-2">No employee activity found for this date range.</p>}
+             
+            {state.report && (
+              <div className="mt-4 flex gap-2">
+                <Button onClick={handlePrint} variant="outline">
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print / Save as PDF
+                </Button>
+              </div>
+            )}
           </div>
         </div>
         
@@ -528,10 +333,7 @@ function PayrollFormGenerator() {
         {payDate && <input type="hidden" name="payDate" value={format(payDate, 'yyyy-MM-dd')} />}
         {jsonData && <input type="hidden" name="jsonData" value={jsonData} />}
       </form>
+      {state.report && <p className="text-green-600 mt-4 text-center">Report generated successfully below. You can now print it.</p>}
     </div>
   )
-}
-
-export function PayrollForm() {
-    return <PayrollFormGenerator />
 }

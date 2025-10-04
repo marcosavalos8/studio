@@ -15,6 +15,31 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useMemo } from 'react';
 import { withAuth } from '@/components/withAuth'
 
+export type DailyInvoiceItem = {
+    date: string;
+    items: {
+        description: string;
+        unit: 'hours' | 'pieces';
+        quantity: number;
+        rate: number;
+        total: number;
+    }[];
+    dailyTotal: number;
+};
+
+export type DetailedInvoiceData = {
+  client: Client;
+  date: {
+    from: string;
+    to: string;
+  };
+  dailyItems: DailyInvoiceItem[];
+  subtotal: number;
+  commission: number;
+  total: number;
+};
+
+
 function InvoicingPage() {
   const firestore = useFirestore()
   const clientsQuery = useMemo(() => {
