@@ -74,7 +74,7 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
 const processPayrollData = ai.defineTool(
   {
     name: 'processPayrollData',
-    description: 'Processes raw payroll data to calculate simple earnings, including minimum wage adjustments.',
+    description: 'Processes raw payroll data to calculate simple earnings. THIS IS A RADICALLY SIMPLIFIED VERSION.',
     inputSchema: GeneratePayrollReportInputSchema,
     outputSchema: ProcessedPayrollDataSchema,
   },
@@ -84,79 +84,80 @@ const processPayrollData = ai.defineTool(
     
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
+    const employeeMap = new Map(employees.map((e: Employee) => [e.id, e]));
 
-    const employeeIdMap = new Map<string, Employee>();
-    const employeeQrMap = new Map<string, Employee>();
-    employees.forEach((e: Employee) => {
-        if (e.id) employeeIdMap.set(e.id, e);
-        if (e.qrCode) employeeQrMap.set(e.qrCode, e);
-    });
-
-    const findEmployee = (identifier: string): Employee | undefined => {
-        return employeeIdMap.get(identifier) || employeeQrMap.get(identifier);
-    };
-    
-    const workData: Record<string, Record<string, Record<string, { hours: number, pieces: number }>>> = {};
     const reportInterval = {
         start: startOfDay(parseISO(input.startDate)),
         end: startOfDay(parseISO(input.endDate)),
     };
     
+    // Structure to hold aggregated work data per employee, per day, per task
+    // employeeId -> day (yyyy-MM-dd) -> taskId -> { hours, pieces }
+    const workData: Record<string, Record<string, Record<string, { hours: number, pieces: number }>>> = {};
+
+    // 1. Aggregate all work data first
+
+    // Aggregate hours from time entries
     for (const entry of timeEntries) {
         if (!entry.timestamp || !entry.endTime || !entry.employeeId || !entry.taskId) continue;
         
         const entryStart = parseISO(entry.timestamp);
         if (!isWithinInterval(entryStart, reportInterval)) continue;
 
+        const employeeId = entry.employeeId;
+        const employee = employeeMap.get(employeeId);
+        if (!employee) continue;
+
         const hours = differenceInMilliseconds(parseISO(entry.endTime), entryStart) / (1000 * 60 * 60);
         if (hours <= 0) continue;
 
-        const employee = findEmployee(entry.employeeId);
-        if (!employee) continue;
-
-        if (!workData[employee.id]) workData[employee.id] = {};
         const dayKey = format(entryStart, 'yyyy-MM-dd');
-        if (!workData[employee.id][dayKey]) workData[employee.id][dayKey] = {};
-        if (!workData[employee.id][dayKey][entry.taskId]) workData[employee.id][dayKey][entry.taskId] = { hours: 0, pieces: 0 };
         
-        workData[employee.id][dayKey][entry.taskId].hours += hours;
+        if (!workData[employeeId]) workData[employeeId] = {};
+        if (!workData[employeeId][dayKey]) workData[employeeId][dayKey] = {};
+        if (!workData[employeeId][dayKey][entry.taskId]) workData[employeeId][dayKey][entry.taskId] = { hours: 0, pieces: 0 };
+        
+        workData[employeeId][dayKey][entry.taskId].hours += hours;
     }
 
+    // Aggregate pieces from piecework entries
     for (const entry of piecework) {
-        if (!entry.timestamp || !entry.employeeId || !entry.taskId) continue;
+        if (!entry.timestamp || !entry.employeeId || !entry.taskId || !entry.pieceCount) continue;
         
         const entryStart = parseISO(entry.timestamp);
         if (!isWithinInterval(entryStart, reportInterval)) continue;
 
         const employeeIdentifiers = String(entry.employeeId).split(',').map(id => id.trim()).filter(Boolean);
         if (employeeIdentifiers.length === 0) continue;
-
-        const validEmployeesInEntry = employeeIdentifiers.map(findEmployee).filter((e): e is Employee => !!e);
-        if (validEmployeesInEntry.length === 0) continue;
-
-        const numEmployees = validEmployeesInEntry.length;
-        const individualPieceCount = (entry.pieceCount || 0) / numEmployees;
-        const dayKey = format(entryStart, 'yyyy-MM-dd');
         
-        for (const emp of validEmployeesInEntry) {
-            if (!workData[emp.id]) workData[emp.id] = {};
-            if (!workData[emp.id][dayKey]) workData[emp.id][dayKey] = {};
-            if (!workData[emp.id][dayKey][entry.taskId]) workData[emp.id][dayKey][entry.taskId] = { hours: 0, pieces: 0 };
+        const employeesOnTicket = employeeIdentifiers.map(id => employees.find((e: Employee) => e.id === id || e.qrCode === id)).filter(Boolean);
+        if (employeesOnTicket.length === 0) continue;
+
+        const pieceCountPerEmployee = entry.pieceCount / employeesOnTicket.length;
+        const dayKey = format(entryStart, 'yyyy-MM-dd');
+
+        for (const emp of employeesOnTicket) {
+             if (!emp) continue;
+             const employeeId = emp.id;
+             if (!workData[employeeId]) workData[employeeId] = {};
+             if (!workData[employeeId][dayKey]) workData[employeeId][dayKey] = {};
+             if (!workData[employeeId][dayKey][entry.taskId]) workData[employeeId][dayKey][entry.taskId] = { hours: 0, pieces: 0 };
             
-            workData[emp.id][dayKey][entry.taskId].pieces += individualPieceCount;
+             workData[employeeId][dayKey][entry.taskId].pieces += pieceCountPerEmployee;
         }
     }
 
+    // 2. Process aggregated data to calculate earnings
     const employeeSummaries: EmployeePayrollSummary[] = [];
 
+    // Iterate over employees who actually have work data
     for (const employeeId in workData) {
-        const employee = findEmployee(employeeId);
+        const employee = employeeMap.get(employeeId);
         if (!employee) continue;
 
         const empWork = workData[employeeId];
-        if (!empWork || Object.keys(empWork).length === 0) continue;
-
         const workByWeek: Record<string, Record<string, any>> = {};
+
         for (const dayKey in empWork) {
             const date = parseISO(dayKey);
             const weekKey = `${getYear(date)}-${getWeek(date, { weekStartsOn: 1 })}`;
@@ -173,7 +174,6 @@ const processPayrollData = ai.defineTool(
             let weeklyTotalHours = 0;
             let weeklyTotalEarnings = 0;
             const dailyBreakdownsForWeek: DailyBreakdown[] = [];
-            let highestMinWageForWeek = 16.28; // WA State minimum wage
 
             const sortedDays = Object.keys(weekData).sort((a,b) => new Date(a).getTime() - new Date(b).getTime());
 
@@ -190,15 +190,15 @@ const processPayrollData = ai.defineTool(
                     const client = clientMap.get(task.clientId);
                     const clientName = client?.name || 'Unknown Client';
                     
-                    if (client && client.minimumWage && client.minimumWage > highestMinWageForWeek) {
-                        highestMinWageForWeek = client.minimumWage;
-                    }
-
                     const { hours, pieces } = dayData[taskId];
                     
-                    const hourlyEarnings = task.employeePayType === 'hourly' ? hours * task.employeeRate : 0;
-                    const pieceworkEarnings = task.employeePayType === 'piecework' ? pieces * task.employeeRate : 0;
-                    const totalEarningsForTask = hourlyEarnings + pieceworkEarnings;
+                    // --- SIMPLE EARNINGS CALCULATION ---
+                    let totalEarningsForTask = 0;
+                    if (task.employeePayType === 'hourly') {
+                        totalEarningsForTask = hours * task.employeeRate;
+                    } else if (task.employeePayType === 'piecework') {
+                        totalEarningsForTask = pieces * task.employeeRate;
+                    }
                     
                     dailyTotalHours += hours;
                     dailyTotalEarnings += totalEarningsForTask;
@@ -225,12 +225,8 @@ const processPayrollData = ai.defineTool(
                 });
             }
 
-            const minimumWageGuarantee = weeklyTotalHours * highestMinWageForWeek;
-            let finalWeeklyPay = weeklyTotalEarnings;
-
-            if (weeklyTotalEarnings < minimumWageGuarantee) {
-                finalWeeklyPay = minimumWageGuarantee;
-            }
+            // SIMPLE EARNINGS - NO MINIMUM WAGE ADJUSTMENT
+            const finalWeeklyPay = weeklyTotalEarnings;
 
             weeklySummaries.push({
                 weekNumber,
@@ -243,12 +239,15 @@ const processPayrollData = ai.defineTool(
         
         const totalPayForPeriod = weeklySummaries.reduce((acc, week) => acc + week.totalEarnings, 0);
 
-        employeeSummaries.push({
-            employeeId: employee.id,
-            employeeName: employee.name,
-            weeklySummaries,
-            finalPay: parseFloat(totalPayForPeriod.toFixed(2)),
-        });
+        // Add employee to summary ONLY if they have summaries to show
+        if (weeklySummaries.length > 0) {
+            employeeSummaries.push({
+                employeeId: employee.id,
+                employeeName: employee.name,
+                weeklySummaries,
+                finalPay: parseFloat(totalPayForPeriod.toFixed(2)),
+            });
+        }
     }
 
     return {
@@ -268,6 +267,7 @@ const generatePayrollReportFlow = ai.defineFlow(
     outputSchema: ProcessedPayrollDataSchema,
   },
   async (input) => {
+    // This is a direct pass-through to the simplified tool.
     const processedData = await processPayrollData(input);
     return processedData;
   }
