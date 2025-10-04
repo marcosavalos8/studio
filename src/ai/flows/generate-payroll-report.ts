@@ -10,7 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
-import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInHours } from 'date-fns';
+import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds } from 'date-fns';
 import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail, Employee, Piecework, TimeEntry } from '@/lib/types';
 
 
@@ -123,7 +123,7 @@ const processPayrollData = ai.defineTool(
         const entryStart = parseISO(entry.timestamp);
         if (!isWithinInterval(entryStart, reportInterval)) continue;
 
-        const hours = differenceInHours(parseISO(entry.endTime), entryStart);
+        const hours = differenceInMilliseconds(parseISO(entry.endTime), entryStart) / (1000 * 60 * 60);
         if (hours <= 0) continue;
 
         const employee = findEmployee(entry.employeeId);
@@ -278,6 +278,8 @@ const processPayrollData = ai.defineTool(
             });
         }
         
+        if (weeklySummaries.length === 0) continue;
+
         const overallTotalEarnings = weeklySummaries.reduce((acc, s) => acc + s.totalEarnings, 0);
         const overallTotalHours = weeklySummaries.reduce((acc, s) => acc + s.totalHours, 0);
         const overallTotalMinimumWageTopUp = weeklySummaries.reduce((acc, s) => acc + s.minimumWageTopUp, 0);
