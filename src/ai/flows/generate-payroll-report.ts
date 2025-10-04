@@ -102,8 +102,9 @@ const processPayrollData = ai.defineTool(
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
 
     for (const employee of employees) {
-      // Step 1: Aggregate all data for the employee into a structured map
-      const aggregatedData: Record<string, // weekKey
+      // Step 1: Aggregate all raw work data (hours and pieces) for the employee.
+      // This is a "start from zero" approach.
+      const aggregatedRawData: Record<string, // weekKey
         Record<string, // dayKey
           Record<string, // taskId
             { hours: number; pieceworkCount: number; }
@@ -117,18 +118,18 @@ const processPayrollData = ai.defineTool(
         const weekKey = `${getYear(start)}-${getWeek(start, { weekStartsOn: 1 })}`;
         const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
 
-        if (!aggregatedData[weekKey]) aggregatedData[weekKey] = {};
-        if (!aggregatedData[weekKey][dayKey]) aggregatedData[weekKey][dayKey] = {};
-        if (!aggregatedData[weekKey][dayKey][entry.taskId]) aggregatedData[weekKey][dayKey][entry.taskId] = { hours: 0, pieceworkCount: 0 };
+        if (!aggregatedRawData[weekKey]) aggregatedRawData[weekKey] = {};
+        if (!aggregatedRawData[weekKey][dayKey]) aggregatedRawData[weekKey][dayKey] = {};
+        if (!aggregatedRawData[weekKey][dayKey][entry.taskId]) aggregatedRawData[weekKey][dayKey][entry.taskId] = { hours: 0, pieceworkCount: 0 };
         
         const hours = (new Date(entry.endTime).getTime() - start.getTime()) / (1000 * 60 * 60);
-        aggregatedData[weekKey][dayKey][entry.taskId].hours += hours;
+        aggregatedRawData[weekKey][dayKey][entry.taskId].hours += hours;
       }
 
       const empPiecework = piecework.filter((pw: Piecework) => {
+          // Handle both single and comma-separated employee IDs/QR codes.
           const employeeIdsInEntry = String(pw.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
-          // Handle both QR code and internal ID for matching
-          return employeeIdsInEntry.includes(employee.id) || employeeIdsInEntry.includes(employee.qrCode);
+          return employeeIdsInEntry.some(id => id === employee.id || id === employee.qrCode);
       });
 
       for (const entry of empPiecework) {
@@ -136,67 +137,69 @@ const processPayrollData = ai.defineTool(
         const weekKey = `${getYear(start)}-${getWeek(start, { weekStartsOn: 1 })}`;
         const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
         
-        if (!aggregatedData[weekKey]) aggregatedData[weekKey] = {};
-        if (!aggregatedData[weekKey][dayKey]) aggregatedData[weekKey][dayKey] = {};
-        if (!aggregatedData[weekKey][dayKey][entry.taskId]) aggregatedData[weekKey][dayKey][entry.taskId] = { hours: 0, pieceworkCount: 0 };
+        if (!aggregatedRawData[weekKey]) aggregatedRawData[weekKey] = {};
+        if (!aggregatedRawData[weekKey][dayKey]) aggregatedRawData[weekKey][dayKey] = {};
+        if (!aggregatedRawData[weekKey][dayKey][entry.taskId]) aggregatedRawData[weekKey][dayKey][entry.taskId] = { hours: 0, pieceworkCount: 0 };
 
         const employeeIdsInEntry = String(entry.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
         const numEmployees = employeeIdsInEntry.length > 0 ? employeeIdsInEntry.length : 1;
         const individualPieceCount = (entry.pieceCount || 0) / numEmployees;
 
-        aggregatedData[weekKey][dayKey][entry.taskId].pieceworkCount += individualPieceCount;
+        aggregatedRawData[weekKey][dayKey][entry.taskId].pieceworkCount += individualPieceCount;
       }
       
-      // Step 2: Process the aggregated data to calculate summaries
+      // Step 2: Now, process the aggregated raw data to calculate earnings and build summaries.
       const weeklySummaries: WeeklySummary[] = [];
 
-      for (const weekKey in aggregatedData) {
+      for (const weekKey in aggregatedRawData) {
         let weeklyTotalHours = 0;
         let weeklyTotalHourlyEarnings = 0;
         let weeklyTotalPieceworkEarnings = 0;
         const clientIdsInWeek = new Set<string>();
         const dailyBreakdownsForWeek: DailyBreakdown[] = [];
 
-        const dayKeys = Object.keys(aggregatedData[weekKey]).sort();
+        const dayKeys = Object.keys(aggregatedRawData[weekKey]).sort();
+
         for (const dayKey of dayKeys) {
             let dailyTotalHours = 0;
+            let dailyTotalEarnings = 0;
             const taskDetailsForDay: DailyTaskDetail[] = [];
 
-            const taskIds = Object.keys(aggregatedData[weekKey][dayKey]);
+            const taskIds = Object.keys(aggregatedRawData[weekKey][dayKey]);
             for (const taskId of taskIds) {
                 const task = taskMap.get(taskId);
                 if (!task) continue;
 
                 clientIdsInWeek.add(task.clientId);
                 const clientName = clientMap.get(task.clientId)?.name || 'Unknown';
-                const dayData = aggregatedData[weekKey][dayKey][taskId];
+                const rawDayData = aggregatedRawData[weekKey][dayKey][taskId];
                 
-                const hourlyEarnings = task.employeePayType === 'hourly' ? dayData.hours * task.employeeRate : 0;
-                const pieceworkEarnings = task.employeePayType === 'piecework' ? dayData.pieceworkCount * task.employeeRate : 0;
+                // *** CORE CALCULATION LOGIC ***
+                const hourlyEarnings = task.employeePayType === 'hourly' ? rawDayData.hours * task.employeeRate : 0;
+                const pieceworkEarnings = task.employeePayType === 'piecework' ? rawDayData.pieceworkCount * task.employeeRate : 0;
                 const totalEarnings = hourlyEarnings + pieceworkEarnings;
 
-                dailyTotalHours += dayData.hours;
+                dailyTotalHours += rawDayData.hours;
+                dailyTotalEarnings += totalEarnings;
                 
                 taskDetailsForDay.push({
                     taskName: `${task.name} (${task.variety || 'N/A'})`,
                     clientName,
                     ranch: task.ranch || '',
                     block: task.block || '',
-                    hours: dayData.hours,
-                    pieceworkCount: dayData.pieceworkCount,
+                    hours: rawDayData.hours,
+                    pieceworkCount: rawDayData.pieceworkCount,
                     hourlyEarnings,
                     pieceworkEarnings,
                     totalEarnings,
                 });
             }
 
-            const totalDailyEarnings = taskDetailsForDay.reduce((acc, t) => acc + t.totalEarnings, 0);
-
             dailyBreakdownsForWeek.push({
                 date: dayKey,
                 tasks: taskDetailsForDay,
                 totalDailyHours: parseFloat(dailyTotalHours.toFixed(2)),
-                totalDailyEarnings: parseFloat(totalDailyEarnings.toFixed(2)),
+                totalDailyEarnings: parseFloat(dailyTotalEarnings.toFixed(2)),
             });
 
             weeklyTotalHours += dailyTotalHours;
@@ -209,6 +212,7 @@ const processPayrollData = ai.defineTool(
         const clientWages = Array.from(clientIdsInWeek).map(id => clientMap.get(id)?.minimumWage).filter(Boolean) as number[];
         const applicableMinimumWage = clientWages.length > 0 ? Math.max(...clientWages) : STATE_MINIMUM_WAGE;
         
+        // This is the total for the week BEFORE adjustments.
         const weeklyTotalEarnings = weeklyTotalHourlyEarnings + weeklyTotalPieceworkEarnings;
         
         let effectiveHourlyRate = 0;
