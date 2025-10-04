@@ -36,6 +36,7 @@ const DailyTaskDetailSchema = z.object({
   pieceworkCount: z.number(),
   hourlyEarnings: z.number(),
   pieceworkEarnings: z.number(),
+  totalEarnings: z.number(),
 });
 
 const DailyBreakdownSchema = z.object({
@@ -127,7 +128,7 @@ const processPayrollData = ai.defineTool(
                 weeklyData[weekKey].clientIds.add(task.clientId);
                 if (!weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id]) {
                     const clientName = clientMap.get(task.clientId)?.name || 'Unknown';
-                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety || 'N/A'})`, clientName, ranch: task.ranch || '', block: task.block || '', hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0 };
+                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety || 'N/A'})`, clientName, ranch: task.ranch || '', block: task.block || '', hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0, totalEarnings: 0 };
                 }
 
                 const hours = (new Date(entry.endTime).getTime() - start.getTime()) / (1000 * 60 * 60);
@@ -165,7 +166,7 @@ const processPayrollData = ai.defineTool(
                 weeklyData[weekKey].clientIds.add(task.clientId);
                 if (!weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id]) {
                      const clientName = clientMap.get(task.clientId)?.name || 'Unknown';
-                     weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety || 'N/A'})`, clientName, ranch: task.ranch || '', block: task.block || '', hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0 };
+                     weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety || 'N/A'})`, clientName, ranch: task.ranch || '', block: task.block || '', hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0, totalEarnings: 0 };
                 }
 
                 if (task.employeePayType === 'piecework') {
@@ -191,8 +192,11 @@ const processPayrollData = ai.defineTool(
             
             const dailyBreakdown: DailyBreakdown[] = Object.entries(week.dailyBreakdown).map(([date, dayData]) => {
                 const tasks = Object.values(dayData.tasks);
+                tasks.forEach(task => {
+                    task.totalEarnings = task.hourlyEarnings + task.pieceworkEarnings;
+                });
                 const totalDailyHours = tasks.reduce((acc, t) => acc + t.hours, 0);
-                const totalDailyEarnings = tasks.reduce((acc, t) => acc + t.hourlyEarnings + t.pieceworkEarnings, 0);
+                const totalDailyEarnings = tasks.reduce((acc, t) => acc + t.totalEarnings, 0);
                 return {
                     date,
                     tasks: tasks,
@@ -280,3 +284,5 @@ const generatePayrollReportFlow = ai.defineFlow(
     return processedData;
   }
 );
+
+    

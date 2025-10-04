@@ -70,6 +70,7 @@ export type DailyTaskDetail = {
   pieceworkCount: number;
   hourlyEarnings: number;
   pieceworkEarnings: number;
+  totalEarnings: number;
 };
 
 export type DailyBreakdown = {
@@ -109,4 +110,6 @@ export type ProcessedPayrollData = {
     payDate: string;
     employeeSummaries: EmployeePayrollSummary[];
 };
+    
+
     
