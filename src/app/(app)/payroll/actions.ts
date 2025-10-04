@@ -1,7 +1,8 @@
 'use server'
 
 import { z } from "zod"
-import { generatePayrollReport, type ProcessedPayrollData } from "@/ai/flows/generate-payroll-report"
+import { generatePayrollReport } from "@/ai/flows/generate-payroll-report"
+import type { ProcessedPayrollData } from "@/lib/types";
 
 const payrollSchema = z.object({
   dateRange: z.object({

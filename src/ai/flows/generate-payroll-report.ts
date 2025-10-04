@@ -12,7 +12,8 @@ import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 import {googleAI} from '@genkit-ai/google-genai';
 import { getWeek, getYear, format, startOfDay } from 'date-fns';
-import type { Client, Task } from '@/lib/types';
+import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail } from '@/lib/types';
+
 
 const STATE_MINIMUM_WAGE = 16.28;
 
@@ -26,7 +27,6 @@ const GeneratePayrollReportInputSchema = z.object({
 export type GeneratePayrollReportInput = z.infer<typeof GeneratePayrollReportInputSchema>;
 
 
-// Define schemas for our processed data. This is what the tool will output.
 const DailyTaskDetailSchema = z.object({
   taskName: z.string(),
   clientName: z.string(),
@@ -75,7 +75,6 @@ const ProcessedPayrollDataSchema = z.object({
     payDate: z.string(),
     employeeSummaries: z.array(EmployeePayrollSummarySchema),
 });
-export type ProcessedPayrollData = z.infer<typeof ProcessedPayrollDataSchema>;
 
 
 // Exported function called by the server action
@@ -96,7 +95,7 @@ const processPayrollData = ai.defineTool(
     const data = JSON.parse(input.jsonData);
     const { employees, tasks, timeEntries, piecework, clients } = data;
     
-    const employeeSummaries: z.infer<typeof EmployeePayrollSummarySchema>[] = [];
+    const employeeSummaries: EmployeePayrollSummary[] = [];
     
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
@@ -107,7 +106,7 @@ const processPayrollData = ai.defineTool(
             totalPieceworkEarnings: number; 
             totalHourlyEarnings: number; 
             clientIds: Set<string>;
-            dailyBreakdown: Record<string, { tasks: Record<string, z.infer<typeof DailyTaskDetailSchema>> }> 
+            dailyBreakdown: Record<string, { tasks: Record<string, DailyTaskDetail> }> 
         }> = {};
 
         const empTimeEntries = timeEntries.filter((te: any) => te.employeeId === employee.id && te.timestamp && te.endTime);
@@ -181,7 +180,7 @@ const processPayrollData = ai.defineTool(
             }
         }
 
-        const weeklySummaries: z.infer<typeof WeeklySummarySchema>[] = [];
+        const weeklySummaries: WeeklySummary[] = [];
         for (const weekKey in weeklyData) {
             const [year, weekNumber] = weekKey.split('-').map(Number);
             const week = weeklyData[weekKey];
@@ -189,7 +188,7 @@ const processPayrollData = ai.defineTool(
             const clientWages = Array.from(week.clientIds).map(id => clientMap.get(id)?.minimumWage).filter(Boolean) as number[];
             const applicableMinimumWage = clientWages.length > 0 ? Math.max(...clientWages) : STATE_MINIMUM_WAGE;
             
-            const dailyBreakdown: z.infer<typeof DailyBreakdownSchema>[] = Object.entries(week.dailyBreakdown).map(([date, dayData]) => {
+            const dailyBreakdown: DailyBreakdown[] = Object.entries(week.dailyBreakdown).map(([date, dayData]) => {
                 const tasks = Object.values(dayData.tasks);
                 const totalDailyHours = tasks.reduce((acc, t) => acc + t.hours, 0);
                 const totalDailyEarnings = tasks.reduce((acc, t) => acc + t.hourlyEarnings + t.pieceworkEarnings, 0);
@@ -201,7 +200,6 @@ const processPayrollData = ai.defineTool(
                 }
             }).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
             
-            // CORRECTED LOGIC: Use the aggregated weekly totals directly
             const totalEarnings = week.totalHourlyEarnings + week.totalPieceworkEarnings;
             
             let effectiveHourlyRate = 0;
@@ -239,7 +237,6 @@ const processPayrollData = ai.defineTool(
         const overallTotalMinimumWageTopUp = weeklySummaries.reduce((acc, s) => acc + s.minimumWageTopUp, 0);
         const overallTotalPaidRestBreaks = weeklySummaries.reduce((acc, s) => acc + s.paidRestBreaksTotal, 0);
         
-        // CORRECTED LOGIC: Final pay includes all components
         const finalPay = overallTotalEarnings + overallTotalMinimumWageTopUp + overallTotalPaidRestBreaks;
 
         if (weeklySummaries.length > 0) {

@@ -19,11 +19,10 @@ import { generateReportAction } from "./actions"
 import type { DateRange } from "react-day-picker"
 import { useFirestore } from "@/firebase"
 import { collection, query, where, Timestamp, getDocs } from 'firebase/firestore'
-import { Client, Employee, Piecework, Task, TimeEntry } from "@/lib/types"
+import { Client, Employee, Piecework, Task, TimeEntry, ProcessedPayrollData } from "@/lib/types"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PayrollReportDisplay } from "./report-display"
-import { ProcessedPayrollData } from "@/ai/flows/generate-payroll-report"
 
 const initialState = {
   report: undefined,

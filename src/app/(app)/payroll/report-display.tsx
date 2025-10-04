@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react';
-import { ProcessedPayrollData } from "@/ai/flows/generate-payroll-report"
+import type { ProcessedPayrollData } from "@/lib/types"
 import { format } from "date-fns"
 import { 
   Table, 
