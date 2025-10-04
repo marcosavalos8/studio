@@ -25,7 +25,7 @@ import type { DateRange } from "react-day-picker"
 import { useFirestore } from "@/firebase"
 import { collection, getDocs, query, where } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
-import { type DetailedInvoiceData, type DailyInvoiceItem } from "./page"
+import { type DetailedInvoiceData } from "./page"
 import { InvoiceReportDisplay } from './report-display'
 
 
@@ -84,36 +84,38 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         const pieceworkByDay: Record<string, Record<string, number>> = {}; // { [date]: { [taskId]: pieceCount } }
         const hoursByDay: Record<string, Record<string, number>> = {}; // { [date]: { [taskId]: hours } }
 
+        // Fetch all logs within the date range first
         const pieceLogsQuery = query(
             collection(firestore, "piecework"),
             where("timestamp", ">=", startDate),
-            where("timestamp", "<=", endDate),
-            where("taskId", "in", clientTaskIds)
+            where("timestamp", "<=", endDate)
         );
         
         const timeLogsQuery = query(
             collection(firestore, "time_entries"),
             where("timestamp", ">=", startDate),
-            where("timestamp", "<=", endDate),
-            where("taskId", "in", clientTaskIds)
+            where("timestamp", "<=", endDate)
         );
 
         const [pieceLogsSnap, timeLogsSnap] = await Promise.all([
             getDocs(pieceLogsQuery),
-            getDocs(timeLogsQuery)
+            getDocs(timeLogsSnap)
         ]);
         
+        // Then filter by client's tasks in code
         pieceLogsSnap.forEach(doc => {
             const log = doc.data() as Piecework;
-            const logDate = format((log.timestamp as unknown as Timestamp).toDate(), 'yyyy-MM-dd');
-            if (!pieceworkByDay[logDate]) pieceworkByDay[logDate] = {};
-            if (!pieceworkByDay[logDate][log.taskId]) pieceworkByDay[logDate][log.taskId] = 0;
-            pieceworkByDay[logDate][log.taskId] += log.pieceCount;
+            if (clientTaskIds.includes(log.taskId)) {
+                const logDate = format((log.timestamp as unknown as Timestamp).toDate(), 'yyyy-MM-dd');
+                if (!pieceworkByDay[logDate]) pieceworkByDay[logDate] = {};
+                if (!pieceworkByDay[logDate][log.taskId]) pieceworkByDay[logDate][log.taskId] = 0;
+                pieceworkByDay[logDate][log.taskId] += log.pieceCount;
+            }
         });
 
         timeLogsSnap.forEach(doc => {
             const log = doc.data() as TimeEntry;
-            if (log.endTime) {
+            if (log.endTime && clientTaskIds.includes(log.taskId)) {
                 const startTime = (log.timestamp as unknown as Timestamp).toDate();
                 const endTimeVal = (log.endTime as unknown as Timestamp).toDate();
                 const logDate = format(startTime, 'yyyy-MM-dd');
@@ -130,10 +132,10 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         const allDates = new Set([...Object.keys(pieceworkByDay), ...Object.keys(hoursByDay)]);
         const sortedDates = Array.from(allDates).sort();
 
-        const dailyItems: DailyInvoiceItem[] = [];
+        const dailyItems: DetailedInvoiceData['dailyItems'] = [];
 
         for (const dateStr of sortedDates) {
-            const itemsForDay: DailyInvoiceItem['items'] = [];
+            const itemsForDay: DetailedInvoiceData['dailyItems'][0]['items'] = [];
             let dailyTotal = 0;
 
             const taskIdsOnDate = new Set([
