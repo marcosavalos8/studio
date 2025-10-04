@@ -206,18 +206,20 @@ const processPayrollData = ai.defineTool(
                 }
             }).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
             
-            // ** THE FIX IS HERE **
-            // 1. Calculate total earnings from the component parts.
+            // ** THE DEFINITIVE FIX IS HERE **
+            // 1. Calculate total earnings from the reliable component parts.
             const totalEarnings = week.totalHourlyEarnings + week.totalPieceworkEarnings;
             
             // 2. Use the CORRECT totalEarnings to calculate the effective rate.
             const effectiveHourlyRate = week.totalHours > 0 ? totalEarnings / week.totalHours : 0;
             
+            // 3. Calculate top-up based on the correct effective rate.
             let minimumWageTopUp = 0;
             if (week.totalHours > 0 && effectiveHourlyRate < applicableMinimumWage) {
                 minimumWageTopUp = (applicableMinimumWage * week.totalHours) - totalEarnings;
             }
 
+            // 4. Calculate rest breaks based on a regular rate of pay that includes the top-up.
             const totalEarningsWithTopUp = totalEarnings + minimumWageTopUp;
             const regularRateOfPay = week.totalHours > 0 ? totalEarningsWithTopUp / week.totalHours : applicableMinimumWage;
 
