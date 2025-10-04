@@ -173,7 +173,7 @@ const processPayrollData = ai.defineTool(
                 }
 
                 if (task.employeePayType === 'piecework') {
-                    const employeeIdsInEntry = String(entry.employeeId || '').split(',');
+                    const employeeIdsInEntry = String(entry.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
                     const numEmployees = employeeIdsInEntry.length > 0 ? employeeIdsInEntry.length : 1;
                     const individualPieceCount = entry.pieceCount / numEmployees;
                     const individualEarnings = individualPieceCount * task.employeeRate;
