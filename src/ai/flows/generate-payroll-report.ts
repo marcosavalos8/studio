@@ -9,7 +9,7 @@
  */
 
 import { z } from 'zod';
-import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds, eachDayOfInterval, startOfWeek, endOfWeek } from 'date-fns';
+import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds, eachDayOfInterval } from 'date-fns';
 import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail, Employee, Piecework, TimeEntry } from '@/lib/types';
 
 
@@ -44,11 +44,11 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
         const employeeId = employee.id;
 
         // Filter work for the current employee within the date range
-        const empTimeEntries = timeEntries.filter((e: TimeEntry) => e.employeeId === employeeId && isWithinInterval(parseISO(String(e.timestamp)), reportInterval));
+        const empTimeEntries = timeEntries.filter((e: TimeEntry) => e.employeeId === employeeId && e.timestamp && e.endTime && isWithinInterval(parseISO(String(e.timestamp)), reportInterval));
         const empPiecework = piecework.filter((pw: Piecework) => {
             const employeeIdsOnTicket = String(pw.employeeId).split(',').map(id => id.trim());
             const emp = employeeMap.get(employeeId);
-            return (employeeIdsOnTicket.includes(employeeId) || (emp && employeeIdsOnTicket.includes(emp.qrCode))) && isWithinInterval(parseISO(String(pw.timestamp)), reportInterval);
+            return (employeeIdsOnTicket.includes(employeeId) || (emp && employeeIdsOnTicket.includes(emp.qrCode))) && pw.timestamp && isWithinInterval(parseISO(String(pw.timestamp)), reportInterval);
         });
         
         if (empTimeEntries.length === 0 && empPiecework.length === 0) {
@@ -61,27 +61,31 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
         if(allWorkEntries.length === 0) continue;
 
         // Determine the full range of dates to create week keys
-        const firstDate = allWorkEntries.reduce((min, entry) => {
-            const d = parseISO(String(entry.timestamp));
-            return d < min ? d : min;
-        }, parseISO(String(allWorkEntries[0].timestamp)));
-        
-        const lastDate = allWorkEntries.reduce((max, entry) => {
-            const d = parseISO(String(entry.timestamp));
-            return d > max ? d : max;
-        }, parseISO(String(allWorkEntries[0].timestamp)));
+        if (allWorkEntries.length > 0 && allWorkEntries[0].timestamp) {
+            const firstDate = allWorkEntries.reduce((min, entry) => {
+                const d = parseISO(String(entry.timestamp));
+                return d < min ? d : min;
+            }, parseISO(String(allWorkEntries[0].timestamp)));
+            
+            const lastDate = allWorkEntries.reduce((max, entry) => {
+                const d = parseISO(String(entry.timestamp));
+                return d > max ? d : max;
+            }, parseISO(String(allWorkEntries[0].timestamp)));
 
 
-        const relevantDates = eachDayOfInterval({start: firstDate, end: lastDate});
-        
-        relevantDates.forEach(date => {
-            const weekKey = `${getYear(date)}-${getWeek(date, { weekStartsOn: 1 })}`;
-            if (!workByWeek[weekKey]) {
-                workByWeek[weekKey] = { time: [], pieces: [] };
-            }
-        });
+            const relevantDates = eachDayOfInterval({start: firstDate, end: lastDate});
+            
+            relevantDates.forEach(date => {
+                const weekKey = `${getYear(date)}-${getWeek(date, { weekStartsOn: 1 })}`;
+                if (!workByWeek[weekKey]) {
+                    workByWeek[weekKey] = { time: [], pieces: [] };
+                }
+            });
+        }
+
 
         empTimeEntries.forEach((entry: TimeEntry) => {
+            if (!entry.timestamp) return;
             const date = parseISO(String(entry.timestamp));
             const weekKey = `${getYear(date)}-${getWeek(date, { weekStartsOn: 1 })}`;
             if (workByWeek[weekKey]) {
@@ -90,6 +94,7 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
         });
 
         empPiecework.forEach((entry: Piecework) => {
+            if (!entry.timestamp) return;
             const date = parseISO(String(entry.timestamp));
             const weekKey = `${getYear(date)}-${getWeek(date, { weekStartsOn: 1 })}`;
             if (workByWeek[weekKey]) {
@@ -123,6 +128,7 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
             
             // Process piecework entries for the week
             pieces.forEach(entry => {
+                if (!entry.timestamp) return;
                 const date = parseISO(String(entry.timestamp));
                 const dayKey = format(date, 'yyyy-MM-dd');
                 
@@ -166,9 +172,10 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
 
                     const { hours, pieces } = dailyWork[dayKey].tasks[taskId];
                     let earningsForTask = 0;
-                    if (task.employeePayType === 'hourly') {
+
+                    if (task.employeePaymentType === 'hourly') {
                         earningsForTask = hours * task.employeeRate;
-                    } else if (task.employeePayType === 'piecework') {
+                    } else if (task.employeePaymentType === 'piecework') {
                         earningsForTask = pieces * task.employeeRate;
                     }
 
@@ -205,7 +212,7 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
             const totalEarningsBeforeRest = weeklyTotalRawEarnings + minimumWageTopUp;
             const regularRateOfPay = weeklyTotalHours > 0 ? totalEarningsBeforeRest / weeklyTotalHours : 0;
             
-            const paidRestBreakHours = Math.floor(weeklyTotalHours / 4) * (10 / 60);
+            const paidRestBreakHours = Math.floor(weeklyTotalHours / 3.5) * (10 / 60);
             const paidRestBreaksPay = paidRestBreakHours * regularRateOfPay;
 
             const finalWeeklyPay = totalEarningsBeforeRest + paidRestBreaksPay;
