@@ -27,7 +27,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
-import { QrCode, ClipboardEdit, Users, User, CheckCircle, Package, LogIn, LogOut, Loader2, VideoOff, Hash, ScanLine } from "lucide-react"
+import { QrCode, ClipboardEdit, Users, User, CheckCircle, Package, LogIn, LogOut, Loader2, VideoOff } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
 import JSConfetti from 'js-confetti'
@@ -262,25 +262,29 @@ function TimeTrackingPage() {
   }, [firestore, toast, jsConfetti, activeEmployees]);
 
 
-  const handleScanResult = useCallback(async (scannedData: string) => {
+ const handleScanResult = useCallback(async (scannedData: string) => {
       if (!selectedTask) {
           toast({ variant: "destructive", title: "Task not selected", description: "Please select a client, ranch, block, and task before scanning." });
           return;
       }
 
       const now = Date.now();
-      setRecentScans(prev => prev.filter(scan => now - scan.timestamp < DEBOUNCE_MS));
       
-      const scannedEmployee = activeEmployees?.find(e => e.qrCode === scannedData);
-      
-      const isDebounced = recentScans.some(
-          scan => (scan.employeeId === scannedEmployee?.qrCode || scan.employeeId === scannedData) && scan.taskId === selectedTask && scan.mode === scanMode
-      );
+      let isDebounced = false;
+      setRecentScans(prev => {
+        const activeScans = prev.filter(scan => now - scan.timestamp < DEBOUNCE_MS);
+        isDebounced = activeScans.some(
+            scan => (scan.employeeId === scannedData) && scan.taskId === selectedTask && scan.mode === scanMode
+        );
+        return activeScans;
+      });
       
       if (isDebounced) {
           toast({ variant: "destructive", title: "Duplicate Scan", description: `This action was already performed recently.` });
           return;
       }
+      
+      const scannedEmployee = activeEmployees?.find(e => e.qrCode === scannedData);
       
       if (scannedEmployee) {
         setRecentScans(prev => [...prev, { employeeId: scannedEmployee.qrCode, taskId: selectedTask, mode: scanMode, timestamp: now }]);
@@ -291,20 +295,28 @@ function TimeTrackingPage() {
           await clockOutEmployee(scannedEmployee, selectedTask);
         } else if (scanMode === 'piece') {
            if (isSharedPiece) {
-             if (scannedSharedEmployees.includes(scannedEmployee.qrCode)) {
-                toast({ variant: "destructive", title: "Duplicate Employee", description: `${scannedEmployee.name} is already on the list.` });
-                return;
-             }
-             setScannedSharedEmployees(prev => [...prev, scannedEmployee.qrCode]);
+             setScannedSharedEmployees(prev => {
+                if (prev.includes(scannedEmployee.qrCode)) {
+                    toast({ variant: "destructive", title: "Duplicate Employee", description: `${scannedEmployee.name} is already on the list.` });
+                    return prev;
+                }
+                return [...prev, scannedEmployee.qrCode];
+             });
            } else {
              setScannedSharedEmployees([scannedEmployee.qrCode]);
              toast({ title: "Employee Scanned", description: `${scannedEmployee.name} ready. Scan a bin.` });
            }
         }
       } else { // Not an employee QR
-        if (scanMode === 'piece' && scannedSharedEmployees.length > 0) {
+        let currentScannedEmployees: string[] = [];
+        setScannedSharedEmployees(prev => {
+            currentScannedEmployees = prev;
+            return prev;
+        });
+
+        if (scanMode === 'piece' && currentScannedEmployees.length > 0) {
           setRecentScans(prev => [...prev, { employeeId: scannedData, taskId: selectedTask, mode: scanMode, timestamp: now }]);
-          await recordPiecework(scannedSharedEmployees, selectedTask, scannedData);
+          await recordPiecework(currentScannedEmployees, selectedTask, scannedData);
           if (!isSharedPiece) {
             setScannedSharedEmployees([]);
           }
@@ -313,7 +325,19 @@ function TimeTrackingPage() {
           toast({ variant: "destructive", title: "Invalid Scan", description: errorMsg });
         }
       }
-  }, [selectedTask, activeEmployees, recentScans, toast, scanMode, clockInEmployee, clockOutEmployee, recordPiecework, isSharedPiece, scannedSharedEmployees, setScannedSharedEmployees]);
+  }, [
+    selectedTask, 
+    toast, 
+    scanMode, 
+    isSharedPiece, 
+    pieceEntryMode, 
+    activeEmployees, 
+    clockInEmployee, 
+    clockOutEmployee, 
+    recordPiecework, 
+    setScannedSharedEmployees, 
+    setRecentScans
+]);
 
 
   const handleManualSubmit = async () => {
@@ -605,10 +629,10 @@ function TimeTrackingPage() {
                   </CardHeader>
                   <CardContent>
                       <ul className="space-y-1">
-                          {scannedSharedEmployees.map((id) => {
-                              const name = activeEmployees?.find(e => e.qrCode === id)?.name || id;
+                          {scannedSharedEmployees.map((qrCode) => {
+                              const name = activeEmployees?.find(e => e.qrCode === qrCode)?.name || qrCode;
                               return (
-                                  <li key={id} className="flex items-center gap-2 text-green-600">
+                                  <li key={qrCode} className="flex items-center gap-2 text-green-600">
                                       <CheckCircle className="h-5 w-5" />
                                       <p className="font-mono text-sm">{name}</p>
                                   </li>
@@ -771,3 +795,5 @@ function TimeTrackingPage() {
 
 
 export default withAuth(TimeTrackingPage);
+
+  
