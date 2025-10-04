@@ -102,8 +102,6 @@ const processPayrollData = ai.defineTool(
         end: startOfDay(parseISO(input.endDate)),
     };
     
-    employees.forEach((emp: Employee) => workData[emp.id] = {});
-
     for (const entry of timeEntries) {
         if (!entry.timestamp || !entry.endTime || !entry.employeeId || !entry.taskId) continue;
         
@@ -116,8 +114,8 @@ const processPayrollData = ai.defineTool(
         const employee = findEmployee(entry.employeeId);
         if (!employee) continue;
 
-        const dayKey = format(entryStart, 'yyyy-MM-dd');
         if (!workData[employee.id]) workData[employee.id] = {};
+        const dayKey = format(entryStart, 'yyyy-MM-dd');
         if (!workData[employee.id][dayKey]) workData[employee.id][dayKey] = {};
         if (!workData[employee.id][dayKey][entry.taskId]) workData[employee.id][dayKey][entry.taskId] = { hours: 0, pieces: 0 };
         
@@ -130,14 +128,15 @@ const processPayrollData = ai.defineTool(
         const entryStart = parseISO(entry.timestamp);
         if (!isWithinInterval(entryStart, reportInterval)) continue;
 
-        const dayKey = format(entryStart, 'yyyy-MM-dd');
         const employeeIdentifiers = String(entry.employeeId).split(',').map(id => id.trim()).filter(Boolean);
-        
+        if (employeeIdentifiers.length === 0) continue;
+
         const validEmployeesInEntry = employeeIdentifiers.map(findEmployee).filter((e): e is Employee => !!e);
         if (validEmployeesInEntry.length === 0) continue;
 
         const numEmployees = validEmployeesInEntry.length;
         const individualPieceCount = (entry.pieceCount || 0) / numEmployees;
+        const dayKey = format(entryStart, 'yyyy-MM-dd');
         
         for (const emp of validEmployeesInEntry) {
             if (!workData[emp.id]) workData[emp.id] = {};
@@ -150,8 +149,11 @@ const processPayrollData = ai.defineTool(
 
     const employeeSummaries: EmployeePayrollSummary[] = [];
 
-    for (const employee of employees) {
-        const empWork = workData[employee.id];
+    for (const employeeId in workData) {
+        const employee = findEmployee(employeeId);
+        if (!employee) continue;
+
+        const empWork = workData[employeeId];
         if (!empWork || Object.keys(empWork).length === 0) continue;
 
         const workByWeek: Record<string, Record<string, any>> = {};
@@ -225,8 +227,6 @@ const processPayrollData = ai.defineTool(
             });
         }
         
-        if (weeklySummaries.length === 0) continue;
-
         const finalPay = weeklySummaries.reduce((acc, s) => acc + s.totalEarnings, 0);
 
         employeeSummaries.push({
