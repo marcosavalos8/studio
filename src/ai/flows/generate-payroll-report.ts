@@ -9,7 +9,7 @@
  */
 
 import { z } from 'zod';
-import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds, eachDayOfInterval, startOfWeek, endOfWeek } from 'date-fns';
+import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds, startOfWeek, endOfWeek } from 'date-fns';
 import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail, Employee, Piecework, TimeEntry } from '@/lib/types';
 
 
@@ -30,11 +30,11 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
 
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
-    const employeeMap = new Map(reportEmployees.map((e: Employee) => [e.id, e]));
+    const allEmployeesMap = new Map(data.allEmployees.map((e: Employee) => [e.id, e]));
 
     const reportInterval = {
         start: startOfDay(parseISO(input.startDate)),
-        end: startOfDay(parseISO(input.endDate)),
+        end: endOfWeek(parseISO(input.endDate), { weekStartsOn: 1 }), // Ensure we capture full weeks
     };
 
     const employeeSummaries: EmployeePayrollSummary[] = [];
@@ -49,16 +49,20 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
             if (!pw.timestamp || !isWithinInterval(parseISO(String(pw.timestamp)), reportInterval)) {
                 return false;
             }
-            // An employee can be identified by ID or QR code in a shared ticket
             const employeeIdsOnTicket = String(pw.employeeId).split(',').map(id => id.trim());
-            return employeeIdsOnTicket.some(idOrQr => idOrQr === employee.id || idOrQr === employee.qrCode);
+            const employeeQR = allEmployeesMap.get(employeeId)?.qrCode
+            return employeeIdsOnTicket.some(idOrQr => idOrQr === employeeId || idOrQr === employeeQR);
         });
+        
+        if (empTimeEntries.length === 0 && empPiecework.length === 0) {
+          continue; // Skip employee if they have no work in the period
+        }
         
         const workByWeek: Record<string, { time: TimeEntry[], pieces: Piecework[] }> = {};
         
         // Group all work by week (Monday-Sunday)
-        const allWork = [...empTimeEntries, ...empPiecework];
-        allWork.forEach(entry => {
+        const allWorkForEmployee = [...empTimeEntries, ...empPiecework];
+        allWorkForEmployee.forEach(entry => {
             if (!entry.timestamp) return;
             const date = parseISO(String(entry.timestamp));
             const weekStart = startOfWeek(date, { weekStartsOn: 1 });
@@ -104,7 +108,7 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
                 const dayKey = format(date, 'yyyy-MM-dd');
                 
                 const employeeIdsOnTicket = String(entry.employeeId).split(',').map(id => id.trim()).filter(Boolean);
-                const pieceCountPerEmployee = entry.pieceCount / employeeIdsOnTicket.length;
+                const pieceCountPerEmployee = employeeIdsOnTicket.length > 0 ? entry.pieceCount / employeeIdsOnTicket.length : 0;
 
                 if (!dailyWork[dayKey]) dailyWork[dayKey] = { tasks: {} };
                 if (!dailyWork[dayKey].tasks[entry.taskId]) dailyWork[dayKey].tasks[entry.taskId] = { hours: 0, pieces: 0 };
