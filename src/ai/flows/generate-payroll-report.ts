@@ -95,20 +95,16 @@ const processPayrollData = ai.defineTool(
     const data = JSON.parse(input.jsonData);
     const { employees, tasks, timeEntries, piecework, clients } = data;
     
-    // --- Create maps for efficient lookups ---
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
-    
     const employeeIdMap = new Map(employees.map((e: Employee) => [e.id, e]));
     const employeeQrMap = new Map(employees.map((e: Employee) => [e.qrCode, e]));
+    
     const findEmployee = (identifier: string): Employee | undefined => {
         return employeeIdMap.get(identifier) || employeeQrMap.get(identifier);
     }
 
-
-    // --- Phase 1: Aggregate Raw Data ---
     const workData: Record<string, Record<string, Record<string, { hours: number, pieces: number }>>> = {};
-
     const reportInterval = {
         start: startOfDay(parseISO(input.startDate)),
         end: startOfDay(parseISO(input.endDate)),
@@ -116,7 +112,6 @@ const processPayrollData = ai.defineTool(
     
     employees.forEach((emp: Employee) => workData[emp.id] = {});
 
-    // Process time entries
     for (const entry of timeEntries) {
         if (!entry.timestamp || !entry.endTime || !entry.employeeId || !entry.taskId) continue;
         
@@ -124,14 +119,12 @@ const processPayrollData = ai.defineTool(
         if (!isWithinInterval(entryStart, reportInterval)) continue;
 
         const hours = differenceInHours(parseISO(entry.endTime), entryStart);
-        
-        if (hours < 0) continue;
+        if (hours <= 0) continue;
 
         const employee = findEmployee(entry.employeeId);
         if (!employee) continue;
 
         const dayKey = format(entryStart, 'yyyy-MM-dd');
-
         if (!workData[employee.id]) workData[employee.id] = {};
         if (!workData[employee.id][dayKey]) workData[employee.id][dayKey] = {};
         if (!workData[employee.id][dayKey][entry.taskId]) workData[employee.id][dayKey][entry.taskId] = { hours: 0, pieces: 0 };
@@ -139,7 +132,6 @@ const processPayrollData = ai.defineTool(
         workData[employee.id][dayKey][entry.taskId].hours += hours;
     }
 
-    // Process piecework entries
     for (const entry of piecework) {
         if (!entry.timestamp || !entry.employeeId || !entry.taskId) continue;
         
@@ -164,8 +156,6 @@ const processPayrollData = ai.defineTool(
         }
     }
 
-
-    // --- Phase 2: Calculate Earnings and Build Summaries ---
     const employeeSummaries: EmployeePayrollSummary[] = [];
 
     for (const employee of employees) {
@@ -208,8 +198,16 @@ const processPayrollData = ai.defineTool(
                     const clientName = clientMap.get(task.clientId)?.name || 'Unknown Client';
                     const { hours, pieces } = dayData[taskId];
 
-                    const hourlyEarnings = task.employeePayType === 'hourly' ? hours * task.employeeRate : 0;
-                    const pieceworkEarnings = task.employeePayType === 'piecework' ? pieces * task.employeeRate : 0;
+                    let hourlyEarnings = 0;
+                    let pieceworkEarnings = 0;
+
+                    if (task.employeePayType === 'hourly') {
+                        hourlyEarnings = hours * task.employeeRate;
+                    }
+                    if (task.employeePayType === 'piecework') {
+                        pieceworkEarnings = pieces * task.employeeRate;
+                    }
+                    
                     const totalEarningsForTask = hourlyEarnings + pieceworkEarnings;
                     
                     dailyTotalHours += hours;
