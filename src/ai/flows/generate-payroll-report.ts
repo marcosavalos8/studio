@@ -217,7 +217,8 @@ const processPayrollData = ai.defineTool(
             if (week.totalHours > 0 && effectiveHourlyRate < applicableMinimumWage) {
                 minimumWageTopUp = (applicableMinimumWage * week.totalHours) - totalEarnings;
             }
-
+            
+            // Recalculate effective rate for rest breaks AFTER top-up
             const totalEarningsWithTopUp = totalEarnings + minimumWageTopUp;
             const regularRateOfPay = week.totalHours > 0 ? totalEarningsWithTopUp / week.totalHours : applicableMinimumWage;
 
