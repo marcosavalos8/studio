@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import {
   Card,
@@ -209,7 +209,7 @@ export default function TimeTrackingPage() {
     oscillator.stop(audioContext.currentTime + 0.2);
   }
 
-  const handleScanResult = (scannedData: string) => {
+  const handleScanResult = useCallback((scannedData: string) => {
       if (!selectedTask) {
           playBeep(false);
           toast({ variant: "destructive", title: "Task not selected", description: "Please select a client, ranch, block, and task before scanning." });
@@ -269,7 +269,7 @@ export default function TimeTrackingPage() {
             toast({ variant: "destructive", title: "Invalid Scan", description: "Expected an employee QR code."});
         }
       }
-  }
+  }, [selectedTask, activeEmployees, recentScans, toast, jsConfetti, scanMode, isSharedPiece, pieceEntryMode]);
 
   const clockInEmployee = async (employeeId: string, taskId: string) => {
     if (!firestore) return;
