@@ -206,6 +206,7 @@ const processPayrollData = ai.defineTool(
                 }
             }).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
+            // FIX: Correctly sum total earnings from daily breakdowns
             const totalEarnings = dailyBreakdown.reduce((acc, day) => acc + day.totalDailyEarnings, 0);
             
             let effectiveHourlyRate = week.totalHours > 0 ? totalEarnings / week.totalHours : 0;
