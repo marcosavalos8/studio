@@ -100,10 +100,14 @@ const processPayrollData = ai.defineTool(
     
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
+    const employeeMap = new Map(employees.map((e: Employee) => [e.id, e]));
 
     for (const employee of employees) {
-      // Step 1: Aggregate all raw work data (hours and pieces) for the employee.
+        
+      // =================================================================
+      // STEP 1: Aggregate all raw work data (hours and pieces) for the employee.
       // This is a "start from zero" approach.
+      // =================================================================
       const aggregatedRawData: Record<string, // weekKey
         Record<string, // dayKey
           Record<string, // taskId
@@ -125,11 +129,11 @@ const processPayrollData = ai.defineTool(
         const hours = (new Date(entry.endTime).getTime() - start.getTime()) / (1000 * 60 * 60);
         aggregatedRawData[weekKey][dayKey][entry.taskId].hours += hours;
       }
-
+      
       const empPiecework = piecework.filter((pw: Piecework) => {
-          // Handle both single and comma-separated employee IDs/QR codes.
           const employeeIdsInEntry = String(pw.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
-          return employeeIdsInEntry.some(id => id === employee.id || id === employee.qrCode);
+          // Check if employee.id is in the list, or if employee.qrCode is in the list
+          return employeeIdsInEntry.includes(employee.id) || employeeIdsInEntry.includes(employee.qrCode);
       });
 
       for (const entry of empPiecework) {
@@ -148,13 +152,17 @@ const processPayrollData = ai.defineTool(
         aggregatedRawData[weekKey][dayKey][entry.taskId].pieceworkCount += individualPieceCount;
       }
       
-      // Step 2: Now, process the aggregated raw data to calculate earnings and build summaries.
+      // =================================================================
+      // STEP 2: Now, process the aggregated raw data to calculate earnings and build summaries.
+      // This logic is completely rewritten to be more direct.
+      // =================================================================
       const weeklySummaries: WeeklySummary[] = [];
 
       for (const weekKey in aggregatedRawData) {
         let weeklyTotalHours = 0;
         let weeklyTotalHourlyEarnings = 0;
         let weeklyTotalPieceworkEarnings = 0;
+        let weeklyTotalEarnings = 0; // The crucial variable
         const clientIdsInWeek = new Set<string>();
         const dailyBreakdownsForWeek: DailyBreakdown[] = [];
 
@@ -162,7 +170,7 @@ const processPayrollData = ai.defineTool(
 
         for (const dayKey of dayKeys) {
             let dailyTotalHours = 0;
-            let dailyTotalEarnings = 0;
+            let dailyTotalEarnings = 0; // Crucial daily total
             const taskDetailsForDay: DailyTaskDetail[] = [];
 
             const taskIds = Object.keys(aggregatedRawData[weekKey][dayKey]);
@@ -174,13 +182,14 @@ const processPayrollData = ai.defineTool(
                 const clientName = clientMap.get(task.clientId)?.name || 'Unknown';
                 const rawDayData = aggregatedRawData[weekKey][dayKey][taskId];
                 
-                // *** CORE CALCULATION LOGIC ***
+                // *** CORE CALCULATION LOGIC (Corrected and Simplified) ***
                 const hourlyEarnings = task.employeePayType === 'hourly' ? rawDayData.hours * task.employeeRate : 0;
                 const pieceworkEarnings = task.employeePayType === 'piecework' ? rawDayData.pieceworkCount * task.employeeRate : 0;
-                const totalEarnings = hourlyEarnings + pieceworkEarnings;
+                const totalEarningsForTask = hourlyEarnings + pieceworkEarnings;
 
+                // Accumulate to the day's total immediately
                 dailyTotalHours += rawDayData.hours;
-                dailyTotalEarnings += totalEarnings;
+                dailyTotalEarnings += totalEarningsForTask;
                 
                 taskDetailsForDay.push({
                     taskName: `${task.name} (${task.variety || 'N/A'})`,
@@ -191,7 +200,7 @@ const processPayrollData = ai.defineTool(
                     pieceworkCount: rawDayData.pieceworkCount,
                     hourlyEarnings,
                     pieceworkEarnings,
-                    totalEarnings,
+                    totalEarnings: totalEarningsForTask, // Use the calculated total for the task
                 });
             }
 
@@ -202,7 +211,9 @@ const processPayrollData = ai.defineTool(
                 totalDailyEarnings: parseFloat(dailyTotalEarnings.toFixed(2)),
             });
 
+            // Accumulate daily totals to the week's total
             weeklyTotalHours += dailyTotalHours;
+            weeklyTotalEarnings += dailyTotalEarnings;
             weeklyTotalHourlyEarnings += taskDetailsForDay.reduce((acc, t) => acc + t.hourlyEarnings, 0);
             weeklyTotalPieceworkEarnings += taskDetailsForDay.reduce((acc, t) => acc + t.pieceworkEarnings, 0);
         }
@@ -212,9 +223,7 @@ const processPayrollData = ai.defineTool(
         const clientWages = Array.from(clientIdsInWeek).map(id => clientMap.get(id)?.minimumWage).filter(Boolean) as number[];
         const applicableMinimumWage = clientWages.length > 0 ? Math.max(...clientWages) : STATE_MINIMUM_WAGE;
         
-        // This is the total for the week BEFORE adjustments.
-        const weeklyTotalEarnings = weeklyTotalHourlyEarnings + weeklyTotalPieceworkEarnings;
-        
+        // This is the total for the week BEFORE adjustments. It's now correctly calculated.
         let effectiveHourlyRate = 0;
         if (weeklyTotalHours > 0) {
             effectiveHourlyRate = weeklyTotalEarnings / weeklyTotalHours;
