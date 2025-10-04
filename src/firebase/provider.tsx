@@ -1,8 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
+import React, { createContext, useContext, ReactNode, useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { FirebaseApp, initializeApp } from 'firebase/app';
+import { FirebaseApp, initializeApp, getApps, getApp } from 'firebase/app';
 import { Firestore, getFirestore } from 'firebase/firestore';
 import { Auth, getAuth } from 'firebase/auth';
 import { firebaseConfig } from '@/firebase/config';
@@ -25,24 +25,21 @@ export interface FirebaseContextState {
 
 export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
 
+// Ensure Firebase is initialized only once
+let firebaseApp: FirebaseApp;
+if (!getApps().length) {
+  firebaseApp = initializeApp(firebaseConfig);
+} else {
+  firebaseApp = getApp();
+}
+const auth = getAuth(firebaseApp);
+const firestore = getFirestore(firebaseApp);
+const services = { firebaseApp, firestore, auth };
+
+
 export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   children,
 }) => {
-  const [services, setServices] = useState<FirebaseContextState | null>(null);
-
-  useEffect(() => {
-    // This ensures Firebase is initialized only on the client side.
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const firestore = getFirestore(app);
-    setServices({ firebaseApp: app, firestore, auth });
-  }, []);
-
-  if (!services) {
-    // You can render a loading state here if needed, or just null
-    return null;
-  }
-
   return (
     <FirebaseContext.Provider value={services}>
       <FirebaseErrorListener />
@@ -79,15 +76,26 @@ export const useFirestore = (): Firestore => {
   return context.firestore;
 };
 
-type MemoFirebase <T> = T & {__memo?: boolean};
+type MemoFirebase<T> = T & { __memo?: boolean };
 
-export function useMemoFirebase<T>(factory: () => T, deps: React.DependencyList): T | (MemoFirebase<T>) {
-  const memoized = React.useMemo(factory, deps);
-  
-  if(typeof memoized !== 'object' || memoized === null) return memoized;
-  if (!('__memo' in memoized)) {
-    (memoized as MemoFirebase<T>).__memo = true;
+export function useMemoFirebase<T>(
+  factory: () => T,
+  deps: React.DependencyList
+): T {
+  const memoized = useMemo(factory, deps);
+
+  // This check is a bit of a hack to satisfy the useCollection/useDoc hooks
+  // that they are receiving a memoized value.
+  if (
+    memoized !== null &&
+    typeof memoized === 'object' &&
+    !('__memo' in memoized)
+  ) {
+    Object.defineProperty(memoized, '__memo', {
+      value: true,
+      enumerable: false,
+    });
   }
-  
-  return memoized;
+
+  return memoized as MemoFirebase<T>;
 }
