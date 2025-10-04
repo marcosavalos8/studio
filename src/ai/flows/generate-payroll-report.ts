@@ -46,9 +46,12 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
         // Filter work for the current employee within the date range
         const empTimeEntries = timeEntries.filter((e: TimeEntry) => e.employeeId === employeeId && e.timestamp && e.endTime && isWithinInterval(parseISO(String(e.timestamp)), reportInterval));
         const empPiecework = piecework.filter((pw: Piecework) => {
+            if (!pw.timestamp || !isWithinInterval(parseISO(String(pw.timestamp)), reportInterval)) {
+                return false;
+            }
             const employeeIdsOnTicket = String(pw.employeeId).split(',').map(id => id.trim());
-            const emp = employeeMap.get(employeeId);
-            return (employeeIdsOnTicket.includes(employeeId) || (emp && employeeIdsOnTicket.includes(emp.qrCode))) && pw.timestamp && isWithinInterval(parseISO(String(pw.timestamp)), reportInterval);
+            // This can check against ID or QR code
+            return employeeIdsOnTicket.some(idOrQr => idOrQr === employee.id || idOrQr === employee.qrCode);
         });
         
         if (empTimeEntries.length === 0 && empPiecework.length === 0) {
@@ -133,21 +136,11 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
                 const dayKey = format(date, 'yyyy-MM-dd');
                 
                 const employeeIdsOnTicket = String(entry.employeeId).split(',').map(id => id.trim()).filter(Boolean);
-                 const employeeQRsOnTicket = employeeIdsOnTicket.map(idOrQr => {
-                    const empById = employeeMap.get(idOrQr);
-                    if(empById) return empById.qrCode;
-                    return idOrQr; // assume it is a qr if not an id
-                });
-                
-                const currentEmpQr = employeeMap.get(employeeId)?.qrCode;
-                
-                if (currentEmpQr && employeeQRsOnTicket.includes(currentEmpQr)) {
-                    const pieceCountPerEmployee = entry.pieceCount / employeeQRsOnTicket.length;
+                const pieceCountPerEmployee = entry.pieceCount / employeeIdsOnTicket.length;
 
-                    if (!dailyWork[dayKey]) dailyWork[dayKey] = { tasks: {} };
-                    if (!dailyWork[dayKey].tasks[entry.taskId]) dailyWork[dayKey].tasks[entry.taskId] = { hours: 0, pieces: 0 };
-                    dailyWork[dayKey].tasks[entry.taskId].pieces += pieceCountPerEmployee;
-                }
+                if (!dailyWork[dayKey]) dailyWork[dayKey] = { tasks: {} };
+                if (!dailyWork[dayKey].tasks[entry.taskId]) dailyWork[dayKey].tasks[entry.taskId] = { hours: 0, pieces: 0 };
+                dailyWork[dayKey].tasks[entry.taskId].pieces += pieceCountPerEmployee;
             });
             
             const dailyBreakdownsForWeek: DailyBreakdown[] = [];
@@ -231,14 +224,13 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
         
         const totalPayForPeriod = weeklySummaries.reduce((acc, week) => acc + week.finalPay, 0);
 
-        if (totalPayForPeriod > 0 || weeklySummaries.some(w => w.totalHours > 0)) {
-             employeeSummaries.push({
-                employeeId: employee.id,
-                employeeName: employee.name,
-                weeklySummaries,
-                finalPay: parseFloat(totalPayForPeriod.toFixed(2)),
-            });
-        }
+        // Always push the employee summary, even if pay is zero, to ensure all selected employees are in the report.
+        employeeSummaries.push({
+            employeeId: employee.id,
+            employeeName: employee.name,
+            weeklySummaries,
+            finalPay: parseFloat(totalPayForPeriod.toFixed(2)),
+        });
     }
 
     return {
