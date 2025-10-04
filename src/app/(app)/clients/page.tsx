@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from "react"
+import React, { useState, useMemo } from "react"
 import {
   Card,
   CardContent,
@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button"
 import { PlusCircle, MoreHorizontal } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
+import { useCollection, useFirestore } from "@/firebase"
 import { collection, query, orderBy } from "firebase/firestore"
 import type { Client } from "@/lib/types"
 import { AddClientDialog } from "./add-client-dialog"
@@ -42,7 +42,7 @@ export default function ClientsPage() {
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
 
-  const clientsQuery = useMemoFirebase(() => {
+  const clientsQuery = useMemo(() => {
     if (!firestore) return null
     return query(collection(firestore, "clients"), orderBy("name"))
   }, [firestore])

@@ -17,7 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase'
+import { useCollection, useFirestore } from '@/firebase'
 import { collection, query, where, Timestamp, getDocs, doc, getDoc } from 'firebase/firestore'
 import type { TimeEntry, Employee, Task, Client } from '@/lib/types'
 import { formatDistanceToNow } from 'date-fns'
@@ -36,7 +36,7 @@ export function LiveActivity() {
     const [isLoading, setIsLoading] = useState(true);
     const [activityData, setActivityData] = useState<ActivityItem[]>([]);
 
-    const activeTimeEntriesQuery = useMemoFirebase(() => {
+    const activeTimeEntriesQuery = useMemo(() => {
         if (!firestore) return null
         return query(collection(firestore, 'time_entries'), where('endTime', '==', null))
     }, [firestore])

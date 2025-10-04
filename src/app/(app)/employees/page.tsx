@@ -29,9 +29,9 @@ import { Badge } from "@/components/ui/badge"
 import { PlusCircle, Printer, QrCode, MoreHorizontal } from "lucide-react"
 
 import type { Employee } from "@/lib/types"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
+import { useCollection, useFirestore } from "@/firebase"
 import { collection, query, orderBy } from "firebase/firestore"
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { AddEmployeeDialog } from "./add-employee-dialog"
 import { EditEmployeeDialog } from "./edit-employee-dialog"
@@ -45,7 +45,7 @@ export default function EmployeesPage() {
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
 
-  const employeesQuery = useMemoFirebase(() => {
+  const employeesQuery = useMemo(() => {
       if (!firestore) return null
       return query(collection(firestore, "employees"), orderBy("name"))
     }, [firestore])

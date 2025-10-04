@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { PlusCircle, MoreHorizontal } from "lucide-react"
 
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
+import { useCollection, useFirestore } from "@/firebase"
 import { collection, query, orderBy } from "firebase/firestore"
 import type { Task, Client } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -50,13 +50,13 @@ export default function TasksPage() {
     const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
 
-    const tasksQuery = useMemoFirebase(() => {
+    const tasksQuery = useMemo(() => {
         if (!firestore) return null
         return query(collection(firestore, "tasks"), orderBy("name"))
     }, [firestore])
     const { data: tasks, isLoading: loadingTasks } = useCollection<Task>(tasksQuery)
 
-    const clientsQuery = useMemoFirebase(() => {
+    const clientsQuery = useMemo(() => {
       if (!firestore) return null
       return query(collection(firestore, "clients"), orderBy("name"))
     }, [firestore])

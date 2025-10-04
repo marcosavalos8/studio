@@ -1,6 +1,6 @@
 'use client'
 
-import { useDoc, useFirestore, useMemoFirebase } from '@/firebase'
+import { useDoc, useFirestore } from '@/firebase'
 import type { Employee } from '@/lib/types'
 import { doc } from 'firebase/firestore'
 import { Loader2 } from 'lucide-react'
@@ -13,7 +13,7 @@ export default function PrintBadgePage() {
     const firestore = useFirestore()
     const { id } = params
   
-    const employeeRef = useMemoFirebase(() => {
+    const employeeRef = useMemo(() => {
       if (!firestore || !id) return null
       return doc(firestore, 'employees', id as string)
     }, [firestore, id])

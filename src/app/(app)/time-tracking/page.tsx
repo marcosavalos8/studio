@@ -31,7 +31,7 @@ import { QrCode, ClipboardEdit, Users, User, CheckCircle, Package, LogIn, LogOut
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
 import JSConfetti from 'js-confetti'
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase'
+import { useCollection, useFirestore } from '@/firebase'
 import { collection, query, where, getDocs, writeBatch, serverTimestamp, addDoc, updateDoc, doc, getDoc } from 'firebase/firestore'
 import type { Task, TimeEntry, Piecework, Employee, Client } from '@/lib/types'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -87,19 +87,19 @@ export default function TimeTrackingPage() {
   const [recentScans, setRecentScans] = useState<{ employeeId: string; taskId: string; timestamp: number }[]>([]);
   const DEBOUNCE_MS = 30000; // 30 seconds
 
-  const clientsQuery = useMemoFirebase(() => {
+  const clientsQuery = useMemo(() => {
     if (!firestore) return null
     return query(collection(firestore, "clients"), where("name", "!=", ""));
   }, [firestore]);
   const { data: clients } = useCollection<Client>(clientsQuery);
   
-  const tasksQuery = useMemoFirebase(() => {
+  const tasksQuery = useMemo(() => {
     if (!firestore) return null
     return query(collection(firestore, "tasks"), where("status", "==", "Active"));
   }, [firestore])
   const { data: allTasks } = useCollection<Task>(tasksQuery);
   
-  const employeesQuery = useMemoFirebase(() => {
+  const employeesQuery = useMemo(() => {
     if (!firestore) return null;
     return query(collection(firestore, "employees"), where("status", "==", "Active"));
   }, [firestore]);

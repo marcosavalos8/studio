@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, ReactNode, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { FirebaseApp, initializeApp, getApps, getApp } from 'firebase/app';
 import { Firestore, getFirestore } from 'firebase/firestore';
@@ -75,27 +75,3 @@ export const useFirestore = (): Firestore => {
   }
   return context.firestore;
 };
-
-type MemoFirebase<T> = T & { __memo?: boolean };
-
-export function useMemoFirebase<T>(
-  factory: () => T,
-  deps: React.DependencyList
-): T {
-  const memoized = useMemo(factory, deps);
-
-  // This check is a bit of a hack to satisfy the useCollection/useDoc hooks
-  // that they are receiving a memoized value.
-  if (
-    memoized !== null &&
-    typeof memoized === 'object' &&
-    !('__memo' in memoized)
-  ) {
-    Object.defineProperty(memoized, '__memo', {
-      value: true,
-      enumerable: false,
-    });
-  }
-
-  return memoized as MemoFirebase<T>;
-}
