@@ -193,21 +193,7 @@ const processPayrollData = ai.defineTool(
             // Determine the applicable minimum wage for the week
             const clientWages = Array.from(week.clientIds).map(id => clientMap.get(id)?.minimumWage).filter(Boolean) as number[];
             const applicableMinimumWage = clientWages.length > 0 ? Math.max(...clientWages) : STATE_MINIMUM_WAGE;
-
-            const totalEarnings = week.totalHourlyEarnings + week.totalPieceworkEarnings;
-            let effectiveHourlyRate = week.totalHours > 0 ? totalEarnings / week.totalHours : 0;
             
-            let minimumWageTopUp = 0;
-            if (week.totalHours > 0 && effectiveHourlyRate < applicableMinimumWage) {
-                minimumWageTopUp = (applicableMinimumWage * week.totalHours) - totalEarnings;
-            }
-
-            const totalEarningsWithTopUp = totalEarnings + minimumWageTopUp;
-            const regularRateOfPay = week.totalHours > 0 ? totalEarningsWithTopUp / week.totalHours : applicableMinimumWage;
-
-            const restBreakMinutes = Math.floor(week.totalHours / 4) * 10;
-            const paidRestBreaksTotal = (restBreakMinutes / 60) * regularRateOfPay;
-
             const dailyBreakdown: z.infer<typeof DailyBreakdownSchema>[] = Object.entries(week.dailyBreakdown).map(([date, dayData]) => {
                 const tasks = Object.values(dayData.tasks);
                 const totalDailyHours = tasks.reduce((acc, t) => acc + t.hours, 0);
@@ -220,6 +206,20 @@ const processPayrollData = ai.defineTool(
                 }
             }).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
+            const totalEarnings = dailyBreakdown.reduce((acc, day) => acc + day.totalDailyEarnings, 0);
+            
+            let effectiveHourlyRate = week.totalHours > 0 ? totalEarnings / week.totalHours : 0;
+            
+            let minimumWageTopUp = 0;
+            if (week.totalHours > 0 && effectiveHourlyRate < applicableMinimumWage) {
+                minimumWageTopUp = (applicableMinimumWage * week.totalHours) - totalEarnings;
+            }
+
+            const totalEarningsWithTopUp = totalEarnings + minimumWageTopUp;
+            const regularRateOfPay = week.totalHours > 0 ? totalEarningsWithTopUp / week.totalHours : applicableMinimumWage;
+
+            const restBreakMinutes = Math.floor(week.totalHours / 4) * 10;
+            const paidRestBreaksTotal = (restBreakMinutes / 60) * regularRateOfPay;
 
             weeklySummaries.push({
                 weekNumber,
