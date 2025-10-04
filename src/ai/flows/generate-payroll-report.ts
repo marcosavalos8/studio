@@ -206,9 +206,12 @@ const processPayrollData = ai.defineTool(
                 }
             }).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
             
+            // ** THE FIX IS HERE **
+            // 1. Calculate total earnings from the component parts.
             const totalEarnings = week.totalHourlyEarnings + week.totalPieceworkEarnings;
             
-            let effectiveHourlyRate = week.totalHours > 0 ? totalEarnings / week.totalHours : 0;
+            // 2. Use the CORRECT totalEarnings to calculate the effective rate.
+            const effectiveHourlyRate = week.totalHours > 0 ? totalEarnings / week.totalHours : 0;
             
             let minimumWageTopUp = 0;
             if (week.totalHours > 0 && effectiveHourlyRate < applicableMinimumWage) {
@@ -227,8 +230,8 @@ const processPayrollData = ai.defineTool(
                 totalHours: parseFloat(week.totalHours.toFixed(2)),
                 totalPieceworkEarnings: parseFloat(week.totalPieceworkEarnings.toFixed(2)),
                 totalHourlyEarnings: parseFloat(week.totalHourlyEarnings.toFixed(2)),
-                totalEarnings: parseFloat(totalEarnings.toFixed(2)),
-                effectiveHourlyRate: parseFloat(effectiveHourlyRate.toFixed(2)),
+                totalEarnings: parseFloat(totalEarnings.toFixed(2)), // This will now be correct
+                effectiveHourlyRate: parseFloat(effectiveHourlyRate.toFixed(2)), // This will now be correct
                 minimumWageTopUp: parseFloat(minimumWageTopUp.toFixed(2)),
                 paidRestBreaksTotal: parseFloat(paidRestBreaksTotal.toFixed(2)),
                 dailyBreakdown: dailyBreakdown,
