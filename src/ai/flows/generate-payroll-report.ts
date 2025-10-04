@@ -145,8 +145,7 @@ const processPayrollData = ai.defineTool(
 
         const empPiecework = piecework.filter((pw: any) => {
             const employeeIdsInEntry = String(pw.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
-            const employeeQrCodes = employeeIdsInEntry.map(id => employees.find((e: any) => e.id === id)?.qrCode || id);
-            return employeeQrCodes.includes(employee.qrCode) || employeeQrCodes.includes(employee.id);
+            return employeeIdsInEntry.includes(employee.id) || employeeIdsInEntry.includes(employee.qrCode);
         });
         
          for (const entry of empPiecework) {
