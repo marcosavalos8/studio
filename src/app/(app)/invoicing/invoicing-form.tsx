@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { format } from "date-fns"
-import { Calendar as CalendarIcon, Loader2, Download, Printer, Mail, MoreVertical } from "lucide-react"
+import { Calendar as CalendarIcon, Loader2, Download, Printer, Mail, MoreVertical, X } from "lucide-react"
 import { Timestamp } from 'firebase/firestore'
 
 
@@ -65,6 +65,142 @@ type InvoicingFormProps = {
     clients: Client[];
     tasks: Task[];
 };
+
+function InvoiceDisplay({ invoice, onClose }: { invoice: InvoiceData; onClose: () => void; }) {
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleEmail = () => {
+    if (!invoice || !invoice.date.from || !invoice.date.to) return;
+    const client = invoice.client;
+    const clientEmail = client.email || '';
+    const subject = `Invoice from FieldTack WA`;
+    
+    let body = `Dear ${client.name},\n\n`;
+    body += `Please find your invoice for the period of ${format(new Date(invoice.date.from), "LLL dd, y")} to ${format(new Date(invoice.date.to), "LLL dd, y")}.\n\n`;
+    body += `To save this invoice as a PDF, please use your browser's print function (Ctrl+P or Cmd+P) and select 'Save as PDF'.\n\n`;
+    body += `Invoice Summary:\n`;
+    body += `Total Amount Due: $${invoice.total.toFixed(2)}\n`;
+    body += `Payment Terms: ${client.paymentTerms}\n\n`;
+    body += 'Thank you for your business!\n\n';
+    body += 'Sincerely,\nThe FieldTack WA Team';
+
+    const mailtoLink = `mailto:${clientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailtoLink;
+  };
+  
+  if (!invoice.date.from || !invoice.date.to) return null;
+
+  return (
+    <div className="printable-report-container">
+        <style jsx global>{`
+            @media print {
+                body * {
+                    visibility: hidden;
+                }
+                .printable-report-container, .printable-report-container * {
+                    visibility: visible;
+                }
+                .printable-report-container {
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    width: 100%;
+                    padding: 1rem;
+                }
+            }
+        `}</style>
+         <Button onClick={onClose} className="mb-4 print:hidden">
+            <X className="mr-2 h-4 w-4" />
+            Close Invoice
+        </Button>
+        <div className="mt-6 bg-card p-4 sm:p-6 rounded-lg border print:border-none print:shadow-none print:p-0">
+            <div className="flex justify-between items-start mb-6 print:mb-4">
+              <div>
+                <h2 className="text-2xl font-bold text-primary">INVOICE</h2>
+                <div>To: {invoice.client.name}</div>
+                <div className="text-muted-foreground">{invoice.client.billingAddress}</div>
+              </div>
+              <div className="text-right">
+                <div className="font-semibold">FieldTack WA</div>
+                <div className="text-sm text-muted-foreground">Invoice Date: {format(new Date(), "LLL dd, y")}</div>
+                  <div className="text-sm text-muted-foreground">Period: {format(new Date(invoice.date.from), "LLL dd, y")} - {format(new Date(invoice.date.to), "LLL dd, y")}</div>
+              </div>
+            </div>
+
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-center">Quantity</TableHead>
+                  <TableHead className="text-center">Rate</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {invoice.items.length > 0 ? invoice.items.map((item: any, index: number) => (
+                  <TableRow key={index}>
+                    <TableCell>{item.description}</TableCell>
+                    <TableCell className="text-center">{item.quantity}</TableCell>
+                    <TableCell className="text-center">${item.rate.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">${item.total.toFixed(2)}</TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground py-10">No billable activity for this period.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+              {invoice.items.length > 0 && (
+                  <TableFooter>
+                      <TableRow>
+                          <TableCell colSpan={3} className="text-right font-medium">Subtotal</TableCell>
+                          <TableCell className="text-right font-medium">${invoice.subtotal.toFixed(2)}</TableCell>
+                      </TableRow>
+                      {invoice.commission > 0 && (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-right">Commission ({invoice.client.commissionRate}%)</TableCell>
+                          <TableCell className="text-right">${invoice.commission.toFixed(2)}</TableCell>
+                        </TableRow>
+                      )}
+                      <TableRow>
+                          <TableCell colSpan={3} className="text-right font-bold text-base">Total</TableCell>
+                          <TableCell className="text-right font-bold text-base">${invoice.total.toFixed(2)}</TableCell>
+                      </TableRow>
+                  </TableFooter>
+              )}
+            </Table>
+
+            <div className="flex justify-between items-center mt-6">
+              <div className="text-muted-foreground text-xs">
+                  Payment Terms: {invoice.client.paymentTerms}
+              </div>
+              <div className="print:hidden">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <MoreVertical className="h-4 w-4" />
+                      <span className="sr-only">Actions</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handlePrint}>
+                      <Printer className="mr-2 h-4 w-4" />
+                      Print / Save as PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleEmail} disabled={!invoice.client.email}>
+                      <Mail className="mr-2 h-4 w-4" />
+                      Email Invoice
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          </div>
+    </div>
+  )
+}
 
 export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
   const firestore = useFirestore()
@@ -207,49 +343,10 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         setIsGenerating(false)
     }
   }
-  
-  const handlePrint = () => {
-    if (!invoice) return;
-    const printId = `invoice_${Date.now()}`;
-    try {
-      sessionStorage.setItem(printId, JSON.stringify(invoice));
-      window.open(`/invoicing/print?id=${printId}`, '_blank');
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Could not open print window",
-        description: "Please ensure pop-ups are allowed for this site."
-      })
-    }
+
+  if (invoice) {
+    return <InvoiceDisplay invoice={invoice} onClose={() => setInvoice(null)} />
   }
-
-  const handleEmail = () => {
-    if (!invoice || !invoice.date.from || !invoice.date.to) return;
-    const client = invoice.client;
-    const clientEmail = client.email || '';
-    const subject = `Invoice from FieldTack WA`;
-    
-    // Use a unique ID to allow multiple print tabs
-    const printId = `invoice_${Date.now()}`;
-    sessionStorage.setItem(printId, JSON.stringify(invoice));
-    const printUrl = `${window.location.origin}/invoicing/print?id=${printId}`;
-    
-    let body = `Dear ${client.name},\n\n`;
-    body += `Please find your invoice for the period of ${format(new Date(invoice.date.from), "LLL dd, y")} to ${format(new Date(invoice.date.to), "LLL dd, y")}.\n\n`;
-    body += `You can view and print the full invoice here:\n${printUrl}\n\n`;
-    body += `To save as a PDF:\n`;
-    body += `1. Open the link above.\n`;
-    body += `2. Press Ctrl+P or Cmd+P to open the print dialog.\n`;
-    body += `3. Change the 'Destination' to 'Save as PDF' and click 'Save'.\n\n`;
-    body += `Invoice Summary:\n`;
-    body += `Total Amount Due: $${invoice.total.toFixed(2)}\n`;
-    body += `Payment Terms: ${client.paymentTerms}\n\n`;
-    body += 'Thank you for your business!\n\n';
-    body += 'Sincerely,\nThe FieldTack WA Team';
-
-    const mailtoLink = `mailto:${clientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailtoLink;
-  };
 
   return (
     <div>
@@ -313,92 +410,6 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
               <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
               <p className="text-muted-foreground">Generating invoice...</p>
           </div>
-      )}
-
-      {invoice && (
-        <div className="mt-6 bg-card p-4 sm:p-6 rounded-lg border">
-          <div className="flex justify-between items-start mb-6 print:mb-4">
-            <div>
-              <h2 className="text-2xl font-bold text-primary">INVOICE</h2>
-              <div>To: {invoice.client.name}</div>
-              <div className="text-muted-foreground">{invoice.client.billingAddress}</div>
-            </div>
-            <div className="text-right">
-              <div className="font-semibold">FieldTack WA</div>
-              <div className="text-sm text-muted-foreground">Invoice Date: {format(new Date(), "LLL dd, y")}</div>
-              {invoice.date.from && invoice.date.to && (
-                <div className="text-sm text-muted-foreground">Period: {format(new Date(invoice.date.from), "LLL dd, y")} - {format(new Date(invoice.date.to), "LLL dd, y")}</div>
-              )}
-            </div>
-          </div>
-
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Description</TableHead>
-                <TableHead className="text-center">Quantity</TableHead>
-                <TableHead className="text-center">Rate</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {invoice.items.length > 0 ? invoice.items.map((item: any, index: number) => (
-                <TableRow key={index}>
-                  <TableCell>{item.description}</TableCell>
-                  <TableCell className="text-center">{item.quantity}</TableCell>
-                  <TableCell className="text-center">${item.rate.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">${item.total.toFixed(2)}</TableCell>
-                </TableRow>
-              )) : (
-                <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-10">No billable activity for this period.</TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-            {invoice.items.length > 0 && (
-                <TableFooter>
-                    <TableRow>
-                        <TableCell colSpan={3} className="text-right font-medium">Subtotal</TableCell>
-                        <TableCell className="text-right font-medium">${invoice.subtotal.toFixed(2)}</TableCell>
-                    </TableRow>
-                    {invoice.commission > 0 && (
-                      <TableRow>
-                        <TableCell colSpan={3} className="text-right">Commission ({invoice.client.commissionRate}%)</TableCell>
-                        <TableCell className="text-right">${invoice.commission.toFixed(2)}</TableCell>
-                      </TableRow>
-                    )}
-                    <TableRow>
-                        <TableCell colSpan={3} className="text-right font-bold text-base">Total</TableCell>
-                        <TableCell className="text-right font-bold text-base">${invoice.total.toFixed(2)}</TableCell>
-                    </TableRow>
-                </TableFooter>
-            )}
-          </Table>
-
-          <div className="flex justify-between items-center mt-6">
-            <div className="text-muted-foreground text-xs">
-                Payment Terms: {invoice.client.paymentTerms}
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <MoreVertical className="h-4 w-4" />
-                  <span className="sr-only">Actions</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handlePrint}>
-                  <Printer className="mr-2 h-4 w-4" />
-                  Print / Save as PDF
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleEmail} disabled={!invoice.client.email}>
-                  <Mail className="mr-2 h-4 w-4" />
-                  Email Invoice
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
       )}
     </div>
   )

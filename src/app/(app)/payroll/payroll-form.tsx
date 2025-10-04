@@ -4,7 +4,7 @@ import * as React from "react"
 import { useActionState } from "react"
 import { useFormStatus } from "react-dom"
 import { format } from "date-fns"
-import { Calendar as CalendarIcon, Loader2, MoreVertical, Printer, Mail, Users } from "lucide-react"
+import { Calendar as CalendarIcon, Loader2, MoreVertical, Printer, Mail, Users, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -102,34 +102,16 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
   const overallTotal = report.employeeSummaries.reduce((acc, emp) => acc + emp.finalPay, 0);
 
   const handlePrint = () => {
-    const printId = `payroll_${Date.now()}`;
-    try {
-      sessionStorage.setItem(printId, JSON.stringify(report));
-      window.open(`/payroll/print?id=${printId}`, '_blank');
-    } catch (error) {
-       toast({
-        variant: "destructive",
-        title: "Could not open print window",
-        description: "Please ensure pop-ups are allowed for this site."
-      })
-    }
+    window.print();
   }
   
   const handleEmail = () => {
     if (!report.startDate || !report.endDate) return;
     const subject = `Payroll Report for ${format(new Date(report.startDate), "LLL dd, y")} - ${format(new Date(report.endDate), "LLL dd, y")}`;
     
-    // Use a unique ID to allow multiple print tabs
-    const printId = `payroll_${Date.now()}`;
-    sessionStorage.setItem(printId, JSON.stringify(report));
-    const printUrl = `${window.location.origin}/payroll/print?id=${printId}`;
-
+    // The body will now instruct to print the current page to PDF
     let body = `Hello Accountant,\n\nPlease find the payroll summary for the period of ${format(new Date(report.startDate), "LLL dd, y")} to ${format(new Date(report.endDate), "LLL dd, y")}.\n\n`;
-    body += `You can view and print the full report here:\n${printUrl}\n\n`;
-    body += `To save as a PDF:\n`;
-    body += `1. Open the link above.\n`;
-    body += `2. Press Ctrl+P or Cmd+P to open the print dialog.\n`;
-    body += `3. Change the 'Destination' to 'Save as PDF' and click 'Save'.\n\n`;
+    body += `To save this report as a PDF, please use your browser's print function (Ctrl+P or Cmd+P) and select 'Save as PDF' as the destination.\n\n`;
     body += `Report Summary:\n`;
     body += `Total Payroll: $${overallTotal.toFixed(2)}\n\n`;
     body += 'Thank you!';
@@ -141,7 +123,7 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
   const { toast } = useToast();
 
   return (
-    <div className="mt-6 bg-card p-4 sm:p-6 rounded-lg border">
+    <div className="mt-6 bg-card p-4 sm:p-6 rounded-lg border print:border-none print:shadow-none print:p-0">
        <div className="flex justify-between items-start mb-6">
             <div>
               <h2 className="text-2xl font-bold text-primary">Payroll Report</h2>
@@ -156,8 +138,8 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
         </div>
         <Accordion type="multiple" className="w-full" defaultValue={report.employeeSummaries.map(e => e.employeeId)}>
             {report.employeeSummaries.map(employee => (
-                <AccordionItem value={employee.employeeId} key={employee.employeeId}>
-                    <AccordionTrigger className="text-lg font-semibold hover:no-underline">
+                <AccordionItem value={employee.employeeId} key={employee.employeeId} className="print:border-b print:page-before">
+                    <AccordionTrigger className="text-lg font-semibold hover:no-underline print:no-underline print:text-xl">
                       <div className="flex justify-between w-full pr-4">
                         <span>{employee.employeeName}</span>
                         <span className="text-primary">Final Pay: ${employee.finalPay.toFixed(2)}</span>
@@ -168,12 +150,12 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
                         <Accordion type="multiple" className="w-full" defaultValue={employee.weeklySummaries.map(w => `w-${w.weekNumber}`)}>
                           {employee.weeklySummaries.map(week => (
                               <AccordionItem value={`w-${week.weekNumber}`} key={week.weekNumber}>
-                                  <AccordionTrigger className="font-semibold text-md mb-2 ml-4">
+                                  <AccordionTrigger className="font-semibold text-md mb-2 ml-4 print:text-lg">
                                       Week {week.weekNumber}, {week.year}
                                   </AccordionTrigger>
                                   <AccordionContent className="space-y-4 pl-4">
                                       <DailyBreakdownDisplay breakdown={week.dailyBreakdown} />
-                                      <div className="border rounded-md p-4 mt-4">
+                                      <div className="border rounded-md p-4 mt-4 print:border-gray-200">
                                         <h5 className="font-semibold mb-2">Week {week.weekNumber} Financial Summary</h5>
                                         <Table>
                                             <TableBody>
@@ -181,7 +163,7 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
                                                 <TableRow><TableCell>Total Earnings (Hourly + Piecework)</TableCell><TableCell className="text-right">${week.totalEarnings.toFixed(2)}</TableCell></TableRow>
                                                 <TableRow><TableCell>Effective Hourly Rate</TableCell><TableCell className="text-right">${week.effectiveHourlyRate.toFixed(2)}</TableCell></TableRow>
                                                 <TableRow><TableCell>Paid Rest Breaks (10 min / 4 hrs)</TableCell><TableCell className="text-right">+ ${week.paidRestBreaksTotal.toFixed(2)}</TableCell></TableRow>
-                                                {week.minimumWageTopUp > 0 && <TableRow className="bg-amber-50 dark:bg-amber-900/20"><TableCell className="font-semibold">Minimum Wage Top-up</TableCell><TableCell className="text-right font-semibold">+ ${week.minimumWageTopUp.toFixed(2)}</TableCell></TableRow>}
+                                                {week.minimumWageTopUp > 0 && <TableRow className="bg-amber-50 dark:bg-amber-900/20 print:bg-amber-50"><TableCell className="font-semibold">Minimum Wage Top-up</TableCell><TableCell className="text-right font-semibold">+ ${week.minimumWageTopUp.toFixed(2)}</TableCell></TableRow>}
                                             </TableBody>
                                         </Table>
                                       </div>
@@ -190,8 +172,8 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
                           ))}
                         </Accordion>
 
-                         <div className="border rounded-md p-4 bg-muted/40">
-                            <h4 className="font-semibold text-md mb-2">Employee Pay Summary for Period</h4>
+                         <div className="border rounded-md p-4 bg-muted/40 print:bg-gray-50">
+                            <h4 className="font-semibold text-md mb-2 print:text-lg">Employee Pay Summary for Period</h4>
                              <Table>
                                <TableBody>
                                   <TableRow><TableCell>Subtotal Earnings</TableCell><TableCell className="text-right">${employee.overallTotalEarnings.toFixed(2)}</TableCell></TableRow>
@@ -199,7 +181,7 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
                                   {employee.overallTotalMinimumWageTopUp > 0 && <TableRow><TableCell>Total Minimum Wage Top-up</TableCell><TableCell className="text-right">+ ${employee.overallTotalMinimumWageTopUp.toFixed(2)}</TableCell></TableRow>}
                                </TableBody>
                                <TableFooter>
-                                <TableRow className="text-base font-bold"><TableCell>Final Pay</TableCell><TableCell className="text-right">${employee.finalPay.toFixed(2)}</TableCell></TableRow>
+                                <TableRow className="text-base font-bold print:text-lg"><TableCell>Final Pay</TableCell><TableCell className="text-right">${employee.finalPay.toFixed(2)}</TableCell></TableRow>
                                </TableFooter>
                              </Table>
                           </div>
@@ -209,7 +191,7 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
             ))}
         </Accordion>
 
-      <div className="flex justify-end items-center mt-6">
+      <div className="flex justify-end items-center mt-6 print:hidden">
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm">
@@ -312,7 +294,7 @@ export function PayrollForm() {
             piecework.forEach(entry => {
               // Handle both single and shared piecework employee IDs
               const ids = entry.employeeId.split(',');
-              ids.forEach((id: string) => employeeIdsWithActivity.add(id));
+              ids.forEach((id: string) => employeeIdsWithActivity.add(id.trim()));
             });
 
             const activeEmployees = Array.from(employeeIdsWithActivity)
@@ -365,7 +347,7 @@ export function PayrollForm() {
     const filteredTimeEntries = allData.timeEntries.filter((te: TimeEntry) => selectedEmployeeIds.has(te.employeeId));
     const filteredPiecework = allData.piecework.filter((pw: Piecework) => {
         const ids = pw.employeeId.split(',');
-        return ids.some(id => selectedEmployeeIds.has(id));
+        return ids.some(id => selectedEmployeeIds.has(id.trim()));
     });
 
     return JSON.stringify({
@@ -380,8 +362,39 @@ export function PayrollForm() {
   const jsonData = getFilteredJsonData();
   const allEmployeesSelected = employeesInRange.length > 0 && selectedEmployeeIds.size === employeesInRange.length;
 
+  if (state.report) {
+    return (
+        <div className="printable-report-container">
+            <style jsx global>{`
+                @media print {
+                    body * {
+                        visibility: hidden;
+                    }
+                    .printable-report-container, .printable-report-container * {
+                        visibility: visible;
+                    }
+                    .printable-report-container {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                    }
+                    .page-before {
+                       break-before: page;
+                    }
+                }
+            `}</style>
+            <Button onClick={() => window.location.reload()} className="mb-4 print:hidden">
+                <X className="mr-2 h-4 w-4" />
+                Close Report
+            </Button>
+            <ReportDisplay report={state.report} />
+        </div>
+    )
+  }
+
   return (
-    <form action={formAction}>
+    <form action={formAction} className="print:hidden">
       <div className="grid gap-4 sm:grid-cols-2 print:hidden mb-4">
         <div className="grid gap-4">
             <div>
@@ -508,8 +521,6 @@ export function PayrollForm() {
       {date?.to && <input type="hidden" name="to" value={format(date.to, 'yyyy-MM-dd')} />}
       {payDate && <input type="hidden" name="payDate" value={format(payDate, 'yyyy-MM-dd')} />}
       {jsonData && <input type="hidden" name="jsonData" value={jsonData} />}
-      
-      {state.report && <ReportDisplay report={state.report} />}
     </form>
   )
 }
