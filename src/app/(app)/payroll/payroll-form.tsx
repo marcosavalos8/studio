@@ -41,7 +41,8 @@ export function PayrollForm() {
   const [allData, setAllData] = React.useState<any>(null);
   const [employeesInRange, setEmployeesInRange] = React.useState<Employee[]>([]);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = React.useState<Set<string>>(new Set());
-  const [showReport, setShowReport] = React.useState(false);
+  
+  const [reportData, setReportData] = React.useState<ProcessedPayrollData | null>(null);
 
   React.useEffect(() => {
     if (state.error) {
@@ -50,10 +51,10 @@ export function PayrollForm() {
         title: "Error Generating Report",
         description: state.error,
       })
-      setShowReport(false);
+      setReportData(null);
     }
      if (state.report) {
-      setShowReport(true);
+      setReportData(state.report as ProcessedPayrollData);
     }
   }, [state, toast])
   
@@ -181,8 +182,8 @@ export function PayrollForm() {
   const jsonData = getFilteredJsonData();
   const allEmployeesSelected = employeesInRange.length > 0 && selectedEmployeeIds.size === employeesInRange.length;
 
-  if (showReport && state.report) {
-    return <PayrollReportDisplay report={state.report} onBack={() => setShowReport(false)} />;
+  if (reportData) {
+    return <PayrollReportDisplay report={reportData} onBack={() => setReportData(null)} />;
   }
 
   return (
