@@ -15,12 +15,29 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useMemo } from 'react';
 import { withAuth } from '@/components/withAuth'
 
+export type DailyBreakdown = {
+  [date: string]: {
+    tasks: {
+      [taskName: string]: {
+        taskName: string;
+        hours: number;
+        pieces: number;
+        cost: number;
+        clientRate: number;
+        clientRateType: 'hourly' | 'piece';
+      }
+    };
+    total: number;
+  };
+};
+
 export type DetailedInvoiceData = {
   client: Client;
   date: {
     from: string;
     to: string;
   };
+  dailyBreakdown: DailyBreakdown;
   laborCost: number;
   minimumWageTopUp: number;
   paidRestBreaks: number;

@@ -26,7 +26,7 @@ import { collection, getDocs, query, where, Timestamp } from "firebase/firestore
 import { useToast } from "@/hooks/use-toast"
 import { type DetailedInvoiceData } from "./page"
 import { InvoiceReportDisplay } from './report-display'
-import { generatePayrollReport, ProcessedPayrollData } from "@/ai/flows/generate-payroll-report"
+import { generatePayrollReport } from "@/ai/flows/generate-payroll-report"
 
 
 type InvoicingFormProps = {
@@ -66,34 +66,42 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         const tasksSnap = await getDocs(query(collection(firestore, 'tasks'), where('clientId', '==', clientData.id)));
         const tasks = tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
 
+        const taskIds = tasks.map(t => t.id);
+
+        if (taskIds.length === 0) {
+            toast({ title: 'No tasks found for this client.', description: 'Cannot generate an invoice without tasks.' });
+            setIsGenerating(false);
+            return;
+        }
+
+        // Fetch all entries within the date range, then filter by task IDs in code
         const timeEntriesQuery = query(collection(firestore, 'time_entries'),
             where('timestamp', '>=', startDate),
             where('timestamp', '<=', endDate)
         );
         const timeEntriesSnap = await getDocs(timeEntriesQuery);
-        const timeEntries = timeEntriesSnap.docs.map(doc => {
-            const data = doc.data();
-            return { 
-                ...data,
-                id: doc.id,
-                timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || null,
-                endTime: (data.endTime as Timestamp)?.toDate()?.toISOString() || null,
-            } as any;
-        });
+        const timeEntries = timeEntriesSnap.docs
+            .map(doc => ({ ...doc.data(), id: doc.id } as TimeEntry))
+            .filter(te => taskIds.includes(te.taskId))
+            .map(te => ({ 
+                ...te,
+                timestamp: (te.timestamp as unknown as Timestamp)?.toDate().toISOString() || null,
+                endTime: (te.endTime as unknown as Timestamp)?.toDate()?.toISOString() || null,
+            }));
 
         const pieceworkQuery = query(collection(firestore, 'piecework'),
             where('timestamp', '>=', startDate),
             where('timestamp', '<=', endDate)
         );
         const pieceworkSnap = await getDocs(pieceworkQuery);
-        const piecework = pieceworkSnap.docs.map(doc => {
-            const data = doc.data();
-            return { 
-                ...data,
-                id: doc.id,
-                timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || null,
-            } as any;
-        });
+        const piecework = pieceworkSnap.docs
+            .map(doc => ({ ...doc.data(), id: doc.id } as Piecework))
+            .filter(pw => taskIds.includes(pw.taskId))
+            .map(pw => ({ 
+                ...pw,
+                timestamp: (pw.timestamp as unknown as Timestamp)?.toDate().toISOString() || null,
+            }));
+
 
         const jsonData = JSON.stringify({
             employees: allEmployees,
@@ -111,8 +119,47 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
             jsonData: jsonData,
         });
 
-        // Transform payroll data into invoice data
-        const laborCost = payrollResult.employeeSummaries.reduce((acc, emp) => acc + emp.overallTotalEarnings, 0);
+        // --- Transform payroll data into detailed invoice data ---
+        const dailyBreakdown: DetailedInvoiceData['dailyBreakdown'] = {};
+
+        payrollResult.employeeSummaries.forEach(emp => {
+          emp.weeklySummaries.forEach(week => {
+            week.dailyBreakdown.forEach(day => {
+              if (!dailyBreakdown[day.date]) {
+                dailyBreakdown[day.date] = { tasks: {}, total: 0 };
+              }
+              day.tasks.forEach(task => {
+                if (!dailyBreakdown[day.date].tasks[task.taskName]) {
+                  dailyBreakdown[day.date].tasks[task.taskName] = {
+                    taskName: task.taskName,
+                    hours: 0,
+                    pieces: 0,
+                    cost: 0,
+                    clientRate: tasks.find(t => t.name === task.taskName.split(' (')[0])?.clientRate ?? 0,
+                    clientRateType: tasks.find(t => t.name === task.taskName.split(' (')[0])?.clientRateType ?? 'hourly',
+                  };
+                }
+                const taskDetail = dailyBreakdown[day.date].tasks[task.taskName];
+                taskDetail.hours += task.hours;
+                taskDetail.pieces += task.pieceworkCount;
+                
+                // Use client rate for billing, not employee earnings
+                if (taskDetail.clientRateType === 'hourly') {
+                  taskDetail.cost += task.hours * taskDetail.clientRate;
+                } else {
+                  taskDetail.cost += task.pieceworkCount * taskDetail.clientRate;
+                }
+              });
+            });
+          });
+        });
+
+        // Recalculate daily totals based on client rates
+        Object.values(dailyBreakdown).forEach(day => {
+          day.total = Object.values(day.tasks).reduce((acc, task) => acc + task.cost, 0);
+        });
+        
+        const laborCost = Object.values(dailyBreakdown).reduce((acc, day) => acc + day.total, 0);
         const totalTopUp = payrollResult.employeeSummaries.reduce((acc, emp) => acc + emp.overallTotalMinimumWageTopUp, 0);
         const totalRestBreaks = payrollResult.employeeSummaries.reduce((acc, emp) => acc + emp.overallTotalPaidRestBreaks, 0);
 
@@ -126,6 +173,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
               from: startDate.toISOString(),
               to: endDate.toISOString()
             },
+            dailyBreakdown,
             laborCost,
             minimumWageTopUp: totalTopUp,
             paidRestBreaks: totalRestBreaks,

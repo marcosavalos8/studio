@@ -5,6 +5,7 @@ import { type DetailedInvoiceData } from './page';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Printer, ArrowLeft } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 
 interface ReportDisplayProps {
     report: DetailedInvoiceData;
@@ -16,6 +17,8 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
   const handlePrint = () => {
     window.print();
   };
+
+  const sortedDates = Object.keys(report.dailyBreakdown).sort((a,b) => new Date(a).getTime() - new Date(b).getTime());
   
   return (
     <div>
@@ -71,6 +74,46 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
                     <p><strong>Period:</strong> {format(new Date(report.date.from), "LLL dd, y")} - {format(new Date(report.date.to), "LLL dd, y")}</p>
                 </div>
                 </div>
+            </div>
+
+            <div className="space-y-6">
+                {sortedDates.map(date => (
+                    <div key={date}>
+                        <h2 className="font-semibold text-lg border-b-2 border-gray-200 pb-1 mb-2">
+                           {format(new Date(date), 'EEEE, LLL dd, yyyy')}
+                        </h2>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Task</TableHead>
+                                    <TableHead className="text-right">Quantity</TableHead>
+                                    <TableHead className="text-right">Rate</TableHead>
+                                    <TableHead className="text-right">Cost</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {Object.values(report.dailyBreakdown[date].tasks).map(task => (
+                                    <TableRow key={task.taskName}>
+                                        <TableCell>{task.taskName}</TableCell>
+                                        <TableCell className="text-right">
+                                            {task.clientRateType === 'hourly' ? `${task.hours.toFixed(2)} hrs` : `${task.pieces.toFixed(2)} pieces`}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            ${task.clientRate.toFixed(2)} / {task.clientRateType === 'hourly' ? 'hr' : 'piece'}
+                                        </TableCell>
+                                        <TableCell className="text-right">${task.cost.toFixed(2)}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                            <TableFooter>
+                                <TableRow>
+                                    <TableCell colSpan={3} className="text-right font-medium">Daily Total</TableCell>
+                                    <TableCell className="text-right font-semibold">${report.dailyBreakdown[date].total.toFixed(2)}</TableCell>
+                                </TableRow>
+                            </TableFooter>
+                        </Table>
+                    </div>
+                ))}
             </div>
 
             <div className="mt-8 flex justify-end">
