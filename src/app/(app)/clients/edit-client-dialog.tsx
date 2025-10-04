@@ -90,7 +90,7 @@ export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDia
     }
 
     const clientRef = doc(firestore, 'clients', client.id)
-    const updatedData = { ...values }
+    const updatedData = { ...values, email: values.email || '' }
 
     updateDoc(clientRef, updatedData)
       .then(() => {

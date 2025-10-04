@@ -78,7 +78,7 @@ export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) 
       return
     }
 
-    const newClient = { ...values }
+    const newClient = { ...values, email: values.email || '' }
     const clientsCollection = collection(firestore, 'clients');
 
     addDoc(clientsCollection, newClient)
@@ -226,5 +226,3 @@ export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) 
     </Dialog>
   )
 }
-
-    
