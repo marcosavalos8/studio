@@ -147,7 +147,11 @@ const processPayrollData = ai.defineTool(
         }
 
         // Process piecework entries
-        const empPiecework = piecework.filter((pw: any) => pw.employeeId === employee.id && pw.timestamp);
+        const empPiecework = piecework.filter((pw: any) => {
+            const employeeIds = pw.employeeId.split(',');
+            return employeeIds.includes(employee.id);
+        });
+
          for (const entry of empPiecework) {
             const start = new Date(entry.timestamp);
             const weekKey = `${getYear(start)}-${getWeek(start, { weekStartsOn: 1 })}`;
@@ -169,10 +173,14 @@ const processPayrollData = ai.defineTool(
                 }
 
                 if (task.employeePayType === 'piecework') {
-                    const earnings = entry.pieceCount * task.employeeRate;
-                    weeklyData[weekKey].totalPieceworkEarnings += earnings;
-                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id].pieceworkCount += entry.pieceCount;
-                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id].pieceworkEarnings += earnings;
+                    const employeeIdsInEntry = entry.employeeId.split(',');
+                    const numEmployees = employeeIdsInEntry.length;
+                    const individualPieceCount = entry.pieceCount / numEmployees;
+                    const individualEarnings = individualPieceCount * task.employeeRate;
+
+                    weeklyData[weekKey].totalPieceworkEarnings += individualEarnings;
+                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id].pieceworkCount += individualPieceCount;
+                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id].pieceworkEarnings += individualEarnings;
                 }
             }
         }
@@ -274,3 +282,5 @@ const generatePayrollReportFlow = ai.defineFlow(
     return processedData;
   }
 );
+
+    
