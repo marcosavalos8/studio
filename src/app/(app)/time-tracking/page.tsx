@@ -84,7 +84,7 @@ export default function TimeTrackingPage() {
   const [isManualSubmitting, setIsManualSubmitting] = useState(false);
 
   // Debounce state
-  const [recentScans, setRecentScans] = useState<{ employeeId: string; taskId: string; timestamp: number }[]>([]);
+  const [recentScans, setRecentScans] = useState<{ employeeId: string; taskId: string; mode: ScanMode; timestamp: number }[]>([]);
   const DEBOUNCE_MS = 30000; // 30 seconds
 
   const clientsQuery = useMemo(() => {
@@ -216,26 +216,26 @@ export default function TimeTrackingPage() {
           return;
       }
 
-      // Find employee by their QR code
-      const scannedEmployee = activeEmployees?.find(e => e.qrCode === scannedData);
-      
       const now = Date.now();
       // Clean up old scans from the debounce buffer
       setRecentScans(prev => prev.filter(scan => now - scan.timestamp < DEBOUNCE_MS));
 
+      // Find employee by their QR code
+      const scannedEmployee = activeEmployees?.find(e => e.qrCode === scannedData);
+      
       if (scannedEmployee) {
           const employeeId = scannedEmployee.id;
           const isDuplicate = recentScans.some(
-              scan => scan.employeeId === employeeId && scan.taskId === selectedTask
+              scan => scan.employeeId === employeeId && scan.taskId === selectedTask && scan.mode === scanMode
           );
 
           if (isDuplicate) {
               playBeep(false);
-              toast({ variant: "destructive", title: "Duplicate Scan", description: "This employee was recently scanned for the same task." });
+              toast({ variant: "destructive", title: "Duplicate Scan", description: `This employee was already scanned for ${scanMode} on this task.` });
               return;
           }
           
-          setRecentScans(prev => [...prev, { employeeId, taskId: selectedTask, timestamp: now }]);
+          setRecentScans(prev => [...prev, { employeeId, taskId: selectedTask, mode: scanMode, timestamp: now }]);
       }
 
 
