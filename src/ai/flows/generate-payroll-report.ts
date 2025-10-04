@@ -5,12 +5,12 @@
  *
  * - generatePayrollReport - A function that handles the payroll report generation process.
  * - GeneratePayrollReportInput - The input type for the generatePayrollReport function.
- * - ProcessedPayrollData - The return type for the generatePayrollTReport function, containing structured payroll data.
+ * - ProcessedPayrollData - The return type for the generatePayrollReport function, containing structured payroll data.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
-import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, addDays } from 'date-fns';
+import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval } from 'date-fns';
 import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail, Employee, Piecework, TimeEntry } from '@/lib/types';
 
 
