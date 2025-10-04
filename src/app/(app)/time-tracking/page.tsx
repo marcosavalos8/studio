@@ -216,15 +216,15 @@ export default function TimeTrackingPage() {
           return;
       }
 
-      // Assuming employee QR codes are their document IDs
-      const isEmployeeScan = !!activeEmployees?.find(e => e.id === scannedData);
+      // Find employee by their QR code
+      const scannedEmployee = activeEmployees?.find(e => e.qrCode === scannedData);
       
       const now = Date.now();
       // Clean up old scans from the debounce buffer
       setRecentScans(prev => prev.filter(scan => now - scan.timestamp < DEBOUNCE_MS));
 
-      if (isEmployeeScan) {
-          const employeeId = scannedData;
+      if (scannedEmployee) {
+          const employeeId = scannedEmployee.id;
           const isDuplicate = recentScans.some(
               scan => scan.employeeId === employeeId && scan.taskId === selectedTask
           );
@@ -244,11 +244,10 @@ export default function TimeTrackingPage() {
 
 
       if (scanMode === 'piece') {
-        if (isEmployeeScan) {
-          const employeeId = scannedData;
+        if (scannedEmployee) {
+          const employeeId = scannedEmployee.id;
             setScannedEmployees(prev => isSharedPiece ? [...prev, employeeId] : [employeeId]);
-            const employeeName = activeEmployees?.find(e => e.id === employeeId)?.name || employeeId;
-            toast({ title: "Employee Scanned", description: employeeName });
+            toast({ title: "Employee Scanned", description: scannedEmployee.name });
         } else { // It's a bin scan (or other data)
           if (pieceEntryMode === 'scan') {
             setScannedBin(scannedData);
@@ -259,13 +258,12 @@ export default function TimeTrackingPage() {
           }
         }
       } else { // Clock-in or Clock-out
-        if (isEmployeeScan) {
-          const employeeId = scannedData;
+        if (scannedEmployee) {
+          const employeeId = scannedEmployee.id;
           if (!scannedEmployees.includes(employeeId)) {
             setScannedEmployees(prev => [...prev, employeeId]);
           }
-          const employeeName = activeEmployees?.find(e => e.id === employeeId)?.name || employeeId;
-          toast({ title: `Employee Ready for ${scanMode}`, description: employeeName });
+          toast({ title: `Employee Ready for ${scanMode}`, description: scannedEmployee.name });
         } else {
             playBeep(false);
             toast({ variant: "destructive", title: "Invalid Scan", description: "Expected an employee QR code."});
