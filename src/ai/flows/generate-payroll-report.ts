@@ -54,22 +54,12 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
         });
         
         const workByWeek: Record<string, { time: TimeEntry[], pieces: Piecework[] }> = {};
-
-        // Group all work entries by week. This pre-populates the weeks to ensure we process them.
+        
         const allWorkEntries = [...empTimeEntries, ...empPiecework];
-        if (allWorkEntries.length > 0 && allWorkEntries[0].timestamp) {
-            // Determine the range of dates with activity to avoid iterating over empty dates.
-            const firstDate = allWorkEntries.reduce((min, entry) => {
-                const d = parseISO(String(entry.timestamp));
-                return d < min ? d : min;
-            }, parseISO(String(allWorkEntries[0].timestamp)));
-            
-            const lastDate = allWorkEntries.reduce((max, entry) => {
-                const d = parseISO(String(entry.timestamp));
-                return d > max ? d : max;
-            }, parseISO(String(allWorkEntries[0].timestamp)));
-
-            const relevantDates = eachDayOfInterval({start: firstDate, end: lastDate});
+        
+        // Determine the range of dates with activity to avoid iterating over empty dates.
+        if (allWorkEntries.length > 0) {
+            const relevantDates = eachDayOfInterval({start: reportInterval.start, end: reportInterval.end});
             relevantDates.forEach(date => {
                 const weekKey = `${getYear(date)}-${getWeek(date, { weekStartsOn: 1 })}`;
                 if (!workByWeek[weekKey]) {
@@ -77,7 +67,7 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
                 }
             });
         }
-
+        
         empTimeEntries.forEach((entry: TimeEntry) => {
             if (!entry.timestamp) return;
             const date = parseISO(String(entry.timestamp));
@@ -156,7 +146,7 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
 
                     const { hours, pieces } = dailyWork[dayKey].tasks[taskId];
                     let earningsForTask = 0;
-
+                    
                     if (task.employeePaymentType === 'hourly') {
                         earningsForTask = hours * task.employeeRate;
                     } else if (task.employeePaymentType === 'piecework') {
