@@ -246,8 +246,15 @@ export default function TimeTrackingPage() {
       if (scanMode === 'piece') {
         if (scannedEmployee) {
           const employeeId = scannedEmployee.id;
-            setScannedEmployees(prev => isSharedPiece ? [...prev, employeeId] : [employeeId]);
-            toast({ title: "Employee Scanned", description: scannedEmployee.name });
+          setScannedEmployees(prev => {
+            if (isSharedPiece) {
+                // Prevent adding duplicates
+                return prev.includes(employeeId) ? prev : [...prev, employeeId];
+            }
+            // For single employee mode, just set the new one
+            return [employeeId];
+          });
+          toast({ title: "Employee Scanned", description: scannedEmployee.name });
         } else { // It's a bin scan (or other data)
           if (pieceEntryMode === 'scan') {
             setScannedBin(scannedData);
@@ -727,10 +734,10 @@ export default function TimeTrackingPage() {
                   <CardContent>
                     {scannedEmployees.length > 0 ? (
                         <ul className="space-y-2">
-                        {scannedEmployees.map((id) => {
+                        {scannedEmployees.map((id, index) => {
                             const name = activeEmployees?.find(e => e.id === id)?.name || id;
                             return (
-                                <li key={id} className="flex items-center gap-2 text-green-600">
+                                <li key={`${id}-${index}`} className="flex items-center gap-2 text-green-600">
                                     <CheckCircle className="h-5 w-5" />
                                     <p className="font-mono text-sm">{name}</p>
                                 </li>
