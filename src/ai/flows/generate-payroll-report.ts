@@ -143,10 +143,11 @@ const processPayrollData = ai.defineTool(
         }
 
         const empPiecework = piecework.filter((pw: any) => {
-            const employeeIds = String(pw.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
-            return employeeIds.includes(employee.id) || employeeIds.includes(employee.qrCode);
+            const employeeIdsInEntry = String(pw.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
+            const employeeQrCodes = employeeIdsInEntry.map(id => employees.find((e: any) => e.id === id)?.qrCode || id);
+            return employeeQrCodes.includes(employee.qrCode) || employeeQrCodes.includes(employee.id);
         });
-
+        
          for (const entry of empPiecework) {
             const start = new Date(entry.timestamp);
             const weekKey = `${getYear(start)}-${getWeek(start, { weekStartsOn: 1 })}`;
