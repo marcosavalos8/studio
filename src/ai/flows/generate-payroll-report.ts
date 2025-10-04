@@ -102,20 +102,17 @@ const processPayrollData = ai.defineTool(
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
 
     for (const employee of employees) {
-        // [WeekKey]: { data }
         const weeklyData: Record<string, { 
             totalHours: number; 
             totalPieceworkEarnings: number; 
             totalHourlyEarnings: number; 
-            clientIds: Set<string>; // Keep track of clients worked for this week
+            clientIds: Set<string>;
             dailyBreakdown: Record<string, { tasks: Record<string, z.infer<typeof DailyTaskDetailSchema>> }> 
         }> = {};
 
-        // Process time entries for hours worked
         const empTimeEntries = timeEntries.filter((te: any) => te.employeeId === employee.id && te.timestamp && te.endTime);
         for (const entry of empTimeEntries) {
             const start = new Date(entry.timestamp);
-            const end = new Date(entry.endTime);
             const weekKey = `${getYear(start)}-${getWeek(start, { weekStartsOn: 1 })}`;
             const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
 
@@ -134,7 +131,7 @@ const processPayrollData = ai.defineTool(
                     weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety || 'N/A'})`, clientName, ranch: task.ranch || '', block: task.block || '', hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0 };
                 }
 
-                const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+                const hours = (new Date(entry.endTime).getTime() - start.getTime()) / (1000 * 60 * 60);
                 weeklyData[weekKey].totalHours += hours;
                 weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id].hours += hours;
 
@@ -146,9 +143,8 @@ const processPayrollData = ai.defineTool(
             }
         }
 
-        // Process piecework entries
         const empPiecework = piecework.filter((pw: any) => {
-            const employeeIds = String(pw.employeeId || '').split(',');
+            const employeeIds = String(pw.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
             return employeeIds.includes(employee.id) || employeeIds.includes(employee.qrCode);
         });
 
@@ -175,7 +171,7 @@ const processPayrollData = ai.defineTool(
                 if (task.employeePayType === 'piecework') {
                     const employeeIdsInEntry = String(entry.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
                     const numEmployees = employeeIdsInEntry.length > 0 ? employeeIdsInEntry.length : 1;
-                    const individualPieceCount = entry.pieceCount / numEmployees;
+                    const individualPieceCount = (entry.pieceCount || 0) / numEmployees;
                     const individualEarnings = individualPieceCount * task.employeeRate;
 
                     weeklyData[weekKey].totalPieceworkEarnings += individualEarnings;
@@ -190,7 +186,6 @@ const processPayrollData = ai.defineTool(
             const [year, weekNumber] = weekKey.split('-').map(Number);
             const week = weeklyData[weekKey];
 
-            // Determine the applicable minimum wage for the week
             const clientWages = Array.from(week.clientIds).map(id => clientMap.get(id)?.minimumWage).filter(Boolean) as number[];
             const applicableMinimumWage = clientWages.length > 0 ? Math.max(...clientWages) : STATE_MINIMUM_WAGE;
             
@@ -206,6 +201,7 @@ const processPayrollData = ai.defineTool(
                 }
             }).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
             
+            // CORRECTED LOGIC: Use the aggregated weekly totals directly
             const totalEarnings = week.totalHourlyEarnings + week.totalPieceworkEarnings;
             
             let effectiveHourlyRate = 0;
@@ -218,7 +214,6 @@ const processPayrollData = ai.defineTool(
                 minimumWageTopUp = (applicableMinimumWage * week.totalHours) - totalEarnings;
             }
             
-            // Recalculate effective rate for rest breaks AFTER top-up
             const totalEarningsWithTopUp = totalEarnings + minimumWageTopUp;
             const regularRateOfPay = week.totalHours > 0 ? totalEarningsWithTopUp / week.totalHours : applicableMinimumWage;
 
@@ -244,6 +239,7 @@ const processPayrollData = ai.defineTool(
         const overallTotalMinimumWageTopUp = weeklySummaries.reduce((acc, s) => acc + s.minimumWageTopUp, 0);
         const overallTotalPaidRestBreaks = weeklySummaries.reduce((acc, s) => acc + s.paidRestBreaksTotal, 0);
         
+        // CORRECTED LOGIC: Final pay includes all components
         const finalPay = overallTotalEarnings + overallTotalMinimumWageTopUp + overallTotalPaidRestBreaks;
 
         if (weeklySummaries.length > 0) {

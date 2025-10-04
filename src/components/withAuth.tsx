@@ -12,6 +12,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Loader2 } from 'lucide-react';
 
 const PASSWORD_KEY = 'secure_page_access_granted';
 
@@ -20,19 +21,24 @@ export function withAuth<P extends object>(WrappedComponent: React.ComponentType
     const [isAuthorized, setIsAuthorized] = useState(false);
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    const [correctPassword, setCorrectPassword] = useState('1234'); // Default password
+    const [correctPassword, setCorrectPassword] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         // This will only run on the client side
         const envPassword = process.env.NEXT_PUBLIC_PAYROLL_PASSWORD;
         if (envPassword) {
             setCorrectPassword(envPassword);
+        } else {
+            // Default password if env var is not set
+            setCorrectPassword('1234');
         }
         
         // Check session storage on mount
         if (sessionStorage.getItem(PASSWORD_KEY) === 'true') {
             setIsAuthorized(true);
         }
+        setIsLoading(false);
     }, []);
 
     const handlePasswordSubmit = () => {
@@ -42,8 +48,17 @@ export function withAuth<P extends object>(WrappedComponent: React.ComponentType
         setError('');
       } else {
         setError('Incorrect password. Please try again.');
+        setPassword('');
       }
     };
+
+    if (isLoading) {
+        return (
+             <div className="flex h-64 w-full items-center justify-center bg-background rounded-lg">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        )
+    }
 
     if (isAuthorized) {
       return <WrappedComponent {...props} />;
@@ -55,7 +70,7 @@ export function withAuth<P extends object>(WrappedComponent: React.ComponentType
           <DialogHeader>
             <DialogTitle>Authorization Required</DialogTitle>
             <DialogDescription>
-              Please enter the password to access this page. The default is '1234'. You can change this in the .env.local file.
+              Please enter the password to access this page. This can be set in the `.env.local` file.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -70,6 +85,7 @@ export function withAuth<P extends object>(WrappedComponent: React.ComponentType
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handlePasswordSubmit()}
                 className="col-span-3"
+                autoFocus
               />
             </div>
             {error && <p className="text-sm text-destructive col-span-4 text-center">{error}</p>}
@@ -83,6 +99,8 @@ export function withAuth<P extends object>(WrappedComponent: React.ComponentType
       </Dialog>
     );
   };
+
+  WithAuthComponent.displayName = `WithAuth(${WrappedComponent.displayName || WrappedComponent.name || 'Component'})`;
 
   return WithAuthComponent;
 }

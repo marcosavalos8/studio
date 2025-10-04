@@ -6,7 +6,7 @@ import {
     AlertDescription,
     AlertTitle,
 } from "@/components/ui/alert"
-import { VideoOff } from 'lucide-react'
+import { VideoOff, Loader2 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import jsQR from "jsqr";
 
@@ -65,16 +65,10 @@ export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
         if (!hasCameraPermission || !videoRef.current) return;
 
         let animationFrameId: number;
-        let lastScanTime = 0;
-        const scanInterval = 2000; // DEBOUNCE: Only process a scan every 2 seconds
-
+        
         const scan = () => {
             animationFrameId = requestAnimationFrame(scan);
-            const now = Date.now();
-            if (now - lastScanTime < 50) { // Limit how often we draw to canvas to save CPU
-              return;
-            }
-
+            
             if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
                 const video = videoRef.current;
                 const canvas = canvasRef.current;
@@ -86,16 +80,11 @@ export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
                         context.drawImage(video, 0, 0, canvas.width, canvas.height);
                         const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
                         
-                        if (now - lastScanTime < scanInterval) { // Check debounce timer
-                            return;
-                        }
-
                         const code = jsQR(imageData.data, imageData.width, imageData.height, {
                             inversionAttempts: 'dontInvert',
                         });
 
                         if (code && code.data) {
-                           lastScanTime = now; // Reset timer on successful scan
                            onScan(code.data);
                         }
                     }
@@ -141,8 +130,9 @@ export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
                 </Alert>
            )}
            {hasCameraPermission === null && (
-                 <div className="absolute inset-0 flex items-center justify-center">
-                    <p className="text-muted-foreground">Initializing camera...</p>
+                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50">
+                    <Loader2 className="h-8 w-8 animate-spin text-white" />
+                    <p className="text-white mt-2">Initializing camera...</p>
                  </div>
            )}
         </div>
