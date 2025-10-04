@@ -26,15 +26,15 @@ export type GeneratePayrollReportInput = z.infer<typeof GeneratePayrollReportInp
 export async function generatePayrollReport(input: GeneratePayrollReportInput): Promise<ProcessedPayrollData> {
     const STATE_MINIMUM_WAGE = 16.28;
     const data = JSON.parse(input.jsonData);
-    const { employees: reportEmployees, tasks, timeEntries, piecework, clients } = data;
+    const { employees: reportEmployees, tasks, timeEntries, piecework, clients, allEmployees } = data;
 
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
-    const allEmployeesMap = new Map(data.allEmployees.map((e: Employee) => [e.id, e]));
+    const allEmployeesMap = new Map(allEmployees.map((e: Employee) => [e.id, e]));
 
     const reportInterval = {
         start: startOfDay(parseISO(input.startDate)),
-        end: endOfWeek(parseISO(input.endDate), { weekStartsOn: 1 }), // Ensure we capture full weeks
+        end: endOfWeek(parseISO(input.endDate), { weekStartsOn: 1 }),
     };
 
     const employeeSummaries: EmployeePayrollSummary[] = [];
@@ -43,7 +43,6 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
     for (const employee of reportEmployees as Employee[]) {
         const employeeId = employee.id;
 
-        // Filter work for the current employee within the date range
         const empTimeEntries = timeEntries.filter((e: TimeEntry) => e.employeeId === employeeId && e.timestamp && e.endTime && isWithinInterval(parseISO(String(e.timestamp)), reportInterval));
         const empPiecework = piecework.filter((pw: Piecework) => {
             if (!pw.timestamp || !isWithinInterval(parseISO(String(pw.timestamp)), reportInterval)) {
@@ -53,14 +52,13 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
             const employeeQR = allEmployeesMap.get(employeeId)?.qrCode
             return employeeIdsOnTicket.some(idOrQr => idOrQr === employeeId || idOrQr === employeeQR);
         });
-        
+
         if (empTimeEntries.length === 0 && empPiecework.length === 0) {
-          continue; // Skip employee if they have no work in the period
+            continue;
         }
         
         const workByWeek: Record<string, { time: TimeEntry[], pieces: Piecework[] }> = {};
         
-        // Group all work by week (Monday-Sunday)
         const allWorkForEmployee = [...empTimeEntries, ...empPiecework];
         allWorkForEmployee.forEach(entry => {
             if (!entry.timestamp) return;
@@ -70,9 +68,9 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
             if (!workByWeek[weekKey]) {
                 workByWeek[weekKey] = { time: [], pieces: [] };
             }
-            if ('endTime' in entry) { // It's a TimeEntry
+            if ('endTime' in entry) {
                 workByWeek[weekKey].time.push(entry as TimeEntry);
-            } else { // It's a Piecework entry
+            } else {
                 workByWeek[weekKey].pieces.push(entry as Piecework);
             }
         });
@@ -88,7 +86,6 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
             const dailyWork: Record<string, { tasks: Record<string, { hours: number, pieces: number }> }> = {};
             let applicableMinWage = STATE_MINIMUM_WAGE;
 
-            // Process time entries for the week
             time.forEach(entry => {
                 if (!entry.timestamp || !entry.endTime) return;
                 const date = parseISO(String(entry.timestamp));
@@ -101,7 +98,6 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
                 dailyWork[dayKey].tasks[entry.taskId].hours += hours;
             });
             
-            // Process piecework entries for the week
             pieces.forEach(entry => {
                 if (!entry.timestamp) return;
                 const date = parseISO(String(entry.timestamp));
@@ -169,7 +165,19 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
                 });
             }
 
-            if (weeklyTotalHours <= 0) continue;
+            if (weeklyTotalHours <= 0) {
+                 weeklySummaries.push({
+                    weekNumber,
+                    year,
+                    totalHours: 0,
+                    totalEarnings: 0,
+                    minimumWageTopUp: 0,
+                    paidRestBreaks: 0,
+                    finalPay: 0,
+                    dailyBreakdown: [],
+                });
+                continue;
+            }
 
             const minimumGrossEarnings = weeklyTotalHours * applicableMinWage;
             const minimumWageTopUp = Math.max(0, minimumGrossEarnings - weeklyTotalRawEarnings);
@@ -177,7 +185,6 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
             const totalEarningsBeforeRest = weeklyTotalRawEarnings + minimumWageTopUp;
             const regularRateOfPay = weeklyTotalHours > 0 ? totalEarningsBeforeRest / weeklyTotalHours : 0;
             
-            // Paid Rest: 10 minutes for every 4 hours worked.
             const paidRestBreakHours = Math.floor(weeklyTotalHours / 4) * (10 / 60);
             const paidRestBreaksPay = paidRestBreakHours * regularRateOfPay;
 
