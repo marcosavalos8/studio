@@ -10,7 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
-import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval } from 'date-fns';
+import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, addDays } from 'date-fns';
 import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail, Employee, Piecework, TimeEntry } from '@/lib/types';
 
 
@@ -125,6 +125,8 @@ const processPayrollData = ai.defineTool(
 
         const dayKey = format(entryStart, 'yyyy-MM-dd');
         const hours = (parseISO(entry.endTime).getTime() - entryStart.getTime()) / (1000 * 60 * 60);
+        
+        if (hours <= 0) continue;
 
         const employee = findEmployee(entry.employeeId);
         if (!employee) continue;
@@ -239,8 +241,11 @@ const processPayrollData = ai.defineTool(
 
             const weeklyTotalEarnings = weeklyTotalHourlyEarnings + weeklyTotalPieceworkEarnings;
             
-            const clientWages = Array.from(clientIdsInWeek).map(id => clientMap.get(id)?.minimumWage).filter(Boolean) as number[];
-            const applicableMinimumWage = clientWages.length > 0 ? Math.max(...clientWages) : STATE_MINIMUM_WAGE;
+            const clientMinimumWages = Array.from(clientIdsInWeek)
+                .map(id => clientMap.get(id)?.minimumWage)
+                .filter((wage): wage is number => typeof wage === 'number' && wage > 0);
+
+            const applicableMinimumWage = clientMinimumWages.length > 0 ? Math.max(...clientMinimumWages) : STATE_MINIMUM_WAGE;
 
             let effectiveHourlyRate = weeklyTotalHours > 0 ? weeklyTotalEarnings / weeklyTotalHours : 0;
             
