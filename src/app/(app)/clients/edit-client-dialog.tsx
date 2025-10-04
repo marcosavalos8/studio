@@ -18,6 +18,13 @@ import {
 } from '@/components/ui/form'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -36,6 +43,8 @@ const clientSchema = z.object({
   paymentTerms: z.string().min(1, 'Payment terms are required'),
   email: z.string().email('Invalid email address').optional().or(z.literal('')),
   commissionRate: z.coerce.number().min(0, 'Commission must be a positive number.').optional(),
+  minimumWage: z.coerce.number().min(0, 'Minimum wage must be a positive number.').optional(),
+  contractType: z.enum(['Standard', 'H2A']).optional(),
 })
 
 type EditClientDialogProps = {
@@ -50,22 +59,20 @@ export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDia
   const form = useForm<z.infer<typeof clientSchema>>({
     resolver: zodResolver(clientSchema),
     defaultValues: {
-      name: client.name,
-      billingAddress: client.billingAddress,
-      paymentTerms: client.paymentTerms,
-      email: client.email || '',
+      ...client,
       commissionRate: client.commissionRate || 0,
+      minimumWage: client.minimumWage || 16.28,
+      contractType: client.contractType || 'Standard',
     },
   })
 
   useEffect(() => {
     if (client) {
       form.reset({
-        name: client.name,
-        billingAddress: client.billingAddress,
-        paymentTerms: client.paymentTerms,
-        email: client.email || '',
+        ...client,
         commissionRate: client.commissionRate || 0,
+        minimumWage: client.minimumWage || 16.28,
+        contractType: client.contractType || 'Standard',
       })
     }
   }, [client, form])
@@ -167,6 +174,40 @@ export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDia
               )}
             />
             <FormField
+                control={form.control}
+                name="contractType"
+                render={({ field }) => (
+                <FormItem>
+                    <FormLabel>Contract Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                        <SelectTrigger>
+                        <SelectValue placeholder="Select contract type" />
+                        </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                        <SelectItem value="Standard">Standard</SelectItem>
+                        <SelectItem value="H2A">H2A</SelectItem>
+                    </SelectContent>
+                    </Select>
+                    <FormMessage />
+                </FormItem>
+                )}
+            />
+             <FormField
+              control={form.control}
+              name="minimumWage"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Applicable Minimum Wage ($/hr)</FormLabel>
+                  <FormControl>
+                    <Input type="number" step="0.01" placeholder="e.g., 17.50" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
               control={form.control}
               name="commissionRate"
               render={({ field }) => (
@@ -194,5 +235,3 @@ export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDia
     </Dialog>
   )
 }
-
-    

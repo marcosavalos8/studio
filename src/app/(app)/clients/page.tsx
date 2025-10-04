@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { PlusCircle, MoreHorizontal } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy } from "firebase/firestore"
@@ -76,9 +77,8 @@ export default function ClientsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Client Name</TableHead>
-                <TableHead>Contact Email</TableHead>
-                <TableHead>Billing Address</TableHead>
-                <TableHead>Payment Terms</TableHead>
+                <TableHead>Contract</TableHead>
+                <TableHead>Min. Wage</TableHead>
                 <TableHead>Commission</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -86,15 +86,23 @@ export default function ClientsPage() {
             <TableBody>
                {isLoading && (
                   <TableRow>
-                      <TableCell colSpan={6} className="text-center">Loading...</TableCell>
+                      <TableCell colSpan={5} className="text-center">Loading...</TableCell>
                   </TableRow>
               )}
               {clients && clients.map((client) => (
                 <TableRow key={client.id}>
-                  <TableCell className="font-medium">{client.name}</TableCell>
-                  <TableCell>{client.email || '-'}</TableCell>
-                  <TableCell>{client.billingAddress}</TableCell>
-                  <TableCell>{client.paymentTerms}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex flex-col">
+                        <span>{client.name}</span>
+                        <span className="text-xs text-muted-foreground">{client.email || '-'}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={client.contractType === 'H2A' ? "default" : "secondary"}>
+                        {client.contractType || 'Standard'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>${client.minimumWage ? client.minimumWage.toFixed(2) : 'N/A'}</TableCell>
                   <TableCell>{client.commissionRate ? `${client.commissionRate}%` : '-'}</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
@@ -143,5 +151,3 @@ export default function ClientsPage() {
     </>
   )
 }
-
-    

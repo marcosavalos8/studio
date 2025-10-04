@@ -13,6 +13,8 @@ export type Client = {
   paymentTerms: string;
   email?: string;
   commissionRate?: number;
+  minimumWage?: number;
+  contractType?: 'Standard' | 'H2A';
 };
 
 export type Task = {

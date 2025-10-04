@@ -1,4 +1,3 @@
-
 'use server'
 
 import { z } from "zod"
@@ -10,7 +9,6 @@ const payrollSchema = z.object({
     to: z.string(),
   }),
   payDate: z.string(),
-  minimumWage: z.coerce.number().min(0, 'Minimum wage must be a positive number'),
   jsonData: z.string().min(1, 'JSON data is required'),
 })
 
@@ -44,7 +42,6 @@ export async function generateReportAction(prevState: PayrollState, formData: Fo
       to: formData.get('to') as string,
     },
     payDate: formData.get('payDate') as string,
-    minimumWage: formData.get('minimumWage'),
     jsonData: formData.get('jsonData'),
   });
 
@@ -54,7 +51,7 @@ export async function generateReportAction(prevState: PayrollState, formData: Fo
   }
 
   const { from, to } = validatedFields.data.dateRange;
-  const { payDate, jsonData, minimumWage } = validatedFields.data;
+  const { payDate, jsonData } = validatedFields.data;
 
   try {
     const result = await generatePayrollReport({
@@ -62,7 +59,6 @@ export async function generateReportAction(prevState: PayrollState, formData: Fo
       endDate: to,
       payDate: payDate,
       jsonData: jsonData,
-      minimumWage: minimumWage,
     });
     
     // Ensure all dates are strings before returning to the client

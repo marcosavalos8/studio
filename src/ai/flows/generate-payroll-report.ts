@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -13,13 +12,15 @@ import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 import {googleAI} from '@genkit-ai/google-genai';
 import { getWeek, getYear, format, startOfDay } from 'date-fns';
+import type { Client, Task } from '@/lib/types';
+
+const STATE_MINIMUM_WAGE = 16.28;
 
 // Main input schema for the server action
 const GeneratePayrollReportInputSchema = z.object({
   startDate: z.string().describe('The start date for the payroll report (YYYY-MM-DD).'),
   endDate: z.string().describe('The end date for the payroll report (YYYY-MM-DD).'),
   payDate: z.string().describe('The date the payment is issued (YYYY-MM-DD).'),
-  minimumWage: z.number().describe('The applicable minimum wage for this payroll report.'),
   jsonData: z.string().describe('A JSON string containing all necessary payroll data.'),
 });
 export type GeneratePayrollReportInput = z.infer<typeof GeneratePayrollReportInputSchema>;
@@ -94,14 +95,21 @@ const processPayrollData = ai.defineTool(
   async (input) => {
     const data = JSON.parse(input.jsonData);
     const { employees, tasks, timeEntries, piecework, clients } = data;
-    const MINIMUM_WAGE = input.minimumWage;
+    
     const employeeSummaries: z.infer<typeof EmployeePayrollSummarySchema>[] = [];
     
-    const clientMap = new Map(clients.map((c: any) => [c.id, c.name]));
-    const taskMap = new Map(tasks.map((t: any) => [t.id, t]));
+    const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
+    const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
 
     for (const employee of employees) {
-        const weeklyData: Record<string, { totalHours: number; totalPieceworkEarnings: number; totalHourlyEarnings: number; dailyBreakdown: Record<string, { tasks: Record<string, z.infer<typeof DailyTaskDetailSchema>> }> }> = {};
+        // [WeekKey]: { data }
+        const weeklyData: Record<string, { 
+            totalHours: number; 
+            totalPieceworkEarnings: number; 
+            totalHourlyEarnings: number; 
+            clientIds: Set<string>; // Keep track of clients worked for this week
+            dailyBreakdown: Record<string, { tasks: Record<string, z.infer<typeof DailyTaskDetailSchema>> }> 
+        }> = {};
 
         // Process time entries for hours worked
         const empTimeEntries = timeEntries.filter((te: any) => te.employeeId === employee.id && te.timestamp && te.endTime);
@@ -112,7 +120,7 @@ const processPayrollData = ai.defineTool(
             const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
 
             if (!weeklyData[weekKey]) {
-                weeklyData[weekKey] = { totalHours: 0, totalPieceworkEarnings: 0, totalHourlyEarnings: 0, dailyBreakdown: {} };
+                weeklyData[weekKey] = { totalHours: 0, totalPieceworkEarnings: 0, totalHourlyEarnings: 0, clientIds: new Set(), dailyBreakdown: {} };
             }
             if (!weeklyData[weekKey].dailyBreakdown[dayKey]) {
                 weeklyData[weekKey].dailyBreakdown[dayKey] = { tasks: {} };
@@ -120,8 +128,10 @@ const processPayrollData = ai.defineTool(
 
             const task = taskMap.get(entry.taskId);
             if (task) {
+                weeklyData[weekKey].clientIds.add(task.clientId);
                 if (!weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id]) {
-                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety || 'N/A'})`, clientName: clientMap.get(task.clientId) || 'Unknown', ranch: task.ranch || '', block: task.block || '', hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0 };
+                    const clientName = clientMap.get(task.clientId)?.name || 'Unknown';
+                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety || 'N/A'})`, clientName, ranch: task.ranch || '', block: task.block || '', hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0 };
                 }
 
                 const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
@@ -143,8 +153,8 @@ const processPayrollData = ai.defineTool(
             const weekKey = `${getYear(start)}-${getWeek(start, { weekStartsOn: 1 })}`;
             const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
             
-             if (!weeklyData[weekKey]) {
-                weeklyData[weekKey] = { totalHours: 0, totalPieceworkEarnings: 0, totalHourlyEarnings: 0, dailyBreakdown: {} };
+            if (!weeklyData[weekKey]) {
+                weeklyData[weekKey] = { totalHours: 0, totalPieceworkEarnings: 0, totalHourlyEarnings: 0, clientIds: new Set(), dailyBreakdown: {} };
             }
             if (!weeklyData[weekKey].dailyBreakdown[dayKey]) {
                 weeklyData[weekKey].dailyBreakdown[dayKey] = { tasks: {} };
@@ -152,8 +162,10 @@ const processPayrollData = ai.defineTool(
 
             const task = taskMap.get(entry.taskId);
             if (task) {
+                weeklyData[weekKey].clientIds.add(task.clientId);
                 if (!weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id]) {
-                     weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety || 'N/A'})`, clientName: clientMap.get(task.clientId) || 'Unknown', ranch: task.ranch || '', block: task.block || '', hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0 };
+                     const clientName = clientMap.get(task.clientId)?.name || 'Unknown';
+                     weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety || 'N/A'})`, clientName, ranch: task.ranch || '', block: task.block || '', hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0 };
                 }
 
                 if (task.employeePayType === 'piecework') {
@@ -169,16 +181,21 @@ const processPayrollData = ai.defineTool(
         for (const weekKey in weeklyData) {
             const [year, weekNumber] = weekKey.split('-').map(Number);
             const week = weeklyData[weekKey];
+
+            // Determine the applicable minimum wage for the week
+            const clientWages = Array.from(week.clientIds).map(id => clientMap.get(id)?.minimumWage).filter(Boolean) as number[];
+            const applicableMinimumWage = clientWages.length > 0 ? Math.max(...clientWages) : STATE_MINIMUM_WAGE;
+
             const totalEarnings = week.totalHourlyEarnings + week.totalPieceworkEarnings;
             let effectiveHourlyRate = week.totalHours > 0 ? totalEarnings / week.totalHours : 0;
             
             let minimumWageTopUp = 0;
-            if (week.totalHours > 0 && effectiveHourlyRate < MINIMUM_WAGE) {
-                minimumWageTopUp = (MINIMUM_WAGE * week.totalHours) - totalEarnings;
+            if (week.totalHours > 0 && effectiveHourlyRate < applicableMinimumWage) {
+                minimumWageTopUp = (applicableMinimumWage * week.totalHours) - totalEarnings;
             }
 
             const totalEarningsWithTopUp = totalEarnings + minimumWageTopUp;
-            const regularRateOfPay = week.totalHours > 0 ? totalEarningsWithTopUp / week.totalHours : MINIMUM_WAGE;
+            const regularRateOfPay = week.totalHours > 0 ? totalEarningsWithTopUp / week.totalHours : applicableMinimumWage;
 
             const restBreakMinutes = Math.floor(week.totalHours / 4) * 10;
             const paidRestBreaksTotal = (restBreakMinutes / 60) * regularRateOfPay;

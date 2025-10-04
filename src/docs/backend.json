@@ -94,6 +94,15 @@
         "commissionRate": {
           "type": "number",
           "description": "The commission percentage to charge this client on the invoice total."
+        },
+        "minimumWage": {
+            "type": "number",
+            "description": "The applicable minimum wage for work performed for this client (e.g., H2A AEWR)."
+        },
+        "contractType": {
+            "type": "string",
+            "enum": ["Standard", "H2A"],
+            "description": "The type of contract governing work for this client."
         }
       },
       "required": [
@@ -284,5 +293,3 @@
     }
   }
 }
-
-    
