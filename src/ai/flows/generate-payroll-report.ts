@@ -109,22 +109,25 @@ const processPayrollData = ai.defineTool(
         return employeeIdMap.get(identifier) || employeeQrMap.get(identifier);
     }
     
-    const startDate = parseISO(input.startDate);
-    const endDate = parseISO(input.endDate);
+    const reportStartDate = parseISO(input.startDate);
+    const reportEndDate = parseISO(input.endDate);
 
     for (const employee of employees) {
       if (!employee.id) continue;
 
       // Phase 1: Aggregate Raw Data (Hours and Pieces) per employee
-      const empWorkData: Record<string, { hours: number; pieceworkCount: number; taskId: string }> = {}; // Key: "dayKey-taskId"
+      // Key: "dayKey-taskId"
+      const empWorkData: Record<string, { hours: number; pieceworkCount: number; taskId: string }> = {};
 
-      const empTimeEntries: TimeEntry[] = timeEntries.filter((te: any) => {
-         const entryDate = parseISO(te.timestamp);
-         return te.employeeId === employee.id && te.endTime && entryDate >= startDate && entryDate <= endDate;
-      });
+      const empTimeEntries: TimeEntry[] = timeEntries
+        .filter((te: any) => {
+            if (!te.timestamp || !te.endTime) return false;
+            const entryDate = parseISO(te.timestamp);
+            return te.employeeId === employee.id && entryDate >= reportStartDate && entryDate <= reportEndDate;
+        });
 
       for (const entry of empTimeEntries) {
-        const start = parseISO(entry.timestamp);
+        const start = parseISO(entry.timestamp as any);
         const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
         const mapKey = `${dayKey}-${entry.taskId}`;
         
@@ -134,16 +137,18 @@ const processPayrollData = ai.defineTool(
         empWorkData[mapKey].hours += hours;
       }
       
-      const empPiecework: Piecework[] = piecework.filter((pw: Piecework) => {
-         const entryDate = parseISO(pw.timestamp as any);
-         if (entryDate < startDate || entryDate > endDate) return false;
-         
-         const employeeIdsInEntry = String(pw.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
-         return employeeIdsInEntry.some(id => {
-            const foundEmp = findEmployee(id);
-            return foundEmp?.id === employee.id;
-         });
-      });
+      const empPiecework: Piecework[] = piecework
+        .filter((pw: Piecework) => {
+             if (!pw.timestamp) return false;
+             const entryDate = parseISO(pw.timestamp as any);
+             if (entryDate < reportStartDate || entryDate > reportEndDate) return false;
+             
+             const employeeIdsInEntry = String(pw.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
+             return employeeIdsInEntry.some(id => {
+                const foundEmp = findEmployee(id);
+                return foundEmp?.id === employee.id;
+             });
+        });
 
       for (const entry of empPiecework) {
         const start = parseISO(entry.timestamp as any);
@@ -177,7 +182,6 @@ const processPayrollData = ai.defineTool(
         let weeklyTotalHours = 0;
         let weeklyTotalPieceworkEarnings = 0;
         let weeklyTotalHourlyEarnings = 0;
-        let weeklyTotalEarnings = 0;
         const clientIdsInWeek = new Set<string>();
         const dailyBreakdownsForWeek: DailyBreakdown[] = [];
 
@@ -232,12 +236,12 @@ const processPayrollData = ai.defineTool(
             });
 
             weeklyTotalHours += dailyTotalHours;
-            weeklyTotalEarnings += dailyTotalEarnings;
             weeklyTotalHourlyEarnings += taskDetailsForDay.reduce((acc, t) => acc + t.hourlyEarnings, 0);
             weeklyTotalPieceworkEarnings += taskDetailsForDay.reduce((acc, t) => acc + t.pieceworkEarnings, 0);
         }
         
         const [year, weekNumber] = weekKey.split('-').map(Number);
+        const weeklyTotalEarnings = weeklyTotalHourlyEarnings + weeklyTotalPieceworkEarnings;
         
         const clientWages = Array.from(clientIdsInWeek).map(id => (clientMap.get(id) as any)?.minimumWage).filter(Boolean) as number[];
         const applicableMinimumWage = clientWages.length > 0 ? Math.max(...clientWages) : STATE_MINIMUM_WAGE;

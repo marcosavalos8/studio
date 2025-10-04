@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useActionState } from "react"
-import { format } from "date-fns"
+import { format, parseISO } from "date-fns"
 import { Calendar as CalendarIcon, Loader2, Users } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -74,7 +74,7 @@ export function PayrollForm() {
             const employeesSnap = await getDocs(collection(firestore, 'employees'));
             const allEmployees = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
             const allEmployeesMap = new Map(allEmployees.map(e => [e.id, e]));
-
+            
             const tasksSnap = await getDocs(collection(firestore, 'tasks'));
             const tasks = tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
             
