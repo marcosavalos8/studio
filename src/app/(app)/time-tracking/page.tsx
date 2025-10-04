@@ -61,8 +61,6 @@ export default function TimeTrackingPage() {
   const [pieceworkEmployee, setPieceworkEmployee] = useState<Employee | null>(null);
 
   const [jsConfetti, setJsConfetti] = useState<JSConfetti | null>(null);
-  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
-  const [sounds, setSounds] = useState<Record<string, AudioBuffer | null>>({});
 
   const [isBulkClockingOut, setIsBulkClockingOut] = useState(false);
   const [selectedBulkTask, setSelectedBulkTask] = useState<string>('');
@@ -136,48 +134,9 @@ export default function TimeTrackingPage() {
     return activeEmployees.filter(emp => emp.name.toLowerCase().includes(manualEmployeeSearch.toLowerCase()));
   }, [activeEmployees, manualEmployeeSearch]);
 
-  const playSound = useCallback((buffer: AudioBuffer | null) => {
-    if (!audioContext || !buffer) return;
-    const source = audioContext.createBufferSource();
-    source.buffer = buffer;
-    source.connect(audioContext.destination);
-    source.start(0);
-  }, [audioContext]);
 
   useEffect(() => {
     setJsConfetti(new JSConfetti());
-    const initAudio = async () => {
-        try {
-            const context = new (window.AudioContext || (window as any).webkitAudioContext)();
-            setAudioContext(context);
-            
-            const soundFiles = {
-              clockIn: '/sounds/clock-in.mp3',
-              clockOut: '/sounds/clock-out.mp3',
-              piecework: '/sounds/piecework.mp3',
-              error: '/sounds/error.mp3'
-            };
-
-            const loadedSounds: Record<string, AudioBuffer | null> = {};
-            for (const key in soundFiles) {
-              const response = await fetch(soundFiles[key as keyof typeof soundFiles]);
-              const arrayBuffer = await response.arrayBuffer();
-              const audioBuffer = await context.decodeAudioData(arrayBuffer);
-              loadedSounds[key] = audioBuffer;
-            }
-            setSounds(loadedSounds);
-
-            document.removeEventListener('click', initAudio);
-        } catch (e) {
-            console.error("Could not create audio context or load sounds", e);
-        }
-    };
-    document.addEventListener('click', initAudio, { once: true });
-
-    return () => {
-        audioContext?.close();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Reset selections when client changes
@@ -235,10 +194,8 @@ export default function TimeTrackingPage() {
       batch.set(newTimeEntryRef, newTimeEntry);
       
       await batch.commit();
-      playSound(sounds.clockIn);
       toast({ title: "Clock In Successful", description: `Clocked in ${employee.name}.` });
     } catch(serverError) {
-        playSound(sounds.error);
         const permissionError = new FirestorePermissionError({
             path: 'time_entries',
             operation: 'write',
@@ -246,7 +203,7 @@ export default function TimeTrackingPage() {
         });
         errorEmitter.emit('permission-error', permissionError);
     }
-  }, [firestore, playSound, sounds.clockIn, sounds.error, toast]);
+  }, [firestore, toast]);
   
   const clockOutEmployee = useCallback(async (employee: Employee, taskId: string) => {
     if (!firestore) return;
@@ -260,7 +217,6 @@ export default function TimeTrackingPage() {
     try {
         const querySnapshot = await getDocs(q);
         if (querySnapshot.empty) {
-            playSound(sounds.error);
             toast({ variant: 'destructive', title: "Clock Out Failed", description: `No active clock-in found for ${employee.name} on this task.` });
         } else {
             const batch = writeBatch(firestore);
@@ -269,11 +225,9 @@ export default function TimeTrackingPage() {
                 batch.update(doc.ref, updatedData);
             });
             await batch.commit();
-            playSound(sounds.clockOut);
             toast({ title: "Clock Out Successful", description: `Clocked out ${employee.name}.` });
         }
     } catch (serverError) {
-        playSound(sounds.error);
         const permissionError = new FirestorePermissionError({
             path: 'time_entries', 
             operation: 'update',
@@ -281,7 +235,7 @@ export default function TimeTrackingPage() {
         });
         errorEmitter.emit('permission-error', permissionError);
     }
-  }, [firestore, playSound, sounds.clockOut, sounds.error, toast]);
+  }, [firestore, toast]);
 
   const recordPiecework = useCallback(async (employee: Employee, taskId: string, binQr: string) => {
     if (!firestore) return;
@@ -295,11 +249,9 @@ export default function TimeTrackingPage() {
     };
     try {
       await addDoc(collection(firestore, 'piecework'), newPiecework);
-      playSound(sounds.piecework);
       toast({ title: "Piecework Recorded", description: `1 piece recorded for ${employee.name}.` });
       jsConfetti?.addConfetti({ confettiNumber: 30, confettiColors: ['#f59e0b', '#10b981', '#3b82f6'] });
     } catch(serverError) {
-      playSound(sounds.error);
       const permissionError = new FirestorePermissionError({
           path: 'piecework',
           operation: 'create',
@@ -307,12 +259,11 @@ export default function TimeTrackingPage() {
       });
       errorEmitter.emit('permission-error', permissionError);
     }
-  }, [firestore, playSound, sounds.piecework, sounds.error, toast, jsConfetti]);
+  }, [firestore, toast, jsConfetti]);
 
 
   const handleScanResult = useCallback(async (scannedData: string) => {
       if (!selectedTask) {
-          playSound(sounds.error);
           toast({ variant: "destructive", title: "Task not selected", description: "Please select a client, ranch, block, and task before scanning." });
           return;
       }
@@ -328,7 +279,6 @@ export default function TimeTrackingPage() {
       );
 
       if (isDebounced) {
-          playSound(sounds.error);
           toast({ variant: "destructive", title: "Duplicate Scan", description: `This action was already performed for ${scannedEmployee?.name} recently.` });
           return;
       }
@@ -342,7 +292,6 @@ export default function TimeTrackingPage() {
           await clockOutEmployee(scannedEmployee, selectedTask);
         } else if (scanMode === 'piece') {
           setPieceworkEmployee(scannedEmployee);
-          playSound(sounds.clockIn); // Use clock-in sound as confirmation
           toast({ title: "Employee Scanned", description: `${scannedEmployee.name} ready for piecework. Scan a bin.` });
         }
       } else { // Not an employee QR
@@ -350,12 +299,11 @@ export default function TimeTrackingPage() {
           await recordPiecework(pieceworkEmployee, selectedTask, scannedData);
           setPieceworkEmployee(null); // Reset for next scan
         } else {
-          playSound(sounds.error);
           const errorMsg = scanMode === 'piece' ? "Scan an employee QR code first." : "Not a valid employee QR code.";
           toast({ variant: "destructive", title: "Invalid Scan", description: errorMsg });
         }
       }
-  }, [selectedTask, activeEmployees, recentScans, toast, jsConfetti, scanMode, playSound, sounds, clockInEmployee, clockOutEmployee, recordPiecework, pieceworkEmployee]);
+  }, [selectedTask, activeEmployees, recentScans, toast, jsConfetti, scanMode, clockInEmployee, clockOutEmployee, recordPiecework, pieceworkEmployee]);
 
 
   const handleManualSubmit = async () => {
@@ -388,10 +336,8 @@ export default function TimeTrackingPage() {
         };
         try {
           await addDoc(collection(firestore, 'piecework'), newPiecework);
-          playSound(sounds.piecework);
           toast({ title: "Piecework Recorded", description: `${pieceCount} piece(s) recorded for ${manualSelectedEmployee.name}.` });
         } catch(serverError) {
-          playSound(sounds.error);
           const permissionError = new FirestorePermissionError({
               path: 'piecework',
               operation: 'create',
@@ -438,14 +384,12 @@ export default function TimeTrackingPage() {
       });
 
       await batch.commit();
-      playSound(sounds.clockOut);
       toast({
           title: "Bulk Clock Out Successful",
           description: `Successfully clocked out ${querySnapshot.size} employee(s) from the task.`,
       });
 
     } catch (serverError) {
-        playSound(sounds.error);
         const permissionError = new FirestorePermissionError({
             path: 'time_entries', // Simplification
             operation: 'update',
