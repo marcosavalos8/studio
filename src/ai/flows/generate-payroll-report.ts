@@ -9,7 +9,7 @@
  */
 
 import { z } from 'zod';
-import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds, eachDayOfInterval } from 'date-fns';
+import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds, eachDayOfInterval, startOfWeek, endOfWeek } from 'date-fns';
 import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail, Employee, Piecework, TimeEntry } from '@/lib/types';
 
 
@@ -30,7 +30,8 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
 
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
-    
+    const employeeMap = new Map(reportEmployees.map((e: Employee) => [e.id, e]));
+
     const reportInterval = {
         start: startOfDay(parseISO(input.startDate)),
         end: startOfDay(parseISO(input.endDate)),
@@ -55,34 +56,20 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
         
         const workByWeek: Record<string, { time: TimeEntry[], pieces: Piecework[] }> = {};
         
-        const allWorkEntries = [...empTimeEntries, ...empPiecework];
-        
-        // Determine the range of dates with activity to avoid iterating over empty dates.
-        if (allWorkEntries.length > 0) {
-            const relevantDates = eachDayOfInterval({start: reportInterval.start, end: reportInterval.end});
-            relevantDates.forEach(date => {
-                const weekKey = `${getYear(date)}-${getWeek(date, { weekStartsOn: 1 })}`;
-                if (!workByWeek[weekKey]) {
-                    workByWeek[weekKey] = { time: [], pieces: [] };
-                }
-            });
-        }
-        
-        empTimeEntries.forEach((entry: TimeEntry) => {
+        // Group all work by week (Monday-Sunday)
+        const allWork = [...empTimeEntries, ...empPiecework];
+        allWork.forEach(entry => {
             if (!entry.timestamp) return;
             const date = parseISO(String(entry.timestamp));
-            const weekKey = `${getYear(date)}-${getWeek(date, { weekStartsOn: 1 })}`;
-            if (workByWeek[weekKey]) {
-                workByWeek[weekKey].time.push(entry);
+            const weekStart = startOfWeek(date, { weekStartsOn: 1 });
+            const weekKey = format(weekStart, 'yyyy-MM-dd');
+            if (!workByWeek[weekKey]) {
+                workByWeek[weekKey] = { time: [], pieces: [] };
             }
-        });
-
-        empPiecework.forEach((entry: Piecework) => {
-            if (!entry.timestamp) return;
-            const date = parseISO(String(entry.timestamp));
-            const weekKey = `${getYear(date)}-${getWeek(date, { weekStartsOn: 1 })}`;
-            if (workByWeek[weekKey]) {
-                workByWeek[weekKey].pieces.push(entry);
+            if ('endTime' in entry) { // It's a TimeEntry
+                workByWeek[weekKey].time.push(entry as TimeEntry);
+            } else { // It's a Piecework entry
+                workByWeek[weekKey].pieces.push(entry as Piecework);
             }
         });
         
@@ -90,9 +77,9 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
 
         for (const weekKey in workByWeek) {
             const { time, pieces } = workByWeek[weekKey];
-            if (time.length === 0 && pieces.length === 0) continue;
-
-            const [year, weekNumber] = weekKey.split('-').map(Number);
+            
+            const weekStartDate = parseISO(weekKey);
+            const [year, weekNumber] = [getYear(weekStartDate), getWeek(weekStartDate, { weekStartsOn: 1 })];
             
             const dailyWork: Record<string, { tasks: Record<string, { hours: number, pieces: number }> }> = {};
             let applicableMinWage = STATE_MINIMUM_WAGE;
