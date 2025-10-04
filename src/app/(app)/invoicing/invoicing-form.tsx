@@ -129,39 +129,52 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
                 dailyBreakdown[day.date] = { tasks: {}, total: 0 };
               }
               day.tasks.forEach(task => {
+                // Ensure task is for the currently selected client
+                 const originalTask = tasks.find(t => t.name === task.taskName.split(' (')[0] && t.clientId === clientData.id);
+                 if (!originalTask) return;
+
                 if (!dailyBreakdown[day.date].tasks[task.taskName]) {
                   dailyBreakdown[day.date].tasks[task.taskName] = {
                     taskName: task.taskName,
                     hours: 0,
                     pieces: 0,
                     cost: 0,
-                    clientRate: tasks.find(t => t.name === task.taskName.split(' (')[0])?.clientRate ?? 0,
-                    clientRateType: tasks.find(t => t.name === task.taskName.split(' (')[0])?.clientRateType ?? 'hourly',
+                    clientRate: originalTask.clientRate,
+                    clientRateType: originalTask.clientRateType,
                   };
                 }
                 const taskDetail = dailyBreakdown[day.date].tasks[task.taskName];
                 taskDetail.hours += task.hours;
                 taskDetail.pieces += task.pieceworkCount;
-                
-                // Use client rate for billing, not employee earnings
-                if (taskDetail.clientRateType === 'hourly') {
-                  taskDetail.cost += task.hours * taskDetail.clientRate;
-                } else {
-                  taskDetail.cost += task.pieceworkCount * taskDetail.clientRate;
-                }
               });
             });
           });
         });
 
-        // Recalculate daily totals based on client rates
+        // Recalculate costs and daily totals based on client rates
         Object.values(dailyBreakdown).forEach(day => {
-          day.total = Object.values(day.tasks).reduce((acc, task) => acc + task.cost, 0);
+            let dailyTotal = 0;
+            Object.values(day.tasks).forEach(task => {
+                if (task.clientRateType === 'hourly') {
+                  task.cost = task.hours * task.clientRate;
+                } else {
+                  task.cost = task.pieces * task.clientRate;
+                }
+                dailyTotal += task.cost;
+            })
+            day.total = dailyTotal;
         });
         
         const laborCost = Object.values(dailyBreakdown).reduce((acc, day) => acc + day.total, 0);
-        const totalTopUp = payrollResult.employeeSummaries.reduce((acc, emp) => acc + emp.overallTotalMinimumWageTopUp, 0);
-        const totalRestBreaks = payrollResult.employeeSummaries.reduce((acc, emp) => acc + emp.overallTotalPaidRestBreaks, 0);
+        // Sum up adjustments ONLY for employees who worked on this client's tasks
+        const relevantEmployeeIds = new Set(
+            [...timeEntries, ...piecework].map(entry => entry.employeeId)
+        );
+        const filteredSummaries = payrollResult.employeeSummaries.filter(emp => relevantEmployeeIds.has(emp.employeeId));
+
+        const totalTopUp = filteredSummaries.reduce((acc, emp) => acc + emp.overallTotalMinimumWageTopUp, 0);
+        const totalRestBreaks = filteredSummaries.reduce((acc, emp) => acc + emp.overallTotalPaidRestBreaks, 0);
+
 
         const subtotal = laborCost + totalTopUp + totalRestBreaks;
         const commission = clientData.commissionRate ? subtotal * (clientData.commissionRate / 100) : 0;

@@ -37,7 +37,9 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
             <style jsx global>{`
                 @media print {
                     body {
-                        background-color: #fff;
+                        background-color: #fff !important;
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
                     }
                     body * {
                         visibility: hidden;

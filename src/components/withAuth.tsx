@@ -70,7 +70,7 @@ export function withAuth<P extends object>(WrappedComponent: React.ComponentType
           <DialogHeader>
             <DialogTitle>Authorization Required</DialogTitle>
             <DialogDescription>
-              Please enter the password to access this page. This can be set in the `.env.local` file.
+              Please enter the password to access this page. This can be set in the `.env.local` file using the `NEXT_PUBLIC_PAYROLL_PASSWORD` variable.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">

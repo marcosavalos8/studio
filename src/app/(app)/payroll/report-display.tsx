@@ -91,6 +91,10 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
             <div className="report-container bg-card text-card-foreground p-8 rounded-lg border shadow-sm">
                 <style jsx global>{`
                     @media print {
+                        body {
+                           -webkit-print-color-adjust: exact;
+                           print-color-adjust: exact;
+                        }
                         body * {
                             visibility: hidden;
                         }
@@ -115,6 +119,10 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                         .print\\:hidden {
                             display: none;
                         }
+                    }
+                     @page {
+                        size: auto;
+                        margin: 0.5in;
                     }
                 `}</style>
                 <div className="mb-8">

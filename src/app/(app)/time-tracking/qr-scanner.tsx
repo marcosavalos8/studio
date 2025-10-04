@@ -20,13 +20,22 @@ export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
     const [error, setError] = useState<string | null>(null);
     const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
     const [isClient, setIsClient] = useState(false);
+    const lastScanTime = useRef(0);
+    const lastScanData = useRef<string | null>(null);
+
+    const DEBOUNCE_TIME = 3000; // 3 seconds
     
     useEffect(() => {
         setIsClient(true);
     }, []);
 
     const onScan = useCallback((result: string) => {
-        onScanResult(result);
+        const now = Date.now();
+        if (now - lastScanTime.current > DEBOUNCE_TIME || lastScanData.current !== result) {
+            lastScanTime.current = now;
+            lastScanData.current = result;
+            onScanResult(result);
+        }
     }, [onScanResult]);
 
 
