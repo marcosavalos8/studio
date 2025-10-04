@@ -28,6 +28,7 @@ const DailyTaskDetailSchema = z.object({
   taskName: z.string(),
   clientName: z.string(),
   ranch: z.string().optional(),
+  block: z.string().optional(),
   hours: z.number(),
   pieceworkCount: z.number(),
   hourlyEarnings: z.number(),
@@ -118,7 +119,7 @@ const processPayrollData = ai.defineTool(
             const task = taskMap.get(entry.taskId);
             if (task) {
                 if (!weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id]) {
-                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety || 'N/A'})`, clientName: clientMap.get(task.clientId) || 'Unknown', ranch: task.ranch || '', hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0 };
+                    weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety || 'N/A'})`, clientName: clientMap.get(task.clientId) || 'Unknown', ranch: task.ranch || '', block: task.block || '', hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0 };
                 }
 
                 const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
@@ -150,7 +151,7 @@ const processPayrollData = ai.defineTool(
             const task = taskMap.get(entry.taskId);
             if (task) {
                 if (!weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id]) {
-                     weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety || 'N/A'})`, clientName: clientMap.get(task.clientId) || 'Unknown', ranch: task.ranch || '', hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0 };
+                     weeklyData[weekKey].dailyBreakdown[dayKey].tasks[task.id] = { taskName: `${task.name} (${task.variety || 'N/A'})`, clientName: clientMap.get(task.clientId) || 'Unknown', ranch: task.ranch || '', block: task.block || '', hours: 0, pieceworkCount: 0, hourlyEarnings: 0, pieceworkEarnings: 0 };
                 }
 
                 if (task.employeePayType === 'piecework') {
@@ -214,16 +215,18 @@ const processPayrollData = ai.defineTool(
         
         const finalPay = overallTotalEarnings + overallTotalMinimumWageTopUp + overallTotalPaidRestBreaks;
 
-        employeeSummaries.push({
-            employeeId: employee.id,
-            employeeName: employee.name,
-            weeklySummaries,
-            overallTotalEarnings: parseFloat(overallTotalEarnings.toFixed(2)),
-            overallTotalHours: parseFloat(overallTotalHours.toFixed(2)),
-            overallTotalMinimumWageTopUp: parseFloat(overallTotalMinimumWageTopUp.toFixed(2)),
-            overallTotalPaidRestBreaks: parseFloat(overallTotalPaidRestBreaks.toFixed(2)),
-            finalPay: parseFloat(finalPay.toFixed(2)),
-        });
+        if (weeklySummaries.length > 0) {
+            employeeSummaries.push({
+                employeeId: employee.id,
+                employeeName: employee.name,
+                weeklySummaries,
+                overallTotalEarnings: parseFloat(overallTotalEarnings.toFixed(2)),
+                overallTotalHours: parseFloat(overallTotalHours.toFixed(2)),
+                overallTotalMinimumWageTopUp: parseFloat(overallTotalMinimumWageTopUp.toFixed(2)),
+                overallTotalPaidRestBreaks: parseFloat(overallTotalPaidRestBreaks.toFixed(2)),
+                finalPay: parseFloat(finalPay.toFixed(2)),
+            });
+        }
     }
 
     return {
