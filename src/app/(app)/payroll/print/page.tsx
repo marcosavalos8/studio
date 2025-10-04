@@ -19,6 +19,8 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { Loader2 } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
+
 
 function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData['employeeSummaries'][0]['weeklySummaries'][0]['dailyBreakdown']}) {
   return (
@@ -137,31 +139,47 @@ function ReportToPrint({ report }: { report: ProcessedPayrollData }) {
 }
 
 
-export default function PrintPayrollPage() {
+function PrintPayrollPageContent() {
     const [report, setReport] = useState<ProcessedPayrollData | null>(null);
     const [error, setError] = useState<string | null>(null);
     const hasPrinted = useRef(false);
+    const searchParams = useSearchParams();
 
     useEffect(() => {
-        const data = sessionStorage.getItem('payrollReportData');
-        if (data) {
-            try {
-                setReport(JSON.parse(data));
-            } catch (e) {
-                setError("Failed to parse report data. Please close this tab and try again.");
+        // Fallback for email link flow
+        const printId = searchParams.get('id');
+        if (printId) {
+            const data = sessionStorage.getItem(printId);
+            if (data) {
+                try {
+                    setReport(JSON.parse(data));
+                    sessionStorage.removeItem(printId); // Clean up
+                } catch (e) {
+                    setError("Failed to parse report data. Please close this tab and try again.");
+                }
             }
-        } else {
-            setError("No report data found. Please generate a report first.");
         }
-    }, []);
+        
+        // Listener for direct print flow
+        const channel = new BroadcastChannel("print_channel");
+        const handleMessage = (event: MessageEvent) => {
+            if (event.data.type === 'PRINT_PAYROLL') {
+                setReport(event.data.data);
+                channel.close();
+            }
+        };
+        channel.addEventListener('message', handleMessage);
+
+        return () => {
+            channel.removeEventListener('message', handleMessage);
+            channel.close();
+        };
+    }, [searchParams]);
 
     useEffect(() => {
         if (report && !hasPrinted.current) {
             hasPrinted.current = true;
-            // A short delay helps ensure everything is rendered before printing
-            setTimeout(() => {
-                window.print();
-            }, 500);
+            window.print();
         }
     }, [report]);
 
@@ -210,4 +228,17 @@ export default function PrintPayrollPage() {
             <ReportToPrint report={report} />
         </>
     );
+}
+
+export default function PrintPayrollPage() {
+    return (
+        <React.Suspense fallback={
+             <div className="flex h-screen items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <p className="ml-4">Loading...</p>
+            </div>
+        }>
+            <PrintPayrollPageContent />
+        </React.Suspense>
+    )
 }

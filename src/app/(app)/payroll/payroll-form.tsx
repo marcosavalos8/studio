@@ -102,23 +102,25 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
   const overallTotal = report.employeeSummaries.reduce((acc, emp) => acc + emp.finalPay, 0);
 
   const handlePrint = () => {
-    try {
-        const reportString = JSON.stringify(report);
-        sessionStorage.setItem('payrollReportData', reportString);
-        window.open('/payroll/print', '_blank');
-    } catch (error) {
-        console.error("Failed to stringify report data for printing:", error);
-        alert("Could not prepare the report for printing. Please check the console for errors.");
-    }
+    const channel = new BroadcastChannel("print_channel");
+    const printWindow = window.open('/payroll/print', '_blank');
+
+    printWindow?.addEventListener('load', () => {
+        setTimeout(() => {
+            channel.postMessage({ type: 'PRINT_PAYROLL', data: report });
+            channel.close();
+        }, 500); // Small delay to ensure the print page's scripts are loaded
+    });
   }
   
   const handleEmail = () => {
     if (!report.startDate || !report.endDate) return;
     const subject = `Payroll Report for ${format(new Date(report.startDate), "LLL dd, y")} - ${format(new Date(report.endDate), "LLL dd, y")}`;
     
-    const reportString = JSON.stringify(report);
-    sessionStorage.setItem('payrollReportData', reportString);
-    const printUrl = `${window.location.origin}/payroll/print`;
+    // Use a unique ID to allow multiple print tabs
+    const printId = `payroll_${Date.now()}`;
+    sessionStorage.setItem(printId, JSON.stringify(report));
+    const printUrl = `${window.location.origin}/payroll/print?id=${printId}`;
 
     let body = `Hello Accountant,\n\nPlease find the payroll summary for the period of ${format(new Date(report.startDate), "LLL dd, y")} to ${format(new Date(report.endDate), "LLL dd, y")}.\n\n`;
     body += `You can view and print the full report here:\n${printUrl}\n\n`;

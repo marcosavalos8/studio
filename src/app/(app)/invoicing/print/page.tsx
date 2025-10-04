@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/table"
 import { Loader2 } from 'lucide-react'
 import type { InvoiceData } from '../invoicing-form'
+import { useSearchParams } from 'next/navigation'
+
 
 function InvoiceToPrint({ invoice }: { invoice: InvoiceData }) {
     if (!invoice.date.from || !invoice.date.to) return null;
@@ -81,31 +83,48 @@ function InvoiceToPrint({ invoice }: { invoice: InvoiceData }) {
   )
 }
 
-export default function PrintInvoicePage() {
+function PrintInvoicePageContent() {
     const [invoice, setInvoice] = useState<InvoiceData | null>(null);
     const [error, setError] = useState<string | null>(null);
     const hasPrinted = useRef(false);
+    const searchParams = useSearchParams();
 
     useEffect(() => {
-        const data = sessionStorage.getItem('invoiceData');
-        if (data) {
-            try {
-                const parsedData = JSON.parse(data);
-                setInvoice(parsedData);
-            } catch (e) {
-                setError("Failed to parse invoice data. Please close this tab and try again.");
+        // Fallback for email link flow
+        const printId = searchParams.get('id');
+        if (printId) {
+            const data = sessionStorage.getItem(printId);
+            if (data) {
+                try {
+                    const parsedData = JSON.parse(data);
+                    setInvoice(parsedData);
+                    sessionStorage.removeItem(printId); // Clean up
+                } catch (e) {
+                    setError("Failed to parse invoice data. Please close this tab and try again.");
+                }
             }
-        } else {
-            setError("No invoice data found. Please generate an invoice first.");
         }
-    }, []);
+        
+        // Listener for direct print flow
+        const channel = new BroadcastChannel("print_channel");
+        const handleMessage = (event: MessageEvent) => {
+            if (event.data.type === 'PRINT_INVOICE') {
+                setInvoice(event.data.data);
+                channel.close();
+            }
+        };
+        channel.addEventListener('message', handleMessage);
+
+        return () => {
+            channel.removeEventListener('message', handleMessage);
+            channel.close();
+        };
+    }, [searchParams]);
 
     useEffect(() => {
         if (invoice && !hasPrinted.current) {
             hasPrinted.current = true;
-            setTimeout(() => {
-                window.print();
-            }, 500);
+            window.print();
         }
     }, [invoice]);
 
@@ -153,4 +172,15 @@ export default function PrintInvoicePage() {
     );
 }
 
-    
+export default function PrintInvoicePage() {
+    return (
+        <React.Suspense fallback={
+             <div className="flex h-screen items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <p className="ml-4">Loading...</p>
+            </div>
+        }>
+            <PrintInvoicePageContent />
+        </React.Suspense>
+    )
+}

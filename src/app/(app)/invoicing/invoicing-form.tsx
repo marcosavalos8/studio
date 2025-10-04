@@ -210,18 +210,15 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
   
   const handlePrint = () => {
     if (!invoice) return;
-    try {
-        const invoiceString = JSON.stringify(invoice);
-        sessionStorage.setItem('invoiceData', invoiceString);
-        window.open('/invoicing/print', '_blank');
-    } catch (error) {
-        console.error("Failed to stringify invoice data for printing:", error);
-        toast({
-            title: "Print Error",
-            description: "Could not prepare the invoice for printing.",
-            variant: "destructive"
-        });
-    }
+    const channel = new BroadcastChannel("print_channel");
+    const printWindow = window.open('/invoicing/print', '_blank');
+    
+    printWindow?.addEventListener('load', () => {
+        setTimeout(() => {
+            channel.postMessage({ type: 'PRINT_INVOICE', data: invoice });
+            channel.close();
+        }, 500); // Small delay to ensure the print page's scripts are loaded
+    });
   }
 
   const handleEmail = () => {
@@ -230,10 +227,10 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
     const clientEmail = client.email || '';
     const subject = `Invoice from FieldTack WA`;
     
-    // Store data and get print link
-    const invoiceString = JSON.stringify(invoice);
-    sessionStorage.setItem('invoiceData', invoiceString);
-    const printUrl = `${window.location.origin}/invoicing/print`;
+    // Use a unique ID to allow multiple print tabs
+    const printId = `invoice_${Date.now()}`;
+    sessionStorage.setItem(printId, JSON.stringify(invoice));
+    const printUrl = `${window.location.origin}/invoicing/print?id=${printId}`;
     
     let body = `Dear ${client.name},\n\n`;
     body += `Please find your invoice for the period of ${format(new Date(invoice.date.from), "LLL dd, y")} to ${format(new Date(invoice.date.to), "LLL dd, y")}.\n\n`;
@@ -404,5 +401,3 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
     </div>
   )
 }
-
-    
