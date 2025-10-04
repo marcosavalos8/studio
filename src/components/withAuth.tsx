@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 
 const PASSWORD_KEY = 'secure_page_access_granted';
-const CORRECT_PASSWORD = '1234'; // Hardcoded password
+const CORRECT_PASSWORD = process.env.NEXT_PUBLIC_PAYROLL_PASSWORD || '1234';
 
 export function withAuth<P extends object>(WrappedComponent: React.ComponentType<P>) {
   const WithAuthComponent: React.FC<P> = (props) => {
