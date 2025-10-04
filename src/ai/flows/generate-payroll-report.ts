@@ -204,11 +204,11 @@ const processPayrollData = ai.defineTool(
                     const { hours, pieces } = dayData[taskId];
 
                     let hourlyEarnings = 0;
-                    let pieceworkEarnings = 0;
-
                     if (task.employeePayType === 'hourly') {
                         hourlyEarnings = hours * task.employeeRate;
                     }
+
+                    let pieceworkEarnings = 0;
                     if (task.employeePayType === 'piecework') {
                         pieceworkEarnings = pieces * task.employeeRate;
                     }
@@ -317,5 +317,3 @@ const generatePayrollReportFlow = ai.defineFlow(
     return processedData;
   }
 );
-
-    
