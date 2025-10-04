@@ -95,10 +95,17 @@ const processPayrollData = ai.defineTool(
     const data = JSON.parse(input.jsonData);
     const { employees, tasks, timeEntries, piecework, clients } = data;
     
-    // Create maps for efficient lookups
+    // --- Create maps for efficient lookups ---
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
-    const employeeMap = new Map(employees.map((e: Employee) => [e.id, e]));
+    
+    // Universal employee map: find by ID or QR code
+    const employeeIdMap = new Map(employees.map((e: Employee) => [e.id, e]));
+    const employeeQrMap = new Map(employees.map((e: Employee) => [e.qrCode, e]));
+    const findEmployee = (identifier: string): Employee | undefined => {
+        return employeeIdMap.get(identifier) || employeeQrMap.get(identifier);
+    }
+
 
     // --- Phase 1: Aggregate Raw Data ---
     // Structure: { employeeId: { "YYYY-MM-DD": { taskId: { hours: X, pieces: Y } } } }
@@ -109,7 +116,7 @@ const processPayrollData = ai.defineTool(
         end: startOfDay(parseISO(input.endDate)),
     };
     
-    // Initialize structure for all employees
+    // Initialize structure for all selected employees in the report
     for (const employee of employees) {
         workData[employee.id] = {};
     }
@@ -124,11 +131,14 @@ const processPayrollData = ai.defineTool(
         const dayKey = format(entryStart, 'yyyy-MM-dd');
         const hours = (parseISO(entry.endTime).getTime() - entryStart.getTime()) / (1000 * 60 * 60);
 
-        if (!workData[entry.employeeId]) workData[entry.employeeId] = {};
-        if (!workData[entry.employeeId][dayKey]) workData[entry.employeeId][dayKey] = {};
-        if (!workData[entry.employeeId][dayKey][entry.taskId]) workData[entry.employeeId][dayKey][entry.taskId] = { hours: 0, pieces: 0 };
+        const employee = findEmployee(entry.employeeId);
+        if (!employee) continue;
+
+        if (!workData[employee.id]) workData[employee.id] = {};
+        if (!workData[employee.id][dayKey]) workData[employee.id][dayKey] = {};
+        if (!workData[employee.id][dayKey][entry.taskId]) workData[employee.id][dayKey][entry.taskId] = { hours: 0, pieces: 0 };
         
-        workData[entry.employeeId][dayKey][entry.taskId].hours += hours;
+        workData[employee.id][dayKey][entry.taskId].hours += hours;
     }
 
     // Process piecework entries
@@ -139,20 +149,20 @@ const processPayrollData = ai.defineTool(
         if (!isWithinInterval(entryStart, reportInterval)) continue;
 
         const dayKey = format(entryStart, 'yyyy-MM-dd');
-        const employeeIdsInEntry = String(entry.employeeId).split(',').map(id => id.trim()).filter(Boolean);
-        const numEmployees = employeeIdsInEntry.length || 1;
+        const employeeIdentifiers = String(entry.employeeId).split(',').map(id => id.trim()).filter(Boolean);
+        
+        const validEmployeesInEntry = employeeIdentifiers.map(findEmployee).filter((e): e is Employee => !!e);
+        if (validEmployeesInEntry.length === 0) continue;
+
+        const numEmployees = validEmployeesInEntry.length;
         const individualPieceCount = (entry.pieceCount || 0) / numEmployees;
-
-        for (const empId of employeeIdsInEntry) {
-            // Find employee by ID or QR code
-            const employee = employees.find((e: Employee) => e.id === empId || e.qrCode === empId);
-            if (!employee) continue;
-
-            if (!workData[employee.id]) workData[employee.id] = {};
-            if (!workData[employee.id][dayKey]) workData[employee.id][dayKey] = {};
-            if (!workData[employee.id][dayKey][entry.taskId]) workData[employee.id][dayKey][entry.taskId] = { hours: 0, pieces: 0 };
+        
+        for (const emp of validEmployeesInEntry) {
+            if (!workData[emp.id]) workData[emp.id] = {};
+            if (!workData[emp.id][dayKey]) workData[emp.id][dayKey] = {};
+            if (!workData[emp.id][dayKey][entry.taskId]) workData[emp.id][dayKey][entry.taskId] = { hours: 0, pieces: 0 };
             
-            workData[employee.id][dayKey][entry.taskId].pieces += individualPieceCount;
+            workData[emp.id][dayKey][entry.taskId].pieces += individualPieceCount;
         }
     }
 
