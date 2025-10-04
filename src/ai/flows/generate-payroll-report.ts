@@ -10,7 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
-import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval } from 'date-fns';
+import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInHours } from 'date-fns';
 import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail, Employee, Piecework, TimeEntry } from '@/lib/types';
 
 
@@ -123,9 +123,9 @@ const processPayrollData = ai.defineTool(
         const entryStart = parseISO(entry.timestamp);
         if (!isWithinInterval(entryStart, reportInterval)) continue;
 
-        const hours = (parseISO(entry.endTime).getTime() - entryStart.getTime()) / (1000 * 60 * 60);
+        const hours = differenceInHours(parseISO(entry.endTime), entryStart);
         
-        if (hours <= 0) continue;
+        if (hours < 0) continue;
 
         const employee = findEmployee(entry.employeeId);
         if (!employee) continue;
