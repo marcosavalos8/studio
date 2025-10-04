@@ -88,7 +88,7 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
         [...empTimeEntries, ...empPiecework].forEach(entry => {
             if (!entry.timestamp) return;
             const date = parseISO(String(entry.timestamp));
-            const weekStart = startOfWeek(date, { weekStartsOn: 1 });
+            const weekStart = startOfWeek(date, { weekStartsOn: 1 }); // Monday is the start of the week
             const weekKey = format(weekStart, 'yyyy-MM-dd');
             if (!workByWeek[weekKey]) {
                 workByWeek[weekKey] = { time: [], pieces: [] };
