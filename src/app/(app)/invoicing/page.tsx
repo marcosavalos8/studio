@@ -13,8 +13,9 @@ import { collection, query, orderBy } from "firebase/firestore"
 import type { Client, Task } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useMemo } from 'react';
+import { withAuth } from '@/components/withAuth'
 
-export default function InvoicingPage() {
+function InvoicingPage() {
   const firestore = useFirestore()
   const clientsQuery = useMemo(() => {
     if (!firestore) return null
@@ -53,3 +54,5 @@ export default function InvoicingPage() {
     </div>
   )
 }
+
+export default withAuth(InvoicingPage);

@@ -60,8 +60,17 @@ export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
         if (!hasCameraPermission || !videoRef.current) return;
 
         let animationFrameId: number;
+        let lastScanTime = 0;
+        const scanInterval = 1000; // Scan once per second
 
         const scan = () => {
+            animationFrameId = requestAnimationFrame(scan);
+            const now = Date.now();
+            if (now - lastScanTime < scanInterval) {
+              return;
+            }
+            lastScanTime = now;
+
             if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
                 const video = videoRef.current;
                 const canvas = canvasRef.current;
@@ -76,18 +85,12 @@ export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
                             inversionAttempts: 'dontInvert',
                         });
 
-                        if (code) {
-                            onScanResult(code.data);
-                            // Add a small delay before scanning again
-                            setTimeout(() => {
-                                animationFrameId = requestAnimationFrame(scan);
-                            }, 1000); 
-                            return;
+                        if (code && code.data) {
+                           onScanResult(code.data);
                         }
                     }
                 }
             }
-            animationFrameId = requestAnimationFrame(scan);
         };
 
         scan();
@@ -117,6 +120,7 @@ export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
         <div className="w-full aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden relative">
            <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
            <canvas ref={canvasRef} style={{ display: 'none' }} />
+           <div className="absolute inset-0 border-4 border-primary/50 rounded-md pointer-events-none" />
            {hasCameraPermission === false && (
                 <Alert variant="destructive" className="absolute">
                     <VideoOff className="h-4 w-4" />

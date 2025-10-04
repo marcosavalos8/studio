@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import {
   Card,
@@ -32,7 +32,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
 import JSConfetti from 'js-confetti'
 import { useCollection, useFirestore } from '@/firebase'
-import { collection, query, where, getDocs, writeBatch, serverTimestamp, addDoc, updateDoc, doc, getDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, writeBatch, doc, addDoc, updateDoc } from 'firebase/firestore'
 import type { Task, TimeEntry, Piecework, Employee, Client } from '@/lib/types'
 import { Skeleton } from '@/components/ui/skeleton'
 import { FirestorePermissionError } from '@/firebase/errors'
@@ -57,18 +57,15 @@ export default function TimeTrackingPage() {
   const [isSharedPiece, setIsSharedPiece] = useState(false);
   const [pieceEntryMode, setPieceEntryMode] = useState<PieceEntryMode>('scan');
   
-  const [scannedEmployees, setScannedEmployees] = useState<string[]>([]);
-  const [scannedBin, setScannedBin] = useState<string | null>(null);
-  const [scannedPieceQuantity, setScannedPieceQuantity] = useState<number | string>(1);
-
+  // For automatic piecework submission
+  const [pieceworkEmployee, setPieceworkEmployee] = useState<Employee | null>(null);
 
   const [jsConfetti, setJsConfetti] = useState<JSConfetti | null>(null);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  const [sounds, setSounds] = useState<Record<string, AudioBuffer | null>>({});
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [selectedBulkTask, setSelectedBulkTask] = useState<string>('');
   const [isBulkClockingOut, setIsBulkClockingOut] = useState(false);
+  const [selectedBulkTask, setSelectedBulkTask] = useState<string>('');
 
   const [selectedClient, setSelectedClient] = useState<string>('');
   const [selectedRanch, setSelectedRanch] = useState<string>('');
@@ -85,7 +82,7 @@ export default function TimeTrackingPage() {
 
   // Debounce state
   const [recentScans, setRecentScans] = useState<{ employeeId: string; taskId: string; mode: ScanMode; timestamp: number }[]>([]);
-  const DEBOUNCE_MS = 30000; // 30 seconds
+  const DEBOUNCE_MS = 5000; // 5 seconds
 
   const clientsQuery = useMemo(() => {
     if (!firestore) return null
@@ -133,32 +130,54 @@ export default function TimeTrackingPage() {
   }, [tasksForClient, selectedRanch, selectedBlock]);
 
 
-  const currentTask = useMemo(() => allTasks?.find(t => t.id === selectedTask), [allTasks, selectedTask])
-
   const filteredManualEmployees = useMemo(() => {
     if (!activeEmployees) return [];
     if (!manualEmployeeSearch) return [];
     return activeEmployees.filter(emp => emp.name.toLowerCase().includes(manualEmployeeSearch.toLowerCase()));
   }, [activeEmployees, manualEmployeeSearch]);
 
+  const playSound = useCallback((buffer: AudioBuffer | null) => {
+    if (!audioContext || !buffer) return;
+    const source = audioContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioContext.destination);
+    source.start(0);
+  }, [audioContext]);
 
   useEffect(() => {
     setJsConfetti(new JSConfetti());
-    const initAudio = () => {
+    const initAudio = async () => {
         try {
             const context = new (window.AudioContext || (window as any).webkitAudioContext)();
             setAudioContext(context);
+            
+            const soundFiles = {
+              clockIn: '/sounds/clock-in.mp3',
+              clockOut: '/sounds/clock-out.mp3',
+              piecework: '/sounds/piecework.mp3',
+              error: '/sounds/error.mp3'
+            };
+
+            const loadedSounds: Record<string, AudioBuffer | null> = {};
+            for (const key in soundFiles) {
+              const response = await fetch(soundFiles[key as keyof typeof soundFiles]);
+              const arrayBuffer = await response.arrayBuffer();
+              const audioBuffer = await context.decodeAudioData(arrayBuffer);
+              loadedSounds[key] = audioBuffer;
+            }
+            setSounds(loadedSounds);
+
             document.removeEventListener('click', initAudio);
         } catch (e) {
-            console.error("Could not create audio context", e);
+            console.error("Could not create audio context or load sounds", e);
         }
     };
-    document.addEventListener('click', initAudio);
+    document.addEventListener('click', initAudio, { once: true });
 
     return () => {
-        document.removeEventListener('click', initAudio);
         audioContext?.close();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Reset selections when client changes
@@ -177,12 +196,9 @@ export default function TimeTrackingPage() {
     setSelectedTask('');
   }, [selectedBlock]);
 
-
   // Reset scans when mode changes
   useEffect(() => {
-    setScannedEmployees([]);
-    setScannedBin(null);
-    setScannedPieceQuantity(1);
+    setPieceworkEmployee(null);
   }, [scanMode, isSharedPiece, selectedTask, pieceEntryMode]);
   
   // Reset manual employee selection when searching
@@ -192,229 +208,155 @@ export default function TimeTrackingPage() {
     }
   }, [manualEmployeeSearch])
 
-  const playBeep = (success = true) => {
-    if (!audioContext) return;
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.type = success ? 'sine' : 'sawtooth';
-    oscillator.frequency.setValueAtTime(success ? 880 : 440, audioContext.currentTime);
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.5);
+  const clockInEmployee = useCallback(async (employee: Employee, taskId: string) => {
+    if (!firestore) return;
+    const batch = writeBatch(firestore);
 
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + 0.2);
-  }
+    const activeEntriesQuery = query(
+        collection(firestore, 'time_entries'),
+        where('employeeId', '==', employee.id),
+        where('endTime', '==', null)
+    );
 
-  const handleScanResult = useCallback((scannedData: string) => {
+    try {
+      const activeEntriesSnap = await getDocs(activeEntriesQuery);
+      activeEntriesSnap.forEach(doc => {
+          batch.update(doc.ref, { endTime: new Date() });
+      });
+
+      const newTimeEntryRef = doc(collection(firestore, 'time_entries'));
+      const newTimeEntry: Omit<TimeEntry, 'id'> = {
+          employeeId: employee.id,
+          taskId: taskId,
+          timestamp: new Date(),
+          endTime: null,
+          isBreak: false,
+      };
+      batch.set(newTimeEntryRef, newTimeEntry);
+      
+      await batch.commit();
+      playSound(sounds.clockIn);
+      toast({ title: "Clock In Successful", description: `Clocked in ${employee.name}.` });
+    } catch(serverError) {
+        playSound(sounds.error);
+        const permissionError = new FirestorePermissionError({
+            path: 'time_entries',
+            operation: 'write',
+            requestResourceData: { "message": `Clock-in for ${employee.name}`},
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    }
+  }, [firestore, playSound, sounds.clockIn, sounds.error, toast]);
+  
+  const clockOutEmployee = useCallback(async (employee: Employee, taskId: string) => {
+    if (!firestore) return;
+
+     const q = query(
+        collection(firestore, 'time_entries'),
+        where('employeeId', '==', employee.id),
+        where('taskId', '==', taskId),
+        where('endTime', '==', null)
+    );
+    try {
+        const querySnapshot = await getDocs(q);
+        if (querySnapshot.empty) {
+            playSound(sounds.error);
+            toast({ variant: 'destructive', title: "Clock Out Failed", description: `No active clock-in found for ${employee.name} on this task.` });
+        } else {
+            const batch = writeBatch(firestore);
+            const updatedData = { endTime: new Date() };
+            querySnapshot.forEach(doc => {
+                batch.update(doc.ref, updatedData);
+            });
+            await batch.commit();
+            playSound(sounds.clockOut);
+            toast({ title: "Clock Out Successful", description: `Clocked out ${employee.name}.` });
+        }
+    } catch (serverError) {
+        playSound(sounds.error);
+        const permissionError = new FirestorePermissionError({
+            path: 'time_entries', 
+            operation: 'update',
+            requestResourceData: { endTime: new Date() },
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    }
+  }, [firestore, playSound, sounds.clockOut, sounds.error, toast]);
+
+  const recordPiecework = useCallback(async (employee: Employee, taskId: string, binQr: string) => {
+    if (!firestore) return;
+    
+    const newPiecework: Omit<Piecework, 'id'> = {
+      employeeId: employee.id,
+      taskId: taskId,
+      timestamp: new Date(),
+      pieceCount: 1, // Assume 1 bin per scan
+      pieceQrCode: binQr,
+    };
+    try {
+      await addDoc(collection(firestore, 'piecework'), newPiecework);
+      playSound(sounds.piecework);
+      toast({ title: "Piecework Recorded", description: `1 piece recorded for ${employee.name}.` });
+      jsConfetti?.addConfetti({ confettiNumber: 30, confettiColors: ['#f59e0b', '#10b981', '#3b82f6'] });
+    } catch(serverError) {
+      playSound(sounds.error);
+      const permissionError = new FirestorePermissionError({
+          path: 'piecework',
+          operation: 'create',
+          requestResourceData: newPiecework,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    }
+  }, [firestore, playSound, sounds.piecework, sounds.error, toast, jsConfetti]);
+
+
+  const handleScanResult = useCallback(async (scannedData: string) => {
       if (!selectedTask) {
-          playBeep(false);
+          playSound(sounds.error);
           toast({ variant: "destructive", title: "Task not selected", description: "Please select a client, ranch, block, and task before scanning." });
           return;
       }
 
       const now = Date.now();
-      // Clean up old scans from the debounce buffer
-      setRecentScans(prev => prev.filter(scan => now - scan.timestamp < DEBOUNCE_MS));
-
-      // Find employee by their QR code
+      const recentValidScans = recentScans.filter(scan => now - scan.timestamp < DEBOUNCE_MS);
+      setRecentScans(recentValidScans);
+      
       const scannedEmployee = activeEmployees?.find(e => e.qrCode === scannedData);
       
+      const isDebounced = scannedEmployee && recentValidScans.some(
+          scan => scan.employeeId === scannedEmployee.id && scan.taskId === selectedTask && scan.mode === scanMode
+      );
+
+      if (isDebounced) {
+          playSound(sounds.error);
+          toast({ variant: "destructive", title: "Duplicate Scan", description: `This action was already performed for ${scannedEmployee?.name} recently.` });
+          return;
+      }
+      
       if (scannedEmployee) {
-          const employeeId = scannedEmployee.id;
-          const isDuplicate = recentScans.some(
-              scan => scan.employeeId === employeeId && scan.taskId === selectedTask && scan.mode === scanMode
-          );
-
-          if (isDuplicate) {
-              playBeep(false);
-              toast({ variant: "destructive", title: "Duplicate Scan", description: `This employee was already scanned for ${scanMode} on this task.` });
-              return;
-          }
-          
-          setRecentScans(prev => [...prev, { employeeId, taskId: selectedTask, mode: scanMode, timestamp: now }]);
-      }
-
-
-      playBeep();
-      jsConfetti?.addConfetti({ confettiNumber: 30, confettiColors: ['#f59e0b', '#10b981', '#3b82f6'] });
-
-
-      if (scanMode === 'piece') {
-        if (scannedEmployee) {
-          const employeeId = scannedEmployee.id;
-          setScannedEmployees(prev => {
-            if (isSharedPiece) {
-                // Prevent adding duplicates
-                return prev.includes(employeeId) ? prev : [...prev, employeeId];
-            }
-            // For single employee mode, just set the new one
-            return [employeeId];
-          });
-          toast({ title: "Employee Scanned", description: scannedEmployee.name });
-        } else { // It's a bin scan (or other data)
-          if (pieceEntryMode === 'scan') {
-            setScannedBin(scannedData);
-            toast({ title: "Bin Scanned", description: scannedData });
-          } else {
-            playBeep(false);
-            toast({ variant: "destructive", title: "Invalid Scan", description: "Expected an employee QR code in this mode."});
-          }
+        setRecentScans(prev => [...prev, { employeeId: scannedEmployee.id, taskId: selectedTask, mode: scanMode, timestamp: now }]);
+        
+        if (scanMode === 'clock-in') {
+          await clockInEmployee(scannedEmployee, selectedTask);
+        } else if (scanMode === 'clock-out') {
+          await clockOutEmployee(scannedEmployee, selectedTask);
+        } else if (scanMode === 'piece') {
+          setPieceworkEmployee(scannedEmployee);
+          playSound(sounds.clockIn); // Use clock-in sound as confirmation
+          toast({ title: "Employee Scanned", description: `${scannedEmployee.name} ready for piecework. Scan a bin.` });
         }
-      } else { // Clock-in or Clock-out
-        if (scannedEmployee) {
-          const employeeId = scannedEmployee.id;
-          if (!scannedEmployees.includes(employeeId)) {
-            setScannedEmployees(prev => [...prev, employeeId]);
-          }
-          toast({ title: `Employee Ready for ${scanMode}`, description: scannedEmployee.name });
+      } else { // Not an employee QR
+        if (scanMode === 'piece' && pieceworkEmployee) {
+          await recordPiecework(pieceworkEmployee, selectedTask, scannedData);
+          setPieceworkEmployee(null); // Reset for next scan
         } else {
-            playBeep(false);
-            toast({ variant: "destructive", title: "Invalid Scan", description: "Expected an employee QR code."});
+          playSound(sounds.error);
+          const errorMsg = scanMode === 'piece' ? "Scan an employee QR code first." : "Not a valid employee QR code.";
+          toast({ variant: "destructive", title: "Invalid Scan", description: errorMsg });
         }
       }
-  }, [selectedTask, activeEmployees, recentScans, toast, jsConfetti, scanMode, isSharedPiece, pieceEntryMode]);
+  }, [selectedTask, activeEmployees, recentScans, toast, jsConfetti, scanMode, playSound, sounds, clockInEmployee, clockOutEmployee, recordPiecework, pieceworkEmployee]);
 
-  const clockInEmployee = async (employeeId: string, taskId: string) => {
-    if (!firestore) return;
-    const batch = writeBatch(firestore);
-
-    // 1. Find any active time entries for this employee
-    const activeEntriesQuery = query(
-        collection(firestore, 'time_entries'),
-        where('employeeId', '==', employeeId),
-        where('endTime', '==', null)
-    );
-
-    const activeEntriesSnap = await getDocs(activeEntriesQuery);
-    
-    // 2. Clock them out by setting an endTime
-    activeEntriesSnap.forEach(doc => {
-        batch.update(doc.ref, { endTime: new Date() });
-    });
-
-    // 3. Create the new time entry
-    const newTimeEntryRef = doc(collection(firestore, 'time_entries'));
-    const newTimeEntry: Omit<TimeEntry, 'id'> = {
-        employeeId: employeeId,
-        taskId: taskId,
-        timestamp: new Date(),
-        endTime: null,
-        isBreak: false,
-    };
-    batch.set(newTimeEntryRef, newTimeEntry);
-    
-    await batch.commit();
-  }
-
-  const handleSubmit = async () => {
-    if (!firestore || !selectedTask || scannedEmployees.length === 0) {
-        toast({ variant: "destructive", title: "Missing Information", description: "Task and at least one employee must be scanned." });
-        return;
-    }
-    
-    setIsSubmitting(true);
-    const timeEntryCollection = collection(firestore, 'time_entries');
-    const pieceworkCollection = collection(firestore, 'piecework');
-
-    if (scanMode === 'clock-in') {
-        try {
-            await Promise.all(scannedEmployees.map(empId => clockInEmployee(empId, selectedTask)));
-            toast({ title: "Clock In Successful", description: `Clocked in ${scannedEmployees.length} employee(s).` });
-            setScannedEmployees([]);
-            setScannedBin(null);
-        } catch (serverError) {
-             const permissionError = new FirestorePermissionError({
-                path: 'time_entries',
-                operation: 'write',
-                requestResourceData: { "message": `Batch clock-in for ${scannedEmployees.length} employees`},
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        } finally {
-            setIsSubmitting(false);
-        }
-    } else if (scanMode === 'clock-out') {
-        const q = query(
-            timeEntryCollection,
-            where('employeeId', 'in', scannedEmployees),
-            where('taskId', '==', selectedTask),
-            where('endTime', '==', null)
-        );
-        getDocs(q).then(querySnapshot => {
-            if (querySnapshot.empty) {
-                 toast({ variant: 'destructive', title: "Clock Out Failed", description: "No active clock-in found for the selected employees and task." });
-                 setIsSubmitting(false);
-            } else {
-                const batch = writeBatch(firestore);
-                const updatedData = { endTime: new Date() };
-                querySnapshot.forEach(doc => {
-                    batch.update(doc.ref, updatedData);
-                });
-                batch.commit()
-                    .then(() => {
-                        toast({ title: "Clock Out Successful", description: `Clocked out ${querySnapshot.size} employee(s).` });
-                        setScannedEmployees([]);
-                        setScannedBin(null);
-                    })
-                    .catch(async (serverError) => {
-                        const permissionError = new FirestorePermissionError({
-                            path: 'time_entries', 
-                            operation: 'update',
-                            requestResourceData: updatedData,
-                        });
-                        errorEmitter.emit('permission-error', permissionError);
-                    })
-                    .finally(() => setIsSubmitting(false));
-            }
-        });
-    } else if (scanMode === 'piece') {
-        let pieceCount = 1;
-        let pieceQrCode = 'manual_quantity';
-        if (pieceEntryMode === 'scan') {
-          if (!scannedBin) {
-              toast({ variant: 'destructive', title: "Bin not scanned", description: "Please scan a bin QR code." });
-              setIsSubmitting(false);
-              return;
-          }
-          pieceQrCode = scannedBin;
-        } else { // manual quantity
-          const quantity = typeof scannedPieceQuantity === 'number' ? scannedPieceQuantity : parseInt(String(scannedPieceQuantity), 10);
-          if (isNaN(quantity) || quantity <= 0) {
-              toast({ variant: 'destructive', title: 'Invalid Quantity', description: 'Please enter a valid number of pieces.' });
-              setIsSubmitting(false);
-              return;
-          }
-          pieceCount = quantity;
-        }
-
-        const newPiecework: Omit<Piecework, 'id'> = {
-            employeeId: scannedEmployees.join(','), // For shared, join IDs
-            taskId: selectedTask,
-            timestamp: new Date(),
-            pieceCount: pieceCount,
-            pieceQrCode: pieceQrCode,
-        };
-        addDoc(pieceworkCollection, newPiecework)
-            .then(() => {
-                toast({ title: "Piecework Recorded", description: `${pieceCount} piece(s) recorded for ${scannedEmployees.length} employee(s).` });
-                setScannedEmployees([]);
-                setScannedBin(null);
-                setScannedPieceQuantity(1);
-            })
-            .catch(async (serverError) => {
-                const permissionError = new FirestorePermissionError({
-                    path: pieceworkCollection.path,
-                    operation: 'create',
-                    requestResourceData: newPiecework,
-                });
-                errorEmitter.emit('permission-error', permissionError);
-            })
-            .finally(() => setIsSubmitting(false));
-    }
-  }
 
   const handleManualSubmit = async () => {
     if (!firestore || !selectedTask || !manualSelectedEmployee) {
@@ -423,64 +365,11 @@ export default function TimeTrackingPage() {
     }
 
     setIsManualSubmitting(true);
-    const employeeId = manualSelectedEmployee.id;
     
     if (manualLogType === 'clock-in') {
-        try {
-            await clockInEmployee(employeeId, selectedTask);
-            toast({ title: "Clock In Successful", description: `Clocked in ${manualSelectedEmployee.name}.` });
-            setManualSelectedEmployee(null);
-            setManualEmployeeSearch('');
-        } catch (serverError) {
-             const permissionError = new FirestorePermissionError({
-                path: 'time_entries',
-                operation: 'write',
-                requestResourceData: { employeeId: employeeId, taskId: selectedTask },
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        } finally {
-            setIsManualSubmitting(false);
-        }
-
+        await clockInEmployee(manualSelectedEmployee, selectedTask);
     } else if (manualLogType === 'clock-out') {
-        const q = query(
-            collection(firestore, 'time_entries'),
-            where('employeeId', '==', employeeId),
-            where('taskId', '==', selectedTask),
-            where('endTime', '==', null)
-        );
-        getDocs(q).then(querySnapshot => {
-            if (querySnapshot.empty) {
-                toast({ variant: 'destructive', title: "Clock Out Failed", description: "No active clock-in found for this employee and task." });
-                setIsManualSubmitting(false);
-            } else {
-                const updatedData = { endTime: new Date() };
-                const docSnap = querySnapshot.docs[0];
-                updateDoc(docSnap.ref, updatedData)
-                    .then(() => {
-                        toast({ title: "Clock Out Successful", description: `Clocked out ${manualSelectedEmployee.name}.` });
-                        setManualSelectedEmployee(null);
-                        setManualEmployeeSearch('');
-                    })
-                    .catch(async (serverError) => {
-                        const permissionError = new FirestorePermissionError({
-                            path: docSnap.ref.path,
-                            operation: 'update',
-                            requestResourceData: updatedData,
-                        });
-                        errorEmitter.emit('permission-error', permissionError);
-                    })
-                    .finally(() => setIsManualSubmitting(false));
-            }
-        }).catch(err => {
-            const permissionError = new FirestorePermissionError({
-                path: 'time_entries',
-                operation: 'list',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            setIsManualSubmitting(false);
-        });
-
+        await clockOutEmployee(manualSelectedEmployee, selectedTask);
     } else if (manualLogType === 'piecework') {
         const pieceCount = typeof manualPieceQuantity === 'number' ? manualPieceQuantity : parseInt(String(manualPieceQuantity), 10)
         if (isNaN(pieceCount) || pieceCount <= 0) {
@@ -490,31 +379,33 @@ export default function TimeTrackingPage() {
         }
 
         const newPiecework: Omit<Piecework, 'id'> = {
-            employeeId: employeeId,
+            employeeId: manualSelectedEmployee.id,
             taskId: selectedTask,
             timestamp: new Date(),
             pieceCount: pieceCount,
             pieceQrCode: 'manual_entry',
             qcNote: manualNotes,
         };
-        addDoc(collection(firestore, 'piecework'), newPiecework)
-            .then(() => {
-                toast({ title: "Piecework Recorded", description: `${pieceCount} piece(s) recorded for ${manualSelectedEmployee.name}.` });
-                setManualSelectedEmployee(null);
-                setManualEmployeeSearch('');
-                setManualPieceQuantity(1);
-                setManualNotes('');
-            })
-            .catch(async (serverError) => {
-                const permissionError = new FirestorePermissionError({
-                    path: 'piecework',
-                    operation: 'create',
-                    requestResourceData: newPiecework,
-                });
-                errorEmitter.emit('permission-error', permissionError);
-            })
-            .finally(() => setIsManualSubmitting(false));
+        try {
+          await addDoc(collection(firestore, 'piecework'), newPiecework);
+          playSound(sounds.piecework);
+          toast({ title: "Piecework Recorded", description: `${pieceCount} piece(s) recorded for ${manualSelectedEmployee.name}.` });
+        } catch(serverError) {
+          playSound(sounds.error);
+          const permissionError = new FirestorePermissionError({
+              path: 'piecework',
+              operation: 'create',
+              requestResourceData: newPiecework,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        }
     }
+    
+    setManualSelectedEmployee(null);
+    setManualEmployeeSearch('');
+    setManualPieceQuantity(1);
+    setManualNotes('');
+    setIsManualSubmitting(false);
   };
 
 
@@ -532,43 +423,38 @@ export default function TimeTrackingPage() {
         where('endTime', '==', null)
     );
 
-    getDocs(q).then(querySnapshot => {
-        if (querySnapshot.empty) {
-            toast({ title: "No one to clock out", description: "No employees are currently clocked in for this task." });
-            setIsBulkClockingOut(false);
-            return;
-        }
-        
-        const updatedData = { endTime: new Date() };
-        const batch = writeBatch(firestore);
-        querySnapshot.forEach(doc => {
-            batch.update(doc.ref, updatedData);
-        });
+    try {
+      const querySnapshot = await getDocs(q);
+      if (querySnapshot.empty) {
+          toast({ title: "No one to clock out", description: "No employees are currently clocked in for this task." });
+          setIsBulkClockingOut(false);
+          return;
+      }
+      
+      const updatedData = { endTime: new Date() };
+      const batch = writeBatch(firestore);
+      querySnapshot.forEach(doc => {
+          batch.update(doc.ref, updatedData);
+      });
 
-        batch.commit()
-            .then(() => {
-                toast({
-                    title: "Bulk Clock Out Successful",
-                    description: `Successfully clocked out ${querySnapshot.size} employee(s) from the task.`,
-                });
-            })
-            .catch(async (serverError) => {
-                const permissionError = new FirestorePermissionError({
-                    path: 'time_entries', // Simplification
-                    operation: 'update',
-                    requestResourceData: { "message": `Batch update for ${querySnapshot.size} docs`, data: updatedData },
-                });
-                errorEmitter.emit('permission-error', permissionError);
-            })
-            .finally(() => setIsBulkClockingOut(false));
-    }).catch(err => {
+      await batch.commit();
+      playSound(sounds.clockOut);
+      toast({
+          title: "Bulk Clock Out Successful",
+          description: `Successfully clocked out ${querySnapshot.size} employee(s) from the task.`,
+      });
+
+    } catch (serverError) {
+        playSound(sounds.error);
         const permissionError = new FirestorePermissionError({
-            path: 'time_entries',
-            operation: 'list',
+            path: 'time_entries', // Simplification
+            operation: 'update',
+            requestResourceData: { "message": `Bulk clock out`, data: { endTime: new Date() } },
         });
         errorEmitter.emit('permission-error', permissionError);
+    } finally {
         setIsBulkClockingOut(false);
-    });
+    }
   };
 
   const SelectionFields = ({ isManual = false }: { isManual?: boolean }) => (
@@ -647,7 +533,7 @@ export default function TimeTrackingPage() {
             <CardHeader>
               <CardTitle>QR Code Scanner</CardTitle>
               <CardDescription>
-                Select the task details and scan mode, then scan QR codes to log time and piecework.
+                Select task and mode. Actions are processed automatically upon valid scan.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -682,125 +568,28 @@ export default function TimeTrackingPage() {
                       </div>
                     </Label>
                  </RadioGroup>
-
-                 {scanMode === 'piece' && (
-                  <div className="space-y-4 pt-4 border-t mt-4">
-                    <div className="flex items-center space-x-2">
-                        <Switch
-                        id="shared-piece-switch"
-                        checked={isSharedPiece}
-                        onCheckedChange={setIsSharedPiece}
-                        />
-                        <Label htmlFor="shared-piece-switch" className="flex items-center gap-2">
-                        {isSharedPiece ? <Users className="h-4 w-4" /> : <User className="h-4 w-4" />}
-                        {isSharedPiece ? 'Shared Piece (Multiple Employees)' : 'Single Employee'}
-                        </Label>
-                    </div>
-                    <RadioGroup
-                        value={pieceEntryMode}
-                        onValueChange={(value) => setPieceEntryMode(value as PieceEntryMode)}
-                        className="grid grid-cols-2 gap-4"
-                    >
-                        <Label htmlFor="piece-mode-scan" className="flex flex-1 items-center gap-3 rounded-md border p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5">
-                            <RadioGroupItem value="scan" id="piece-mode-scan" />
-                            <div className="flex items-center gap-2">
-                                <ScanLine className="h-5 w-5" />
-                                <p className="font-medium">Scan Bins</p>
-                            </div>
-                        </Label>
-                        <Label htmlFor="piece-mode-manual" className="flex flex-1 items-center gap-3 rounded-md border p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5">
-                            <RadioGroupItem value="manual" id="piece-mode-manual" />
-                            <div className="flex items-center gap-2">
-                                <Hash className="h-5 w-5" />
-                                <p className="font-medium">Enter Quantity</p>
-                            </div>
-                        </Label>
-                    </RadioGroup>
-                  </div>
-                 )}
                </div>
 
               <QrScanner onScanResult={handleScanResult} />
               
-              <div className="grid gap-4 md:grid-cols-2">
+              {scanMode === 'piece' && pieceworkEmployee && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                        {scanMode === 'piece' && (isSharedPiece ? <Users/> : <User/>)}
-                        {scanMode !== 'piece' && <User/>}
-                        Scanned Employees
+                        <User/>
+                        Employee Scanned
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {scannedEmployees.length > 0 ? (
-                        <ul className="space-y-2">
-                        {scannedEmployees.map((id, index) => {
-                            const name = activeEmployees?.find(e => e.id === id)?.name || id;
-                            return (
-                                <li key={`${id}-${index}`} className="flex items-center gap-2 text-green-600">
-                                    <CheckCircle className="h-5 w-5" />
-                                    <p className="font-mono text-sm">{name}</p>
-                                </li>
-                            )
-                        })}
-                        </ul>
-                    ) : (
-                        <p className="text-muted-foreground">No employees scanned yet.</p>
-                    )}
+                      <div className="flex items-center gap-2 text-blue-600">
+                          <CheckCircle className="h-5 w-5" />
+                          <p className="font-mono text-sm">{pieceworkEmployee.name}</p>
+                          <p className="text-muted-foreground text-sm ml-auto">Ready: Scan a Bin QR</p>
+                      </div>
                   </CardContent>
                 </Card>
-                 {scanMode === 'piece' && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                {pieceEntryMode === 'scan' ? <Package/> : <Hash />}
-                                {pieceEntryMode === 'scan' ? 'Scanned Bin' : 'Piece Quantity'}
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                        {pieceEntryMode === 'scan' ? (
-                            scannedBin ? (
-                                <div className="flex items-center gap-2 text-green-600">
-                                    <CheckCircle className="h-5 w-5" />
-                                    <p className="font-mono text-sm">{scannedBin}</p>
-                                </div>
-                            ) : (
-                                <p className="text-muted-foreground">No bin scanned yet.</p>
-                            )
-                        ) : (
-                            <div className="space-y-2">
-                                <Label htmlFor="scanned-quantity">Total Pieces / Bins</Label>
-                                <Input 
-                                    id="scanned-quantity" 
-                                    type="number"
-                                    placeholder="Enter total pieces"
-                                    value={scannedPieceQuantity}
-                                    onChange={(e) => {
-                                        const value = e.target.value;
-                                        setScannedPieceQuantity(value === '' ? '' : parseInt(value, 10));
-                                    }}
-                                    onBlur={(e) => {
-                                        const value = parseInt(e.target.value, 10);
-                                        if (isNaN(value) || value <= 0) {
-                                            setScannedPieceQuantity(1);
-                                        }
-                                    }}
-                                    min="1"
-                                />
-                            </div>
-                        )}
-                        </CardContent>
-                    </Card>
-                 )}
-              </div>
-              <Button 
-                onClick={handleSubmit} 
-                disabled={isSubmitting || scannedEmployees.length === 0 || (scanMode === 'piece' && pieceEntryMode === 'scan' && !scannedBin)} 
-                className="w-full"
-               >
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                Submit {scanMode === 'clock-in' ? 'Clock In(s)' : scanMode === 'clock-out' ? 'Clock Out(s)' : 'Piecework'}
-              </Button>
+              )}
+
             </CardContent>
           </Card>
         </TabsContent>

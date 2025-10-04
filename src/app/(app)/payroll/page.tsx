@@ -1,3 +1,6 @@
+
+'use client'
+
 import {
   Card,
   CardContent,
@@ -6,8 +9,10 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { PayrollForm } from "./payroll-form"
+import { withAuth } from '@/components/withAuth'
 
-export default function PayrollPage() {
+
+function PayrollPage() {
   return (
     <div className="grid gap-4">
       <Card>
@@ -24,3 +29,5 @@ export default function PayrollPage() {
     </div>
   )
 }
+
+export default withAuth(PayrollPage);
