@@ -214,8 +214,8 @@ const processPayrollData = ai.defineTool(
                 minimumWageTopUp = (applicableMinimumWage * week.totalHours) - totalEarnings;
             }
             
-            const totalEarningsWithAdjustments = totalEarnings + minimumWageTopUp;
-            const regularRateOfPay = week.totalHours > 0 ? totalEarningsWithAdjustments / week.totalHours : applicableMinimumWage;
+            const totalEarningsWithTopUp = totalEarnings + minimumWageTopUp;
+            const regularRateOfPay = week.totalHours > 0 ? totalEarningsWithTopUp / week.totalHours : applicableMinimumWage;
 
             const restBreakMinutes = Math.floor(week.totalHours / 4) * 10;
             const paidRestBreaksTotal = (restBreakMinutes / 60) * regularRateOfPay;

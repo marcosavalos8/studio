@@ -30,7 +30,7 @@ export function withAuth<P extends object>(WrappedComponent: React.ComponentType
         if (envPassword) {
             setCorrectPassword(envPassword);
         } else {
-            // Default password if env var is not set
+            // Default password if env var is not set, useful for local dev without .env.local
             setCorrectPassword('1234');
         }
         
@@ -70,7 +70,7 @@ export function withAuth<P extends object>(WrappedComponent: React.ComponentType
           <DialogHeader>
             <DialogTitle>Authorization Required</DialogTitle>
             <DialogDescription>
-              Please enter the password to access this page. This can be set in the `.env.local` file using the `NEXT_PUBLIC_PAYROLL_PASSWORD` variable.
+              Please enter the password to access this page. The default is '1234', but it can be set in the `.env.local` file using the `NEXT_PUBLIC_PAYROLL_PASSWORD` variable.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
