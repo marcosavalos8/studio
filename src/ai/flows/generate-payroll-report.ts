@@ -205,8 +205,8 @@ const processPayrollData = ai.defineTool(
                     totalDailyEarnings: parseFloat(totalDailyEarnings.toFixed(2)),
                 }
             }).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-            const totalEarnings = dailyBreakdown.reduce((acc, day) => acc + day.totalDailyEarnings, 0);
+            
+            const totalEarnings = week.totalHourlyEarnings + week.totalPieceworkEarnings;
             
             let effectiveHourlyRate = week.totalHours > 0 ? totalEarnings / week.totalHours : 0;
             
@@ -282,5 +282,3 @@ const generatePayrollReportFlow = ai.defineFlow(
     return processedData;
   }
 );
-
-    
