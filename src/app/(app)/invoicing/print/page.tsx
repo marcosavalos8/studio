@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, Suspense } from 'react'
 import { format } from "date-fns"
 import { 
   Table, 
@@ -101,19 +101,21 @@ function PrintInvoicePageContent() {
             try {
                 const parsedData = JSON.parse(data);
                 setInvoice(parsedData);
-                sessionStorage.removeItem(printId); // Clean up immediately after retrieving
+                // Don't remove immediately, in case of re-print
+                // sessionStorage.removeItem(printId); 
             } catch (e) {
                 setError("Failed to parse invoice data. The data may be corrupted.");
             }
         } else {
-            setError("Could not find invoice data to print. Please close this tab and try generating the invoice again.");
+            setError("Could not find invoice data to print. This can happen if you refresh the page or open it in a new session. Please close this tab and try generating the invoice again.");
         }
     }, [searchParams]);
 
     useEffect(() => {
         if (invoice && !hasPrinted.current) {
             hasPrinted.current = true;
-            window.print();
+            // Delay to ensure rendering is complete
+            setTimeout(() => window.print(), 500); 
         }
     }, [invoice]);
 
@@ -161,15 +163,16 @@ function PrintInvoicePageContent() {
     );
 }
 
+
 export default function PrintInvoicePage() {
     return (
-        <React.Suspense fallback={
+        <Suspense fallback={
              <div className="flex h-screen items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin" />
                 <p className="ml-4">Loading...</p>
             </div>
         }>
             <PrintInvoicePageContent />
-        </React.Suspense>
+        </Suspense>
     )
 }

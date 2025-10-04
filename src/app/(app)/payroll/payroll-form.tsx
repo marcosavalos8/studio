@@ -103,8 +103,16 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
 
   const handlePrint = () => {
     const printId = `payroll_${Date.now()}`;
-    sessionStorage.setItem(printId, JSON.stringify(report));
-    window.open(`/payroll/print?id=${printId}`, '_blank');
+    try {
+      sessionStorage.setItem(printId, JSON.stringify(report));
+      window.open(`/payroll/print?id=${printId}`, '_blank');
+    } catch (error) {
+       toast({
+        variant: "destructive",
+        title: "Could not open print window",
+        description: "Please ensure pop-ups are allowed for this site."
+      })
+    }
   }
   
   const handleEmail = () => {
@@ -129,6 +137,8 @@ export function ReportDisplay({ report }: { report: ProcessedPayrollData }) {
     const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.location.href = mailtoLink;
   };
+
+  const { toast } = useToast();
 
   return (
     <div className="mt-6 bg-card p-4 sm:p-6 rounded-lg border">

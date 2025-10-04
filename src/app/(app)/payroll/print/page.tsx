@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, Suspense } from 'react'
 import { format } from "date-fns"
 import type { ProcessedPayrollData } from "@/ai/flows/generate-payroll-report"
 import { 
@@ -156,19 +156,20 @@ function PrintPayrollPageContent() {
         if (data) {
             try {
                 setReport(JSON.parse(data));
-                sessionStorage.removeItem(printId); // Clean up immediately after retrieving
+                // Do not remove item so it can be re-printed
             } catch (e) {
                 setError("Failed to parse report data. The data may be corrupted.");
             }
         } else {
-             setError("Could not find report data to print. Please close this tab and try generating the report again.");
+             setError("Could not find report data to print. This can happen if you refresh the page or open it in a new session. Please close this tab and try generating the report again.");
         }
     }, [searchParams]);
 
     useEffect(() => {
         if (report && !hasPrinted.current) {
             hasPrinted.current = true;
-            window.print();
+            // Delay to ensure rendering is complete
+            setTimeout(() => window.print(), 500);
         }
     }, [report]);
 
@@ -221,13 +222,13 @@ function PrintPayrollPageContent() {
 
 export default function PrintPayrollPage() {
     return (
-        <React.Suspense fallback={
+        <Suspense fallback={
              <div className="flex h-screen items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin" />
                 <p className="ml-4">Loading...</p>
             </div>
         }>
             <PrintPayrollPageContent />
-        </React.Suspense>
+        </Suspense>
     )
 }

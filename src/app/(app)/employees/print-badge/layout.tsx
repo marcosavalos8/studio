@@ -18,7 +18,7 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading]);
 
-  if (loading) {
+  if (loading && !user) { // Only show loader if we are actually waiting for the user
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

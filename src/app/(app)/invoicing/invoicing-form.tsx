@@ -211,8 +211,16 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
   const handlePrint = () => {
     if (!invoice) return;
     const printId = `invoice_${Date.now()}`;
-    sessionStorage.setItem(printId, JSON.stringify(invoice));
-    window.open(`/invoicing/print?id=${printId}`, '_blank');
+    try {
+      sessionStorage.setItem(printId, JSON.stringify(invoice));
+      window.open(`/invoicing/print?id=${printId}`, '_blank');
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Could not open print window",
+        description: "Please ensure pop-ups are allowed for this site."
+      })
+    }
   }
 
   const handleEmail = () => {
