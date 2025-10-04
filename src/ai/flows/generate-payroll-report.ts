@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview A payroll report generation AI agent.
+ * @fileOverview A payroll report generation AI agent that adheres to Washington state labor laws.
  *
  * - generatePayrollReport - A function that handles the payroll report generation process.
  * - GeneratePayrollReportInput - The input type for the generatePayrollReport function.
