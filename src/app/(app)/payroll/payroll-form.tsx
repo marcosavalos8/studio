@@ -23,6 +23,7 @@ import { Client, Employee, Piecework, Task, TimeEntry } from "@/lib/types"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PayrollReportDisplay } from "./report-display"
+import { ProcessedPayrollData } from "@/ai/flows/generate-payroll-report"
 
 const initialState = {
   report: undefined,
@@ -40,7 +41,8 @@ export function PayrollForm() {
   const [allData, setAllData] = React.useState<any>(null);
   const [employeesInRange, setEmployeesInRange] = React.useState<Employee[]>([]);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = React.useState<Set<string>>(new Set());
-  
+  const [showReport, setShowReport] = React.useState(false);
+
   React.useEffect(() => {
     if (state.error) {
       toast({
@@ -48,8 +50,12 @@ export function PayrollForm() {
         title: "Error Generating Report",
         description: state.error,
       })
+      setShowReport(false);
     }
-  }, [state.error, toast])
+     if (state.report) {
+      setShowReport(true);
+    }
+  }, [state, toast])
   
   React.useEffect(() => {
     const fetchPayrollData = async () => {
@@ -175,147 +181,142 @@ export function PayrollForm() {
   const jsonData = getFilteredJsonData();
   const allEmployeesSelected = employeesInRange.length > 0 && selectedEmployeeIds.size === employeesInRange.length;
 
-  if (state.report) {
-    return <PayrollReportDisplay report={state.report} onBack={() => {
-        // This is a bit of a hack to reset the useActionState
-        window.location.reload();
-    }} />;
+  if (showReport && state.report) {
+    return <PayrollReportDisplay report={state.report} onBack={() => setShowReport(false)} />;
   }
 
   return (
-    <div>
-      <form action={formAction}>
-        <div className="grid gap-4 sm:grid-cols-2 mb-4">
-          <div className="grid gap-4">
-              <div>
-                <Label>Period</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      id="date"
-                      variant={"outline"}
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !date && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {date?.from ? (
-                        date.to ? (
-                          <>
-                            {format(date.from, "LLL dd, y")} -{" "}
-                            {format(date.to, "LLL dd, y")}
-                          </>
-                        ) : (
-                          format(date.from, "LLL dd, y")
-                        )
+    <form action={formAction}>
+      <div className="grid gap-4 sm:grid-cols-2 mb-4">
+        <div className="grid gap-4">
+            <div>
+              <Label>Period</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="date"
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !date && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date?.from ? (
+                      date.to ? (
+                        <>
+                          {format(date.from, "LLL dd, y")} -{" "}
+                          {format(date.to, "LLL dd, y")}
+                        </>
                       ) : (
-                        <span>Pick a date range</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      initialFocus
-                      mode="range"
-                      defaultMonth={date?.from}
-                      selected={date}
-                      onSelect={setDate}
-                      numberOfMonths={2}
-                    />
-                  </PopoverContent>
+                        format(date.from, "LLL dd, y")
+                      )
+                    ) : (
+                      <span>Pick a date range</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={date?.from}
+                    selected={date}
+                    onSelect={setDate}
+                    numberOfMonths={2}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div>
+                <Label>Pay Date</Label>
+                <Popover>
+                    <PopoverTrigger asChild>
+                        <Button
+                            variant={"outline"}
+                            className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !payDate && "text-muted-foreground"
+                            )}
+                        >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {payDate ? format(payDate, "PPP") : <span>Pick a date</span>}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                        <Calendar
+                            mode="single"
+                            selected={payDate}
+                            onSelect={setPayDate}
+                            initialFocus
+                        />
+                    </PopoverContent>
                 </Popover>
-              </div>
-              <div>
-                  <Label>Pay Date</Label>
-                  <Popover>
-                      <PopoverTrigger asChild>
-                          <Button
-                              variant={"outline"}
-                              className={cn(
-                              "w-full justify-start text-left font-normal",
-                              !payDate && "text-muted-foreground"
-                              )}
-                          >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {payDate ? format(payDate, "PPP") : <span>Pick a date</span>}
-                          </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                          <Calendar
-                              mode="single"
-                              selected={payDate}
-                              onSelect={setPayDate}
-                              initialFocus
-                          />
-                      </PopoverContent>
-                  </Popover>
-              </div>
-          </div>
-          <div>
-            <Button type="submit" disabled={isPending || !date || !jsonData || isFetchingData || !payDate || selectedEmployeeIds.size === 0}>
-                {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Generate Report
-            </Button>
-             {isFetchingData && <p className="text-xs text-muted-foreground mt-2 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin"/>Fetching data for selected range...</p>}
-             {!isFetchingData && date?.from && employeesInRange.length > 0 && <p className="text-xs text-muted-foreground mt-2">{selectedEmployeeIds.size} of {employeesInRange.length} employees selected.</p>}
-             {!isFetchingData && date?.from && employeesInRange.length === 0 && <p className="text-xs text-amber-600 mt-2">No employee activity found for this date range.</p>}
-          </div>
+            </div>
         </div>
-        
-        {isFetchingData && (
-          <div className="mt-4">
-              <Loader2 className="h-6 w-6 animate-spin" />
-              <p className="text-muted-foreground">Finding employees with activity...</p>
-          </div>
-        )}
+        <div>
+          <Button type="submit" disabled={isPending || !date || !jsonData || isFetchingData || !payDate || selectedEmployeeIds.size === 0}>
+              {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Generate Report
+          </Button>
+           {isFetchingData && <p className="text-xs text-muted-foreground mt-2 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin"/>Fetching data for selected range...</p>}
+           {!isFetchingData && date?.from && employeesInRange.length > 0 && <p className="text-xs text-muted-foreground mt-2">{selectedEmployeeIds.size} of {employeesInRange.length} employees selected.</p>}
+           {!isFetchingData && date?.from && employeesInRange.length === 0 && <p className="text-xs text-amber-600 mt-2">No employee activity found for this date range.</p>}
+        </div>
+      </div>
+      
+      {isFetchingData && (
+        <div className="mt-4">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            <p className="text-muted-foreground">Finding employees with activity...</p>
+        </div>
+      )}
 
-        {!isFetchingData && employeesInRange.length > 0 && (
-           <Card>
-              <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                          <Users className="h-5 w-5"/>
-                          <span>Include Employees in Payroll</span>
+      {!isFetchingData && employeesInRange.length > 0 && (
+         <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Users className="h-5 w-5"/>
+                        <span>Include Employees in Payroll</span>
+                    </div>
+                     <div className="flex items-center space-x-2">
+                        <Checkbox 
+                            id="select-all" 
+                            checked={allEmployeesSelected}
+                            onCheckedChange={handleSelectAll}
+                        />
+                        <label
+                          htmlFor="select-all"
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          Select All
+                        </label>
                       </div>
-                       <div className="flex items-center space-x-2">
-                          <Checkbox 
-                              id="select-all" 
-                              checked={allEmployeesSelected}
-                              onCheckedChange={handleSelectAll}
-                          />
-                          <label
-                            htmlFor="select-all"
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                          >
-                            Select All
-                          </label>
-                        </div>
-                  </CardTitle>
-              </CardHeader>
-              <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {employeesInRange.map(employee => (
-                      <div key={employee.id} className="flex items-center space-x-2">
-                          <Checkbox
-                              id={`employee-${employee.id}`}
-                              checked={selectedEmployeeIds.has(employee.id)}
-                              onCheckedChange={(checked) => handleEmployeeSelect(employee.id, !!checked)}
-                          />
-                          <label htmlFor={`employee-${employee.id}`} className="text-sm font-medium leading-none">
-                              {employee.name}
-                          </label>
-                      </div>
-                  ))}
-              </CardContent>
-           </Card>
-        )}
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {employeesInRange.map(employee => (
+                    <div key={employee.id} className="flex items-center space-x-2">
+                        <Checkbox
+                            id={`employee-${employee.id}`}
+                            checked={selectedEmployeeIds.has(employee.id)}
+                            onCheckedChange={(checked) => handleEmployeeSelect(employee.id, !!checked)}
+                        />
+                        <label htmlFor={`employee-${employee.id}`} className="text-sm font-medium leading-none">
+                            {employee.name}
+                        </label>
+                    </div>
+                ))}
+            </CardContent>
+         </Card>
+      )}
 
 
-        {date?.from && <input type="hidden" name="from" value={format(date.from, 'yyyy-MM-dd')} />}
-        {date?.to && <input type="hidden" name="to" value={format(date.to, 'yyyy-MM-dd')} />}
-        {payDate && <input type="hidden" name="payDate" value={format(payDate, 'yyyy-MM-dd')} />}
-        {jsonData && <input type="hidden" name="jsonData" value={jsonData} />}
-      </form>
-    </div>
+      {date?.from && <input type="hidden" name="from" value={format(date.from, 'yyyy-MM-dd')} />}
+      {date?.to && <input type="hidden" name="to" value={format(date.to, 'yyyy-MM-dd')} />}
+      {payDate && <input type="hidden" name="payDate" value={format(payDate, 'yyyy-MM-dd')} />}
+      {jsonData && <input type="hidden" name="jsonData" value={jsonData} />}
+    </form>
   )
 }

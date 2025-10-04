@@ -59,7 +59,6 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
     const clientTasks = tasks.filter(task => task.clientId === clientData.id);
     const clientTaskIds = clientTasks.map(t => t.id);
     
-    // Set a default start time and end time for the date range
     const startDate = new Date(date.from.setHours(0, 0, 0, 0));
     const endDate = new Date(date.to.setHours(23, 59, 59, 999));
 

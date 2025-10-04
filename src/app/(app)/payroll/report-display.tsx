@@ -192,4 +192,3 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
         </div>
     );
 }
-
