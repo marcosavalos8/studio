@@ -10,7 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
-import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds, startOfWeek, endOfWeek } from 'date-fns';
+import { getWeek, getYear, format, startOfDay, parseISO, isWithinInterval, differenceInMilliseconds } from 'date-fns';
 import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail, Employee, Piecework, TimeEntry } from '@/lib/types';
 
 
@@ -56,7 +56,7 @@ const EmployeePayrollSummarySchema = z.object({
     employeeId: z.string(),
     employeeName: z.string(),
     weeklySummaries: z.array(WeeklySummarySchema),
-    finalPay: z.number(), // Sum of all weekly finalPay amounts
+    finalPay: z.number(),
 });
 
 const ProcessedPayrollDataSchema = z.object({
@@ -69,27 +69,15 @@ const ProcessedPayrollDataSchema = z.object({
 
 // Exported function called by the server action
 export async function generatePayrollReport(input: GeneratePayrollReportInput): Promise<ProcessedPayrollData> {
-  return generatePayrollReportFlow(input);
-}
-
-
-const processPayrollData = ai.defineTool(
-  {
-    name: 'processPayrollData',
-    description: 'Processes raw payroll data to calculate earnings including WA State minimum wage adjustments and paid rest breaks.',
-    inputSchema: GeneratePayrollReportInputSchema,
-    outputSchema: ProcessedPayrollDataSchema,
-  },
-  async (input) => {
     const STATE_MINIMUM_WAGE = 16.28;
     const data = JSON.parse(input.jsonData);
     const { employees, tasks, timeEntries, piecework, clients } = data;
-    
+
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
     const employeeMap = new Map(employees.map((e: Employee) => [e.id, e]));
 
-    // Helper to find an employee by ID or QR code
+    // Helper to find an employee by ID or QR code from the *filtered* list of employees for the report
     const findEmployee = (identifier: string): Employee | undefined => {
         return employees.find((e: Employee) => e.id === identifier || e.qrCode === identifier);
     }
@@ -98,45 +86,48 @@ const processPayrollData = ai.defineTool(
         start: startOfDay(parseISO(input.startDate)),
         end: startOfDay(parseISO(input.endDate)),
     };
-    
+
     // employeeId -> day (yyyy-MM-dd) -> taskId -> { hours, pieces }
     const workData: Record<string, Record<string, Record<string, { hours: number, pieces: number }>>> = {};
 
     // 1. Aggregate all work data first
 
     // Aggregate hours from time entries
-    for (const entry of timeEntries) {
-        if (!entry.timestamp || !entry.endTime || !entry.employeeId || !entry.taskId) continue;
+    timeEntries.forEach((entry: TimeEntry) => {
+        if (!entry.timestamp || !entry.endTime || !entry.employeeId || !entry.taskId) return;
         
-        const entryStart = parseISO(entry.timestamp);
-        if (!isWithinInterval(entryStart, reportInterval)) continue;
+        const entryStart = parseISO(String(entry.timestamp));
+        const entryEnd = parseISO(String(entry.endTime));
+
+        if (!isWithinInterval(entryStart, reportInterval)) return;
 
         const employeeId = entry.employeeId;
-        
-        const hours = differenceInMilliseconds(parseISO(entry.endTime), entryStart) / (1000 * 60 * 60);
-        if (hours <= 0) continue;
+        if (!employeeMap.has(employeeId)) return; // Ensure employee is in the selected list
+
+        const hours = differenceInMilliseconds(entryEnd, entryStart) / (1000 * 60 * 60);
+        if (hours <= 0) return;
 
         const dayKey = format(entryStart, 'yyyy-MM-dd');
-        
+
         if (!workData[employeeId]) workData[employeeId] = {};
         if (!workData[employeeId][dayKey]) workData[employeeId][dayKey] = {};
         if (!workData[employeeId][dayKey][entry.taskId]) workData[employeeId][dayKey][entry.taskId] = { hours: 0, pieces: 0 };
         
         workData[employeeId][dayKey][entry.taskId].hours += hours;
-    }
+    });
 
     // Aggregate pieces from piecework entries
-    for (const entry of piecework) {
-        if (!entry.timestamp || !entry.employeeId || !entry.taskId || !entry.pieceCount) continue;
+    piecework.forEach((entry: Piecework) => {
+        if (!entry.timestamp || !entry.employeeId || !entry.taskId || !entry.pieceCount) return;
         
-        const entryStart = parseISO(entry.timestamp);
-        if (!isWithinInterval(entryStart, reportInterval)) continue;
+        const entryStart = parseISO(String(entry.timestamp));
+        if (!isWithinInterval(entryStart, reportInterval)) return;
         
         const employeeIdentifiers = String(entry.employeeId).split(',').map(id => id.trim()).filter(Boolean);
-        if (employeeIdentifiers.length === 0) continue;
+        if (employeeIdentifiers.length === 0) return;
         
         const employeesOnTicket = employeeIdentifiers.map(findEmployee).filter((e): e is Employee => !!e);
-        if (employeesOnTicket.length === 0) continue;
+        if (employeesOnTicket.length === 0) return;
 
         const pieceCountPerEmployee = entry.pieceCount / employeesOnTicket.length;
         const dayKey = format(entryStart, 'yyyy-MM-dd');
@@ -149,7 +140,7 @@ const processPayrollData = ai.defineTool(
             
              workData[employeeId][dayKey][entry.taskId].pieces += pieceCountPerEmployee;
         }
-    }
+    });
 
     // 2. Process aggregated data to calculate earnings
     const employeeSummaries: EmployeePayrollSummary[] = [];
@@ -162,7 +153,7 @@ const processPayrollData = ai.defineTool(
         const empWork = workData[employeeId];
         const workByWeek: Record<string, Record<string, any>> = {};
 
-        // Group daily work into weeks
+        // Group daily work into weeks (using ISO week standard where Monday is the first day)
         for (const dayKey in empWork) {
             const date = parseISO(dayKey);
             const weekKey = `${getYear(date)}-${getWeek(date, { weekStartsOn: 1 })}`;
@@ -272,18 +263,4 @@ const processPayrollData = ai.defineTool(
         payDate: input.payDate,
         employeeSummaries,
     };
-  }
-);
-
-
-const generatePayrollReportFlow = ai.defineFlow(
-  {
-    name: 'generatePayrollReportFlow',
-    inputSchema: GeneratePayrollReportInputSchema,
-    outputSchema: ProcessedPayrollDataSchema,
-  },
-  async (input) => {
-    const processedData = await processPayrollData(input);
-    return processedData;
-  }
-);
+}
