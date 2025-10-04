@@ -12,7 +12,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 import {googleAI} from '@genkit-ai/google-genai';
 import { getWeek, getYear, format, startOfDay } from 'date-fns';
-import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail } from '@/lib/types';
+import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail, Employee, Piecework } from '@/lib/types';
 
 
 const STATE_MINIMUM_WAGE = 16.28;
@@ -142,12 +142,15 @@ const processPayrollData = ai.defineTool(
                 }
             }
         }
-
-        const empPiecework = piecework.filter((pw: any) => {
-            const employeeIdsInEntry = String(pw.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
-            return employeeIdsInEntry.includes(employee.id) || employeeIdsInEntry.includes(employee.qrCode);
-        });
         
+        const empPiecework = piecework.filter((pw: Piecework) => {
+            const employeeIdsInEntry = String(pw.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
+            const employeeInvolved = employeeIdsInEntry.some(qrOrId => {
+              return qrOrId === employee.id || qrOrId === employee.qrCode;
+            });
+            return employeeInvolved;
+          });
+
          for (const entry of empPiecework) {
             const start = new Date(entry.timestamp);
             const weekKey = `${getYear(start)}-${getWeek(start, { weekStartsOn: 1 })}`;
