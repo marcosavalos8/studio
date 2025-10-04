@@ -10,9 +10,8 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
-import {googleAI} from '@genkit-ai/google-genai';
 import { getWeek, getYear, format, startOfDay } from 'date-fns';
-import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail, Employee, Piecework } from '@/lib/types';
+import type { Client, Task, ProcessedPayrollData, EmployeePayrollSummary, WeeklySummary, DailyBreakdown, DailyTaskDetail, Employee, Piecework, TimeEntry } from '@/lib/types';
 
 
 const STATE_MINIMUM_WAGE = 16.28;
@@ -102,8 +101,8 @@ const processPayrollData = ai.defineTool(
     const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
     
     for (const employee of employees) {
-      // Phase 1: Aggregate Raw Data (Hours and Pieces)
-      const aggregatedRawData: Record<string, // weekKey
+      // Phase 1: Aggregate Raw Data (Hours and Pieces) per employee
+      const empWorkData: Record<string, // weekKey
         Record<string, // dayKey
           Record<string, // taskId
             { hours: number; pieceworkCount: number; }
@@ -111,69 +110,63 @@ const processPayrollData = ai.defineTool(
         >
       > = {};
 
-      const empTimeEntries = timeEntries.filter((te: any) => te.employeeId === employee.id && te.timestamp && te.endTime);
+      const empTimeEntries: TimeEntry[] = timeEntries.filter((te: any) => te.employeeId === employee.id && te.timestamp && te.endTime);
       for (const entry of empTimeEntries) {
         const start = new Date(entry.timestamp);
         const weekKey = `${getYear(start)}-${getWeek(start, { weekStartsOn: 1 })}`;
         const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
         
-        if (!aggregatedRawData[weekKey]) aggregatedRawData[weekKey] = {};
-        if (!aggregatedRawData[weekKey][dayKey]) aggregatedRawData[weekKey][dayKey] = {};
-        if (!aggregatedRawData[weekKey][dayKey][entry.taskId]) aggregatedRawData[weekKey][dayKey][entry.taskId] = { hours: 0, pieceworkCount: 0 };
+        if (!empWorkData[weekKey]) empWorkData[weekKey] = {};
+        if (!empWorkData[weekKey][dayKey]) empWorkData[weekKey][dayKey] = {};
+        if (!empWorkData[weekKey][dayKey][entry.taskId]) empWorkData[weekKey][dayKey][entry.taskId] = { hours: 0, pieceworkCount: 0 };
         
-        const hours = (new Date(entry.endTime).getTime() - start.getTime()) / (1000 * 60 * 60);
-        aggregatedRawData[weekKey][dayKey][entry.taskId].hours += hours;
+        const hours = (new Date(entry.endTime as Date).getTime() - start.getTime()) / (1000 * 60 * 60);
+        empWorkData[weekKey][dayKey][entry.taskId].hours += hours;
       }
       
-      const empPiecework = piecework.filter((pw: Piecework) => {
-          const employeeIdsInEntry = String(pw.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
-          // Check if employee.id or employee.qrCode is present
-          return employeeIdsInEntry.includes(employee.id) || employeeIdsInEntry.includes(employee.qrCode);
-      });
+      const empPiecework: Piecework[] = piecework.filter((pw: Piecework) => String(pw.employeeId || '').split(',').map(id => id.trim()).includes(employee.qrCode) || String(pw.employeeId || '').split(',').map(id => id.trim()).includes(employee.id));
       for (const entry of empPiecework) {
         const start = new Date(entry.timestamp);
         const weekKey = `${getYear(start)}-${getWeek(start, { weekStartsOn: 1 })}`;
         const dayKey = format(startOfDay(start), 'yyyy-MM-dd');
         
-        if (!aggregatedRawData[weekKey]) aggregatedRawData[weekKey] = {};
-        if (!aggregatedRawData[weekKey][dayKey]) aggregatedRawData[weekKey][dayKey] = {};
-        if (!aggregatedRawData[weekKey][dayKey][entry.taskId]) aggregatedRawData[weekKey][dayKey][entry.taskId] = { hours: 0, pieceworkCount: 0 };
+        if (!empWorkData[weekKey]) empWorkData[weekKey] = {};
+        if (!empWorkData[weekKey][dayKey]) empWorkData[weekKey][dayKey] = {};
+        if (!empWorkData[weekKey][dayKey][entry.taskId]) empWorkData[weekKey][dayKey][entry.taskId] = { hours: 0, pieceworkCount: 0 };
         
         const employeeIdsInEntry = String(entry.employeeId || '').split(',').map(id => id.trim()).filter(Boolean);
         const numEmployees = employeeIdsInEntry.length > 0 ? employeeIdsInEntry.length : 1;
         const individualPieceCount = (entry.pieceCount || 0) / numEmployees;
 
-        aggregatedRawData[weekKey][dayKey][entry.taskId].pieceworkCount += individualPieceCount;
+        empWorkData[weekKey][dayKey][entry.taskId].pieceworkCount += individualPieceCount;
       }
 
       // Phase 2: Process Aggregated Data to Calculate Earnings and Summaries
       const weeklySummaries: WeeklySummary[] = [];
 
-      for (const weekKey in aggregatedRawData) {
+      for (const weekKey in empWorkData) {
         let weeklyTotalHours = 0;
         let weeklyTotalPieceworkEarnings = 0;
         let weeklyTotalHourlyEarnings = 0;
-        let weeklyTotalEarnings = 0; // The crucial weekly total
         const clientIdsInWeek = new Set<string>();
         const dailyBreakdownsForWeek: DailyBreakdown[] = [];
 
-        const dayKeys = Object.keys(aggregatedRawData[weekKey]).sort();
+        const dayKeys = Object.keys(empWorkData[weekKey]).sort();
 
         for (const dayKey of dayKeys) {
             let dailyTotalHours = 0;
-            let dailyTotalEarnings = 0; // Crucial daily total
+            let dailyTotalEarnings = 0;
             const taskDetailsForDay: DailyTaskDetail[] = [];
 
-            const taskIds = Object.keys(aggregatedRawData[weekKey][dayKey]);
+            const taskIds = Object.keys(empWorkData[weekKey][dayKey]);
             for (const taskId of taskIds) {
                 const task = taskMap.get(taskId);
                 if (!task) continue;
 
                 clientIdsInWeek.add(task.clientId);
                 const clientName = clientMap.get(task.clientId)?.name || 'Unknown';
-                const rawDayData = aggregatedRawData[weekKey][dayKey][taskId];
+                const rawDayData = empWorkData[weekKey][dayKey][taskId];
                 
-                // *** CORE CALCULATION LOGIC (Simplified & Corrected) ***
                 const hourlyEarnings = task.employeePayType === 'hourly' ? rawDayData.hours * task.employeeRate : 0;
                 const pieceworkEarnings = task.employeePayType === 'piecework' ? rawDayData.pieceworkCount * task.employeeRate : 0;
                 const totalEarningsForTask = hourlyEarnings + pieceworkEarnings;
@@ -201,23 +194,18 @@ const processPayrollData = ai.defineTool(
                 totalDailyEarnings: parseFloat(dailyTotalEarnings.toFixed(2)),
             });
 
-            // Accumulate daily totals to the week's total
             weeklyTotalHours += dailyTotalHours;
-            weeklyTotalEarnings += dailyTotalEarnings;
             weeklyTotalHourlyEarnings += taskDetailsForDay.reduce((acc, t) => acc + t.hourlyEarnings, 0);
             weeklyTotalPieceworkEarnings += taskDetailsForDay.reduce((acc, t) => acc + t.pieceworkEarnings, 0);
         }
         
         const [year, weekNumber] = weekKey.split('-').map(Number);
         
-        const clientWages = Array.from(clientIdsInWeek).map(id => clientMap.get(id)?.minimumWage).filter(Boolean) as number[];
+        const clientWages = Array.from(clientIdsInWeek).map(id => (clientMap.get(id) as any)?.minimumWage).filter(Boolean) as number[];
         const applicableMinimumWage = clientWages.length > 0 ? Math.max(...clientWages) : STATE_MINIMUM_WAGE;
         
-        // This is the total for the week BEFORE adjustments. It's now correctly calculated.
-        let effectiveHourlyRate = 0;
-        if (weeklyTotalHours > 0) {
-            effectiveHourlyRate = weeklyTotalEarnings / weeklyTotalHours;
-        }
+        const weeklyTotalEarnings = weeklyTotalHourlyEarnings + weeklyTotalPieceworkEarnings;
+        let effectiveHourlyRate = weeklyTotalHours > 0 ? weeklyTotalEarnings / weeklyTotalHours : 0;
         
         let minimumWageTopUp = 0;
         if (weeklyTotalHours > 0 && effectiveHourlyRate < applicableMinimumWage) {
