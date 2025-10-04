@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Tabs,
@@ -62,8 +63,15 @@ function TimeTrackingPage() {
 
   const [jsConfetti, setJsConfetti] = useState<JSConfetti | null>(null);
 
+  // Bulk clock out
   const [isBulkClockingOut, setIsBulkClockingOut] = useState(false);
   const [selectedBulkTask, setSelectedBulkTask] = useState<string>('');
+  
+  // Bulk clock in
+  const [isBulkClockingIn, setIsBulkClockingIn] = useState(false);
+  const [selectedBulkInTask, setSelectedBulkInTask] = useState<string>('');
+  const [selectedBulkInEmployees, setSelectedBulkInEmployees] = useState<Set<string>>(new Set());
+
 
   const [selectedClient, setSelectedClient] = useState<string>('');
   const [selectedRanch, setSelectedRanch] = useState<string>('');
@@ -80,7 +88,7 @@ function TimeTrackingPage() {
 
   // Debounce state
   const [recentScans, setRecentScans] = useState<{ employeeId: string; taskId: string; mode: ScanMode; timestamp: number }[]>([]);
-  const DEBOUNCE_MS = 30000; // 30 seconds
+  const DEBOUNCE_MS = 5000; // 5 seconds
 
   const clientsQuery = useMemo(() => {
     if (!firestore) return null
@@ -271,14 +279,16 @@ function TimeTrackingPage() {
       const now = Date.now();
       
       let isDebounced = false;
-      setRecentScans(prev => {
-        const activeScans = prev.filter(scan => now - scan.timestamp < DEBOUNCE_MS);
-        isDebounced = activeScans.some(
-            scan => (scan.employeeId === scannedData) && scan.taskId === selectedTask && scan.mode === scanMode
-        );
-        return activeScans;
-      });
-      
+        setRecentScans(prev => {
+            const activeScans = prev.filter(scan => now - scan.timestamp < DEBOUNCE_MS);
+            isDebounced = activeScans.some(scan => 
+                scan.employeeId === scannedData && 
+                scan.taskId === selectedTask && 
+                scan.mode === scanMode
+            );
+            return activeScans;
+        });
+
       if (isDebounced) {
           toast({ variant: "destructive", title: "Duplicate Scan", description: `This action was already performed recently.` });
           return;
@@ -287,7 +297,7 @@ function TimeTrackingPage() {
       const scannedEmployee = activeEmployees?.find(e => e.qrCode === scannedData);
       
       if (scannedEmployee) {
-        setRecentScans(prev => [...prev, { employeeId: scannedEmployee.qrCode, taskId: selectedTask, mode: scanMode, timestamp: now }]);
+        setRecentScans(prev => [...prev, { employeeId: scannedData, taskId: selectedTask, mode: scanMode, timestamp: now }]);
         
         if (scanMode === 'clock-in') {
           await clockInEmployee(scannedEmployee, selectedTask);
@@ -295,13 +305,13 @@ function TimeTrackingPage() {
           await clockOutEmployee(scannedEmployee, selectedTask);
         } else if (scanMode === 'piece') {
            if (isSharedPiece) {
-             setScannedSharedEmployees(prev => {
-                if (prev.includes(scannedEmployee.qrCode)) {
-                    toast({ variant: "destructive", title: "Duplicate Employee", description: `${scannedEmployee.name} is already on the list.` });
-                    return prev;
-                }
-                return [...prev, scannedEmployee.qrCode];
-             });
+            setScannedSharedEmployees(prev => {
+              if (prev.includes(scannedEmployee.qrCode)) {
+                toast({ variant: "destructive", title: "Duplicate Employee", description: `${scannedEmployee.name} is already on the list.` });
+                return prev;
+              }
+              return [...prev, scannedEmployee.qrCode];
+            });
            } else {
              setScannedSharedEmployees([scannedEmployee.qrCode]);
              toast({ title: "Employee Scanned", description: `${scannedEmployee.name} ready. Scan a bin.` });
@@ -330,13 +340,10 @@ function TimeTrackingPage() {
     toast, 
     scanMode, 
     isSharedPiece, 
-    pieceEntryMode, 
     activeEmployees, 
     clockInEmployee, 
     clockOutEmployee, 
     recordPiecework, 
-    setScannedSharedEmployees, 
-    setRecentScans
 ]);
 
 
@@ -400,7 +407,10 @@ function TimeTrackingPage() {
     }
 
     setIsManualSubmitting(true);
-    await recordPiecework(scannedSharedEmployees, selectedTask, 'manual_entry');
+    const employeeQrCodes = scannedSharedEmployees.map(id => activeEmployees?.find(e => e.id === id)?.qrCode).filter(Boolean) as string[];
+    if (employeeQrCodes.length > 0) {
+        await recordPiecework(employeeQrCodes, selectedTask, 'manual_entry');
+    }
     setScannedSharedEmployees([]);
     setManualPieceQuantity(1);
     setIsManualSubmitting(false);
@@ -452,6 +462,61 @@ function TimeTrackingPage() {
         setIsBulkClockingOut(false);
     }
   };
+
+  const handleBulkClockIn = async () => {
+    if (!firestore || !selectedBulkInTask || selectedBulkInEmployees.size === 0) {
+        toast({ variant: "destructive", title: "Error", description: "Please select a task and at least one employee." });
+        return;
+    }
+    setIsBulkClockingIn(true);
+    
+    try {
+        const batch = writeBatch(firestore);
+        
+        // Sub-query for currently active entries of the selected employees
+        const activeEntriesQuery = query(
+            collection(firestore, 'time_entries'),
+            where('employeeId', 'in', Array.from(selectedBulkInEmployees)),
+            where('endTime', '==', null)
+        );
+        const activeEntriesSnap = await getDocs(activeEntriesQuery);
+
+        // Clock out any active sessions for the selected employees
+        activeEntriesSnap.forEach(doc => {
+            batch.update(doc.ref, { endTime: new Date() });
+        });
+
+        // Clock in all selected employees for the new task
+        selectedBulkInEmployees.forEach(employeeId => {
+            const newTimeEntryRef = doc(collection(firestore, 'time_entries'));
+            const newTimeEntry: Omit<TimeEntry, 'id'> = {
+                employeeId: employeeId,
+                taskId: selectedBulkInTask,
+                timestamp: new Date(),
+                endTime: null,
+                isBreak: false,
+            };
+            batch.set(newTimeEntryRef, newTimeEntry);
+        });
+
+        await batch.commit();
+        toast({
+            title: "Bulk Clock In Successful",
+            description: `Successfully clocked in ${selectedBulkInEmployees.size} employee(s).`,
+        });
+        setSelectedBulkInEmployees(new Set()); // Clear selection after success
+
+    } catch (serverError) {
+        const permissionError = new FirestorePermissionError({
+            path: 'time_entries', // Simplification for batch write
+            operation: 'write',
+            requestResourceData: { "message": `Bulk clock in for ${selectedBulkInEmployees.size} employees` },
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    } finally {
+        setIsBulkClockingIn(false);
+    }
+  }
 
   const SelectionFields = ({ isManual = false }: { isManual?: boolean }) => (
     <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${isManual ? 'p-4 border rounded-md' : ''}`}>
@@ -640,7 +705,7 @@ function TimeTrackingPage() {
                           })}
                       </ul>
                       <p className="text-muted-foreground text-sm mt-4">
-                        {isSharedPiece ? `Ready: Scan another employee or ${pieceEntryMode === 'scan' ? 'a bin' : 'submit count'}.` : `Ready: ${pieceEntryMode === 'scan' ? 'Scan a bin' : 'Submit count'}.`}
+                        {isSharedPiece ? `Ready: Scan another employee or ${pieceEntryMode === 'scan' ? 'a bin' : 'submit count'}.` : `Ready: ${pieceEntryMode === 'scan' ? 'Scan a bin' : 'submit count'}.`}
                       </p>
                   </CardContent>
                 </Card>
@@ -753,6 +818,84 @@ function TimeTrackingPage() {
                 {isManualSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                 Submit Log
               </Button>
+            </CardContent>
+          </Card>
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle>Bulk Clock In</CardTitle>
+              <CardDescription>
+                Clock in multiple employees for a single task.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="bulk-in-task-select">Task</Label>
+                    <Select value={selectedBulkInTask} onValueChange={setSelectedBulkInTask}>
+                        <SelectTrigger id="bulk-in-task-select">
+                            <SelectValue placeholder="Select a task for bulk clock-in" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {allTasks?.filter(t => t.status === 'Active').map(task => (
+                                <SelectItem key={task.id} value={task.id}>{task.name} ({clients?.find(c=>c.id === task.clientId)?.name})</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                {selectedBulkInTask && activeEmployees && (
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <Label className="font-semibold">Select Employees</Label>
+                            <div className="flex items-center space-x-2">
+                                <Checkbox
+                                    id="select-all-bulk-in"
+                                    checked={selectedBulkInEmployees.size === activeEmployees.length}
+                                    onCheckedChange={(checked) => {
+                                        if (checked) {
+                                            setSelectedBulkInEmployees(new Set(activeEmployees.map(e => e.id)));
+                                        } else {
+                                            setSelectedBulkInEmployees(new Set());
+                                        }
+                                    }}
+                                />
+                                <Label htmlFor="select-all-bulk-in" className="text-sm font-medium">
+                                    Select All
+                                </Label>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 border rounded-md p-4 max-h-60 overflow-y-auto">
+                            {activeEmployees.map(employee => (
+                                <div key={employee.id} className="flex items-center space-x-2">
+                                    <Checkbox
+                                        id={`bulk-in-${employee.id}`}
+                                        checked={selectedBulkInEmployees.has(employee.id)}
+                                        onCheckedChange={(checked) => {
+                                            setSelectedBulkInEmployees(prev => {
+                                                const newSet = new Set(prev);
+                                                if (checked) {
+                                                    newSet.add(employee.id);
+                                                } else {
+                                                    newSet.delete(employee.id);
+                                                }
+                                                return newSet;
+                                            });
+                                        }}
+                                    />
+                                    <Label htmlFor={`bulk-in-${employee.id}`} className="text-sm font-normal">
+                                        {employee.name}
+                                    </Label>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                 <Button 
+                    className="w-full" 
+                    onClick={handleBulkClockIn}
+                    disabled={isBulkClockingIn || !selectedBulkInTask || selectedBulkInEmployees.size === 0}
+                >
+                    {isBulkClockingIn && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Clock In {selectedBulkInEmployees.size > 0 ? selectedBulkInEmployees.size : ''} Employees
+                </Button>
             </CardContent>
           </Card>
           <Card className="mt-4">
