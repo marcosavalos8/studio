@@ -10,22 +10,10 @@ import {
 import { InvoicingForm } from "./invoicing-form"
 import { useCollection, useFirestore } from "@/firebase"
 import { collection, query, orderBy } from "firebase/firestore"
-import type { Client, Task } from "@/lib/types"
+import type { Client } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useMemo } from 'react';
 import { withAuth } from '@/components/withAuth'
-
-export type DailyInvoiceItem = {
-    date: string;
-    items: {
-        description: string;
-        unit: 'hours' | 'pieces';
-        quantity: number;
-        rate: number;
-        total: number;
-    }[];
-    dailyTotal: number;
-};
 
 export type DetailedInvoiceData = {
   client: Client;
@@ -33,7 +21,9 @@ export type DetailedInvoiceData = {
     from: string;
     to: string;
   };
-  dailyItems: DailyInvoiceItem[];
+  laborCost: number;
+  minimumWageTopUp: number;
+  paidRestBreaks: number;
   subtotal: number;
   commission: number;
   total: number;
@@ -48,13 +38,6 @@ function InvoicingPage() {
   }, [firestore])
   const { data: clients, isLoading: loadingClients } = useCollection<Client>(clientsQuery)
 
-  const tasksQuery = useMemo(() => {
-    if (!firestore) return null
-    return query(collection(firestore, "tasks"))
-  }, [firestore])
-  const { data: tasks, isLoading: loadingTasks } = useCollection<Task>(tasksQuery)
-
-  const loading = loadingClients || loadingTasks
 
   return (
     <div className="grid gap-4">
@@ -62,18 +45,18 @@ function InvoicingPage() {
         <CardHeader>
           <CardTitle>Generate Invoice</CardTitle>
           <CardDescription>
-            Select a client and date range to generate a detailed invoice for billing.
+            Select a client and date range to generate a detailed invoice for billing. This invoice includes all labor costs calculated according to WA state law.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {loading && (
+          {loadingClients && (
             <div className="grid gap-4 sm:grid-cols-3">
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
             </div>
           )}
-          {clients && tasks && <InvoicingForm clients={clients} tasks={tasks} />}
+          {clients && <InvoicingForm clients={clients} />}
         </CardContent>
       </Card>
     </div>

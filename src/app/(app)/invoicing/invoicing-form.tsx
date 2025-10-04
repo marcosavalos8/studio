@@ -3,7 +3,6 @@
 import * as React from "react"
 import { format } from "date-fns"
 import { Calendar as CalendarIcon, Loader2 } from "lucide-react"
-import { Timestamp } from 'firebase/firestore'
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -20,21 +19,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { Client, Task, Piecework, TimeEntry } from "@/lib/types"
+import type { Client, Task, Piecework, TimeEntry, Employee } from "@/lib/types"
 import type { DateRange } from "react-day-picker"
 import { useFirestore } from "@/firebase"
-import { collection, getDocs, query, where } from "firebase/firestore"
+import { collection, getDocs, query, where, Timestamp } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { type DetailedInvoiceData } from "./page"
 import { InvoiceReportDisplay } from './report-display'
+import { generatePayrollReport, ProcessedPayrollData } from "@/ai/flows/generate-payroll-report"
 
 
 type InvoicingFormProps = {
     clients: Client[];
-    tasks: Task[];
 };
 
-export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
+export function InvoicingForm({ clients }: InvoicingFormProps) {
   const firestore = useFirestore()
   const { toast } = useToast()
   const [date, setDate] = React.useState<DateRange | undefined>()
@@ -56,134 +55,68 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
         return
     }
 
-    const clientTasks = tasks.filter(task => task.clientId === clientData.id);
-    const clientTaskIds = clientTasks.map(t => t.id);
-    
     const startDate = new Date(date.from.setHours(0, 0, 0, 0));
     const endDate = new Date(date.to.setHours(23, 59, 59, 999));
 
-
-    if (clientTaskIds.length === 0) {
-        const finalInvoiceData: DetailedInvoiceData = {
-            client: clientData,
-            date: {
-              from: startDate.toISOString(),
-              to: endDate.toISOString()
-            },
-            dailyItems: [],
-            subtotal: 0,
-            commission: 0,
-            total: 0,
-        };
-        setInvoiceData(finalInvoiceData);
-        setIsGenerating(false)
-        return
-    }
-
     try {
-        const pieceworkByDay: Record<string, Record<string, number>> = {}; // { [date]: { [taskId]: pieceCount } }
-        const hoursByDay: Record<string, Record<string, number>> = {}; // { [date]: { [taskId]: hours } }
+        // Fetch all data required for the payroll flow
+        const employeesSnap = await getDocs(collection(firestore, 'employees'));
+        const allEmployees = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
 
-        // Fetch all logs within the date range first
-        const pieceLogsQuery = query(
-            collection(firestore, "piecework"),
-            where("timestamp", ">=", startDate),
-            where("timestamp", "<=", endDate)
-        );
-        
-        const timeLogsQuery = query(
-            collection(firestore, "time_entries"),
-            where("timestamp", ">=", startDate),
-            where("timestamp", "<=", endDate)
-        );
+        const tasksSnap = await getDocs(query(collection(firestore, 'tasks'), where('clientId', '==', clientData.id)));
+        const tasks = tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
 
-        const [pieceLogsSnap, timeLogsSnap] = await Promise.all([
-            getDocs(pieceLogsQuery),
-            getDocs(timeLogsQuery)
-        ]);
-        
-        // Then filter by client's tasks in code
-        pieceLogsSnap.forEach(doc => {
-            const log = doc.data() as Piecework;
-            if (clientTaskIds.includes(log.taskId)) {
-                const logDate = format((log.timestamp as unknown as Timestamp).toDate(), 'yyyy-MM-dd');
-                if (!pieceworkByDay[logDate]) pieceworkByDay[logDate] = {};
-                if (!pieceworkByDay[logDate][log.taskId]) pieceworkByDay[logDate][log.taskId] = 0;
-                pieceworkByDay[logDate][log.taskId] += log.pieceCount;
-            }
+        const timeEntriesQuery = query(collection(firestore, 'time_entries'),
+            where('timestamp', '>=', startDate),
+            where('timestamp', '<=', endDate)
+        );
+        const timeEntriesSnap = await getDocs(timeEntriesQuery);
+        const timeEntries = timeEntriesSnap.docs.map(doc => {
+            const data = doc.data();
+            return { 
+                ...data,
+                id: doc.id,
+                timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || null,
+                endTime: (data.endTime as Timestamp)?.toDate()?.toISOString() || null,
+            } as any;
         });
 
-        timeLogsSnap.forEach(doc => {
-            const log = doc.data() as TimeEntry;
-            if (log.endTime && clientTaskIds.includes(log.taskId)) {
-                const startTime = (log.timestamp as unknown as Timestamp).toDate();
-                const endTimeVal = (log.endTime as unknown as Timestamp).toDate();
-                const logDate = format(startTime, 'yyyy-MM-dd');
-                
-                if (endTimeVal >= startTime) {
-                    if (!hoursByDay[logDate]) hoursByDay[logDate] = {};
-                    if (!hoursByDay[logDate][log.taskId]) hoursByDay[logDate][log.taskId] = 0;
-                    const durationHours = (endTimeVal.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-                    hoursByDay[logDate][log.taskId] += durationHours;
-                }
-            }
+        const pieceworkQuery = query(collection(firestore, 'piecework'),
+            where('timestamp', '>=', startDate),
+            where('timestamp', '<=', endDate)
+        );
+        const pieceworkSnap = await getDocs(pieceworkQuery);
+        const piecework = pieceworkSnap.docs.map(doc => {
+            const data = doc.data();
+            return { 
+                ...data,
+                id: doc.id,
+                timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || null,
+            } as any;
         });
-        
-        const allDates = new Set([...Object.keys(pieceworkByDay), ...Object.keys(hoursByDay)]);
-        const sortedDates = Array.from(allDates).sort();
 
-        const dailyItems: DetailedInvoiceData['dailyItems'] = [];
+        const jsonData = JSON.stringify({
+            employees: allEmployees,
+            tasks,
+            clients: [clientData],
+            timeEntries,
+            piecework
+        });
 
-        for (const dateStr of sortedDates) {
-            const itemsForDay: DetailedInvoiceData['dailyItems'][0]['items'] = [];
-            let dailyTotal = 0;
+        // Call the AI payroll flow
+        const payrollResult = await generatePayrollReport({
+            startDate: format(startDate, 'yyyy-MM-dd'),
+            endDate: format(endDate, 'yyyy-MM-dd'),
+            payDate: format(new Date(), 'yyyy-MM-dd'), // Pay date is not critical for invoice
+            jsonData: jsonData,
+        });
 
-            const taskIdsOnDate = new Set([
-              ...Object.keys(pieceworkByDay[dateStr] || {}),
-              ...Object.keys(hoursByDay[dateStr] || {})
-            ]);
+        // Transform payroll data into invoice data
+        const laborCost = payrollResult.employeeSummaries.reduce((acc, emp) => acc + emp.overallTotalEarnings, 0);
+        const totalTopUp = payrollResult.employeeSummaries.reduce((acc, emp) => acc + emp.overallTotalMinimumWageTopUp, 0);
+        const totalRestBreaks = payrollResult.employeeSummaries.reduce((acc, emp) => acc + emp.overallTotalPaidRestBreaks, 0);
 
-            for (const taskId of taskIdsOnDate) {
-                const task = clientTasks.find(t => t.id === taskId);
-                if (!task) continue;
-
-                if (task.clientRateType === 'piece' && pieceworkByDay[dateStr]?.[taskId]) {
-                    const quantity = pieceworkByDay[dateStr][taskId];
-                    const total = quantity * task.clientRate;
-                    itemsForDay.push({
-                        description: `${task.name}${task.variety ? ' (' + task.variety + ')' : ''}`,
-                        unit: 'pieces',
-                        quantity: parseFloat(quantity.toFixed(2)),
-                        rate: task.clientRate,
-                        total: total
-                    });
-                    dailyTotal += total;
-                }
-
-                if (task.clientRateType === 'hourly' && hoursByDay[dateStr]?.[taskId]) {
-                    const hours = hoursByDay[dateStr][taskId];
-                    const total = hours * task.clientRate;
-                    itemsForDay.push({
-                        description: `${task.name}${task.variety ? ' (' + task.variety + ')' : ''}`,
-                        unit: 'hours',
-                        quantity: parseFloat(hours.toFixed(2)),
-                        rate: task.clientRate,
-                        total: total
-                    });
-                    dailyTotal += total;
-                }
-            }
-
-            if (itemsForDay.length > 0) {
-                dailyItems.push({
-                    date: dateStr,
-                    items: itemsForDay,
-                    dailyTotal: dailyTotal
-                });
-            }
-        }
-
-        const subtotal = dailyItems.reduce((sum, day) => sum + day.dailyTotal, 0);
+        const subtotal = laborCost + totalTopUp + totalRestBreaks;
         const commission = clientData.commissionRate ? subtotal * (clientData.commissionRate / 100) : 0;
         const total = subtotal + commission;
 
@@ -193,7 +126,9 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
               from: startDate.toISOString(),
               to: endDate.toISOString()
             },
-            dailyItems,
+            laborCost,
+            minimumWageTopUp: totalTopUp,
+            paidRestBreaks: totalRestBreaks,
             subtotal,
             commission,
             total,
@@ -277,7 +212,7 @@ export function InvoicingForm({ clients, tasks }: InvoicingFormProps) {
       {isGenerating && (
           <div className="mt-6 text-center">
               <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-              <p className="text-muted-foreground">Generating invoice...</p>
+              <p className="text-muted-foreground">Generating invoice... This may take a moment.</p>
           </div>
       )}
     </div>
