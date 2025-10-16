@@ -68,14 +68,12 @@ export async function generatePayrollReport(input: GeneratePayrollReportInput): 
                     return emp;
                 }).filter((e): e is Employee => !!e && reportEmployeeIds.has(e.id));
                 
-                const numRelevantEmployees = relevantEmployeesOnTicket.length;
+                const numRelevantEmployees = relevantEmployeesOnTicket.length > 0 ? relevantEmployeesOnTicket.length : 1;
 
-                if (numRelevantEmployees > 0) {
-                    empPiecework.push({
-                        ...pw,
-                        pieceCount: pw.pieceCount / numRelevantEmployees,
-                    });
-                }
+                empPiecework.push({
+                    ...pw,
+                    pieceCount: pw.pieceCount / numRelevantEmployees,
+                });
             }
         });
 
