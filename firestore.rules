@@ -96,14 +96,15 @@ service cloud.firestore {
       allow delete: if isAdmin() && resource != null;
     }
 
-    // --- Helper Functions ---
-    function isSignedIn() {
-      return request.auth != null;
-    }
+    // --- Funciones de Ayuda ---
+function isSignedIn() {
+  return request.auth != null;
+}
 
-    function isAdmin() {
-      // TODO: Implement admin check (e.g., based on a custom claim).  For prototyping, allow all signed-in users.
-      return request.auth != null;
-    }
+function isAdmin() {
+  // 🎯 ARREGLO: Comprobar el reclamo personalizado 'admin' en el token del usuario.
+  // Solo será true si el reclamo fue establecido por un servidor usando el Admin SDK.
+  return request.auth != null && request.auth.token.admin == true;
+}
   }
 }
