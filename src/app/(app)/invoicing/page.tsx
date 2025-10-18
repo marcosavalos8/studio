@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 import {
   Card,
@@ -6,14 +6,15 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { InvoicingForm } from "./invoicing-form"
-import { useCollection, useFirestore } from "@/firebase"
-import { collection, query, orderBy } from "firebase/firestore"
-import type { Client } from "@/lib/types"
-import { Skeleton } from "@/components/ui/skeleton"
-import { useMemo } from 'react';
-import { withAuth } from '@/components/withAuth'
+} from "@/components/ui/card";
+import { InvoicingForm } from "./invoicing-form";
+import { useCollection } from "@/firebase/firestore/use-collection";
+import { useFirestore } from "@/firebase";
+import { collection, query, orderBy } from "firebase/firestore";
+import type { Client } from "@/lib/types";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useMemo } from "react";
+import { withAuth } from "@/components/withAuth";
 
 export type DailyBreakdown = {
   [date: string]: {
@@ -24,8 +25,8 @@ export type DailyBreakdown = {
         pieces: number;
         cost: number;
         clientRate: number;
-        clientRateType: 'hourly' | 'piece';
-      }
+        clientRateType: "hourly" | "piece";
+      };
     };
     total: number;
   };
@@ -46,15 +47,14 @@ export type DetailedInvoiceData = {
   total: number;
 };
 
-
 function InvoicingPage() {
-  const firestore = useFirestore()
+  const firestore = useFirestore();
   const clientsQuery = useMemo(() => {
-    if (!firestore) return null
-    return query(collection(firestore, "clients"), orderBy("name"))
-  }, [firestore])
-  const { data: clients, isLoading: loadingClients } = useCollection<Client>(clientsQuery)
-
+    if (!firestore) return null;
+    return query(collection(firestore, "clients"), orderBy("name"));
+  }, [firestore]);
+  const { data: clients, isLoading: loadingClients } =
+    useCollection<Client>(clientsQuery);
 
   return (
     <div className="grid gap-4">
@@ -62,22 +62,24 @@ function InvoicingPage() {
         <CardHeader>
           <CardTitle>Generate Invoice</CardTitle>
           <CardDescription>
-            Select a client and date range to generate a detailed invoice for billing. This invoice includes all labor costs calculated according to WA state law.
+            Select a client and date range to generate a detailed invoice for
+            billing. This invoice includes all labor costs calculated according
+            to WA state law.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {loadingClients && (
             <div className="grid gap-4 sm:grid-cols-3">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
             </div>
           )}
           {clients && <InvoicingForm clients={clients} />}
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
 
 export default withAuth(InvoicingPage);

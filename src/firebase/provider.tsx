@@ -1,77 +1,95 @@
-'use client';
+"use client";
 
-import React, { createContext, useContext, ReactNode } from 'react';
-import dynamic from 'next/dynamic';
-import { FirebaseApp, initializeApp, getApps, getApp } from 'firebase/app';
-import { Firestore, getFirestore } from 'firebase/firestore';
-import { Auth, getAuth } from 'firebase/auth';
-import { firebaseConfig } from '@/firebase/config';
+import React, {
+  createContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  onAuthStateChanged,
+  signInAnonymously,
+  signOut,
+  signInWithEmailAndPassword,
+  type User,
+} from "firebase/auth";
+import { app, auth, firestore } from "@/firebase/index";
 
-// Dynamically import the listener only on the client side
-const FirebaseErrorListener = dynamic(() =>
-  import('@/components/FirebaseErrorListener').then((mod) => mod.FirebaseErrorListener),
-  { ssr: false }
-);
-
-interface FirebaseProviderProps {
-  children: ReactNode;
+export interface FirebaseContextValue {
+  app: typeof app;
+  auth: typeof auth;
+  firestore: typeof firestore;
+  user: User | null;
+  authReady: boolean;
+  signInAnon: () => Promise<void>;
+  signInEmail: (email: string, password: string) => Promise<void>;
+  signOutUser: () => Promise<void>;
 }
 
-export interface FirebaseContextState {
-  firebaseApp: FirebaseApp;
-  firestore: Firestore;
-  auth: Auth;
-}
+export const FirebaseContext = createContext<FirebaseContextValue>({
+  app: app as any,
+  auth: auth as any,
+  firestore: firestore as any,
+  user: null,
+  authReady: false,
+  signInAnon: async () => {},
+  signInEmail: async () => {},
+  signOutUser: async () => {},
+});
 
-export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
+export function FirebaseProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState<boolean>(false);
 
-// Ensure Firebase is initialized only once
-let firebaseApp: FirebaseApp;
-if (!getApps().length) {
-  firebaseApp = initializeApp(firebaseConfig);
-} else {
-  firebaseApp = getApp();
-}
-const auth = getAuth(firebaseApp);
-const firestore = getFirestore(firebaseApp);
-const services = { firebaseApp, firestore, auth };
+  useEffect(() => {
+    const unsub = onAuthStateChanged(
+      auth,
+      (u) => {
+        setUser(u);
+        setAuthReady(true);
+      },
+      () => {
+        // auth subsystem errored; mark ready so UI doesn't block forever
+        setAuthReady(true);
+      }
+    );
 
+    // Try anonymous sign-in automatically only if env flag enabled.
+    // Set NEXT_PUBLIC_FIREBASE_ANONYMOUS=true in Vercel/env if you want this behavior.
+    if (process.env.NEXT_PUBLIC_FIREBASE_ANONYMOUS === "true") {
+      // ignore error (e.g. anonymous disabled) — onAuthStateChanged will still fire
+      signInAnonymously(auth).catch(() => {});
+    }
 
-export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
-  children,
-}) => {
+    return () => unsub();
+  }, []);
+
+  async function signInAnon() {
+    await signInAnonymously(auth);
+  }
+
+  async function signInEmail(email: string, password: string) {
+    await signInWithEmailAndPassword(auth, email, password);
+  }
+
+  async function signOutUser() {
+    await signOut(auth);
+  }
+
   return (
-    <FirebaseContext.Provider value={services}>
-      <FirebaseErrorListener />
+    <FirebaseContext.Provider
+      value={{
+        app,
+        auth,
+        firestore,
+        user,
+        authReady,
+        signInAnon,
+        signInEmail,
+        signOutUser,
+      }}
+    >
       {children}
     </FirebaseContext.Provider>
   );
-};
-
-
-/** Hook to access Firebase App instance. */
-export const useFirebaseApp = (): FirebaseApp => {
-  const context = useContext(FirebaseContext);
-  if (context === undefined) {
-    throw new Error('useFirebaseApp must be used within a FirebaseProvider.');
-  }
-  return context.firebaseApp;
-};
-
-/** Hook to access Firebase Auth instance. */
-export const useAuth = (): Auth => {
-  const context = useContext(FirebaseContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within a FirebaseProvider.');
-  }
-  return context.auth;
-};
-
-/** Hook to access Firestore instance. */
-export const useFirestore = (): Firestore => {
-  const context = useContext(FirebaseContext);
-  if (context === undefined) {
-    throw new Error('useFirestore must be used within a FirebaseProvider.');
-  }
-  return context.firestore;
-};
+}
