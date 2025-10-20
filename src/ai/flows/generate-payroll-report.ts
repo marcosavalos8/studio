@@ -82,10 +82,10 @@ export async function generatePayrollReport({
     const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
 
     // Create maps for quick lookup by ID and QRCode
-    const allEmployeesById = new Map(
+    const allEmployeesById = new Map<string, Employee>( // <--- Asegura el tipado
       allEmployees.map((e: Employee) => [e.id, e])
     );
-    const allEmployeesByQr = new Map(
+    const allEmployeesByQr = new Map<string, Employee>( // <--- Asegura el tipado
       allEmployees.map((e: Employee) => [e.qrCode, e])
     );
 
@@ -122,9 +122,14 @@ export async function generatePayrollReport({
 
         const isEmployeeOnThisTicket = employeeIdentifiersOnTicket.some(
           (identifier) => {
-            // Check if the identifier matches the current employee being processed
-            const empFromId = allEmployeesById.get(identifier);
-            const empFromQr = allEmployeesByQr.get(identifier);
+            // Usa aserción 'as Employee | undefined' para ayudar al compilador.
+            const empFromId = allEmployeesById.get(identifier) as
+              | Employee
+              | undefined;
+            const empFromQr = allEmployeesByQr.get(identifier) as
+              | Employee
+              | undefined;
+
             return (
               (empFromId && empFromId.id === employeeId) ||
               (empFromQr && empFromQr.id === employeeId)

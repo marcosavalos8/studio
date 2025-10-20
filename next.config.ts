@@ -1,13 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: true,
   poweredByHeader: false,
-  typescript: {
-    ignoreBuildErrors: false,
-  },
-  // Disable trace in development to avoid permission issues
-  experimental: {
-    trace: process.env.NODE_ENV === "production",
-  },
+  // sin experimental.trace
 };
 
 module.exports = nextConfig;
