@@ -1,67 +1,114 @@
-'use client'
+"use client";
 
-import { useDoc, useFirestore } from '@/firebase'
-import type { Employee } from '@/lib/types'
-import { doc } from 'firebase/firestore'
-import { Loader2 } from 'lucide-react'
-import { useParams } from 'next/navigation'
-import React, { useEffect, useMemo, useRef } from 'react'
-import { QRCode } from 'react-qrcode-logo';
+import React from "react";
+import { doc } from "firebase/firestore";
+import { useFirestore } from "@/firebase";
+import { useDocument } from "@/firebase/firestore/use-doc";
+import { Employee } from "@/lib/types";
+import { QRCodeSVG } from "qrcode.react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
-export default function PrintBadgePage() {
-    const params = useParams()
-    const firestore = useFirestore()
-    const { id } = params
-  
-    const employeeRef = useMemo(() => {
-      if (!firestore || !id) return null
-      return doc(firestore, 'employees', id as string)
-    }, [firestore, id])
-  
-    const { data: employee, isLoading, error } = useDoc<Employee>(employeeRef)
-    const hasPrinted = useRef(false);
+interface PrintBadgePageProps {
+  params: Promise<{ id: string }>;
+}
 
-    useEffect(() => {
-        if (employee && !isLoading && !hasPrinted.current) {
-            hasPrinted.current = true;
-            // A short delay helps ensure the QR code is fully rendered before printing
-            setTimeout(() => window.print(), 500);
-        }
-    }, [employee, isLoading])
+export default function PrintBadgePage({ params }: PrintBadgePageProps) {
+  const router = useRouter();
+  const { id } = React.use(params);
+  const firestore = useFirestore();
+  const employeeRef = firestore ? doc(firestore, "employees", id) : null;
+  const { data: employee, loading, error } = useDocument<Employee>(employeeRef);
 
-    if (isLoading) {
-      return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>
-    }
-  
-    if (error || !employee) {
-      return <div className="flex h-screen items-center justify-center">Error loading employee data. Please try again.</div>
-    }
-  
-    return (
-        <div className="flex items-center justify-center h-screen bg-gray-100 print:bg-white">
-            <style jsx global>{`
-                @media print {
-                    body {
-                        -webkit-print-color-adjust: exact;
-                        print-color-adjust: exact;
-                    }
-                    @page {
-                        size: 4in 6in;
-                        margin: 0;
-                    }
-                }
-            `}</style>
-            <div className="w-[4in] h-[6in] bg-white border border-gray-300 shadow-lg print:shadow-none print:border-none rounded-lg flex flex-col items-center justify-center p-8 space-y-8">
-                <h1 className="text-4xl font-bold text-center break-words">{employee.name}</h1>
-                <div className="border-4 border-black p-2">
-                    <QRCode value={employee.qrCode} size={250} />
-                </div>
-                <p className="text-center text-gray-500 font-mono text-sm">{employee.qrCode}</p>
-                <div className="text-center">
-                    <p className="text-xl font-semibold text-primary">FieldTack WA</p>
-                    <p className="text-sm text-muted-foreground">{employee.role}</p>
-                </div>
-            </div>
+  const handlePrint = () => {
+    const printWindow = window.open("", "", "width=600,height=600");
+    if (!printWindow) return;
+
+    const content = `
+      <html>
+        <head>
+          <title>Employee Badge - ${employee?.name}</title>
+          <style>
+            body {
+              margin: 0;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              min-height: 100vh;
+            }
+            .badge-container {
+              text-align: center;
+              padding: 20px;
+            }
+            .employee-name {
+              font-size: 24px;
+              font-weight: bold;
+              margin-bottom: 16px;
+            }
+            .employee-id {
+              font-size: 14px;
+              color: #666;
+              margin-top: 16px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="badge-container">
+            <div class="employee-name">${employee?.name}</div>
+            ${document.querySelector(".qr-code-container")?.innerHTML || ""}
+            <div class="employee-id">${employee?.qrCode || employee?.id}</div>
+          </div>
+          <script>
+            window.onload = () => {
+              window.print();
+              window.onafterprint = () => window.close();
+            }
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(content);
+    printWindow.document.close();
+  };
+
+  const handleBack = () => {
+    router.push("/employees");
+  };
+
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error loading employee data</div>;
+  if (!employee) return <div>Employee not found</div>;
+
+  return (
+    <div className="min-h-screen p-8">
+      <div className="max-w-sm mx-auto bg-white p-6 rounded-lg shadow-md">
+        <div className="flex flex-col items-center justify-center">
+          <h2 className="text-xl font-bold mb-2 text-center">
+            {employee.name}
+          </h2>
+          <div className="qr-code-container mb-4 flex justify-center">
+            <QRCodeSVG
+              value={employee.qrCode || employee.id}
+              size={200}
+              level="H"
+              includeMargin={true}
+            />
+          </div>
+          <p className="text-sm text-gray-600 text-center">
+            {employee.qrCode || employee.id}
+          </p>
         </div>
-    )
-  }
+
+        <div className="mt-4 flex justify-between">
+          <Button onClick={handleBack} variant="outline">
+            Back to Employees
+          </Button>
+          <Button onClick={handlePrint} variant="default">
+            Print Badge
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

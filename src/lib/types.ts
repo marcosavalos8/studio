@@ -2,8 +2,8 @@ export type Employee = {
   id: string;
   name: string;
   qrCode: string;
-  role: 'Worker' | 'Supervisor';
-  status: 'Active' | 'Inactive';
+  role: "Worker" | "Supervisor";
+  status: "Active" | "Inactive";
 };
 
 export type Client = {
@@ -14,7 +14,7 @@ export type Client = {
   email?: string;
   commissionRate?: number;
   minimumWage?: number;
-  contractType?: 'Standard' | 'H2A';
+  contractType?: "Standard" | "H2A";
 };
 
 export type Task = {
@@ -25,10 +25,10 @@ export type Task = {
   block?: string;
   clientId: string; // client id
   clientRate: number;
-  clientRateType: 'hourly' | 'piece';
-  employeePayType: 'hourly' | 'piecework';
+  clientRateType: "hourly" | "piece";
+  employeePayType: "hourly" | "piecework";
   employeeRate: number;
-  status: 'Active' | 'Inactive' | 'Completed';
+  status: "Active" | "Inactive" | "Completed";
 };
 
 export type TimeEntry = {
@@ -38,12 +38,12 @@ export type TimeEntry = {
   timestamp: Date;
   endTime?: Date | null;
   isBreak: boolean;
-  breakReason?: 'Paid' | 'Unpaid Meal';
+  breakReason?: "Paid" | "Unpaid Meal";
 };
 
 export type Piecework = {
   id: string;
-  employeeId:string;
+  employeeId: string;
   taskId: string;
   timestamp: Date;
   pieceCount: number;
@@ -79,29 +79,57 @@ export type DailyBreakdown = {
 };
 
 export type WeeklySummary = {
-    weekNumber: number;
-    year: number;
-    totalHours: number;
-    totalEarnings: number; // Raw earnings from tasks
-    minimumWageTopUp: number;
-    paidRestBreaks: number;
-    finalPay: number; // totalEarnings + topUp + restBreaks
-    dailyBreakdown: DailyBreakdown[];
+  weekNumber: number;
+  year: number;
+  totalHours: number;
+  totalEarnings: number; // Raw earnings from tasks
+  minimumWageTopUp: number;
+  paidRestBreaks: number;
+  finalPay: number; // totalEarnings + topUp + restBreaks
+  dailyBreakdown: DailyBreakdown[];
 };
 
 export type EmployeePayrollSummary = {
-    employeeId: string;
-    employeeName: string;
-    weeklySummaries: WeeklySummary[];
-    finalPay: number;
+  employeeId: string;
+  employeeName: string;
+  weeklySummaries: WeeklySummary[];
+  finalPay: number;
 };
 
 export type ProcessedPayrollData = {
-    startDate: string;
-    endDate: string;
-    payDate: string;
-    employeeSummaries: EmployeePayrollSummary[];
+  startDate: string;
+  endDate: string;
+  payDate: string;
+  employeeSummaries: EmployeePayrollSummary[];
 };
-    
 
-    
+export interface InvoiceData {
+  client: Client;
+  date: {
+    from: string;
+    to: string;
+  };
+  dailyBreakdown: Record<string, DailyBreakdownEntry>;
+  laborCost: number;
+  minimumWageTopUp: number;
+  paidRestBreaks: number;
+  subtotal: number;
+  commission: number;
+  total: number;
+}
+
+export interface DailyBreakdownEntry {
+  date: string;
+  tasks: Record<
+    string,
+    {
+      name: string;
+      hours: number;
+      pieces: number;
+      clientRate: number;
+      clientRateType: "hourly" | "piecework";
+      cost: number;
+    }
+  >;
+  total: number;
+}

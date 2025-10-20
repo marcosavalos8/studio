@@ -1,228 +1,303 @@
-'use client'
+"use client";
 
-import * as React from "react"
-import { format } from "date-fns"
-import { Calendar as CalendarIcon, Loader2 } from "lucide-react"
+import * as React from "react";
+import { format } from "date-fns";
+import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
 
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover"
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import type { Client, Task, Piecework, TimeEntry, Employee } from "@/lib/types"
-import type { DateRange } from "react-day-picker"
-import { useFirestore } from "@/firebase"
-import { collection, getDocs, query, where, Timestamp } from "firebase/firestore"
-import { useToast } from "@/hooks/use-toast"
-import { type DetailedInvoiceData } from "./page"
-import { InvoiceReportDisplay } from './report-display'
-import { generatePayrollReport } from "@/ai/flows/generate-payroll-report"
-
+} from "@/components/ui/select";
+import type { Client, Task, Piecework, TimeEntry, Employee } from "@/lib/types";
+import type { DateRange } from "react-day-picker";
+import { useFirestore } from "@/firebase";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  Timestamp,
+} from "firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
+import { type DetailedInvoiceData } from "./page";
+import { InvoiceReportDisplay } from "./report-display";
+import { generatePayrollReport } from "@/ai/flows/generate-payroll-report";
 
 type InvoicingFormProps = {
-    clients: Client[];
+  clients: Client[];
 };
 
 export function InvoicingForm({ clients }: InvoicingFormProps) {
-  const firestore = useFirestore()
-  const { toast } = useToast()
-  const [date, setDate] = React.useState<DateRange | undefined>()
-  const [selectedClient, setSelectedClient] = React.useState<Client | undefined>()
-  const [isGenerating, setIsGenerating] = React.useState(false)
-  const [invoiceData, setInvoiceData] = React.useState<DetailedInvoiceData | null>(null);
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  const [date, setDate] = React.useState<DateRange | undefined>();
+  const [selectedClient, setSelectedClient] = React.useState<
+    Client | undefined
+  >();
+  const [isGenerating, setIsGenerating] = React.useState(false);
+  const [invoiceData, setInvoiceData] =
+    React.useState<DetailedInvoiceData | null>(null);
 
   const handleGenerate = async () => {
     if (!firestore || !selectedClient || !date?.from || !date?.to) {
-        toast({ title: 'Please select a client and a date range.', variant: 'destructive' });
-        return;
+      toast({
+        title: "Please select a client and a date range.",
+        variant: "destructive",
+      });
+      return;
     }
-    setIsGenerating(true)
+    setIsGenerating(true);
     setInvoiceData(null);
 
-    const clientData = clients.find(c => c.id === selectedClient.id)
+    const clientData = clients.find((c) => c.id === selectedClient.id);
     if (!clientData) {
-        setIsGenerating(false)
-        return
+      setIsGenerating(false);
+      return;
     }
 
     const startDate = new Date(date.from.setHours(0, 0, 0, 0));
     const endDate = new Date(date.to.setHours(23, 59, 59, 999));
 
     try {
-        // Fetch all data required for the payroll flow
-        const employeesSnap = await getDocs(collection(firestore, 'employees'));
-        const allEmployees = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+      // Fetch all data required for the payroll flow
+      const employeesSnap = await getDocs(collection(firestore, "employees"));
+      const allEmployees = employeesSnap.docs.map(
+        (doc) => ({ id: doc.id, ...doc.data() } as Employee)
+      );
 
-        const tasksSnap = await getDocs(query(collection(firestore, 'tasks'), where('clientId', '==', clientData.id)));
-        const tasks = tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
+      const tasksSnap = await getDocs(
+        query(
+          collection(firestore, "tasks"),
+          where("clientId", "==", clientData.id)
+        )
+      );
+      const tasks = tasksSnap.docs.map(
+        (doc) => ({ id: doc.id, ...doc.data() } as Task)
+      );
 
-        const taskIds = tasks.map(t => t.id);
+      const taskIds = tasks.map((t) => t.id);
 
-        if (taskIds.length === 0) {
-            toast({ title: 'No tasks found for this client.', description: 'Cannot generate an invoice without tasks.' });
-            setIsGenerating(false);
-            return;
-        }
-
-        // Fetch all entries within the date range, then filter by task IDs in code
-        const timeEntriesQuery = query(collection(firestore, 'time_entries'),
-            where('timestamp', '>=', startDate),
-            where('timestamp', '<=', endDate)
-        );
-        const timeEntriesSnap = await getDocs(timeEntriesQuery);
-        const timeEntries = timeEntriesSnap.docs
-            .map(doc => ({ ...doc.data(), id: doc.id } as TimeEntry))
-            .filter(te => taskIds.includes(te.taskId))
-            .map(te => ({ 
-                ...te,
-                timestamp: (te.timestamp as unknown as Timestamp)?.toDate().toISOString() || null,
-                endTime: (te.endTime as unknown as Timestamp)?.toDate()?.toISOString() || null,
-            }));
-
-        const pieceworkQuery = query(collection(firestore, 'piecework'),
-            where('timestamp', '>=', startDate),
-            where('timestamp', '<=', endDate)
-        );
-        const pieceworkSnap = await getDocs(pieceworkQuery);
-        const piecework = pieceworkSnap.docs
-            .map(doc => ({ ...doc.data(), id: doc.id } as Piecework))
-            .filter(pw => taskIds.includes(pw.taskId))
-            .map(pw => ({ 
-                ...pw,
-                timestamp: (pw.timestamp as unknown as Timestamp)?.toDate().toISOString() || null,
-            }));
-
-
-        const jsonData = JSON.stringify({
-            employees: allEmployees,
-            tasks,
-            clients: [clientData],
-            timeEntries,
-            piecework
+      if (taskIds.length === 0) {
+        toast({
+          title: "No tasks found for this client.",
+          description: "Cannot generate an invoice without tasks.",
         });
+        setIsGenerating(false);
+        return;
+      }
 
-        // Call the AI payroll flow
-        const payrollResult = await generatePayrollReport({
-            startDate: format(startDate, 'yyyy-MM-dd'),
-            endDate: format(endDate, 'yyyy-MM-dd'),
-            payDate: format(new Date(), 'yyyy-MM-dd'), // Pay date is not critical for invoice
-            jsonData: jsonData,
-        });
+      // Fetch all entries within the date range, then filter by task IDs in code
+      const timeEntriesQuery = query(
+        collection(firestore, "time_entries"),
+        where("timestamp", ">=", startDate),
+        where("timestamp", "<=", endDate)
+      );
+      const timeEntriesSnap = await getDocs(timeEntriesQuery);
+      const timeEntries = timeEntriesSnap.docs
+        .map((doc) => ({ ...doc.data(), id: doc.id } as TimeEntry))
+        .filter((te) => taskIds.includes(te.taskId))
+        .map((te) => ({
+          ...te,
+          timestamp:
+            (te.timestamp as unknown as Timestamp)?.toDate().toISOString() ||
+            null,
+          endTime:
+            (te.endTime as unknown as Timestamp)?.toDate()?.toISOString() ||
+            null,
+        }));
 
-        // --- Transform payroll data into detailed invoice data ---
-        const dailyBreakdown: DetailedInvoiceData['dailyBreakdown'] = {};
+      const pieceworkQuery = query(
+        collection(firestore, "piecework"),
+        where("timestamp", ">=", startDate),
+        where("timestamp", "<=", endDate)
+      );
+      const pieceworkSnap = await getDocs(pieceworkQuery);
+      const piecework = pieceworkSnap.docs
+        .map((doc) => ({ ...doc.data(), id: doc.id } as Piecework))
+        .filter((pw) => taskIds.includes(pw.taskId))
+        .map((pw) => ({
+          ...pw,
+          timestamp:
+            (pw.timestamp as unknown as Timestamp)?.toDate().toISOString() ||
+            null,
+        }));
 
-        payrollResult.employeeSummaries.forEach(emp => {
-          emp.weeklySummaries.forEach(week => {
-            week.dailyBreakdown.forEach(day => {
-              if (!dailyBreakdown[day.date]) {
-                dailyBreakdown[day.date] = { tasks: {}, total: 0 };
+      const jsonData = JSON.stringify({
+        employees: allEmployees,
+        tasks,
+        clients: [clientData],
+        timeEntries,
+        piecework,
+      });
+      console.log("Sending to payroll generation:", {
+        employeesCount: allEmployees.length,
+        tasksCount: tasks.length,
+        timeEntriesCount: timeEntries.length,
+        pieceworkCount: piecework.length,
+        jsonDataLength: jsonData.length,
+      });
+      // Call the AI payroll flow
+      const payrollResult = await generatePayrollReport({
+        startDate: format(startDate, "yyyy-MM-dd"),
+        endDate: format(endDate, "yyyy-MM-dd"),
+        payDate: format(new Date(), "yyyy-MM-dd"), // Pay date is not critical for invoice
+        jsonData: jsonData,
+      });
+
+      // --- Transform payroll data into detailed invoice data ---
+      const dailyBreakdown: DetailedInvoiceData["dailyBreakdown"] = {};
+
+      payrollResult.employeeSummaries.forEach((emp) => {
+        emp.weeklySummaries.forEach((week) => {
+          week.dailyBreakdown.forEach((day) => {
+            if (!dailyBreakdown[day.date]) {
+              dailyBreakdown[day.date] = { tasks: {}, total: 0 };
+            }
+            day.tasks.forEach((task) => {
+              // Ensure task is for the currently selected client
+              const originalTask = tasks.find(
+                (t) =>
+                  t.name === task.taskName.split(" (")[0] &&
+                  t.clientId === clientData.id
+              );
+              if (!originalTask) return;
+
+              if (!dailyBreakdown[day.date].tasks[task.taskName]) {
+                dailyBreakdown[day.date].tasks[task.taskName] = {
+                  taskName: task.taskName,
+                  hours: 0,
+                  pieces: 0,
+                  cost: 0,
+                  clientRate: originalTask.clientRate,
+                  clientRateType: originalTask.clientRateType,
+                };
               }
-              day.tasks.forEach(task => {
-                // Ensure task is for the currently selected client
-                 const originalTask = tasks.find(t => t.name === task.taskName.split(' (')[0] && t.clientId === clientData.id);
-                 if (!originalTask) return;
-
-                if (!dailyBreakdown[day.date].tasks[task.taskName]) {
-                  dailyBreakdown[day.date].tasks[task.taskName] = {
-                    taskName: task.taskName,
-                    hours: 0,
-                    pieces: 0,
-                    cost: 0,
-                    clientRate: originalTask.clientRate,
-                    clientRateType: originalTask.clientRateType,
-                  };
-                }
-                const taskDetail = dailyBreakdown[day.date].tasks[task.taskName];
-                taskDetail.hours += task.hours;
-                taskDetail.pieces += task.pieceworkCount;
-              });
+              const taskDetail = dailyBreakdown[day.date].tasks[task.taskName];
+              taskDetail.hours += task.hours;
+              taskDetail.pieces += task.pieceworkCount;
             });
           });
         });
+      });
 
-        // Recalculate costs and daily totals based on client rates
-        Object.values(dailyBreakdown).forEach(day => {
-            let dailyTotal = 0;
-            Object.values(day.tasks).forEach(task => {
-                if (task.clientRateType === 'hourly') {
-                  task.cost = task.hours * task.clientRate;
-                } else {
-                  task.cost = task.pieces * task.clientRate;
-                }
-                dailyTotal += task.cost;
-            })
-            day.total = dailyTotal;
+      // Recalculate costs and daily totals based on client rates
+      Object.values(dailyBreakdown).forEach((day) => {
+        let dailyTotal = 0;
+        Object.values(day.tasks).forEach((task) => {
+          if (task.clientRateType === "hourly") {
+            task.cost = task.hours * task.clientRate;
+          } else {
+            task.cost = task.pieces * task.clientRate;
+          }
+          dailyTotal += task.cost;
         });
-        
-        const laborCost = Object.values(dailyBreakdown).reduce((acc, day) => acc + day.total, 0);
-        // Sum up adjustments ONLY for employees who worked on this client's tasks
-        const relevantEmployeeIds = new Set(
-            [...timeEntries, ...piecework].map(entry => entry.employeeId)
+        day.total = dailyTotal;
+      });
+
+      const laborCost = Object.values(dailyBreakdown).reduce(
+        (acc, day) => acc + day.total,
+        0
+      );
+      // Sum up adjustments ONLY for employees who worked on this client's tasks
+      // Sum up adjustments ONLY for employees who worked on this client's tasks
+      const relevantEmployeeIds = new Set(
+        [...timeEntries, ...piecework].map((entry) => entry.employeeId)
+      );
+      const filteredSummaries = payrollResult.employeeSummaries.filter((emp) =>
+        relevantEmployeeIds.has(emp.employeeId)
+      );
+
+      // CORRECCIÓN: Sumar los ajustes recorriendo los weeklySummaries
+      const totalTopUp = filteredSummaries.reduce((acc, emp) => {
+        return (
+          acc +
+          emp.weeklySummaries.reduce(
+            (weekAcc, week) => weekAcc + week.minimumWageTopUp,
+            0
+          )
         );
-        const filteredSummaries = payrollResult.employeeSummaries.filter(emp => relevantEmployeeIds.has(emp.employeeId));
+      }, 0);
 
-        const totalTopUp = filteredSummaries.reduce((acc, emp) => acc + emp.overallTotalMinimumWageTopUp, 0);
-        const totalRestBreaks = filteredSummaries.reduce((acc, emp) => acc + emp.overallTotalPaidRestBreaks, 0);
+      const totalRestBreaks = filteredSummaries.reduce((acc, emp) => {
+        return (
+          acc +
+          emp.weeklySummaries.reduce(
+            (weekAcc, week) => weekAcc + week.paidRestBreaks,
+            0
+          )
+        );
+      }, 0);
 
+      const subtotal = laborCost + totalTopUp + totalRestBreaks;
+      const commission = clientData.commissionRate
+        ? subtotal * (clientData.commissionRate / 100)
+        : 0;
+      const total = subtotal + commission;
 
-        const subtotal = laborCost + totalTopUp + totalRestBreaks;
-        const commission = clientData.commissionRate ? subtotal * (clientData.commissionRate / 100) : 0;
-        const total = subtotal + commission;
-
-        const finalInvoiceData: DetailedInvoiceData = {
-            client: clientData,
-            date: {
-              from: startDate.toISOString(),
-              to: endDate.toISOString()
-            },
-            dailyBreakdown,
-            laborCost,
-            minimumWageTopUp: totalTopUp,
-            paidRestBreaks: totalRestBreaks,
-            subtotal,
-            commission,
-            total,
-        };
-        setInvoiceData(finalInvoiceData);
-
-    } catch(err) {
-        console.error("Error generating invoice:", err)
-        toast({
-            variant: "destructive",
-            title: "Invoice Generation Failed",
-            description: "Could not fetch or process data for the invoice. Please check the console for errors."
-        })
+      const finalInvoiceData: DetailedInvoiceData = {
+        client: clientData,
+        date: {
+          from: startDate.toISOString(),
+          to: endDate.toISOString(),
+        },
+        dailyBreakdown,
+        laborCost,
+        minimumWageTopUp: totalTopUp,
+        paidRestBreaks: totalRestBreaks,
+        subtotal,
+        commission,
+        total,
+      };
+      setInvoiceData(finalInvoiceData);
+    } catch (err) {
+      console.error("Error generating invoice:", err);
+      toast({
+        variant: "destructive",
+        title: "Invoice Generation Failed",
+        description:
+          "Could not fetch or process data for the invoice. Please check the console for errors.",
+      });
     } finally {
-        setIsGenerating(false)
+      setIsGenerating(false);
     }
-  }
-  
-  if (invoiceData) {
-    return <InvoiceReportDisplay report={invoiceData} onBack={() => setInvoiceData(null)} />;
-  }
+  };
 
+  if (invoiceData) {
+    return (
+      <InvoiceReportDisplay
+        report={invoiceData}
+        onBack={() => setInvoiceData(null)}
+      />
+    );
+  }
 
   return (
     <div>
       <div className="grid gap-4 sm:grid-cols-3">
-        <Select onValueChange={(value) => setSelectedClient(clients.find(c => c.id === value))}>
+        <Select
+          onValueChange={(value) =>
+            setSelectedClient(clients.find((c) => c.id === value))
+          }
+        >
           <SelectTrigger>
             <SelectValue placeholder="Select a client" />
           </SelectTrigger>
           <SelectContent>
-            {clients.map(client => (
-              <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+            {clients.map((client) => (
+              <SelectItem key={client.id} value={client.id}>
+                {client.name}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -264,18 +339,23 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           </PopoverContent>
         </Popover>
 
-        <Button onClick={handleGenerate} disabled={isGenerating || !selectedClient || !date}>
+        <Button
+          onClick={handleGenerate}
+          disabled={isGenerating || !selectedClient || !date}
+        >
           {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Generate Invoice
         </Button>
       </div>
 
       {isGenerating && (
-          <div className="mt-6 text-center">
-              <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-              <p className="text-muted-foreground">Generating invoice... This may take a moment.</p>
-          </div>
+        <div className="mt-6 text-center">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">
+            Generating invoice... This may take a moment.
+          </p>
+        </div>
       )}
     </div>
-  )
+  );
 }

@@ -79,7 +79,8 @@
   body {
     @apply bg-background text-foreground;
   }
-  .rdp-day_range_start, .rdp-day_range_end {
+  .rdp-day_range_start,
+  .rdp-day_range_end {
     background-color: hsl(var(--primary)) !important;
     color: hsl(var(--primary-foreground)) !important;
   }
