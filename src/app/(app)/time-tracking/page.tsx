@@ -798,52 +798,54 @@ function TimeTrackingPage() {
     <div className="max-w-4xl mx-auto">
       <Tabs defaultValue="qr-scanner">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="qr-scanner">
-            <QrCode className="mr-2 h-4 w-4" />
-            QR Scanner
+          <TabsTrigger value="qr-scanner" className="text-xs sm:text-sm">
+            <QrCode className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">QR Scanner</span>
+            <span className="sm:hidden">Scanner</span>
           </TabsTrigger>
-          <TabsTrigger value="manual-entry">
-            <ClipboardEdit className="mr-2 h-4 w-4" />
-            Manual Entry
+          <TabsTrigger value="manual-entry" className="text-xs sm:text-sm">
+            <ClipboardEdit className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Manual Entry</span>
+            <span className="sm:hidden">Manual</span>
           </TabsTrigger>
         </TabsList>
         <TabsContent value="qr-scanner">
           <Card>
             <CardHeader>
-              <CardTitle>QR Code Scanner</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-lg md:text-xl">QR Code Scanner</CardTitle>
+              <CardDescription className="text-sm">
                 Select task and mode. Actions are processed automatically upon
                 valid scan.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 md:space-y-4">
               <SelectionFields />
 
-              <div className="space-y-4 rounded-lg border bg-card text-card-foreground shadow-sm p-4">
+              <div className="space-y-3 md:space-y-4 rounded-lg border bg-card text-card-foreground shadow-sm p-3 md:p-4">
                 <Label className="font-semibold">Scan Mode</Label>
                 <RadioGroup
                   value={scanMode}
                   onValueChange={(value) => setScanMode(value as ScanMode)}
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4"
                 >
                   <Label
                     htmlFor="mode-clock-in"
-                    className="flex flex-1 items-center gap-3 rounded-md border p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
+                    className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
                   >
                     <RadioGroupItem value="clock-in" id="mode-clock-in" />
-                    <div className="flex items-center gap-2">
-                      <LogIn className="h-5 w-5 text-green-600" />
-                      <p className="font-medium">Clock In</p>
+                    <div className="flex items-center gap-1 md:gap-2">
+                      <LogIn className="h-4 w-4 md:h-5 md:w-5 text-green-600" />
+                      <p className="font-medium text-sm md:text-base">Clock In</p>
                     </div>
                   </Label>
                   <Label
                     htmlFor="mode-clock-out"
-                    className="flex flex-1 items-center gap-3 rounded-md border p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
+                    className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
                   >
                     <RadioGroupItem value="clock-out" id="mode-clock-out" />
-                    <div className="flex items-center gap-2">
-                      <LogOut className="h-5 w-5 text-red-600" />
-                      <p className="font-medium">Clock Out</p>
+                    <div className="flex items-center gap-1 md:gap-2">
+                      <LogOut className="h-4 w-4 md:h-5 md:w-5 text-red-600" />
+                      <p className="font-medium text-sm md:text-base">Clock Out</p>
                     </div>
                   </Label>
                   <Label

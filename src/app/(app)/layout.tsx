@@ -34,7 +34,7 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
       <AppSidebar />
       <SidebarInset>
         <AppHeader />
-        <div className="p-4 sm:p-6 lg:p-8">{children}</div>
+        <div className="p-3 sm:p-4 md:p-6 lg:p-8">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );

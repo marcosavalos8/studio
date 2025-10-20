@@ -118,9 +118,9 @@ export default function TasksPage() {
       <TableHeader>
         <TableRow>
           <TableHead>Task Name</TableHead>
-          <TableHead>Location</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Employee Pay</TableHead>
+          <TableHead className="hidden md:table-cell">Location</TableHead>
+          <TableHead className="hidden lg:table-cell">Status</TableHead>
+          <TableHead className="hidden lg:table-cell">Employee Pay</TableHead>
           <TableHead className="text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
@@ -128,12 +128,34 @@ export default function TasksPage() {
         {tasks.map((task) => (
           <TableRow key={task.id}>
             <TableCell className="font-medium">
-              {task.name}{" "}
-              <span className="text-muted-foreground">
-                ({task.variety || "N/A"})
-              </span>
+              <div className="flex flex-col">
+                <span>
+                  {task.name}{" "}
+                  <span className="text-muted-foreground">
+                    ({task.variety || "N/A"})
+                  </span>
+                </span>
+                <span className="md:hidden text-xs text-muted-foreground mt-1">
+                  {task.ranch || "-"} - {task.block || "-"}
+                </span>
+                <span className="lg:hidden text-xs mt-1">
+                  <Badge
+                    className={cn("text-xs", {
+                      "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300":
+                        task.status === "Active",
+                      "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300":
+                        task.status === "Inactive",
+                      "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300":
+                        task.status === "Completed",
+                    })}
+                    variant="outline"
+                  >
+                    {task.status}
+                  </Badge>
+                </span>
+              </div>
             </TableCell>
-            <TableCell>
+            <TableCell className="hidden md:table-cell">
               <div className="flex flex-col">
                 <span className="font-medium">{task.ranch || "-"}</span>
                 <span className="text-muted-foreground">
@@ -141,7 +163,7 @@ export default function TasksPage() {
                 </span>
               </div>
             </TableCell>
-            <TableCell>
+            <TableCell className="hidden lg:table-cell">
               <Badge
                 className={cn({
                   "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300":
@@ -156,7 +178,7 @@ export default function TasksPage() {
                 {task.status}
               </Badge>
             </TableCell>
-            <TableCell>
+            <TableCell className="hidden lg:table-cell">
               <div className="flex flex-col">
                 <span className="font-medium">
                   ${task.employeeRate.toFixed(2)}/
@@ -199,7 +221,7 @@ export default function TasksPage() {
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0">
           <div>
             <CardTitle>Tasks & Projects</CardTitle>
             <CardDescription>
@@ -208,16 +230,16 @@ export default function TasksPage() {
           </div>
           <Button
             size="sm"
-            className="gap-1"
+            className="gap-1 w-full sm:w-auto"
             onClick={() => setAddDialogOpen(true)}
             disabled={loadingClients}
           >
             <PlusCircle className="h-4 w-4" />
-            Add Task
+            <span className="hidden sm:inline">Add Task</span>
+            <span className="sm:hidden">Add</span>
           </Button>
         </CardHeader>
-        <CardContent>
-          {loading && <p>Loading tasks...</p>}
+        <CardContent className="overflow-x-auto">{loading && <p>Loading tasks...</p>}
           {!loading && (
             <Accordion
               type="multiple"

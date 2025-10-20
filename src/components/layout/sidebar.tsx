@@ -39,14 +39,14 @@ export function AppSidebar() {
   const pathname = usePathname()
 
   return (
-    <Sidebar>
-      <SidebarHeader>
+    <Sidebar className="border-r">
+      <SidebarHeader className="border-b px-4 py-3">
         <div className="flex items-center gap-2">
-          <Logo className="size-8 text-primary" />
-          <span className="text-lg font-semibold text-sidebar-foreground">FieldTack WA</span>
+          <Logo className="size-7 md:size-8 text-primary flex-shrink-0" />
+          <span className="text-base md:text-lg font-semibold text-sidebar-foreground truncate">FieldTack WA</span>
         </div>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="py-2">
         <SidebarMenu>
           {menuItems.map((item) => (
             <SidebarMenuItem key={item.href}>
@@ -55,10 +55,11 @@ export function AppSidebar() {
                   asChild
                   isActive={pathname.startsWith(item.href)}
                   tooltip={item.label}
+                  className="px-3 py-2"
                 >
                   <div>
-                    <item.icon />
-                    <span>{item.label}</span>
+                    <item.icon className="flex-shrink-0" />
+                    <span className="truncate">{item.label}</span>
                   </div>
                 </SidebarMenuButton>
               </Link>
@@ -66,18 +67,18 @@ export function AppSidebar() {
           ))}
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="border-t py-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Support">
-              <LifeBuoy />
-              <span>Support</span>
+            <SidebarMenuButton tooltip="Support" className="px-3 py-2">
+              <LifeBuoy className="flex-shrink-0" />
+              <span className="truncate">Support</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Settings">
-              <Settings />
-              <span>Settings</span>
+            <SidebarMenuButton tooltip="Settings" className="px-3 py-2">
+              <Settings className="flex-shrink-0" />
+              <span className="truncate">Settings</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

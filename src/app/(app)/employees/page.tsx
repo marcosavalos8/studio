@@ -69,7 +69,7 @@ export default function EmployeesPage() {
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0">
           <div>
             <CardTitle>Employees</CardTitle>
             <CardDescription>
@@ -78,21 +78,22 @@ export default function EmployeesPage() {
           </div>
           <Button
             size="sm"
-            className="gap-1"
+            className="gap-1 w-full sm:w-auto"
             onClick={() => setAddDialogOpen(true)}
           >
             <PlusCircle className="h-4 w-4" />
-            Add Employee
+            <span className="hidden sm:inline">Add Employee</span>
+            <span className="sm:hidden">Add</span>
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>QR Code</TableHead>
+                <TableHead className="hidden sm:table-cell">Role</TableHead>
+                <TableHead className="hidden md:table-cell">Status</TableHead>
+                <TableHead className="hidden lg:table-cell">QR Code</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -108,9 +109,14 @@ export default function EmployeesPage() {
                 employees.map((employee) => (
                   <TableRow key={employee.id}>
                     <TableCell className="font-medium">
-                      {employee.name}
+                      <div className="flex flex-col">
+                        <span>{employee.name}</span>
+                        <span className="sm:hidden text-xs text-muted-foreground">
+                          {employee.role}
+                        </span>
+                      </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <Badge
                         variant={
                           employee.role === "Supervisor"
@@ -121,7 +127,7 @@ export default function EmployeesPage() {
                         {employee.role}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <Badge
                         variant="outline"
                         className={cn({
@@ -134,7 +140,7 @@ export default function EmployeesPage() {
                         {employee.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-mono flex items-center gap-2">
+                    <TableCell className="hidden lg:table-cell font-mono flex items-center gap-2">
                       <QrCode className="h-4 w-4 text-muted-foreground" />
                       <span>{employee.qrCode}</span>
                     </TableCell>

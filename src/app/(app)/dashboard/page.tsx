@@ -18,8 +18,8 @@ import { LiveActivity } from "./live-activity"
 
 export default function DashboardPage() {
   return (
-    <div className="grid gap-4 md:gap-8">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 md:gap-6 lg:gap-8">
+      <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
@@ -59,7 +59,7 @@ export default function DashboardPage() {
         <WeatherWidget />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+      <div className="grid gap-3 md:gap-4 lg:gap-6 grid-cols-1 lg:grid-cols-7">
         <div className="lg:col-span-4">
             <OverviewChart />
         </div>
