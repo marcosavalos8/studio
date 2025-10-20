@@ -78,8 +78,10 @@ export async function generatePayrollReport({
 
     // Create maps for quick lookups
     const reportEmployeeIds = new Set(allEmployees.map((e: Employee) => e.id));
-    const taskMap = new Map(tasks.map((t: Task) => [t.id, t]));
-    const clientMap = new Map(clients.map((c: Client) => [c.id, c]));
+    const taskMap = new Map<string, Task>(tasks.map((t: Task) => [t.id, t]));
+    const clientMap = new Map<string, Client>(
+      clients.map((c: Client) => [c.id, c])
+    );
 
     // Create maps for quick lookup by ID and QRCode
     const allEmployeesById = new Map<string, Employee>( // <--- Asegura el tipado
@@ -252,9 +254,9 @@ export async function generatePayrollReport({
             const { hours, pieces } = dailyWork[dayKey].tasks[taskId];
             let earningsForTask = 0;
 
-            if (task.employeePaymentType === "hourly") {
+            if (task.employeePayType === "hourly") {
               earningsForTask = hours * task.employeeRate;
-            } else if (task.employeePaymentType === "piecework") {
+            } else if (task.employeePayType === "piecework") {
               earningsForTask = pieces * task.employeeRate;
             }
 
