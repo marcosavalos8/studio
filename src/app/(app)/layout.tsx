@@ -4,6 +4,7 @@ import { AppHeader } from '@/components/layout/header'
 import { AppSidebar } from '@/components/layout/sidebar'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { FirebaseProvider } from '@/firebase/provider'
+import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 import { useUser } from '@/firebase/auth/use-user'
 import { useEffect } from 'react'
 import { signInAnonymously } from 'firebase/auth'
@@ -48,6 +49,7 @@ export default function AppLayout({
 }) {
   return (
     <FirebaseProvider>
+      <FirebaseErrorListener />
       <AuthWrapper>
         {children}
       </AuthWrapper>
