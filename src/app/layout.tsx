@@ -6,7 +6,13 @@ import { AuthProvider } from "@/contexts/auth-context";
 export const metadata: Metadata = {
   title: 'FieldTack WA',
   description: 'Piecework management and payroll for Washington state labor laws.',
-  manifest: '/manifest.ts'
+  manifest: '/manifest.ts',
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 5,
+    userScalable: true,
+  }
 };
 
 export default function RootLayout({

@@ -57,11 +57,11 @@ function InvoicingPage() {
     useCollection<Client>(clientsQuery);
 
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-3 md:gap-4">
       <Card>
         <CardHeader>
-          <CardTitle>Generate Invoice</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-lg md:text-xl">Generate Invoice</CardTitle>
+          <CardDescription className="text-sm">
             Select a client and date range to generate a detailed invoice for
             billing. This invoice includes all labor costs calculated according
             to WA state law.
@@ -69,7 +69,7 @@ function InvoicingPage() {
         </CardHeader>
         <CardContent>
           {loadingClients && (
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-3">
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
