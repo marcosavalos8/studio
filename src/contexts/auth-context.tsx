@@ -36,6 +36,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!loading && !isAuthenticated && pathname !== '/login') {
       router.push('/login')
     }
+    // Redirect to dashboard if authenticated and on login page
+    if (!loading && isAuthenticated && pathname === '/login') {
+      router.push('/dashboard')
+    }
   }, [isAuthenticated, loading, pathname, router])
 
   const login = (username: string) => {

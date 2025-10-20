@@ -7,9 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Logo } from '@/components/icons/logo'
+import { useAuth } from '@/contexts/auth-context'
 
 export default function LoginPage() {
   const router = useRouter()
+  const { login } = useAuth()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -22,9 +24,10 @@ export default function LoginPage() {
 
     // Simple credential check: David / 1234
     if (username === 'David' && password === '1234') {
-      // Store login state in localStorage
+      // Store login state in localStorage and update context
       localStorage.setItem('isAuthenticated', 'true')
       localStorage.setItem('username', username)
+      login(username)
       router.push('/dashboard')
     } else {
       setError('Invalid credentials. Try David / 1234')
