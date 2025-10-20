@@ -62,28 +62,29 @@ export default function ClientsPage() {
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0">
           <div>
             <CardTitle>Clients</CardTitle>
             <CardDescription>Manage your company's clients.</CardDescription>
           </div>
           <Button
             size="sm"
-            className="gap-1"
+            className="gap-1 w-full sm:w-auto"
             onClick={() => setAddDialogOpen(true)}
           >
             <PlusCircle className="h-4 w-4" />
-            Add Client
+            <span className="hidden sm:inline">Add Client</span>
+            <span className="sm:hidden">Add</span>
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Client Name</TableHead>
-                <TableHead>Contract</TableHead>
-                <TableHead>Min. Wage</TableHead>
-                <TableHead>Commission</TableHead>
+                <TableHead className="hidden md:table-cell">Contract</TableHead>
+                <TableHead className="hidden lg:table-cell">Min. Wage</TableHead>
+                <TableHead className="hidden lg:table-cell">Commission</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -104,9 +105,12 @@ export default function ClientsPage() {
                         <span className="text-xs text-muted-foreground">
                           {client.email || "-"}
                         </span>
+                        <span className="md:hidden text-xs text-muted-foreground mt-1">
+                          {client.contractType || "Standard"}
+                        </span>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <Badge
                         variant={
                           client.contractType === "H2A"
@@ -117,13 +121,13 @@ export default function ClientsPage() {
                         {client.contractType || "Standard"}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden lg:table-cell">
                       $
                       {client.minimumWage
                         ? client.minimumWage.toFixed(2)
                         : "N/A"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden lg:table-cell">
                       {client.commissionRate
                         ? `${client.commissionRate}%`
                         : "-"}

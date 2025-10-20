@@ -85,3 +85,30 @@
     color: hsl(var(--primary-foreground)) !important;
   }
 }
+
+@layer utilities {
+  /* Mobile-specific utilities */
+  @media (max-width: 640px) {
+    .mobile-full-width {
+      width: 100%;
+    }
+    
+    /* Better touch targets for mobile */
+    .touch-target {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
+  
+  /* Improve scrolling on mobile */
+  .mobile-scroll {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Prevent text from being too small on mobile */
+  @media (max-width: 640px) {
+    body {
+      font-size: 16px; /* Prevents zoom on iOS */
+    }
+  }
+}
