@@ -49,11 +49,11 @@ export function DateTimePicker({
     }
 
     // Preserve the time when selecting a new date
-    // Use UTC methods to extract the date components to avoid timezone shifts
+    // Use local methods to extract the date components
     const [hours, minutes] = timeValue.split(":").map(Number)
-    const year = newDate.getUTCFullYear()
-    const month = newDate.getUTCMonth()
-    const day = newDate.getUTCDate()
+    const year = newDate.getFullYear()
+    const month = newDate.getMonth()
+    const day = newDate.getDate()
     
     // Create a new date in the local timezone with the selected date and time
     const dateWithTime = new Date(year, month, day, hours, minutes, 0, 0)

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
+import { format } from "date-fns";
 import {
   Card,
   CardContent,
@@ -34,6 +35,8 @@ import {
   LogOut,
   Loader2,
   VideoOff,
+  History,
+  Trash2,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
@@ -49,6 +52,8 @@ import {
   doc,
   addDoc,
   updateDoc,
+  deleteDoc,
+  Timestamp,
 } from "firebase/firestore";
 import type { Task, TimeEntry, Piecework, Employee, Client } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -154,6 +159,26 @@ function TimeTrackingPage() {
     );
   }, [firestore]);
   const { data: activeEmployees } = useCollection<Employee>(employeesQuery);
+
+  // Query for active time entries (for history tab)
+  const activeTimeEntriesQuery = useMemo(() => {
+    if (!firestore) return null;
+    return query(
+      collection(firestore, "time_entries"),
+      where("endTime", "==", null)
+    );
+  }, [firestore]);
+  const { data: activeTimeEntriesRaw } = useCollection<TimeEntry>(activeTimeEntriesQuery);
+  
+  // Sort active time entries in memory by timestamp descending
+  const activeTimeEntries = useMemo(() => {
+    if (!activeTimeEntriesRaw) return null;
+    return [...activeTimeEntriesRaw].sort((a, b) => {
+      const aTime = a.timestamp instanceof Date ? a.timestamp : (a.timestamp as any)?.toDate?.() ? (a.timestamp as any).toDate() : new Date(a.timestamp as any);
+      const bTime = b.timestamp instanceof Date ? b.timestamp : (b.timestamp as any)?.toDate?.() ? (b.timestamp as any).toDate() : new Date(b.timestamp as any);
+      return bTime.getTime() - aTime.getTime();
+    });
+  }, [activeTimeEntriesRaw]);
 
   const tasksForClient = useMemo(() => {
     if (!allTasks || !selectedClient) return [];
@@ -730,6 +755,30 @@ function TimeTrackingPage() {
     }
   };
 
+  const handleDeleteTimeEntry = async (entryId: string) => {
+    if (!firestore) return;
+    
+    try {
+      await deleteDoc(doc(firestore, "time_entries", entryId));
+      toast({
+        title: "Entry Deleted",
+        description: "Time entry has been successfully deleted.",
+      });
+    } catch (serverError) {
+      const permissionError = new FirestorePermissionError({
+        path: "time_entries",
+        operation: "delete",
+        requestResourceData: { entryId },
+      });
+      errorEmitter.emit("permission-error", permissionError);
+      toast({
+        variant: "destructive",
+        title: "Delete Failed",
+        description: "Failed to delete the time entry.",
+      });
+    }
+  };
+
   const SelectionFields = ({ isManual = false }: { isManual?: boolean }) => (
     <div
       className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${
@@ -814,7 +863,7 @@ function TimeTrackingPage() {
   return (
     <div className="max-w-4xl mx-auto">
       <Tabs defaultValue="qr-scanner">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="qr-scanner" className="text-xs sm:text-sm">
             <QrCode className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">QR Scanner</span>
@@ -824,6 +873,11 @@ function TimeTrackingPage() {
             <ClipboardEdit className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Manual Entry</span>
             <span className="sm:hidden">Manual</span>
+          </TabsTrigger>
+          <TabsTrigger value="history" className="text-xs sm:text-sm">
+            <History className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">History</span>
+            <span className="sm:hidden">History</span>
           </TabsTrigger>
         </TabsList>
         <TabsContent value="qr-scanner">
@@ -1388,6 +1442,79 @@ function TimeTrackingPage() {
                 )}
                 Clock Out All
               </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="history">
+          <Card>
+            <CardHeader>
+              <CardTitle>Active Time Entries</CardTitle>
+              <CardDescription>
+                View and manage all currently active clock-ins. You can delete entries if needed.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!activeTimeEntries || activeTimeEntries.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No active time entries found.</p>
+                  <p className="text-sm mt-2">All employees are currently clocked out.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {activeTimeEntries.map((entry) => {
+                    const employee = activeEmployees?.find((e) => e.id === entry.employeeId);
+                    const task = allTasks?.find((t) => t.id === entry.taskId);
+                    const client = clients?.find((c) => c.id === task?.clientId);
+                    
+                    return (
+                      <div
+                        key={entry.id}
+                        className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
+                      >
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <p className="font-semibold">{employee?.name || "Unknown Employee"}</p>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Package className="h-3 w-3" />
+                            <p>
+                              {task?.name || "Unknown Task"}
+                              {task?.variety && ` (${task.variety})`}
+                            </p>
+                          </div>
+                          {client && (
+                            <div className="text-xs text-muted-foreground">
+                              Client: {client.name}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2 text-sm">
+                            <LogIn className="h-3 w-3 text-green-600" />
+                            <p className="text-muted-foreground">
+                              Clocked in: {format(
+                                entry.timestamp instanceof Date 
+                                  ? entry.timestamp 
+                                  : (entry.timestamp as any)?.toDate 
+                                    ? (entry.timestamp as any).toDate() 
+                                    : new Date(entry.timestamp as any), 
+                                "PPp"
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteTimeEntry(entry.id)}
+                          className="ml-4"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
