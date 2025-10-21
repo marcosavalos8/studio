@@ -49,9 +49,14 @@ export function DateTimePicker({
     }
 
     // Preserve the time when selecting a new date
+    // Extract year, month, day from the selected date to avoid timezone issues
     const [hours, minutes] = timeValue.split(":").map(Number)
-    const dateWithTime = new Date(newDate)
-    dateWithTime.setHours(hours, minutes, 0, 0)
+    const year = newDate.getFullYear()
+    const month = newDate.getMonth()
+    const day = newDate.getDate()
+    
+    // Create a new date in the local timezone with the selected date and time
+    const dateWithTime = new Date(year, month, day, hours, minutes, 0, 0)
     
     setSelectedDate(dateWithTime)
     setDate(dateWithTime)
@@ -63,9 +68,14 @@ export function DateTimePicker({
 
     if (!selectedDate) return
 
+    // Extract year, month, day from the selected date to avoid timezone issues
     const [hours, minutes] = time.split(":").map(Number)
-    const newDate = new Date(selectedDate)
-    newDate.setHours(hours, minutes, 0, 0)
+    const year = selectedDate.getFullYear()
+    const month = selectedDate.getMonth()
+    const day = selectedDate.getDate()
+    
+    // Create a new date in the local timezone with the selected date and time
+    const newDate = new Date(year, month, day, hours, minutes, 0, 0)
     
     setSelectedDate(newDate)
     setDate(newDate)
