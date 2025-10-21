@@ -12,7 +12,7 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loading && !user) {
-      signInAnonymously(auth).catch((error) => {
+      signInAnonymously(auth).catch((error: unknown) => {
         console.error("Anonymous sign-in failed:", error);
       });
     }
