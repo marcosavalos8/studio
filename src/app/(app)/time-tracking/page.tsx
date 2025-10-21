@@ -53,8 +53,6 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
-  orderBy,
-  limit,
   Timestamp,
 } from "firebase/firestore";
 import type { Task, TimeEntry, Piecework, Employee, Client } from "@/lib/types";
@@ -167,11 +165,20 @@ function TimeTrackingPage() {
     if (!firestore) return null;
     return query(
       collection(firestore, "time_entries"),
-      where("endTime", "==", null),
-      orderBy("timestamp", "desc")
+      where("endTime", "==", null)
     );
   }, [firestore]);
-  const { data: activeTimeEntries } = useCollection<TimeEntry>(activeTimeEntriesQuery);
+  const { data: activeTimeEntriesRaw } = useCollection<TimeEntry>(activeTimeEntriesQuery);
+  
+  // Sort active time entries in memory by timestamp descending
+  const activeTimeEntries = useMemo(() => {
+    if (!activeTimeEntriesRaw) return null;
+    return [...activeTimeEntriesRaw].sort((a, b) => {
+      const aTime = a.timestamp instanceof Date ? a.timestamp : (a.timestamp as any)?.toDate?.() ? (a.timestamp as any).toDate() : new Date(a.timestamp as any);
+      const bTime = b.timestamp instanceof Date ? b.timestamp : (b.timestamp as any)?.toDate?.() ? (b.timestamp as any).toDate() : new Date(b.timestamp as any);
+      return bTime.getTime() - aTime.getTime();
+    });
+  }, [activeTimeEntriesRaw]);
 
   const tasksForClient = useMemo(() => {
     if (!allTasks || !selectedClient) return [];
