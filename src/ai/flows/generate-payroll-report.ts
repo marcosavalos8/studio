@@ -264,11 +264,34 @@ export async function generatePayrollReport({
             
             if (payType === "hourly") {
               earningsForTask = hours * task.employeeRate;
+              if (task.employeeRate === 0 || task.employeeRate === undefined) {
+                console.warn("Task has zero or undefined hourly rate:", {
+                  taskName: task.name,
+                  taskId,
+                  employeeRate: task.employeeRate,
+                  hours,
+                });
+              }
             } else if (payType === "piecework") {
               earningsForTask = pieces * task.employeeRate;
+              if (task.employeeRate === 0 || task.employeeRate === undefined) {
+                console.warn("Task has zero or undefined piece rate:", {
+                  taskName: task.name,
+                  taskId,
+                  employeeRate: task.employeeRate,
+                  pieces,
+                });
+              }
 
               // ACUMULA las ganancias en bruto SOLO de piezas para la comparación semanal
               weeklyTotalPieceworkEarnings += earningsForTask;
+            } else if (task.employeePayType) {
+              // Log unrecognized pay types to help with debugging
+              console.warn("Unrecognized employeePayType:", {
+                taskName: task.name,
+                employeePayType: task.employeePayType,
+                normalizedPayType: payType,
+              });
             }
 
             dailyTotalHours += hours;
