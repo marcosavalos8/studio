@@ -163,6 +163,10 @@ function TimeTrackingPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{type: 'time' | 'piecework', id: string} | null>(null);
   
+  // Delete all confirmation state
+  const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  
   // Edit state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<{type: 'time' | 'piecework', entry: TimeEntry | Piecework} | null>(null);
@@ -1003,6 +1007,64 @@ function TimeTrackingPage() {
     }
   };
 
+  const handleDeleteAllMovements = async () => {
+    if (!firestore) return;
+    
+    setIsDeletingAll(true);
+    
+    try {
+      const batch = writeBatch(firestore);
+      let deleteCount = 0;
+      
+      // Delete all time entries in the current filter
+      if (allTimeEntries && allTimeEntries.length > 0) {
+        allTimeEntries.forEach((entry) => {
+          const entryRef = doc(firestore, "time_entries", entry.id);
+          batch.delete(entryRef);
+          deleteCount++;
+        });
+      }
+      
+      // Delete all piecework records in the current filter
+      if (allPiecework && allPiecework.length > 0) {
+        allPiecework.forEach((piece) => {
+          const pieceRef = doc(firestore, "piecework", piece.id);
+          batch.delete(pieceRef);
+          deleteCount++;
+        });
+      }
+      
+      if (deleteCount > 0) {
+        await batch.commit();
+        toast({
+          title: "All Movements Deleted",
+          description: `Successfully deleted ${deleteCount} record(s).`,
+        });
+      } else {
+        toast({
+          title: "No Records to Delete",
+          description: "There are no movements in the current filter.",
+        });
+      }
+      
+      setDeleteAllConfirmOpen(false);
+    } catch (serverError) {
+      const permissionError = new FirestorePermissionError({
+        path: "time_entries, piecework",
+        operation: "delete",
+        requestResourceData: { message: "Bulk delete all movements" },
+      });
+      errorEmitter.emit("permission-error", permissionError);
+      toast({
+        variant: "destructive",
+        title: "Delete Failed",
+        description: "Failed to delete all movements.",
+      });
+    } finally {
+      setIsDeletingAll(false);
+    }
+  };
+
   const SelectionFields = ({ isManual = false }: { isManual?: boolean }) => (
     <div
       className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${
@@ -1728,13 +1790,28 @@ function TimeTrackingPage() {
         <TabsContent value="history">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <History className="h-5 w-5" />
-                Complete History
-              </CardTitle>
-              <CardDescription>
-                View and manage all clock-in/clock-out records and piecework entries. Filter by date range and delete individual records.
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <History className="h-5 w-5" />
+                    Complete History
+                  </CardTitle>
+                  <CardDescription>
+                    View and manage all clock-in/clock-out records and piecework entries. Filter by date range and delete individual records.
+                  </CardDescription>
+                </div>
+                {((allTimeEntries && allTimeEntries.length > 0) || (allPiecework && allPiecework.length > 0)) && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setDeleteAllConfirmOpen(true)}
+                    className="flex items-center gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete All
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {/* Date Range Filter */}
@@ -2023,6 +2100,44 @@ function TimeTrackingPage() {
             </AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete All Confirmation Dialog */}
+      <AlertDialog open={deleteAllConfirmOpen} onOpenChange={setDeleteAllConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete All Movements?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete{" "}
+              <strong>
+                {(allTimeEntries?.length || 0) + (allPiecework?.length || 0)} record(s)
+              </strong>{" "}
+              ({allTimeEntries?.length || 0} time entries and {allPiecework?.length || 0} piecework records)
+              from the database. These records will not appear in any reports.
+              {(historyStartDate || historyEndDate) && (
+                <span className="block mt-2 text-yellow-600 font-semibold">
+                  Note: Only records matching your current date filter will be deleted.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={() => setDeleteAllConfirmOpen(false)}
+              disabled={isDeletingAll}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteAllMovements} 
+              disabled={isDeletingAll}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingAll && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Delete All
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
