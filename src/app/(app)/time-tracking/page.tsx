@@ -23,6 +23,16 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   QrCode,
@@ -135,6 +145,10 @@ function TimeTrackingPage() {
   // History filtering state
   const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>(undefined);
   const [historyEndDate, setHistoryEndDate] = useState<Date | undefined>(undefined);
+  
+  // Delete confirmation state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{type: 'time' | 'piecework', id: string} | null>(null);
 
   // Debounce state
   const [recentScans, setRecentScans] = useState<
@@ -826,6 +840,8 @@ function TimeTrackingPage() {
         title: "Entry Deleted",
         description: "Time entry has been successfully deleted.",
       });
+      setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
         path: "time_entries",
@@ -850,6 +866,8 @@ function TimeTrackingPage() {
         title: "Piecework Deleted",
         description: "Piecework record has been successfully deleted.",
       });
+      setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
         path: "piecework",
@@ -862,6 +880,16 @@ function TimeTrackingPage() {
         title: "Delete Failed",
         description: "Failed to delete the piecework record.",
       });
+    }
+  };
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    
+    if (deleteTarget.type === 'time') {
+      handleDeleteTimeEntry(deleteTarget.id);
+    } else {
+      handleDeletePiecework(deleteTarget.id);
     }
   };
 
@@ -1666,7 +1694,10 @@ function TimeTrackingPage() {
                           <Button
                             variant="destructive"
                             size="sm"
-                            onClick={() => handleDeleteTimeEntry(entry.id)}
+                            onClick={() => {
+                              setDeleteTarget({type: 'time', id: entry.id});
+                              setDeleteConfirmOpen(true);
+                            }}
                             className="ml-4"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -1763,7 +1794,10 @@ function TimeTrackingPage() {
                           <Button
                             variant="destructive"
                             size="sm"
-                            onClick={() => handleDeletePiecework(piece.id)}
+                            onClick={() => {
+                              setDeleteTarget({type: 'piecework', id: piece.id});
+                              setDeleteConfirmOpen(true);
+                            }}
                             className="ml-4"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -1778,6 +1812,30 @@ function TimeTrackingPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete this {deleteTarget?.type === 'time' ? 'time entry' : 'piecework'} record
+              from the database and it will not appear in any reports.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setDeleteConfirmOpen(false);
+              setDeleteTarget(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
