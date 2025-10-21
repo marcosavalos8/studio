@@ -259,9 +259,12 @@ export async function generatePayrollReport({
             let earningsForTask = 0;
 
             // Nota: Se asumió que 'employeePaymentType' es 'employeePayType' por los errores anteriores
-            if (task.employeePayType === "hourly") {
+            // Normalize the payment type to handle case variations
+            const payType = task.employeePayType?.toLowerCase().trim();
+            
+            if (payType === "hourly") {
               earningsForTask = hours * task.employeeRate;
-            } else if (task.employeePayType === "piecework") {
+            } else if (payType === "piecework") {
               earningsForTask = pieces * task.employeeRate;
 
               // ACUMULA las ganancias en bruto SOLO de piezas para la comparación semanal
