@@ -875,7 +875,7 @@ function TimeTrackingPage() {
                   </div>
                   <RadioGroup
                     value={pieceEntryMode}
-                    onValueChange={(v) =>
+                    onValueChange={(v: string) =>
                       setPieceEntryMode(v as PieceEntryMode)
                     }
                     className="flex gap-4"
@@ -998,7 +998,7 @@ function TimeTrackingPage() {
                 <Label htmlFor="log-type">Log Type</Label>
                 <Select
                   value={manualLogType}
-                  onValueChange={(v) => setManualLogType(v as ManualLogType)}
+                  onValueChange={(v: string) => setManualLogType(v as ManualLogType)}
                 >
                   <SelectTrigger id="log-type">
                     <SelectValue placeholder="Select log type" />
@@ -1155,7 +1155,7 @@ function TimeTrackingPage() {
                           selectedBulkInEmployees.size ===
                           activeEmployees.length
                         }
-                        onCheckedChange={(checked) => {
+                        onCheckedChange={(checked: boolean) => {
                           if (checked) {
                             setSelectedBulkInEmployees(
                               new Set(activeEmployees.map((e) => e.id))
@@ -1182,7 +1182,7 @@ function TimeTrackingPage() {
                         <Checkbox
                           id={`bulk-in-${employee.id}`}
                           checked={selectedBulkInEmployees.has(employee.id)}
-                          onCheckedChange={(checked) => {
+                          onCheckedChange={(checked: boolean) => {
                             setSelectedBulkInEmployees((prev) => {
                               const newSet = new Set(prev);
                               if (checked) {

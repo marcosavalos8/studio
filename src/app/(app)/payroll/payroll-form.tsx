@@ -304,7 +304,7 @@ export function PayrollForm() {
                         <Checkbox
                             id={`employee-${employee.id}`}
                             checked={selectedEmployeeIds.has(employee.id)}
-                            onCheckedChange={(checked) => handleEmployeeSelect(employee.id, !!checked)}
+                            onCheckedChange={(checked: boolean) => handleEmployeeSelect(employee.id, !!checked)}
                         />
                         <label htmlFor={`employee-${employee.id}`} className="text-sm font-medium leading-none">
                             {employee.name}
