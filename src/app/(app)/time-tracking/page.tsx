@@ -55,6 +55,7 @@ import {
   deleteDoc,
   orderBy,
   limit,
+  Timestamp,
 } from "firebase/firestore";
 import type { Task, TimeEntry, Piecework, Employee, Client } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1483,7 +1484,14 @@ function TimeTrackingPage() {
                           <div className="flex items-center gap-2 text-sm">
                             <LogIn className="h-3 w-3 text-green-600" />
                             <p className="text-muted-foreground">
-                              Clocked in: {format(entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp), "PPp")}
+                              Clocked in: {format(
+                                entry.timestamp instanceof Date 
+                                  ? entry.timestamp 
+                                  : (entry.timestamp as any)?.toDate 
+                                    ? (entry.timestamp as any).toDate() 
+                                    : new Date(entry.timestamp as any), 
+                                "PPp"
+                              )}
                             </p>
                           </div>
                         </div>
