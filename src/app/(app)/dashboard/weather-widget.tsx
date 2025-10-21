@@ -23,7 +23,7 @@ export function WeatherWidget() {
           })
           setError(null)
         },
-        (error) => {
+        (error: GeolocationPositionError) => {
           setError("Location access denied. Showing default weather for Yakima, WA.")
           console.error("Geolocation error:", error)
         }
