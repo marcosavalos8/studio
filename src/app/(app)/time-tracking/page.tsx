@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { format } from "date-fns";
+import { format, startOfDay, endOfDay } from "date-fns";
 import {
   Card,
   CardContent,
@@ -23,6 +23,16 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   QrCode,
@@ -37,6 +47,8 @@ import {
   VideoOff,
   History,
   Trash2,
+  Calendar,
+  Filter,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
@@ -130,6 +142,14 @@ function TimeTrackingPage() {
   const [manualClockOutDate, setManualClockOutDate] = useState<Date | undefined>(undefined);
   const [manualPieceworkDate, setManualPieceworkDate] = useState<Date | undefined>(undefined);
 
+  // History filtering state
+  const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>(undefined);
+  const [historyEndDate, setHistoryEndDate] = useState<Date | undefined>(undefined);
+  
+  // Delete confirmation state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{type: 'time' | 'piecework', id: string} | null>(null);
+
   // Debounce state
   const [recentScans, setRecentScans] = useState<
     { scanData: string; mode: ScanMode; timestamp: number }[]
@@ -159,6 +179,62 @@ function TimeTrackingPage() {
     );
   }, [firestore]);
   const { data: activeEmployees } = useCollection<Employee>(employeesQuery);
+
+  // Query for ALL time entries (for history tab) with date filtering
+  const allTimeEntriesQuery = useMemo(() => {
+    if (!firestore) return null;
+    let q = collection(firestore, "time_entries");
+    
+    // Build query with date filters if specified
+    const constraints = [];
+    if (historyStartDate) {
+      constraints.push(where("timestamp", ">=", startOfDay(historyStartDate)));
+    }
+    if (historyEndDate) {
+      constraints.push(where("timestamp", "<=", endOfDay(historyEndDate)));
+    }
+    
+    return constraints.length > 0 ? query(q, ...constraints) : query(q);
+  }, [firestore, historyStartDate, historyEndDate]);
+  const { data: allTimeEntriesRaw } = useCollection<TimeEntry>(allTimeEntriesQuery);
+  
+  // Sort all time entries in memory by timestamp descending
+  const allTimeEntries = useMemo(() => {
+    if (!allTimeEntriesRaw) return null;
+    return [...allTimeEntriesRaw].sort((a, b) => {
+      const aTime = a.timestamp instanceof Date ? a.timestamp : (a.timestamp as any)?.toDate?.() ? (a.timestamp as any).toDate() : new Date(a.timestamp as any);
+      const bTime = b.timestamp instanceof Date ? b.timestamp : (b.timestamp as any)?.toDate?.() ? (b.timestamp as any).toDate() : new Date(b.timestamp as any);
+      return bTime.getTime() - aTime.getTime();
+    });
+  }, [allTimeEntriesRaw]);
+
+  // Query for ALL piecework records (for history tab) with date filtering
+  const allPieceworkQuery = useMemo(() => {
+    if (!firestore) return null;
+    let q = collection(firestore, "piecework");
+    
+    // Build query with date filters if specified
+    const constraints = [];
+    if (historyStartDate) {
+      constraints.push(where("timestamp", ">=", startOfDay(historyStartDate)));
+    }
+    if (historyEndDate) {
+      constraints.push(where("timestamp", "<=", endOfDay(historyEndDate)));
+    }
+    
+    return constraints.length > 0 ? query(q, ...constraints) : query(q);
+  }, [firestore, historyStartDate, historyEndDate]);
+  const { data: allPieceworkRaw } = useCollection<Piecework>(allPieceworkQuery);
+  
+  // Sort all piecework in memory by timestamp descending
+  const allPiecework = useMemo(() => {
+    if (!allPieceworkRaw) return null;
+    return [...allPieceworkRaw].sort((a, b) => {
+      const aTime = a.timestamp instanceof Date ? a.timestamp : (a.timestamp as any)?.toDate?.() ? (a.timestamp as any).toDate() : new Date(a.timestamp as any);
+      const bTime = b.timestamp instanceof Date ? b.timestamp : (b.timestamp as any)?.toDate?.() ? (b.timestamp as any).toDate() : new Date(b.timestamp as any);
+      return bTime.getTime() - aTime.getTime();
+    });
+  }, [allPieceworkRaw]);
 
   // Query for active time entries (for history tab)
   const activeTimeEntriesQuery = useMemo(() => {
@@ -764,6 +840,8 @@ function TimeTrackingPage() {
         title: "Entry Deleted",
         description: "Time entry has been successfully deleted.",
       });
+      setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
         path: "time_entries",
@@ -776,6 +854,42 @@ function TimeTrackingPage() {
         title: "Delete Failed",
         description: "Failed to delete the time entry.",
       });
+    }
+  };
+
+  const handleDeletePiecework = async (pieceworkId: string) => {
+    if (!firestore) return;
+    
+    try {
+      await deleteDoc(doc(firestore, "piecework", pieceworkId));
+      toast({
+        title: "Piecework Deleted",
+        description: "Piecework record has been successfully deleted.",
+      });
+      setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
+    } catch (serverError) {
+      const permissionError = new FirestorePermissionError({
+        path: "piecework",
+        operation: "delete",
+        requestResourceData: { pieceworkId },
+      });
+      errorEmitter.emit("permission-error", permissionError);
+      toast({
+        variant: "destructive",
+        title: "Delete Failed",
+        description: "Failed to delete the piecework record.",
+      });
+    }
+  };
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    
+    if (deleteTarget.type === 'time') {
+      handleDeleteTimeEntry(deleteTarget.id);
+    } else {
+      handleDeletePiecework(deleteTarget.id);
     }
   };
 
@@ -1448,77 +1562,280 @@ function TimeTrackingPage() {
         <TabsContent value="history">
           <Card>
             <CardHeader>
-              <CardTitle>Active Time Entries</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Complete History
+              </CardTitle>
               <CardDescription>
-                View and manage all currently active clock-ins. You can delete entries if needed.
+                View and manage all clock-in/clock-out records and piecework entries. Filter by date range and delete individual records.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {!activeTimeEntries || activeTimeEntries.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <p>No active time entries found.</p>
-                  <p className="text-sm mt-2">All employees are currently clocked out.</p>
+              {/* Date Range Filter */}
+              <div className="mb-6 p-4 border rounded-lg space-y-4 bg-muted/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <Filter className="h-4 w-4" />
+                  <Label className="font-semibold">Filter by Date Range</Label>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {activeTimeEntries.map((entry) => {
-                    const employee = activeEmployees?.find((e) => e.id === entry.employeeId);
-                    const task = allTasks?.find((t) => t.id === entry.taskId);
-                    const client = clients?.find((c) => c.id === task?.clientId);
-                    
-                    return (
-                      <div
-                        key={entry.id}
-                        className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
-                      >
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            <p className="font-semibold">{employee?.name || "Unknown Employee"}</p>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Package className="h-3 w-3" />
-                            <p>
-                              {task?.name || "Unknown Task"}
-                              {task?.variety && ` (${task.variety})`}
-                            </p>
-                          </div>
-                          {client && (
-                            <div className="text-xs text-muted-foreground">
-                              Client: {client.name}
-                            </div>
-                          )}
-                          <div className="flex items-center gap-2 text-sm">
-                            <LogIn className="h-3 w-3 text-green-600" />
-                            <p className="text-muted-foreground">
-                              Clocked in: {format(
-                                entry.timestamp instanceof Date 
-                                  ? entry.timestamp 
-                                  : (entry.timestamp as any)?.toDate 
-                                    ? (entry.timestamp as any).toDate() 
-                                    : new Date(entry.timestamp as any), 
-                                "PPp"
-                              )}
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteTimeEntry(entry.id)}
-                          className="ml-4"
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="history-start-date">Start Date</Label>
+                    <Input
+                      id="history-start-date"
+                      type="date"
+                      value={historyStartDate ? format(historyStartDate, "yyyy-MM-dd") : ""}
+                      onChange={(e) => {
+                        setHistoryStartDate(e.target.value ? new Date(e.target.value) : undefined);
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="history-end-date">End Date</Label>
+                    <Input
+                      id="history-end-date"
+                      type="date"
+                      value={historyEndDate ? format(historyEndDate, "yyyy-MM-dd") : ""}
+                      onChange={(e) => {
+                        setHistoryEndDate(e.target.value ? new Date(e.target.value) : undefined);
+                      }}
+                    />
+                  </div>
+                </div>
+                {(historyStartDate || historyEndDate) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setHistoryStartDate(undefined);
+                      setHistoryEndDate(undefined);
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
+
+              {/* Time Entries Section */}
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <LogIn className="h-5 w-5 text-blue-600" />
+                  Clock-In/Clock-Out Records
+                </h3>
+                {!allTimeEntries || allTimeEntries.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground border rounded-lg">
+                    <p>No time entries found.</p>
+                    {(historyStartDate || historyEndDate) && (
+                      <p className="text-sm mt-2">Try adjusting your date filter.</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {allTimeEntries.map((entry) => {
+                      const employee = activeEmployees?.find((e) => e.id === entry.employeeId);
+                      const task = allTasks?.find((t) => t.id === entry.taskId);
+                      const client = clients?.find((c) => c.id === task?.clientId);
+                      const clockInTime = entry.timestamp instanceof Date 
+                        ? entry.timestamp 
+                        : (entry.timestamp as any)?.toDate 
+                          ? (entry.timestamp as any).toDate() 
+                          : new Date(entry.timestamp as any);
+                      const clockOutTime = entry.endTime 
+                        ? (entry.endTime instanceof Date 
+                          ? entry.endTime 
+                          : (entry.endTime as any)?.toDate 
+                            ? (entry.endTime as any).toDate() 
+                            : new Date(entry.endTime as any))
+                        : null;
+                      
+                      return (
+                        <div
+                          key={entry.id}
+                          className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                              <p className="font-semibold">{employee?.name || "Unknown Employee"}</p>
+                              {!entry.endTime && (
+                                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                  Active
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Package className="h-3 w-3" />
+                              <p>
+                                {task?.name || "Unknown Task"}
+                                {task?.variety && ` (${task.variety})`}
+                              </p>
+                            </div>
+                            {client && (
+                              <div className="text-xs text-muted-foreground">
+                                Client: {client.name}
+                              </div>
+                            )}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                              <div className="flex items-center gap-2">
+                                <LogIn className="h-3 w-3 text-green-600" />
+                                <p className="text-muted-foreground">
+                                  In: {format(clockInTime, "PPp")}
+                                </p>
+                              </div>
+                              {clockOutTime && (
+                                <div className="flex items-center gap-2">
+                                  <LogOut className="h-3 w-3 text-red-600" />
+                                  <p className="text-muted-foreground">
+                                    Out: {format(clockOutTime, "PPp")}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => {
+                              setDeleteTarget({type: 'time', id: entry.id});
+                              setDeleteConfirmOpen(true);
+                            }}
+                            className="ml-4"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Piecework Section */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Package className="h-5 w-5 text-purple-600" />
+                  Piecework Records
+                </h3>
+                {!allPiecework || allPiecework.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground border rounded-lg">
+                    <p>No piecework records found.</p>
+                    {(historyStartDate || historyEndDate) && (
+                      <p className="text-sm mt-2">Try adjusting your date filter.</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {allPiecework.map((piece) => {
+                      // Handle multiple employees (comma-separated IDs)
+                      const employeeIds = piece.employeeId.split(",");
+                      const employeeNames = employeeIds
+                        .map((id) => activeEmployees?.find((e) => e.id === id || e.qrCode === id)?.name)
+                        .filter(Boolean)
+                        .join(", ") || "Unknown Employee(s)";
+                      const task = allTasks?.find((t) => t.id === piece.taskId);
+                      const client = clients?.find((c) => c.id === task?.clientId);
+                      const pieceTime = piece.timestamp instanceof Date 
+                        ? piece.timestamp 
+                        : (piece.timestamp as any)?.toDate 
+                          ? (piece.timestamp as any).toDate() 
+                          : new Date(piece.timestamp as any);
+                      
+                      return (
+                        <div
+                          key={piece.id}
+                          className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
+                        >
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                              <p className="font-semibold">{employeeNames}</p>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Package className="h-3 w-3" />
+                              <p>
+                                {task?.name || "Unknown Task"}
+                                {task?.variety && ` (${task.variety})`}
+                              </p>
+                            </div>
+                            {client && (
+                              <div className="text-xs text-muted-foreground">
+                                Client: {client.name}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2 text-sm">
+                              <Calendar className="h-3 w-3 text-purple-600" />
+                              <p className="text-muted-foreground">
+                                {format(pieceTime, "PPp")}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm">
+                              <div className="flex items-center gap-2">
+                                <CheckCircle className="h-3 w-3 text-green-600" />
+                                <p className="text-muted-foreground">
+                                  Quantity: {piece.pieceCount}
+                                </p>
+                              </div>
+                              {piece.pieceQrCode && piece.pieceQrCode !== "manual_entry" && (
+                                <div className="text-xs text-muted-foreground">
+                                  Bin: {piece.pieceQrCode}
+                                </div>
+                              )}
+                              {piece.pieceQrCode === "manual_entry" && (
+                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                  Manual Entry
+                                </span>
+                              )}
+                            </div>
+                            {piece.qcNote && (
+                              <div className="text-xs text-muted-foreground italic">
+                                Note: {piece.qcNote}
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => {
+                              setDeleteTarget({type: 'piecework', id: piece.id});
+                              setDeleteConfirmOpen(true);
+                            }}
+                            className="ml-4"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete this {deleteTarget?.type === 'time' ? 'time entry' : 'piecework'} record
+              from the database and it will not appear in any reports.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setDeleteConfirmOpen(false);
+              setDeleteTarget(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
