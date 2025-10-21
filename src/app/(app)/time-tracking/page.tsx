@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { useFirestore } from "@/firebase";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import {
@@ -117,6 +118,12 @@ function TimeTrackingPage() {
   >(1);
   const [manualNotes, setManualNotes] = useState("");
   const [isManualSubmitting, setIsManualSubmitting] = useState(false);
+
+  // Manual Date/Time Selection State
+  const [useManualDateTime, setUseManualDateTime] = useState(false);
+  const [manualClockInDate, setManualClockInDate] = useState<Date | undefined>(undefined);
+  const [manualClockOutDate, setManualClockOutDate] = useState<Date | undefined>(undefined);
+  const [manualPieceworkDate, setManualPieceworkDate] = useState<Date | undefined>(undefined);
 
   // Debounce state
   const [recentScans, setRecentScans] = useState<
@@ -272,7 +279,7 @@ function TimeTrackingPage() {
   }, [manualEmployeeSearch]);
 
   const clockInEmployee = useCallback(
-    async (employee: Employee, taskId: string) => {
+    async (employee: Employee, taskId: string, customTimestamp?: Date) => {
       if (!firestore) return;
       const batch = writeBatch(firestore);
 
@@ -285,14 +292,14 @@ function TimeTrackingPage() {
       try {
         const activeEntriesSnap = await getDocs(activeEntriesQuery);
         activeEntriesSnap.forEach((doc) => {
-          batch.update(doc.ref, { endTime: new Date() });
+          batch.update(doc.ref, { endTime: customTimestamp || new Date() });
         });
 
         const newTimeEntryRef = doc(collection(firestore, "time_entries"));
         const newTimeEntry: Omit<TimeEntry, "id"> = {
           employeeId: employee.id,
           taskId: taskId,
-          timestamp: new Date(),
+          timestamp: customTimestamp || new Date(),
           endTime: null,
           isBreak: false,
         };
@@ -317,7 +324,7 @@ function TimeTrackingPage() {
   );
 
   const clockOutEmployee = useCallback(
-    async (employee: Employee, taskId: string) => {
+    async (employee: Employee, taskId: string, customTimestamp?: Date) => {
       if (!firestore) return;
 
       const q = query(
@@ -335,7 +342,7 @@ function TimeTrackingPage() {
           });
         } else {
           const batch = writeBatch(firestore);
-          const updatedData = { endTime: new Date() };
+          const updatedData = { endTime: customTimestamp || new Date() };
           querySnapshot.forEach((doc) => {
             batch.update(doc.ref, updatedData);
           });
@@ -350,7 +357,7 @@ function TimeTrackingPage() {
         const permissionError = new FirestorePermissionError({
           path: "time_entries",
           operation: "update",
-          requestResourceData: { endTime: new Date() },
+          requestResourceData: { endTime: customTimestamp || new Date() },
         });
         errorEmitter.emit("permission-error", permissionError);
       }
@@ -359,13 +366,13 @@ function TimeTrackingPage() {
   );
 
   const recordPiecework = useCallback(
-    async (employeeIds: string[], taskId: string, binQr: string) => {
+    async (employeeIds: string[], taskId: string, binQr: string, customTimestamp?: Date) => {
       if (!firestore) return;
 
       const newPiecework: Omit<Piecework, "id"> = {
         employeeId: employeeIds.join(","),
         taskId: taskId,
-        timestamp: new Date(),
+        timestamp: customTimestamp || new Date(),
         pieceCount: 1, // Assume 1 bin per scan
         pieceQrCode: binQr,
       };
@@ -429,9 +436,11 @@ function TimeTrackingPage() {
 
       if (scannedEmployee) {
         if (scanMode === "clock-in") {
-          await clockInEmployee(scannedEmployee, selectedTask);
+          const timestamp = useManualDateTime ? manualClockInDate : undefined;
+          await clockInEmployee(scannedEmployee, selectedTask, timestamp);
         } else if (scanMode === "clock-out") {
-          await clockOutEmployee(scannedEmployee, selectedTask);
+          const timestamp = useManualDateTime ? manualClockOutDate : undefined;
+          await clockOutEmployee(scannedEmployee, selectedTask, timestamp);
         } else if (scanMode === "piece") {
           if (isSharedPiece) {
             setScannedSharedEmployees((prev) => {
@@ -465,7 +474,8 @@ function TimeTrackingPage() {
           const employeeQrCodes = scannedSharedEmployees
             .map((id) => activeEmployees?.find((e) => e.id === id)?.qrCode)
             .filter(Boolean) as string[];
-          await recordPiecework(employeeQrCodes, selectedTask, scannedData);
+          const timestamp = useManualDateTime ? manualPieceworkDate : undefined;
+          await recordPiecework(employeeQrCodes, selectedTask, scannedData, timestamp);
           if (!isSharedPiece) {
             setScannedSharedEmployees([]);
           }
@@ -494,6 +504,10 @@ function TimeTrackingPage() {
       recentScans,
       playSound,
       scannedSharedEmployees,
+      useManualDateTime,
+      manualClockInDate,
+      manualClockOutDate,
+      manualPieceworkDate,
     ]
   );
 
@@ -510,9 +524,11 @@ function TimeTrackingPage() {
     setIsManualSubmitting(true);
 
     if (manualLogType === "clock-in") {
-      await clockInEmployee(manualSelectedEmployee, selectedTask);
+      const timestamp = useManualDateTime ? manualClockInDate : undefined;
+      await clockInEmployee(manualSelectedEmployee, selectedTask, timestamp);
     } else if (manualLogType === "clock-out") {
-      await clockOutEmployee(manualSelectedEmployee, selectedTask);
+      const timestamp = useManualDateTime ? manualClockOutDate : undefined;
+      await clockOutEmployee(manualSelectedEmployee, selectedTask, timestamp);
     } else if (manualLogType === "piecework") {
       const pieceCount =
         typeof manualPieceQuantity === "number"
@@ -531,7 +547,7 @@ function TimeTrackingPage() {
       const newPiecework: Omit<Piecework, "id"> = {
         employeeId: manualSelectedEmployee.id,
         taskId: selectedTask,
-        timestamp: new Date(),
+        timestamp: useManualDateTime && manualPieceworkDate ? manualPieceworkDate : new Date(),
         pieceCount: pieceCount,
         pieceQrCode: "manual_entry",
         qcNote: manualNotes,
@@ -587,7 +603,8 @@ function TimeTrackingPage() {
       .map((id) => activeEmployees?.find((e) => e.id === id)?.qrCode)
       .filter(Boolean) as string[];
     if (employeeQrCodes.length > 0) {
-      await recordPiecework(employeeQrCodes, selectedTask, "manual_entry");
+      const timestamp = useManualDateTime ? manualPieceworkDate : undefined;
+      await recordPiecework(employeeQrCodes, selectedTask, "manual_entry", timestamp);
     }
     setScannedSharedEmployees([]);
     setManualPieceQuantity(1);
@@ -823,6 +840,54 @@ function TimeTrackingPage() {
             <CardContent className="space-y-3 md:space-y-4">
               <SelectionFields />
 
+              <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="manual-datetime-checkbox"
+                    checked={useManualDateTime}
+                    onCheckedChange={(checked: boolean) => {
+                      setUseManualDateTime(checked);
+                      if (!checked) {
+                        setManualClockInDate(undefined);
+                        setManualClockOutDate(undefined);
+                        setManualPieceworkDate(undefined);
+                      }
+                    }}
+                  />
+                  <Label htmlFor="manual-datetime-checkbox" className="font-semibold">
+                    Use Manual Date/Time
+                  </Label>
+                </div>
+                {useManualDateTime && (
+                  <div className="space-y-3 pt-2">
+                    {scanMode === "clock-in" && (
+                      <DateTimePicker
+                        date={manualClockInDate}
+                        setDate={setManualClockInDate}
+                        label="Clock-In Date & Time"
+                        placeholder="Select date and time for clock-in"
+                      />
+                    )}
+                    {scanMode === "clock-out" && (
+                      <DateTimePicker
+                        date={manualClockOutDate}
+                        setDate={setManualClockOutDate}
+                        label="Clock-Out Date & Time"
+                        placeholder="Select date and time for clock-out"
+                      />
+                    )}
+                    {scanMode === "piece" && (
+                      <DateTimePicker
+                        date={manualPieceworkDate}
+                        setDate={setManualPieceworkDate}
+                        label="Piecework Date & Time"
+                        placeholder="Select date and time for piecework"
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-3 md:space-y-4 rounded-lg border bg-card text-card-foreground shadow-sm p-3 md:p-4">
                 <Label className="font-semibold">Scan Mode</Label>
                 <RadioGroup
@@ -1001,6 +1066,54 @@ function TimeTrackingPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <SelectionFields isManual={true} />
+
+              <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="manual-datetime-checkbox-entry"
+                    checked={useManualDateTime}
+                    onCheckedChange={(checked: boolean) => {
+                      setUseManualDateTime(checked);
+                      if (!checked) {
+                        setManualClockInDate(undefined);
+                        setManualClockOutDate(undefined);
+                        setManualPieceworkDate(undefined);
+                      }
+                    }}
+                  />
+                  <Label htmlFor="manual-datetime-checkbox-entry" className="font-semibold">
+                    Use Manual Date/Time
+                  </Label>
+                </div>
+                {useManualDateTime && (
+                  <div className="space-y-3 pt-2">
+                    {manualLogType === "clock-in" && (
+                      <DateTimePicker
+                        date={manualClockInDate}
+                        setDate={setManualClockInDate}
+                        label="Clock-In Date & Time"
+                        placeholder="Select date and time for clock-in"
+                      />
+                    )}
+                    {manualLogType === "clock-out" && (
+                      <DateTimePicker
+                        date={manualClockOutDate}
+                        setDate={setManualClockOutDate}
+                        label="Clock-Out Date & Time"
+                        placeholder="Select date and time for clock-out"
+                      />
+                    )}
+                    {manualLogType === "piecework" && (
+                      <DateTimePicker
+                        date={manualPieceworkDate}
+                        setDate={setManualPieceworkDate}
+                        label="Piecework Date & Time"
+                        placeholder="Select date and time for piecework"
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="log-type">Log Type</Label>
