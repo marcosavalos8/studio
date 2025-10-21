@@ -262,35 +262,46 @@ export async function generatePayrollReport({
             // Normalize the payment type to handle case variations
             const payType = task.employeePayType?.toLowerCase().trim();
             
+            // Enhanced logging to diagnose all earnings calculation issues
+            console.log("Processing task earnings:", {
+              taskId,
+              taskName: task.name,
+              employeePayType: task.employeePayType,
+              normalizedPayType: payType,
+              employeeRate: task.employeeRate,
+              hours,
+              pieces,
+            });
+            
             if (payType === "hourly") {
               earningsForTask = hours * task.employeeRate;
-              if (task.employeeRate === 0 || task.employeeRate === undefined) {
-                console.warn("Task has zero or undefined hourly rate:", {
-                  taskName: task.name,
-                  taskId,
-                  employeeRate: task.employeeRate,
-                  hours,
-                });
-              }
+              console.log("Calculated hourly earnings:", {
+                taskName: task.name,
+                hours,
+                rate: task.employeeRate,
+                earnings: earningsForTask,
+              });
             } else if (payType === "piecework") {
               earningsForTask = pieces * task.employeeRate;
-              if (task.employeeRate === 0 || task.employeeRate === undefined) {
-                console.warn("Task has zero or undefined piece rate:", {
-                  taskName: task.name,
-                  taskId,
-                  employeeRate: task.employeeRate,
-                  pieces,
-                });
-              }
+              console.log("Calculated piecework earnings:", {
+                taskName: task.name,
+                pieces,
+                rate: task.employeeRate,
+                earnings: earningsForTask,
+              });
 
               // ACUMULA las ganancias en bruto SOLO de piezas para la comparación semanal
               weeklyTotalPieceworkEarnings += earningsForTask;
-            } else if (task.employeePayType) {
-              // Log unrecognized pay types to help with debugging
-              console.warn("Unrecognized employeePayType:", {
+            } else {
+              // Log ALL cases where earnings aren't calculated
+              console.warn("⚠️ Task earnings not calculated - unrecognized or missing payment type:", {
                 taskName: task.name,
-                employeePayType: task.employeePayType,
-                normalizedPayType: payType,
+                taskId,
+                employeePayType_raw: task.employeePayType,
+                employeePayType_normalized: payType,
+                employeeRate: task.employeeRate,
+                hours,
+                pieces,
               });
             }
 
