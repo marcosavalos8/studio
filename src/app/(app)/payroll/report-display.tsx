@@ -34,7 +34,7 @@ function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData[
                 <TableHead>Task / Location</TableHead>
                 <TableHead className="text-right">Hours</TableHead>
                 <TableHead className="text-right">Pieces</TableHead>
-                <TableHead className="text-right">Raw Earnings</TableHead>
+                <TableHead className="text-right">Task Earnings</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -43,6 +43,11 @@ function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData[
                   <TableCell>
                     <div>{task.taskName}</div>
                     <div className="text-xs text-muted-foreground">{task.clientName} {task.ranch && ` - ${task.ranch}`}</div>
+                    {task.hours > 0 && task.totalEarnings === 0 && (
+                      <div className="text-xs text-amber-600 italic mt-1">
+                        No pieces recorded - minimum wage adjustment applied at daily level
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">{task.hours > 0 ? task.hours.toFixed(2) : '-'}</TableCell>
                   <TableCell className="text-right">{task.pieceworkCount > 0 ? task.pieceworkCount.toFixed(2) : '-'}</TableCell>
