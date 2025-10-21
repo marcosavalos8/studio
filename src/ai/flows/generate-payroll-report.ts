@@ -259,13 +259,50 @@ export async function generatePayrollReport({
             let earningsForTask = 0;
 
             // Nota: Se asumió que 'employeePaymentType' es 'employeePayType' por los errores anteriores
-            if (task.employeePayType === "hourly") {
+            // Normalize the payment type to handle case variations
+            const payType = task.employeePayType?.toLowerCase().trim();
+            
+            // Enhanced logging to diagnose all earnings calculation issues
+            console.log("Processing task earnings:", {
+              taskId,
+              taskName: task.name,
+              employeePayType: task.employeePayType,
+              normalizedPayType: payType,
+              employeeRate: task.employeeRate,
+              hours,
+              pieces,
+            });
+            
+            if (payType === "hourly") {
               earningsForTask = hours * task.employeeRate;
-            } else if (task.employeePayType === "piecework") {
+              console.log("Calculated hourly earnings:", {
+                taskName: task.name,
+                hours,
+                rate: task.employeeRate,
+                earnings: earningsForTask,
+              });
+            } else if (payType === "piecework") {
               earningsForTask = pieces * task.employeeRate;
+              console.log("Calculated piecework earnings:", {
+                taskName: task.name,
+                pieces,
+                rate: task.employeeRate,
+                earnings: earningsForTask,
+              });
 
               // ACUMULA las ganancias en bruto SOLO de piezas para la comparación semanal
               weeklyTotalPieceworkEarnings += earningsForTask;
+            } else {
+              // Log ALL cases where earnings aren't calculated
+              console.warn("⚠️ Task earnings not calculated - unrecognized or missing payment type:", {
+                taskName: task.name,
+                taskId,
+                employeePayType_raw: task.employeePayType,
+                employeePayType_normalized: payType,
+                employeeRate: task.employeeRate,
+                hours,
+                pieces,
+              });
             }
 
             dailyTotalHours += hours;

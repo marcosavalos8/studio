@@ -68,8 +68,11 @@ export function PayrollForm() {
 
         setIsFetchingData(true);
         try {
-            const start = new Date(date.from.setHours(0, 0, 0, 0));
-            const end = new Date(date.to.setHours(23, 59, 59, 999));
+            // Create new date objects without mutating the original date objects
+            const start = new Date(date.from);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(date.to);
+            end.setHours(23, 59, 59, 999);
 
             const employeesSnap = await getDocs(collection(firestore, 'employees'));
             const allEmployees = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
@@ -225,7 +228,13 @@ export function PayrollForm() {
                     mode="range"
                     defaultMonth={date?.from}
                     selected={date}
-                    onSelect={setDate}
+                    onSelect={(newDate) => {
+                      // Only update if we have a valid range or are in the process of selecting
+                      // Prevent completely clearing the date range
+                      if (newDate?.from) {
+                        setDate(newDate);
+                      }
+                    }}
                     numberOfMonths={2}
                   />
                 </PopoverContent>
@@ -250,7 +259,12 @@ export function PayrollForm() {
                         <Calendar
                             mode="single"
                             selected={payDate}
-                            onSelect={setPayDate}
+                            onSelect={(date) => {
+                              // Prevent clearing the pay date - always keep a date selected
+                              if (date) {
+                                setPayDate(date);
+                              }
+                            }}
                             initialFocus
                         />
                     </PopoverContent>
