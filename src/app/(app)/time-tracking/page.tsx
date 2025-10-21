@@ -24,6 +24,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -49,6 +57,7 @@ import {
   Trash2,
   Calendar,
   Filter,
+  Edit,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
@@ -112,6 +121,8 @@ function TimeTrackingPage() {
   // Bulk clock out
   const [isBulkClockingOut, setIsBulkClockingOut] = useState(false);
   const [selectedBulkTask, setSelectedBulkTask] = useState<string>("");
+  const [useBulkClockOutManualDateTime, setUseBulkClockOutManualDateTime] = useState(false);
+  const [bulkClockOutDate, setBulkClockOutDate] = useState<Date | undefined>(undefined);
 
   // Bulk clock in
   const [isBulkClockingIn, setIsBulkClockingIn] = useState(false);
@@ -119,6 +130,8 @@ function TimeTrackingPage() {
   const [selectedBulkInEmployees, setSelectedBulkInEmployees] = useState<
     Set<string>
   >(new Set());
+  const [useBulkClockInManualDateTime, setUseBulkClockInManualDateTime] = useState(false);
+  const [bulkClockInDate, setBulkClockInDate] = useState<Date | undefined>(undefined);
 
   const [selectedClient, setSelectedClient] = useState<string>("");
   const [selectedRanch, setSelectedRanch] = useState<string>("");
@@ -149,6 +162,12 @@ function TimeTrackingPage() {
   // Delete confirmation state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{type: 'time' | 'piecework', id: string} | null>(null);
+  
+  // Edit state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<{type: 'time' | 'piecework', entry: TimeEntry | Piecework} | null>(null);
+  const [editTimestamp, setEditTimestamp] = useState<Date | undefined>(undefined);
+  const [editEndTime, setEditEndTime] = useState<Date | undefined>(undefined);
 
   // Debounce state
   const [recentScans, setRecentScans] = useState<
@@ -741,7 +760,8 @@ function TimeTrackingPage() {
         return;
       }
 
-      const updatedData = { endTime: new Date() };
+      const timestamp = useBulkClockOutManualDateTime && bulkClockOutDate ? bulkClockOutDate : new Date();
+      const updatedData = { endTime: timestamp };
       const batch = writeBatch(firestore);
       querySnapshot.forEach((doc) => {
         batch.update(doc.ref, updatedData);
@@ -758,7 +778,7 @@ function TimeTrackingPage() {
         operation: "update",
         requestResourceData: {
           message: `Bulk clock out`,
-          data: { endTime: new Date() },
+          data: { endTime: useBulkClockOutManualDateTime && bulkClockOutDate ? bulkClockOutDate : new Date() },
         },
       });
       errorEmitter.emit("permission-error", permissionError);
@@ -784,6 +804,13 @@ function TimeTrackingPage() {
 
     try {
       const batch = writeBatch(firestore);
+      const clockInTimestamp = useBulkClockInManualDateTime && bulkClockInDate ? bulkClockInDate : new Date();
+      
+      // For clock out of active sessions, use current time or 1 second before clock-in time
+      // This prevents zero-duration entries
+      const clockOutTimestamp = useBulkClockInManualDateTime && bulkClockInDate 
+        ? new Date(bulkClockInDate.getTime() - 1000) // 1 second before clock-in
+        : new Date();
 
       // Sub-query for currently active entries of the selected employees
       const activeEntriesQuery = query(
@@ -795,7 +822,7 @@ function TimeTrackingPage() {
 
       // Clock out any active sessions for the selected employees
       activeEntriesSnap.forEach((doc) => {
-        batch.update(doc.ref, { endTime: new Date() });
+        batch.update(doc.ref, { endTime: clockOutTimestamp });
       });
 
       // Clock in all selected employees for the new task
@@ -804,7 +831,7 @@ function TimeTrackingPage() {
         const newTimeEntry: Omit<TimeEntry, "id"> = {
           employeeId: employeeId,
           taskId: selectedBulkInTask,
-          timestamp: new Date(),
+          timestamp: clockInTimestamp,
           endTime: null,
           isBreak: false,
         };
@@ -879,6 +906,89 @@ function TimeTrackingPage() {
         variant: "destructive",
         title: "Delete Failed",
         description: "Failed to delete the piecework record.",
+      });
+    }
+  };
+
+  const handleEditTimeEntry = async () => {
+    if (!firestore || !editTarget || editTarget.type !== 'time') return;
+    
+    if (!editTimestamp) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Data",
+        description: "Clock-in time is required.",
+      });
+      return;
+    }
+    
+    try {
+      const updateData: any = {
+        timestamp: editTimestamp,
+      };
+      
+      if (editEndTime) {
+        updateData.endTime = editEndTime;
+      }
+      
+      await updateDoc(doc(firestore, "time_entries", editTarget.entry.id), updateData);
+      toast({
+        title: "Entry Updated",
+        description: "Time entry has been successfully updated.",
+      });
+      setEditDialogOpen(false);
+      setEditTarget(null);
+      setEditTimestamp(undefined);
+      setEditEndTime(undefined);
+    } catch (serverError) {
+      const permissionError = new FirestorePermissionError({
+        path: "time_entries",
+        operation: "update",
+        requestResourceData: { entryId: editTarget.entry.id },
+      });
+      errorEmitter.emit("permission-error", permissionError);
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: "Failed to update the time entry.",
+      });
+    }
+  };
+
+  const handleEditPiecework = async () => {
+    if (!firestore || !editTarget || editTarget.type !== 'piecework') return;
+    
+    if (!editTimestamp) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Data",
+        description: "Timestamp is required.",
+      });
+      return;
+    }
+    
+    try {
+      await updateDoc(doc(firestore, "piecework", editTarget.entry.id), {
+        timestamp: editTimestamp,
+      });
+      toast({
+        title: "Piecework Updated",
+        description: "Piecework record has been successfully updated.",
+      });
+      setEditDialogOpen(false);
+      setEditTarget(null);
+      setEditTimestamp(undefined);
+    } catch (serverError) {
+      const permissionError = new FirestorePermissionError({
+        path: "piecework",
+        operation: "update",
+        requestResourceData: { pieceworkId: editTarget.entry.id },
+      });
+      errorEmitter.emit("permission-error", permissionError);
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: "Failed to update the piecework record.",
       });
     }
   };
@@ -1414,6 +1524,34 @@ function TimeTrackingPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="bulk-clock-in-manual-datetime-checkbox"
+                    checked={useBulkClockInManualDateTime}
+                    onCheckedChange={(checked: boolean) => {
+                      setUseBulkClockInManualDateTime(checked);
+                      if (!checked) {
+                        setBulkClockInDate(undefined);
+                      }
+                    }}
+                  />
+                  <Label htmlFor="bulk-clock-in-manual-datetime-checkbox" className="font-semibold">
+                    Use Manual Date/Time
+                  </Label>
+                </div>
+                {useBulkClockInManualDateTime && (
+                  <div className="pt-2">
+                    <DateTimePicker
+                      date={bulkClockInDate}
+                      setDate={setBulkClockInDate}
+                      label="Clock-In Date & Time"
+                      placeholder="Select date and time for bulk clock-in"
+                    />
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="bulk-in-task-select">Task</Label>
                 <Select
@@ -1524,6 +1662,34 @@ function TimeTrackingPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="bulk-clock-out-manual-datetime-checkbox"
+                    checked={useBulkClockOutManualDateTime}
+                    onCheckedChange={(checked: boolean) => {
+                      setUseBulkClockOutManualDateTime(checked);
+                      if (!checked) {
+                        setBulkClockOutDate(undefined);
+                      }
+                    }}
+                  />
+                  <Label htmlFor="bulk-clock-out-manual-datetime-checkbox" className="font-semibold">
+                    Use Manual Date/Time
+                  </Label>
+                </div>
+                {useBulkClockOutManualDateTime && (
+                  <div className="pt-2">
+                    <DateTimePicker
+                      date={bulkClockOutDate}
+                      setDate={setBulkClockOutDate}
+                      label="Clock-Out Date & Time"
+                      placeholder="Select date and time for bulk clock-out"
+                    />
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="bulk-task-select">Task</Label>
                 <Select
@@ -1691,17 +1857,30 @@ function TimeTrackingPage() {
                               )}
                             </div>
                           </div>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => {
-                              setDeleteTarget({type: 'time', id: entry.id});
-                              setDeleteConfirmOpen(true);
-                            }}
-                            className="ml-4"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex gap-2 ml-4">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setEditTarget({type: 'time', entry: entry});
+                                setEditTimestamp(clockInTime);
+                                setEditEndTime(clockOutTime || undefined);
+                                setEditDialogOpen(true);
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => {
+                                setDeleteTarget({type: 'time', id: entry.id});
+                                setDeleteConfirmOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       );
                     })}
@@ -1791,17 +1970,29 @@ function TimeTrackingPage() {
                               </div>
                             )}
                           </div>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => {
-                              setDeleteTarget({type: 'piecework', id: piece.id});
-                              setDeleteConfirmOpen(true);
-                            }}
-                            className="ml-4"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex gap-2 ml-4">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setEditTarget({type: 'piecework', entry: piece});
+                                setEditTimestamp(pieceTime);
+                                setEditDialogOpen(true);
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => {
+                                setDeleteTarget({type: 'piecework', id: piece.id});
+                                setDeleteConfirmOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       );
                     })}
@@ -1836,6 +2027,62 @@ function TimeTrackingPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Edit {editTarget?.type === 'time' ? 'Time Entry' : 'Piecework Record'}
+            </DialogTitle>
+            <DialogDescription>
+              Update the timestamp{editTarget?.type === 'time' ? 's' : ''} for this {editTarget?.type === 'time' ? 'time entry' : 'piecework record'}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-timestamp">
+                {editTarget?.type === 'time' ? 'Clock-In Time' : 'Timestamp'}
+              </Label>
+              <DateTimePicker
+                date={editTimestamp}
+                setDate={setEditTimestamp}
+                label=""
+                placeholder="Select date and time"
+              />
+            </div>
+            {editTarget?.type === 'time' && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-endtime">Clock-Out Time (optional)</Label>
+                <DateTimePicker
+                  date={editEndTime}
+                  setDate={setEditEndTime}
+                  label=""
+                  placeholder="Select date and time or leave empty"
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditDialogOpen(false);
+                setEditTarget(null);
+                setEditTimestamp(undefined);
+                setEditEndTime(undefined);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={editTarget?.type === 'time' ? handleEditTimeEntry : handleEditPiecework}
+            >
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
