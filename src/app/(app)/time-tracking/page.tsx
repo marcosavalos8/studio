@@ -112,6 +112,8 @@ function TimeTrackingPage() {
   // Bulk clock out
   const [isBulkClockingOut, setIsBulkClockingOut] = useState(false);
   const [selectedBulkTask, setSelectedBulkTask] = useState<string>("");
+  const [useBulkClockOutManualDateTime, setUseBulkClockOutManualDateTime] = useState(false);
+  const [bulkClockOutDate, setBulkClockOutDate] = useState<Date | undefined>(undefined);
 
   // Bulk clock in
   const [isBulkClockingIn, setIsBulkClockingIn] = useState(false);
@@ -119,6 +121,8 @@ function TimeTrackingPage() {
   const [selectedBulkInEmployees, setSelectedBulkInEmployees] = useState<
     Set<string>
   >(new Set());
+  const [useBulkClockInManualDateTime, setUseBulkClockInManualDateTime] = useState(false);
+  const [bulkClockInDate, setBulkClockInDate] = useState<Date | undefined>(undefined);
 
   const [selectedClient, setSelectedClient] = useState<string>("");
   const [selectedRanch, setSelectedRanch] = useState<string>("");
@@ -741,7 +745,8 @@ function TimeTrackingPage() {
         return;
       }
 
-      const updatedData = { endTime: new Date() };
+      const timestamp = useBulkClockOutManualDateTime && bulkClockOutDate ? bulkClockOutDate : new Date();
+      const updatedData = { endTime: timestamp };
       const batch = writeBatch(firestore);
       querySnapshot.forEach((doc) => {
         batch.update(doc.ref, updatedData);
@@ -758,7 +763,7 @@ function TimeTrackingPage() {
         operation: "update",
         requestResourceData: {
           message: `Bulk clock out`,
-          data: { endTime: new Date() },
+          data: { endTime: useBulkClockOutManualDateTime && bulkClockOutDate ? bulkClockOutDate : new Date() },
         },
       });
       errorEmitter.emit("permission-error", permissionError);
@@ -784,6 +789,7 @@ function TimeTrackingPage() {
 
     try {
       const batch = writeBatch(firestore);
+      const timestamp = useBulkClockInManualDateTime && bulkClockInDate ? bulkClockInDate : new Date();
 
       // Sub-query for currently active entries of the selected employees
       const activeEntriesQuery = query(
@@ -795,7 +801,7 @@ function TimeTrackingPage() {
 
       // Clock out any active sessions for the selected employees
       activeEntriesSnap.forEach((doc) => {
-        batch.update(doc.ref, { endTime: new Date() });
+        batch.update(doc.ref, { endTime: timestamp });
       });
 
       // Clock in all selected employees for the new task
@@ -804,7 +810,7 @@ function TimeTrackingPage() {
         const newTimeEntry: Omit<TimeEntry, "id"> = {
           employeeId: employeeId,
           taskId: selectedBulkInTask,
-          timestamp: new Date(),
+          timestamp: timestamp,
           endTime: null,
           isBreak: false,
         };
@@ -1414,6 +1420,34 @@ function TimeTrackingPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="bulk-clock-in-manual-datetime-checkbox"
+                    checked={useBulkClockInManualDateTime}
+                    onCheckedChange={(checked: boolean) => {
+                      setUseBulkClockInManualDateTime(checked);
+                      if (!checked) {
+                        setBulkClockInDate(undefined);
+                      }
+                    }}
+                  />
+                  <Label htmlFor="bulk-clock-in-manual-datetime-checkbox" className="font-semibold">
+                    Use Manual Date/Time
+                  </Label>
+                </div>
+                {useBulkClockInManualDateTime && (
+                  <div className="pt-2">
+                    <DateTimePicker
+                      date={bulkClockInDate}
+                      setDate={setBulkClockInDate}
+                      label="Clock-In Date & Time"
+                      placeholder="Select date and time for bulk clock-in"
+                    />
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="bulk-in-task-select">Task</Label>
                 <Select
@@ -1524,6 +1558,34 @@ function TimeTrackingPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="bulk-clock-out-manual-datetime-checkbox"
+                    checked={useBulkClockOutManualDateTime}
+                    onCheckedChange={(checked: boolean) => {
+                      setUseBulkClockOutManualDateTime(checked);
+                      if (!checked) {
+                        setBulkClockOutDate(undefined);
+                      }
+                    }}
+                  />
+                  <Label htmlFor="bulk-clock-out-manual-datetime-checkbox" className="font-semibold">
+                    Use Manual Date/Time
+                  </Label>
+                </div>
+                {useBulkClockOutManualDateTime && (
+                  <div className="pt-2">
+                    <DateTimePicker
+                      date={bulkClockOutDate}
+                      setDate={setBulkClockOutDate}
+                      label="Clock-Out Date & Time"
+                      placeholder="Select date and time for bulk clock-out"
+                    />
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="bulk-task-select">Task</Label>
                 <Select
