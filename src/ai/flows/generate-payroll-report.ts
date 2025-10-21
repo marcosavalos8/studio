@@ -274,14 +274,22 @@ export async function generatePayrollReport({
             });
           }
 
+          // Daily minimum wage comparison:
+          // Calculate what the employee would have earned if all hours were paid at minimum wage
+          const dailyMinimumWageEarnings = dailyTotalHours * applicableMinWage;
+          
+          // If daily earnings from tasks (piecework + hourly) are less than minimum wage,
+          // adjust to minimum wage. This ensures daily minimum wage compliance.
+          const dailyEarnings = Math.max(dailyTotalEarnings, dailyMinimumWageEarnings);
+
           weeklyTotalHours += dailyTotalHours;
-          weeklyTotalRawEarnings += dailyTotalEarnings;
+          weeklyTotalRawEarnings += dailyEarnings;
 
           dailyBreakdownsForWeek.push({
             date: dayKey,
             tasks: taskDetailsForDay,
             totalDailyHours: parseFloat(dailyTotalHours.toFixed(2)),
-            totalDailyEarnings: parseFloat(dailyTotalEarnings.toFixed(2)),
+            totalDailyEarnings: parseFloat(dailyEarnings.toFixed(2)),
           });
         }
 
@@ -289,14 +297,15 @@ export async function generatePayrollReport({
           continue; // Skip weeks with no work
         }
 
-        const minimumGrossEarnings = weeklyTotalHours * applicableMinWage;
-        const minimumWageTopUp = Math.max(
-          0,
-          minimumGrossEarnings - weeklyTotalRawEarnings
-        );
+        // Since we already adjusted for minimum wage on a daily basis,
+        // weeklyTotalRawEarnings already includes daily minimum wage adjustments.
+        // Calculate what the weekly minimum would have been for comparison.
+        const weeklyMinimumWageRequirement = weeklyTotalHours * applicableMinWage;
+        // The additional top-up needed is zero because daily adjustments already ensure
+        // each day meets or exceeds minimum wage.
+        const minimumWageTopUp = Math.max(0, weeklyMinimumWageRequirement - weeklyTotalRawEarnings);
 
-        const totalEarningsBeforeRest =
-          weeklyTotalRawEarnings + minimumWageTopUp;
+        const totalEarningsBeforeRest = weeklyTotalRawEarnings;
         const regularRateOfPay =
           weeklyTotalHours > 0 ? totalEarningsBeforeRest / weeklyTotalHours : 0;
 
