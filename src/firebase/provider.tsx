@@ -58,7 +58,7 @@ export function FirebaseProvider({ children }: { children: ReactNode }) {
     // Set NEXT_PUBLIC_FIREBASE_ANONYMOUS=true in Vercel/env if you want this behavior.
     if (process.env.NEXT_PUBLIC_FIREBASE_ANONYMOUS === "true") {
       // ignore error (e.g. anonymous disabled) — onAuthStateChanged will still fire
-      signInAnonymously(auth).catch(() => {});
+      signInAnonymously(auth).catch((_error: unknown) => {});
     }
 
     return () => unsub();
