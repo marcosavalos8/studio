@@ -76,18 +76,18 @@ export async function generatePayrollReport({
 
     const STATE_MINIMUM_WAGE = 16.28;
 
-    // Create maps for quick lookups
+    // Create maps for quick lookups and ensure strong typing
     const reportEmployeeIds = new Set(allEmployees.map((e: Employee) => e.id));
     const taskMap = new Map<string, Task>(tasks.map((t: Task) => [t.id, t]));
     const clientMap = new Map<string, Client>(
       clients.map((c: Client) => [c.id, c])
     );
 
-    // Create maps for quick lookup by ID and QRCode
-    const allEmployeesById = new Map<string, Employee>( // <--- Asegura el tipado
+    // Create maps for quick lookup by ID and QRCode, ensuring strong typing
+    const allEmployeesById = new Map<string, Employee>(
       allEmployees.map((e: Employee) => [e.id, e])
     );
-    const allEmployeesByQr = new Map<string, Employee>( // <--- Asegura el tipado
+    const allEmployeesByQr = new Map<string, Employee>(
       allEmployees.map((e: Employee) => [e.qrCode, e])
     );
 
@@ -231,7 +231,10 @@ export async function generatePayrollReport({
 
         const dailyBreakdownsForWeek: DailyBreakdown[] = [];
         let weeklyTotalHours = 0;
-        let weeklyTotalRawEarnings = 0;
+
+        // Acumuladores SEMANALES para la comparación final
+        let weeklyTotalPieceworkEarnings = 0;
+        let weeklyTotalMinimumWageEarnings = 0; // Ganancia que resulta de aplicar el ajuste diario (mínimo)
 
         const sortedDays = Object.keys(dailyWork).sort(
           (a, b) => new Date(a).getTime() - new Date(b).getTime()
@@ -239,11 +242,12 @@ export async function generatePayrollReport({
 
         for (const dayKey of sortedDays) {
           let dailyTotalHours = 0;
-          let dailyTotalEarnings = 0;
+          let dailyTotalRawEarnings = 0; // Ganancia bruta por tareas, antes de ajustes de mínimo
           const taskDetailsForDay: DailyTaskDetail[] = [];
 
           for (const taskId in dailyWork[dayKey].tasks) {
             const task = taskMap.get(taskId);
+            // CORRECCIÓN de TypeScript: saltar si la tarea no existe
             if (!task) continue;
 
             const client = clientMap.get(task.clientId);
@@ -254,14 +258,18 @@ export async function generatePayrollReport({
             const { hours, pieces } = dailyWork[dayKey].tasks[taskId];
             let earningsForTask = 0;
 
+            // Nota: Se asumió que 'employeePaymentType' es 'employeePayType' por los errores anteriores
             if (task.employeePayType === "hourly") {
               earningsForTask = hours * task.employeeRate;
             } else if (task.employeePayType === "piecework") {
               earningsForTask = pieces * task.employeeRate;
+
+              // ACUMULA las ganancias en bruto SOLO de piezas para la comparación semanal
+              weeklyTotalPieceworkEarnings += earningsForTask;
             }
 
             dailyTotalHours += hours;
-            dailyTotalEarnings += earningsForTask;
+            dailyTotalRawEarnings += earningsForTask;
 
             taskDetailsForDay.push({
               taskName: `${task.name} (${task.variety || "N/A"})`,
@@ -274,41 +282,55 @@ export async function generatePayrollReport({
             });
           }
 
-          // Daily minimum wage comparison:
-          // Calculate what the employee would have earned if all hours were paid at minimum wage
+          // PASO 1: AJUSTE DIARIO AL SALARIO MÍNIMO
           const dailyMinimumWageEarnings = dailyTotalHours * applicableMinWage;
-          
-          // If daily earnings from tasks (piecework + hourly) are less than minimum wage,
-          // adjust to minimum wage. This ensures daily minimum wage compliance.
-          const dailyEarnings = Math.max(dailyTotalEarnings, dailyMinimumWageEarnings);
+
+          // La ganancia diaria debe ser MÁXIMA entre la ganancia bruta y el mínimo legal diario.
+          const dailyEarningsAdjusted = Math.max(
+            dailyTotalRawEarnings,
+            dailyMinimumWageEarnings
+          );
 
           weeklyTotalHours += dailyTotalHours;
-          weeklyTotalRawEarnings += dailyEarnings;
+          // Acumula la ganancia AJUSTADA al mínimo diario para la comparación semanal
+          weeklyTotalMinimumWageEarnings += dailyEarningsAdjusted;
 
           dailyBreakdownsForWeek.push({
             date: dayKey,
             tasks: taskDetailsForDay,
             totalDailyHours: parseFloat(dailyTotalHours.toFixed(2)),
-            totalDailyEarnings: parseFloat(dailyEarnings.toFixed(2)),
+            totalDailyEarnings: parseFloat(dailyEarningsAdjusted.toFixed(2)),
           });
         }
 
-        if (weeklyTotalHours <= 0 && weeklyTotalRawEarnings <= 0) {
+        if (weeklyTotalHours <= 0 && weeklyTotalMinimumWageEarnings <= 0) {
           continue; // Skip weeks with no work
         }
 
-        // Since we already adjusted for minimum wage on a daily basis,
-        // weeklyTotalRawEarnings already includes daily minimum wage adjustments.
-        // Calculate what the weekly minimum would have been for comparison.
-        const weeklyMinimumWageRequirement = weeklyTotalHours * applicableMinWage;
-        // The additional top-up needed is zero because daily adjustments already ensure
-        // each day meets or exceeds minimum wage.
-        const minimumWageTopUp = Math.max(0, weeklyMinimumWageRequirement - weeklyTotalRawEarnings);
+        // PASO 2: COMPARACIÓN SEMANAL FINAL (WAC 296-126-021)
+        // El pago base es el MAYOR entre:
+        // A) Ganancia total por Piezas (weeklyTotalPieceworkEarnings)
+        // B) Ganancia total ajustada al Mínimo Diario (weeklyTotalMinimumWageEarnings)
+        const totalEarningsBeforeRest = Math.max(
+          weeklyTotalMinimumWageEarnings,
+          weeklyTotalPieceworkEarnings
+        );
 
-        const totalEarningsBeforeRest = weeklyTotalRawEarnings;
+        // Calcular el top-up solo para fines de reporte (si se hubiera pagado solo piezas)
+        const weeklyMinimumWageRequirement =
+          weeklyTotalHours * applicableMinWage;
+        const minimumWageTopUp = Math.max(
+          0,
+          // Usamos el total de piezas para ver cuánto faltaría para alcanzar el mínimo semanal
+          weeklyMinimumWageRequirement - weeklyTotalPieceworkEarnings
+        );
+
+        // PASO 3: CALCULAR PAGO DE DESCANSOS (REST BREAKS)
         const regularRateOfPay =
           weeklyTotalHours > 0 ? totalEarningsBeforeRest / weeklyTotalHours : 0;
 
+        // 10 minutos por cada 4 horas trabajadas o fracción mayor.
+        // Math.floor(weeklyTotalHours / 4) * (10 / 60)
         const paidRestBreakHours = Math.floor(weeklyTotalHours / 4) * (10 / 60);
         const paidRestBreaksPay = paidRestBreakHours * regularRateOfPay;
 
@@ -318,7 +340,8 @@ export async function generatePayrollReport({
           weekNumber,
           year,
           totalHours: parseFloat(weeklyTotalHours.toFixed(2)),
-          totalEarnings: parseFloat(weeklyTotalRawEarnings.toFixed(2)),
+          // totalEarnings es la cantidad base final elegida (Mínimo Ajustado o Piezas)
+          totalEarnings: parseFloat(totalEarningsBeforeRest.toFixed(2)),
           minimumWageTopUp: parseFloat(minimumWageTopUp.toFixed(2)),
           paidRestBreaks: parseFloat(paidRestBreaksPay.toFixed(2)),
           finalPay: parseFloat(finalWeeklyPay.toFixed(2)),
