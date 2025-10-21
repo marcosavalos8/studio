@@ -812,7 +812,9 @@ function TimeTrackingPage() {
         <TabsContent value="qr-scanner">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg md:text-xl">QR Code Scanner</CardTitle>
+              <CardTitle className="text-lg md:text-xl">
+                QR Code Scanner
+              </CardTitle>
               <CardDescription className="text-sm">
                 Select task and mode. Actions are processed automatically upon
                 valid scan.
@@ -825,7 +827,9 @@ function TimeTrackingPage() {
                 <Label className="font-semibold">Scan Mode</Label>
                 <RadioGroup
                   value={scanMode}
-                  onValueChange={(value: string) => setScanMode(value as ScanMode)}
+                  onValueChange={(value: string) =>
+                    setScanMode(value as ScanMode)
+                  }
                   className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4"
                 >
                   <Label
@@ -835,7 +839,9 @@ function TimeTrackingPage() {
                     <RadioGroupItem value="clock-in" id="mode-clock-in" />
                     <div className="flex items-center gap-1 md:gap-2">
                       <LogIn className="h-4 w-4 md:h-5 md:w-5 text-green-600" />
-                      <p className="font-medium text-sm md:text-base">Clock In</p>
+                      <p className="font-medium text-sm md:text-base">
+                        Clock In
+                      </p>
                     </div>
                   </Label>
                   <Label
@@ -845,7 +851,9 @@ function TimeTrackingPage() {
                     <RadioGroupItem value="clock-out" id="mode-clock-out" />
                     <div className="flex items-center gap-1 md:gap-2">
                       <LogOut className="h-4 w-4 md:h-5 md:w-5 text-red-600" />
-                      <p className="font-medium text-sm md:text-base">Clock Out</p>
+                      <p className="font-medium text-sm md:text-base">
+                        Clock Out
+                      </p>
                     </div>
                   </Label>
                   <Label
@@ -998,7 +1006,9 @@ function TimeTrackingPage() {
                 <Label htmlFor="log-type">Log Type</Label>
                 <Select
                   value={manualLogType}
-                  onValueChange={(v: string) => setManualLogType(v as ManualLogType)}
+                  onValueChange={(v: string) =>
+                    setManualLogType(v as ManualLogType)
+                  }
                 >
                   <SelectTrigger id="log-type">
                     <SelectValue placeholder="Select log type" />
@@ -1273,4 +1283,4 @@ function TimeTrackingPage() {
   );
 }
 
-export default withAuth(TimeTrackingPage);
+export default withAuth(TimeTrackingPage, { askEveryVisit: true });

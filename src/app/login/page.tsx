@@ -1,39 +1,45 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Logo } from '@/components/icons/logo'
-import { useAuth } from '@/contexts/auth-context'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Logo } from "@/components/icons/logo";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function LoginPage() {
-  const router = useRouter()
-  const { login } = useAuth()
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const router = useRouter();
+  const { login } = useAuth();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
     // Simple credential check: David / 1234
-    if (username === 'David' && password === '1234') {
+    if (username === "David" && password === "1234") {
       // Store login state in localStorage and update context
-      localStorage.setItem('isAuthenticated', 'true')
-      localStorage.setItem('username', username)
-      login(username)
-      router.push('/dashboard')
+      localStorage.setItem("isAuthenticated", "true");
+      localStorage.setItem("username", username);
+      login(username);
+      router.push("/dashboard");
     } else {
-      setError('Invalid credentials. Try David / 1234')
-      setLoading(false)
+      setError("Invalid credentials. Try David / 1234");
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
@@ -79,14 +85,11 @@ export default function LoginPage() {
               </div>
             )}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Logging in...' : 'Login'}
+              {loading ? "Logging in..." : "Login"}
             </Button>
-            <p className="text-xs text-center text-muted-foreground mt-4">
-              Demo credentials: David / 1234
-            </p>
           </form>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

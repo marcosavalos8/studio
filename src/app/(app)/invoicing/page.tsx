@@ -82,4 +82,4 @@ function InvoicingPage() {
   );
 }
 
-export default withAuth(InvoicingPage);
+export default withAuth(InvoicingPage, { askEveryVisit: true });
