@@ -34,7 +34,7 @@ function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData[
                 <TableHead>Task / Location</TableHead>
                 <TableHead className="text-right">Hours</TableHead>
                 <TableHead className="text-right">Pieces</TableHead>
-                <TableHead className="text-right">Task Earnings</TableHead>
+                <TableHead className="text-right">Raw Earnings</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
