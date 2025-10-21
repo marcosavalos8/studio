@@ -169,7 +169,7 @@ function TimeTrackingPage() {
           .map((t) => t.block)
           .filter(Boolean)
       ),
-    ];
+    ] as string[];
   }, [tasksForClient, selectedRanch]);
 
   const filteredTasks = useMemo(() => {
@@ -825,7 +825,7 @@ function TimeTrackingPage() {
                 <Label className="font-semibold">Scan Mode</Label>
                 <RadioGroup
                   value={scanMode}
-                  onValueChange={(value) => setScanMode(value as ScanMode)}
+                  onValueChange={(value: string) => setScanMode(value as ScanMode)}
                   className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4"
                 >
                   <Label

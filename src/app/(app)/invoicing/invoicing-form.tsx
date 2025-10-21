@@ -286,7 +286,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
     <div>
       <div className="grid gap-4 sm:grid-cols-3">
         <Select
-          onValueChange={(value) =>
+          onValueChange={(value: string) =>
             setSelectedClient(clients.find((c) => c.id === value))
           }
         >
