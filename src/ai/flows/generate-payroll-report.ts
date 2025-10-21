@@ -254,10 +254,16 @@ export async function generatePayrollReport({
             const { hours, pieces } = dailyWork[dayKey].tasks[taskId];
             let earningsForTask = 0;
 
+            // Defensive check: ensure employeeRate is valid
+            const employeeRate = task.employeeRate || 0;
+            if (employeeRate <= 0) {
+              console.warn(`Task ${task.name} (${taskId}) has invalid employee rate: ${employeeRate}`);
+            }
+
             if (task.employeePayType === "hourly") {
-              earningsForTask = hours * task.employeeRate;
+              earningsForTask = hours * employeeRate;
             } else if (task.employeePayType === "piecework") {
-              earningsForTask = pieces * task.employeeRate;
+              earningsForTask = pieces * employeeRate;
             }
 
             dailyTotalHours += hours;

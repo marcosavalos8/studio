@@ -44,10 +44,10 @@ const taskSchema = z.object({
   ranch: z.string().optional(),
   block: z.string().optional(),
   clientId: z.string().min(1, 'Client is required'),
-  clientRate: z.coerce.number().min(0, 'Rate must be positive'),
+  clientRate: z.coerce.number().positive('Client rate must be greater than 0'),
   clientRateType: z.enum(['hourly', 'piece']),
   employeePayType: z.enum(['hourly', 'piecework']),
-  employeeRate: z.coerce.number().min(0, 'Rate must be positive'),
+  employeeRate: z.coerce.number().positive('Employee rate must be greater than 0'),
   status: z.enum(['Active', 'Inactive', 'Completed']),
 })
 
