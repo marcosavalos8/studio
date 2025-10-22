@@ -28,14 +28,11 @@ import {
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useFirestore } from '@/firebase'
-import { doc, updateDoc } from 'firebase/firestore'
 import { useToast } from '@/hooks/use-toast'
 import type { Employee } from '@/lib/types'
 import { Loader2 } from 'lucide-react'
 import { useEffect } from 'react'
-import { errorEmitter } from '@/firebase/error-emitter'
-import { FirestorePermissionError } from '@/firebase/errors'
+import { apiClient } from '@/lib/api/client'
 
 const employeeSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -50,7 +47,6 @@ type EditEmployeeDialogProps = {
 }
 
 export function EditEmployeeDialog({ isOpen, onOpenChange, employee }: EditEmployeeDialogProps) {
-  const firestore = useFirestore()
   const { toast } = useToast()
   const form = useForm<z.infer<typeof employeeSchema>>({
     resolver: zodResolver(employeeSchema),
@@ -74,35 +70,22 @@ export function EditEmployeeDialog({ isOpen, onOpenChange, employee }: EditEmplo
   const { isSubmitting } = form.formState
 
   const onSubmit = async (values: z.infer<typeof employeeSchema>) => {
-    if (!firestore) {
+    try {
+      await apiClient.update(`/api/employees/${employee.id}`, values);
+      
+      toast({
+        title: 'Employee Updated',
+        description: `${values.name} has been updated successfully.`,
+      });
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error updating employee:', error);
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Firestore is not available. Please try again later.',
-      })
-      return
+        description: 'Failed to update employee. Please try again.',
+      });
     }
-
-    const employeeRef = doc(firestore, 'employees', employee.id)
-
-    const updatedData = { ...values }
-
-    updateDoc(employeeRef, updatedData)
-      .then(() => {
-        toast({
-          title: 'Employee Updated',
-          description: `${values.name} has been updated successfully.`,
-        })
-        onOpenChange(false)
-      })
-      .catch(async (serverError) => {
-         const permissionError = new FirestorePermissionError({
-          path: employeeRef.path,
-          operation: 'update',
-          requestResourceData: updatedData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      })
   }
 
   return (

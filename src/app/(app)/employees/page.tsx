@@ -30,10 +30,9 @@ import { PlusCircle, Printer, QrCode, MoreHorizontal } from "lucide-react";
 
 import type { Employee } from "@/lib/types";
 
-import { useFirestore } from "@/firebase";
-import { useCollection } from "@/firebase/firestore/use-collection";
-import { collection, query, orderBy, getDocs, where } from "firebase/firestore";
-import { useState, useMemo, useEffect } from "react";
+import { useCollection } from "@/lib/api/client";
+import { apiClient } from "@/lib/api/client";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { AddEmployeeDialog } from "./add-employee-dialog";
 import { EditEmployeeDialog } from "./edit-employee-dialog";
@@ -46,7 +45,6 @@ interface EmployeeWithCalculatedHours extends Employee {
 }
 
 export default function EmployeesPage() {
-  const firestore = useFirestore();
   const [isAddDialogOpen, setAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -56,17 +54,13 @@ export default function EmployeesPage() {
   const [employeesWithHours, setEmployeesWithHours] = useState<EmployeeWithCalculatedHours[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
 
-  const employeesQuery = useMemo(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "employees"), orderBy("name"));
-  }, [firestore]);
   const { data: employees, isLoading } =
-    useCollection<Employee>(employeesQuery);
+    useCollection<Employee>('/api/employees', { params: { orderBy: 'name' } });
 
   // Calculate sick hours from historical time entries
   useEffect(() => {
     async function calculateSickHours() {
-      if (!firestore || !employees || employees.length === 0) {
+      if (!employees || employees.length === 0) {
         return;
       }
 
@@ -76,19 +70,15 @@ export default function EmployeesPage() {
         const employeesWithCalculated: EmployeeWithCalculatedHours[] = await Promise.all(
           employees.map(async (employee) => {
             // Fetch all completed time entries for this employee
-            const timeEntriesQuery = query(
-              collection(firestore, "time_entries"),
-              where("employeeId", "==", employee.id)
+            const timeEntries = await apiClient.getCollection(
+              '/api/time_entries',
+              { employeeId: employee.id }
             );
-            
-            const timeEntriesSnapshot = await getDocs(timeEntriesQuery);
             
             let totalHoursWorked = 0;
             let totalHoursUsedSickHours = 0;
 
-            timeEntriesSnapshot.forEach((doc) => {
-              const entry = doc.data();
-              
+            timeEntries.forEach((entry: any) => {
               // Skip if entry is not completed (no endTime)
               if (!entry.endTime) {
                 return;
@@ -100,8 +90,8 @@ export default function EmployeesPage() {
               }
 
               // Convert timestamps to dates
-              const startTime = entry.timestamp?.toDate?.() || new Date(entry.timestamp);
-              const endTime = entry.endTime?.toDate?.() || new Date(entry.endTime);
+              const startTime = new Date(entry.timestamp);
+              const endTime = new Date(entry.endTime);
 
               // Calculate hours worked in this entry
               const hoursWorked = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
@@ -139,7 +129,7 @@ export default function EmployeesPage() {
     }
 
     calculateSickHours();
-  }, [employees, firestore]);
+  }, [employees]);
 
   // Use calculated hours if available, otherwise use stored values
   const displayEmployees = employeesWithHours.length > 0 ? employeesWithHours : employees || [];

@@ -11,14 +11,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { useFirestore } from '@/firebase'
-import { doc, deleteDoc } from 'firebase/firestore'
 import { useToast } from '@/hooks/use-toast'
 import type { Employee } from '@/lib/types'
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { errorEmitter } from '@/firebase/error-emitter'
-import { FirestorePermissionError } from '@/firebase/errors'
+import { apiClient } from '@/lib/api/client'
 
 type DeleteEmployeeDialogProps = {
   isOpen: boolean
@@ -27,41 +24,30 @@ type DeleteEmployeeDialogProps = {
 }
 
 export function DeleteEmployeeDialog({ isOpen, onOpenChange, employee }: DeleteEmployeeDialogProps) {
-  const firestore = useFirestore()
   const { toast } = useToast()
   const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDelete = async () => {
-    if (!firestore) {
+    setIsDeleting(true)
+    
+    try {
+      await apiClient.delete(`/api/employees/${employee.id}`);
+      
+      toast({
+        title: 'Employee Deleted',
+        description: `${employee.name} has been deleted successfully.`,
+      });
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error deleting employee:', error);
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Firestore is not available. Please try again later.',
-      })
-      return
+        description: 'Failed to delete employee. Please try again.',
+      });
+    } finally {
+      setIsDeleting(false);
     }
-
-    setIsDeleting(true)
-    const employeeRef = doc(firestore, 'employees', employee.id)
-
-    deleteDoc(employeeRef)
-      .then(() => {
-        toast({
-          title: 'Employee Deleted',
-          description: `${employee.name} has been deleted successfully.`,
-        })
-        onOpenChange(false)
-      })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: employeeRef.path,
-          operation: 'delete',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      })
-      .finally(() => {
-        setIsDeleting(false)
-      })
   }
 
   return (
