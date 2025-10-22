@@ -45,8 +45,7 @@ const taskSchema = z.object({
   clientId: z.string().min(1, 'Client is required'),
   clientRate: z.coerce.number().min(0, 'Rate must be positive'),
   clientRateType: z.enum(['hourly', 'piece']),
-  employeePayType: z.enum(['hourly', 'piecework']),
-  employeeRate: z.coerce.number().min(0, 'Rate must be positive'),
+  piecePrice: z.coerce.number().min(0, 'Piece price must be positive').optional(),
   status: z.enum(['Active', 'Inactive', 'Completed']),
 })
 
@@ -69,8 +68,7 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
       clientId: '',
       clientRate: 0,
       clientRateType: 'hourly',
-      employeePayType: 'hourly',
-      employeeRate: 0,
+      piecePrice: 0,
       status: 'Active',
     },
   })
@@ -220,77 +218,19 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
             />
 
             <div className="space-y-2 p-3 border rounded-md">
-                <FormLabel>Client Billing</FormLabel>
+                <FormLabel>Piece Price (Optional)</FormLabel>
                 <FormField
                   control={form.control}
-                  name="clientRateType"
+                  name="piecePrice"
                   render={({ field }) => (
                     <FormItem>
-                       <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex gap-4">
-                          <FormItem className="flex items-center space-x-2">
-                              <FormControl>
-                                  <RadioGroupItem value="hourly" id="client-hourly" />
-                              </FormControl>
-                              <FormLabel htmlFor="client-hourly" className="font-normal">Hourly</FormLabel>
-                          </FormItem>
-                           <FormItem className="flex items-center space-x-2">
-                              <FormControl>
-                                  <RadioGroupItem value="piece" id="client-piece" />
-                              </FormControl>
-                              <FormLabel htmlFor="client-piece" className="font-normal">Piece</FormLabel>
-                          </FormItem>
-                       </RadioGroup>
-                    </FormItem>
-                  )}
-                />
-                 <FormField
-                  control={form.control}
-                  name="clientRate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs">Rate ($)</FormLabel>
+                      <FormLabel className="text-xs">Price per piece ($)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" {...field} />
+                        <Input type="number" step="0.01" placeholder="e.g., 0.50" {...field} />
                       </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-            </div>
-
-             <div className="space-y-2 p-3 border rounded-md">
-                <FormLabel>Employee Payment</FormLabel>
-                <FormField
-                  control={form.control}
-                  name="employeePayType"
-                  render={({ field }) => (
-                    <FormItem>
-                       <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex gap-4">
-                          <FormItem className="flex items-center space-x-2">
-                              <FormControl>
-                                  <RadioGroupItem value="hourly" id="emp-hourly" />
-                              </FormControl>
-                              <FormLabel htmlFor="emp-hourly" className="font-normal">Hourly</FormLabel>
-                          </FormItem>
-                           <FormItem className="flex items-center space-x-2">
-                              <FormControl>
-                                  <RadioGroupItem value="piecework" id="emp-piece" />
-                              </FormControl>
-                              <FormLabel htmlFor="emp-piece" className="font-normal">Piecework</FormLabel>
-                          </FormItem>
-                       </RadioGroup>
-                    </FormItem>
-                  )}
-                />
-                 <FormField
-                  control={form.control}
-                  name="employeeRate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs">Rate ($)</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.01" {...field} />
-                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        Set the price per piece for piecework tasks. Payment calculation will be based on pieces completed and minimum wage adjustments.
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}

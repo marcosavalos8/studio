@@ -26,8 +26,7 @@ export type Task = {
   clientId: string; // client id
   clientRate: number;
   clientRateType: "hourly" | "piece";
-  employeePayType: "hourly" | "piecework";
-  employeeRate: number;
+  piecePrice?: number;
   status: "Active" | "Inactive" | "Completed";
 };
 
@@ -39,6 +38,8 @@ export type TimeEntry = {
   endTime?: Date | null;
   isBreak: boolean;
   breakReason?: "Paid" | "Unpaid Meal";
+  piecesWorked?: number;
+  paymentModality?: "Hourly" | "Piecework";
 };
 
 export type Piecework = {

@@ -45,6 +45,20 @@ export type DetailedInvoiceData = {
   subtotal: number;
   commission: number;
   total: number;
+  employeeDetails?: Array<{
+    employeeName: string;
+    employeeId: string;
+    totalHours: number;
+    totalPieces: number;
+    dailyWork: Array<{
+      date: string;
+      tasks: Array<{
+        taskName: string;
+        hours: number;
+        pieces: number;
+      }>;
+    }>;
+  }>;
 };
 
 function InvoicingPage() {

@@ -78,27 +78,27 @@ export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) 
       return
     }
 
-    const newClient = { ...values, email: values.email || '' }
-    const clientsCollection = collection(firestore, 'clients');
+    try {
+      const newClient = { ...values, email: values.email || '' }
+      const clientsCollection = collection(firestore, 'clients');
 
-    addDoc(clientsCollection, newClient)
-      .then((docRef) => {
-        toast({
-          title: 'Client Added',
-          description: `${values.name} has been added successfully.`,
-        })
-        form.reset()
-        onOpenChange(false)
+      await addDoc(clientsCollection, newClient)
+      
+      toast({
+        title: 'Client Added',
+        description: `${values.name} has been added successfully.`,
       })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: clientsCollection.path,
-          operation: 'create',
-          requestResourceData: newClient,
-        });
+      form.reset()
+      onOpenChange(false)
+    } catch (serverError) {
+      const permissionError = new FirestorePermissionError({
+        path: 'clients',
+        operation: 'create',
+        requestResourceData: values,
+      });
 
-        errorEmitter.emit('permission-error', permissionError);
-      })
+      errorEmitter.emit('permission-error', permissionError);
+    }
   }
 
   return (

@@ -28,6 +28,7 @@ const formatCurrency = (value: number | undefined | null): string => {
 };
 
 export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
+  const [showEmployeeDetails, setShowEmployeeDetails] = React.useState(false);
   const handlePrint = () => {
     window.print();
   };
@@ -43,10 +44,20 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
           <ArrowLeft className="mr-2 h-4 w-4" />
           Generate New Invoice
         </Button>
-        <Button onClick={handlePrint}>
-          <Printer className="mr-2 h-4 w-4" />
-          Print / Save as PDF
-        </Button>
+        <div className="flex gap-2">
+          {report.employeeDetails && report.employeeDetails.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={() => setShowEmployeeDetails(!showEmployeeDetails)}
+            >
+              {showEmployeeDetails ? "Hide" : "Show"} Employee Details
+            </Button>
+          )}
+          <Button onClick={handlePrint}>
+            <Printer className="mr-2 h-4 w-4" />
+            Print / Save as PDF
+          </Button>
+        </div>
       </div>
 
       <div className="report-container bg-white text-black p-8 rounded-lg border shadow-sm">
@@ -196,6 +207,62 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
           <p>Payment Terms: {report.client.paymentTerms}</p>
         </div>
       </div>
+
+      {/* Employee Details Section */}
+      {showEmployeeDetails && report.employeeDetails && report.employeeDetails.length > 0 && (
+        <div className="report-container bg-white text-black p-8 rounded-lg border shadow-sm mt-8">
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-primary mb-2">Employee Work Details</h1>
+            <p className="text-sm text-gray-600">
+              Period: {format(new Date(report.date.from), "LLL dd, y")} - {format(new Date(report.date.to), "LLL dd, y")}
+            </p>
+            <p className="text-sm text-gray-600">Client: {report.client.name}</p>
+          </div>
+
+          {report.employeeDetails.map((employee) => (
+            <div key={employee.employeeId} className="mb-8 border-t pt-6">
+              <div className="mb-4">
+                <h2 className="text-xl font-semibold">{employee.employeeName}</h2>
+                <div className="text-sm text-gray-600 mt-1">
+                  Total Hours: {employee.totalHours.toFixed(2)} | Total Pieces: {employee.totalPieces}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {employee.dailyWork.map((day) => (
+                  <div key={day.date}>
+                    <h3 className="font-semibold text-md border-b border-gray-200 pb-1 mb-2">
+                      {format(new Date(day.date), "EEEE, LLL dd, yyyy")}
+                    </h3>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Task</TableHead>
+                          <TableHead className="text-right">Hours</TableHead>
+                          <TableHead className="text-right">Pieces</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {day.tasks.map((task, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell>{task.taskName}</TableCell>
+                            <TableCell className="text-right">
+                              {task.hours > 0 ? task.hours.toFixed(2) : "-"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {task.pieces > 0 ? task.pieces.toFixed(2) : "-"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
