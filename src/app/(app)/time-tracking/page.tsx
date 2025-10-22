@@ -196,6 +196,8 @@ function TimeTrackingPage() {
     undefined
   );
   const [editEndTime, setEditEndTime] = useState<Date | undefined>(undefined);
+  const [editPiecesWorked, setEditPiecesWorked] = useState<number | string>(0);
+  const [editPaymentModality, setEditPaymentModality] = useState<"Hourly" | "Piecework">("Hourly");
 
   // Debounce state
   const [recentScans, setRecentScans] = useState<
@@ -1051,10 +1053,17 @@ function TimeTrackingPage() {
     try {
       const updateData: any = {
         timestamp: editTimestamp,
+        paymentModality: editPaymentModality,
       };
 
       if (editEndTime) {
         updateData.endTime = editEndTime;
+      }
+
+      // Only include piecesWorked if it's a valid number and greater than 0
+      const pieces = typeof editPiecesWorked === 'number' ? editPiecesWorked : parseInt(String(editPiecesWorked), 10);
+      if (!isNaN(pieces) && pieces > 0) {
+        updateData.piecesWorked = pieces;
       }
 
       await updateDoc(
@@ -1069,6 +1078,8 @@ function TimeTrackingPage() {
       setEditTarget(null);
       setEditTimestamp(undefined);
       setEditEndTime(undefined);
+      setEditPiecesWorked(0);
+      setEditPaymentModality("Hourly");
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
         path: "time_entries",
@@ -2102,6 +2113,8 @@ function TimeTrackingPage() {
                                 setEditTarget({ type: "time", entry: entry });
                                 setEditTimestamp(clockInTime);
                                 setEditEndTime(clockOutTime || undefined);
+                                setEditPiecesWorked(entry.piecesWorked || 0);
+                                setEditPaymentModality(entry.paymentModality || "Hourly");
                                 setEditDialogOpen(true);
                               }}
                             >
@@ -2362,15 +2375,46 @@ function TimeTrackingPage() {
               />
             </div>
             {editTarget?.type === "time" && (
-              <div className="space-y-2">
-                <Label htmlFor="edit-endtime">Clock-Out Time (optional)</Label>
-                <DateTimePicker
-                  date={editEndTime}
-                  setDate={setEditEndTime}
-                  label=""
-                  placeholder="Select date and time or leave empty"
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-endtime">Clock-Out Time (optional)</Label>
+                  <DateTimePicker
+                    date={editEndTime}
+                    setDate={setEditEndTime}
+                    label=""
+                    placeholder="Select date and time or leave empty"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-pieces">Pieces Worked (optional)</Label>
+                  <Input
+                    id="edit-pieces"
+                    type="number"
+                    min="0"
+                    placeholder="Enter number of pieces"
+                    value={editPiecesWorked}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setEditPiecesWorked(value === "" ? 0 : parseInt(value, 10));
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-modality">Payment Modality</Label>
+                  <Select
+                    value={editPaymentModality}
+                    onValueChange={(value: "Hourly" | "Piecework") => setEditPaymentModality(value)}
+                  >
+                    <SelectTrigger id="edit-modality">
+                      <SelectValue placeholder="Select payment type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Hourly">Hourly</SelectItem>
+                      <SelectItem value="Piecework">Piecework</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
             )}
           </div>
           <DialogFooter>
@@ -2381,6 +2425,8 @@ function TimeTrackingPage() {
                 setEditTarget(null);
                 setEditTimestamp(undefined);
                 setEditEndTime(undefined);
+                setEditPiecesWorked(0);
+                setEditPaymentModality("Hourly");
               }}
             >
               Cancel

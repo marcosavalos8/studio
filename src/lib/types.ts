@@ -38,6 +38,8 @@ export type TimeEntry = {
   endTime?: Date | null;
   isBreak: boolean;
   breakReason?: "Paid" | "Unpaid Meal";
+  piecesWorked?: number;
+  paymentModality?: "Hourly" | "Piecework";
 };
 
 export type Piecework = {
