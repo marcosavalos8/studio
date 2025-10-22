@@ -26,8 +26,7 @@ export type Task = {
   clientId: string; // client id
   clientRate: number;
   clientRateType: "hourly" | "piece";
-  employeePayType: "hourly" | "piecework";
-  employeeRate: number;
+  piecePrice?: number;
   status: "Active" | "Inactive" | "Completed";
 };
 

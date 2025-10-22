@@ -522,8 +522,34 @@ function TimeTrackingPage() {
             description: `No active clock-in found for ${employee.name}.`,
           });
         } else {
+          const clockOutTime = customTimestamp || new Date();
+          
+          // Validate that clock-out is not before clock-in
+          let hasInvalidClockOut = false;
+          querySnapshot.forEach((docSnap) => {
+            const entry = docSnap.data() as TimeEntry;
+            const clockInTime = entry.timestamp instanceof Date
+              ? entry.timestamp
+              : (entry.timestamp as any)?.toDate?.()
+              ? (entry.timestamp as any).toDate()
+              : new Date(entry.timestamp as any);
+            
+            if (clockOutTime < clockInTime) {
+              hasInvalidClockOut = true;
+            }
+          });
+          
+          if (hasInvalidClockOut) {
+            toast({
+              variant: "destructive",
+              title: "Invalid Clock Out Time",
+              description: `Clock-out time cannot be before clock-in time.`,
+            });
+            return;
+          }
+          
           const batch = writeBatch(firestore);
-          const updatedData = { endTime: customTimestamp || new Date() };
+          const updatedData = { endTime: clockOutTime };
           querySnapshot.forEach((doc) => {
             batch.update(doc.ref, updatedData);
           });
@@ -1009,6 +1035,15 @@ function TimeTrackingPage() {
         variant: "destructive",
         title: "Invalid Data",
         description: "Clock-in time is required.",
+      });
+      return;
+    }
+
+    if (editEndTime && editEndTime < editTimestamp) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Data",
+        description: "Clock-out time cannot be before clock-in time.",
       });
       return;
     }
