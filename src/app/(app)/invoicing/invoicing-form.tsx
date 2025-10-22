@@ -245,6 +245,48 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         : 0;
       const total = subtotal + commission;
 
+      // Build employee details for the optional second page
+      const employeeDetails = filteredSummaries.map((emp) => {
+        const employee = allEmployees.find((e) => e.id === emp.employeeId);
+        const dailyWork: Array<{
+          date: string;
+          tasks: Array<{
+            taskName: string;
+            hours: number;
+            pieces: number;
+          }>;
+        }> = [];
+        
+        let totalHours = 0;
+        let totalPieces = 0;
+
+        emp.weeklySummaries.forEach((week) => {
+          week.dailyBreakdown.forEach((day) => {
+            const dayTasks = day.tasks.map((task) => ({
+              taskName: task.taskName,
+              hours: task.hours,
+              pieces: task.pieceworkCount,
+            }));
+            
+            dailyWork.push({
+              date: day.date,
+              tasks: dayTasks,
+            });
+            
+            totalHours += day.totalDailyHours;
+            totalPieces += day.tasks.reduce((sum, task) => sum + task.pieceworkCount, 0);
+          });
+        });
+
+        return {
+          employeeName: employee?.name || emp.employeeName,
+          employeeId: emp.employeeId,
+          totalHours,
+          totalPieces,
+          dailyWork: dailyWork.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+        };
+      });
+
       const finalInvoiceData: DetailedInvoiceData = {
         client: clientData,
         date: {
@@ -258,6 +300,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         subtotal,
         commission,
         total,
+        employeeDetails,
       };
       setInvoiceData(finalInvoiceData);
     } catch (err) {
