@@ -579,10 +579,9 @@ function TimeTrackingPage() {
           const currentTotalHours = employee.totalHoursWorked || 0;
           const newTotalHours = currentTotalHours + totalHoursForThisSession;
           
-          // Calculate sick hours accrued (1 hour per 40 hours worked)
-          const sickHoursAccrued = totalHoursForThisSession / 40;
           const currentSickBalance = employee.sickHoursBalance || 0;
-          let newSickBalance = currentSickBalance + sickHoursAccrued;
+          let newSickBalance = currentSickBalance;
+          let sickHoursAccrued = 0;
           
           // If using sick hours for payment, deduct the hours worked from sick balance
           if (usingSickHours) {
@@ -597,6 +596,8 @@ function TimeTrackingPage() {
             }
           } else {
             // Only accrue sick hours if not using them for payment
+            // Calculate sick hours accrued (1 hour per 40 hours worked)
+            sickHoursAccrued = totalHoursForThisSession / 40;
             newSickBalance = currentSickBalance + sickHoursAccrued;
           }
           
