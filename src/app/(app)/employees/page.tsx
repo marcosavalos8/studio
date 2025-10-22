@@ -183,6 +183,7 @@ export default function EmployeesPage() {
                 <TableHead className="hidden sm:table-cell">Role</TableHead>
                 <TableHead className="hidden md:table-cell">Status</TableHead>
                 <TableHead className="hidden lg:table-cell">Sick Hours</TableHead>
+                <TableHead className="hidden lg:table-cell">Total Hours</TableHead>
                 <TableHead className="hidden xl:table-cell">QR Code</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -190,7 +191,7 @@ export default function EmployeesPage() {
             <TableBody>
               {(isLoading || isCalculating) && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center">
+                  <TableCell colSpan={7} className="text-center">
                     {isLoading ? "Loading employees..." : "Calculating sick hours..."}
                   </TableCell>
                 </TableRow>
@@ -236,6 +237,15 @@ export default function EmployeesPage() {
                           ? `${employee.calculatedSickHours.toFixed(2)} hrs`
                           : employee.sickHoursBalance !== undefined
                           ? `${employee.sickHoursBalance.toFixed(2)} hrs`
+                          : "0.00 hrs"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      <Badge variant="outline" className="font-mono">
+                        {employee.calculatedTotalHours !== undefined
+                          ? `${employee.calculatedTotalHours.toFixed(2)} hrs`
+                          : employee.totalHoursWorked !== undefined
+                          ? `${employee.totalHoursWorked.toFixed(2)} hrs`
                           : "0.00 hrs"}
                       </Badge>
                     </TableCell>
