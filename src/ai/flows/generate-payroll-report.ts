@@ -207,10 +207,15 @@ export async function generatePayrollReport({
           if (!entry.timestamp || !entry.endTime) return;
           const date = parseISO(String(entry.timestamp));
           const dayKey = format(date, "yyyy-MM-dd");
-          const hours =
+          let hours =
             differenceInMilliseconds(parseISO(String(entry.endTime)), date) /
             (1000 * 60 * 60);
           if (hours <= 0) return;
+
+          // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (unpaid meal break)
+          if (hours > 5) {
+            hours -= 0.5; // Deduct 30 minutes (0.5 hours)
+          }
 
           if (!dailyWork[dayKey]) dailyWork[dayKey] = { tasks: {} };
           if (!dailyWork[dayKey].tasks[entry.taskId])
@@ -258,48 +263,38 @@ export async function generatePayrollReport({
             const { hours, pieces } = dailyWork[dayKey].tasks[taskId];
             let earningsForTask = 0;
 
-            // Nota: Se asumió que 'employeePaymentType' es 'employeePayType' por los errores anteriores
-            // Normalize the payment type to handle case variations
-            const payType = task.employeePayType?.toLowerCase().trim();
-            
             // Enhanced logging to diagnose all earnings calculation issues
             console.log("Processing task earnings:", {
               taskId,
               taskName: task.name,
-              employeePayType: task.employeePayType,
-              normalizedPayType: payType,
-              employeeRate: task.employeeRate,
+              piecePrice: task.piecePrice,
               hours,
               pieces,
             });
             
-            if (payType === "hourly") {
-              earningsForTask = hours * task.employeeRate;
-              console.log("Calculated hourly earnings:", {
-                taskName: task.name,
-                hours,
-                rate: task.employeeRate,
-                earnings: earningsForTask,
-              });
-            } else if (payType === "piecework") {
-              earningsForTask = pieces * task.employeeRate;
+            // Calculate earnings based on pieces if piecePrice is set
+            if (pieces > 0 && task.piecePrice && task.piecePrice > 0) {
+              earningsForTask = pieces * task.piecePrice;
               console.log("Calculated piecework earnings:", {
                 taskName: task.name,
                 pieces,
-                rate: task.employeeRate,
+                piecePrice: task.piecePrice,
                 earnings: earningsForTask,
               });
 
               // ACUMULA las ganancias en bruto SOLO de piezas para la comparación semanal
               weeklyTotalPieceworkEarnings += earningsForTask;
+            } else if (hours > 0) {
+              // For hourly work, earnings will be calculated based on minimum wage
+              // The minimum wage adjustment will be applied later
+              console.log("Hourly work (will be adjusted to minimum wage):", {
+                taskName: task.name,
+                hours,
+              });
             } else {
-              // Log ALL cases where earnings aren't calculated
-              console.warn("⚠️ Task earnings not calculated - unrecognized or missing payment type:", {
+              console.warn("⚠️ Task has neither hours nor pieces:", {
                 taskName: task.name,
                 taskId,
-                employeePayType_raw: task.employeePayType,
-                employeePayType_normalized: payType,
-                employeeRate: task.employeeRate,
                 hours,
                 pieces,
               });
