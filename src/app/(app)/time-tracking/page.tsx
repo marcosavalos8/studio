@@ -210,6 +210,9 @@ function TimeTrackingPage() {
   const [sickLeaveDate, setSickLeaveDate] = useState<string>("");
   const [sickLeaveNotes, setSickLeaveNotes] = useState("");
   const [isLoggingSickLeave, setIsLoggingSickLeave] = useState(false);
+  
+  // Use sick hours for payment state
+  const [useSickHoursForPayment, setUseSickHoursForPayment] = useState(false);
 
   const clientsQuery = useMemo(() => {
     if (!firestore) return null;
@@ -458,6 +461,7 @@ function TimeTrackingPage() {
   // Reset scans when mode changes
   useEffect(() => {
     setScannedSharedEmployees([]);
+    setUseSickHoursForPayment(false); // Reset sick hours checkbox when mode changes
   }, [scanMode, isSharedPiece, selectedTask, pieceEntryMode]);
 
   // Reset manual employee selection when searching
@@ -468,7 +472,7 @@ function TimeTrackingPage() {
   }, [manualEmployeeSearch]);
 
   const clockInEmployee = useCallback(
-    async (employee: Employee, taskId: string, customTimestamp?: Date) => {
+    async (employee: Employee, taskId: string, customTimestamp?: Date, useSickHours?: boolean) => {
       if (!firestore) return;
       const batch = writeBatch(firestore);
 
@@ -491,6 +495,7 @@ function TimeTrackingPage() {
           timestamp: customTimestamp || new Date(),
           endTime: null,
           isBreak: false,
+          useSickHoursForPayment: useSickHours || false,
         };
         batch.set(newTimeEntryRef, newTimeEntry);
 
@@ -498,7 +503,7 @@ function TimeTrackingPage() {
         playSound("clock-in");
         toast({
           title: "Clock In Successful",
-          description: `Clocked in ${employee.name}.`,
+          description: `Clocked in ${employee.name}.${useSickHours ? ' (Using sick hours for payment)' : ''}`,
         });
       } catch (serverError) {
         const permissionError = new FirestorePermissionError({
@@ -534,6 +539,9 @@ function TimeTrackingPage() {
           
           // Validate that clock-out is not before clock-in
           let hasInvalidClockOut = false;
+          let totalHoursForThisSession = 0;
+          let usingSickHours = false;
+          
           querySnapshot.forEach((docSnap) => {
             const entry = docSnap.data() as TimeEntry;
             const clockInTime = entry.timestamp instanceof Date
@@ -544,6 +552,11 @@ function TimeTrackingPage() {
             
             if (clockOutTime < clockInTime) {
               hasInvalidClockOut = true;
+            } else {
+              // Calculate hours for this session
+              const hoursWorked = (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
+              totalHoursForThisSession += hoursWorked;
+              usingSickHours = entry.useSickHoursForPayment || false;
             }
           });
           
@@ -561,11 +574,52 @@ function TimeTrackingPage() {
           querySnapshot.forEach((doc) => {
             batch.update(doc.ref, updatedData);
           });
+          
+          // Update employee's totalHoursWorked and sickHoursBalance
+          const currentTotalHours = employee.totalHoursWorked || 0;
+          const newTotalHours = currentTotalHours + totalHoursForThisSession;
+          
+          const currentSickBalance = employee.sickHoursBalance || 0;
+          let newSickBalance = currentSickBalance;
+          let sickHoursAccrued = 0;
+          
+          // If using sick hours for payment, deduct the hours worked from sick balance
+          if (usingSickHours) {
+            newSickBalance = currentSickBalance - totalHoursForThisSession;
+            if (newSickBalance < 0) {
+              toast({
+                variant: "destructive",
+                title: "Insufficient Sick Hours",
+                description: `Employee only has ${currentSickBalance.toFixed(2)} sick hours available. Cannot use sick hours for payment.`,
+              });
+              return;
+            }
+          } else {
+            // Only accrue sick hours if not using them for payment
+            // Calculate sick hours accrued (1 hour per 40 hours worked)
+            sickHoursAccrued = totalHoursForThisSession / 40;
+            newSickBalance = currentSickBalance + sickHoursAccrued;
+          }
+          
+          const employeeRef = doc(firestore, "employees", employee.id);
+          batch.update(employeeRef, {
+            totalHoursWorked: newTotalHours,
+            sickHoursBalance: newSickBalance,
+          });
+          
           await batch.commit();
           playSound("clock-out");
+          
+          let description = `Clocked out ${employee.name}. Worked ${totalHoursForThisSession.toFixed(2)} hrs.`;
+          if (usingSickHours) {
+            description += ` Used sick hours for payment. New balance: ${newSickBalance.toFixed(2)} hrs.`;
+          } else {
+            description += ` Accrued ${sickHoursAccrued.toFixed(2)} sick hrs. New balance: ${newSickBalance.toFixed(2)} hrs.`;
+          }
+          
           toast({
             title: "Clock Out Successful",
-            description: `Clocked out ${employee.name}.`,
+            description: description,
           });
         }
       } catch (serverError) {
@@ -657,7 +711,7 @@ function TimeTrackingPage() {
       if (scannedEmployee) {
         if (scanMode === "clock-in") {
           const timestamp = useManualDateTime ? manualClockInDate : undefined;
-          await clockInEmployee(scannedEmployee, selectedTask, timestamp);
+          await clockInEmployee(scannedEmployee, selectedTask, timestamp, useSickHoursForPayment);
         } else if (scanMode === "clock-out") {
           const timestamp = useManualDateTime ? manualClockOutDate : undefined;
           await clockOutEmployee(scannedEmployee, selectedTask, timestamp);
@@ -733,6 +787,7 @@ function TimeTrackingPage() {
       manualClockInDate,
       manualClockOutDate,
       manualPieceworkDate,
+      useSickHoursForPayment,
     ]
   );
 
@@ -750,7 +805,7 @@ function TimeTrackingPage() {
 
     if (manualLogType === "clock-in") {
       const timestamp = useManualDateTime ? manualClockInDate : undefined;
-      await clockInEmployee(manualSelectedEmployee, selectedTask, timestamp);
+      await clockInEmployee(manualSelectedEmployee, selectedTask, timestamp, useSickHoursForPayment);
     } else if (manualLogType === "clock-out") {
       const timestamp = useManualDateTime ? manualClockOutDate : undefined;
       await clockOutEmployee(manualSelectedEmployee, selectedTask, timestamp);
@@ -801,6 +856,7 @@ function TimeTrackingPage() {
     setManualEmployeeSearch("");
     setManualPieceQuantity(1);
     setManualNotes("");
+    setUseSickHoursForPayment(false);
     setIsManualSubmitting(false);
   };
 
@@ -1477,6 +1533,31 @@ function TimeTrackingPage() {
                 )}
               </div>
 
+              {scanMode === "clock-in" && (
+                <div className="p-4 border rounded-lg space-y-4 bg-blue-50 dark:bg-blue-950/20">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="use-sick-hours-checkbox"
+                      checked={useSickHoursForPayment}
+                      onCheckedChange={(checked: boolean) => {
+                        setUseSickHoursForPayment(checked);
+                      }}
+                    />
+                    <Label
+                      htmlFor="use-sick-hours-checkbox"
+                      className="font-semibold text-blue-900 dark:text-blue-100"
+                    >
+                      Use Sick Hours for Payment
+                    </Label>
+                  </div>
+                  {useSickHoursForPayment && (
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      ⚠️ The hours worked in this shift will be deducted from the employee's sick hours balance when they clock out.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-3 md:space-y-4 rounded-lg border bg-card text-card-foreground shadow-sm p-3 md:p-4">
                 <Label className="font-semibold">Scan Mode</Label>
                 <RadioGroup
@@ -1706,6 +1787,31 @@ function TimeTrackingPage() {
                   </div>
                 )}
               </div>
+
+              {manualLogType === "clock-in" && (
+                <div className="p-4 border rounded-lg space-y-4 bg-blue-50 dark:bg-blue-950/20">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="use-sick-hours-checkbox-manual"
+                      checked={useSickHoursForPayment}
+                      onCheckedChange={(checked: boolean) => {
+                        setUseSickHoursForPayment(checked);
+                      }}
+                    />
+                    <Label
+                      htmlFor="use-sick-hours-checkbox-manual"
+                      className="font-semibold text-blue-900 dark:text-blue-100"
+                    >
+                      Use Sick Hours for Payment
+                    </Label>
+                  </div>
+                  {useSickHoursForPayment && (
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      ⚠️ The hours worked in this shift will be deducted from the employee's sick hours balance when they clock out.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="log-type">Log Type</Label>

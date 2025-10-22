@@ -32,13 +32,18 @@ import type { Employee } from "@/lib/types";
 
 import { useFirestore } from "@/firebase";
 import { useCollection } from "@/firebase/firestore/use-collection";
-import { collection, query, orderBy } from "firebase/firestore";
-import { useState, useMemo } from "react";
+import { collection, query, orderBy, getDocs, where } from "firebase/firestore";
+import { useState, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { AddEmployeeDialog } from "./add-employee-dialog";
 import { EditEmployeeDialog } from "./edit-employee-dialog";
 import { DeleteEmployeeDialog } from "./delete-employee-dialog";
 import Link from "next/link";
+
+interface EmployeeWithCalculatedHours extends Employee {
+  calculatedSickHours?: number;
+  calculatedTotalHours?: number;
+}
 
 export default function EmployeesPage() {
   const firestore = useFirestore();
@@ -48,6 +53,8 @@ export default function EmployeesPage() {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
     null
   );
+  const [employeesWithHours, setEmployeesWithHours] = useState<EmployeeWithCalculatedHours[]>([]);
+  const [isCalculating, setIsCalculating] = useState(false);
 
   const employeesQuery = useMemo(() => {
     if (!firestore) return null;
@@ -55,6 +62,88 @@ export default function EmployeesPage() {
   }, [firestore]);
   const { data: employees, isLoading } =
     useCollection<Employee>(employeesQuery);
+
+  // Calculate sick hours from historical time entries
+  useEffect(() => {
+    async function calculateSickHours() {
+      if (!firestore || !employees || employees.length === 0) {
+        return;
+      }
+
+      setIsCalculating(true);
+
+      try {
+        const employeesWithCalculated: EmployeeWithCalculatedHours[] = await Promise.all(
+          employees.map(async (employee) => {
+            // Fetch all completed time entries for this employee
+            const timeEntriesQuery = query(
+              collection(firestore, "time_entries"),
+              where("employeeId", "==", employee.id)
+            );
+            
+            const timeEntriesSnapshot = await getDocs(timeEntriesQuery);
+            
+            let totalHoursWorked = 0;
+            let totalHoursUsedSickHours = 0;
+
+            timeEntriesSnapshot.forEach((doc) => {
+              const entry = doc.data();
+              
+              // Skip if entry is not completed (no endTime)
+              if (!entry.endTime) {
+                return;
+              }
+
+              // Skip if it's a break or sick leave
+              if (entry.isBreak || entry.isSickLeave) {
+                return;
+              }
+
+              // Convert timestamps to dates
+              const startTime = entry.timestamp?.toDate?.() || new Date(entry.timestamp);
+              const endTime = entry.endTime?.toDate?.() || new Date(entry.endTime);
+
+              // Calculate hours worked in this entry
+              const hoursWorked = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+              
+              if (hoursWorked > 0) {
+                totalHoursWorked += hoursWorked;
+
+                // Track hours where sick hours were used for payment
+                if (entry.useSickHoursForPayment) {
+                  totalHoursUsedSickHours += hoursWorked;
+                }
+              }
+            });
+
+            // Calculate sick hours balance
+            const sickHoursAccrued = totalHoursWorked / 40;
+            const calculatedSickHours = sickHoursAccrued - totalHoursUsedSickHours;
+
+            return {
+              ...employee,
+              calculatedSickHours,
+              calculatedTotalHours: totalHoursWorked,
+            };
+          })
+        );
+
+        setEmployeesWithHours(employeesWithCalculated);
+      } catch (error) {
+        console.error("Error calculating sick hours:", error);
+        // Fallback to original employees data
+        setEmployeesWithHours(employees.map(emp => ({ ...emp })));
+      } finally {
+        setIsCalculating(false);
+      }
+    }
+
+    calculateSickHours();
+  }, [employees, firestore]);
+
+  // Use calculated hours if available, otherwise use stored values
+  const displayEmployees = employeesWithHours.length > 0 ? employeesWithHours : employees || [];
+
 
   const handleEdit = (employee: Employee) => {
     setSelectedEmployee(employee);
@@ -99,15 +188,15 @@ export default function EmployeesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && (
+              {(isLoading || isCalculating) && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center">
-                    Loading...
+                    {isLoading ? "Loading employees..." : "Calculating sick hours..."}
                   </TableCell>
                 </TableRow>
               )}
-              {employees &&
-                employees.map((employee) => (
+              {!isLoading && !isCalculating && displayEmployees &&
+                displayEmployees.map((employee) => (
                   <TableRow key={employee.id}>
                     <TableCell className="font-medium">
                       <div className="flex flex-col">
@@ -143,7 +232,9 @@ export default function EmployeesPage() {
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
                       <Badge variant="secondary" className="font-mono">
-                        {employee.sickHoursBalance !== undefined
+                        {employee.calculatedSickHours !== undefined
+                          ? `${employee.calculatedSickHours.toFixed(2)} hrs`
+                          : employee.sickHoursBalance !== undefined
                           ? `${employee.sickHoursBalance.toFixed(2)} hrs`
                           : "0.00 hrs"}
                       </Badge>
