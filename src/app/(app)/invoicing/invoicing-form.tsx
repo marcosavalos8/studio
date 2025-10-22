@@ -4,7 +4,7 @@ import * as React from "react";
 import { format } from "date-fns";
 import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
 
-import { cn, toLocalMidnight } from "@/lib/utils";
+import { cn, toLocalMidnight, parseLocalDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -286,7 +286,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           employeeId: emp.employeeId,
           totalHours,
           totalPieces,
-          dailyWork: dailyWork.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+          dailyWork: dailyWork.sort((a, b) => parseLocalDate(a.date).getTime() - parseLocalDate(b.date).getTime()),
         };
       });
 

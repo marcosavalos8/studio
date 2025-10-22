@@ -11,11 +11,11 @@ import {
   format,
   startOfDay,
   endOfDay,
-  parseISO,
   isWithinInterval,
   differenceInMilliseconds,
   startOfWeek,
 } from "date-fns";
+import { parseLocalDate, parseLocalDateOrDateTime } from "@/lib/utils";
 import type {
   Client,
   Task,
@@ -93,8 +93,8 @@ export async function generatePayrollReport({
     );
 
     const reportInterval = {
-      start: startOfDay(parseISO(startDate)),
-      end: endOfDay(parseISO(endDate)),
+      start: startOfDay(parseLocalDate(startDate)),
+      end: endOfDay(parseLocalDate(endDate)),
     };
 
     const employeeSummaries: EmployeePayrollSummary[] = [];
@@ -107,14 +107,14 @@ export async function generatePayrollReport({
           e.employeeId === employeeId &&
           e.timestamp &&
           e.endTime &&
-          isWithinInterval(parseISO(String(e.timestamp)), reportInterval)
+          isWithinInterval(parseLocalDateOrDateTime(String(e.timestamp)), reportInterval)
       );
 
       const empPiecework: Piecework[] = [];
       piecework.forEach((pw: Piecework) => {
         if (
           !pw.timestamp ||
-          !isWithinInterval(parseISO(String(pw.timestamp)), reportInterval)
+          !isWithinInterval(parseLocalDateOrDateTime(String(pw.timestamp)), reportInterval)
         ) {
           return;
         }
@@ -174,7 +174,7 @@ export async function generatePayrollReport({
 
       [...empTimeEntries, ...empPiecework].forEach((entry) => {
         if (!entry.timestamp) return;
-        const date = parseISO(String(entry.timestamp));
+        const date = parseLocalDateOrDateTime(String(entry.timestamp));
         const weekStart = startOfWeek(date, { weekStartsOn: 1 }); // Monday is the start of the week
         const weekKey = format(weekStart, "yyyy-MM-dd");
         if (!workByWeek[weekKey]) {
@@ -192,7 +192,7 @@ export async function generatePayrollReport({
       for (const weekKey in workByWeek) {
         const { time, pieces } = workByWeek[weekKey];
 
-        const weekStartDate = parseISO(weekKey);
+        const weekStartDate = parseLocalDate(weekKey);
         const [year, weekNumber] = [
           getYear(weekStartDate),
           getWeek(weekStartDate, { weekStartsOn: 1 }),
@@ -206,10 +206,10 @@ export async function generatePayrollReport({
 
         time.forEach((entry) => {
           if (!entry.timestamp || !entry.endTime) return;
-          const date = parseISO(String(entry.timestamp));
+          const date = parseLocalDateOrDateTime(String(entry.timestamp));
           const dayKey = format(date, "yyyy-MM-dd");
           let hours =
-            differenceInMilliseconds(parseISO(String(entry.endTime)), date) /
+            differenceInMilliseconds(parseLocalDateOrDateTime(String(entry.endTime)), date) /
             (1000 * 60 * 60);
           if (hours <= 0) return;
 
@@ -229,7 +229,7 @@ export async function generatePayrollReport({
 
         pieces.forEach((entry) => {
           if (!entry.timestamp) return;
-          const date = parseISO(String(entry.timestamp));
+          const date = parseLocalDateOrDateTime(String(entry.timestamp));
           const dayKey = format(date, "yyyy-MM-dd");
 
           if (!dailyWork[dayKey]) dailyWork[dayKey] = { tasks: {} };
@@ -246,7 +246,7 @@ export async function generatePayrollReport({
         let weeklyTotalMinimumWageEarnings = 0; // Ganancia que resulta de aplicar el ajuste diario (mínimo)
 
         const sortedDays = Object.keys(dailyWork).sort(
-          (a, b) => new Date(a).getTime() - new Date(b).getTime()
+          (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime()
         );
 
         for (const dayKey of sortedDays) {

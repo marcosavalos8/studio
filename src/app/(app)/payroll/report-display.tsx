@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import type { ProcessedPayrollData } from "@/lib/types"
 import { format } from "date-fns"
+import { parseLocalDate } from "@/lib/utils"
 import { 
   Table, 
   TableBody, 
@@ -30,7 +31,7 @@ function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData[
     <div className="space-y-2 pl-4">
       {breakdown.map(day => (
         <div key={day.date} className="bg-gray-50 dark:bg-muted/50 p-3 rounded-md">
-          <p className="font-semibold">{format(new Date(day.date), "EEEE, LLL dd")}</p>
+          <p className="font-semibold">{format(parseLocalDate(day.date), "EEEE, LLL dd")}</p>
           <Table>
             <TableHeader>
               <TableRow>
@@ -201,8 +202,8 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                     <div className="flex justify-between items-start">
                         <div>
                             <h1 className="text-3xl font-bold text-primary">Payroll Report</h1>
-                            <div className="text-muted-foreground">For period: {format(new Date(report.startDate), "LLL dd, y")} - {format(new Date(report.endDate), "LLL dd, y")}</div>
-                            <div className="text-muted-foreground">Pay Date: {format(new Date(report.payDate), "LLL dd, y")}</div>
+                            <div className="text-muted-foreground">For period: {format(parseLocalDate(report.startDate), "LLL dd, y")} - {format(parseLocalDate(report.endDate), "LLL dd, y")}</div>
+                            <div className="text-muted-foreground">Pay Date: {format(parseLocalDate(report.payDate), "LLL dd, y")}</div>
                         </div>
                         <div className="text-right">
                             <div className="font-semibold text-lg">FieldTack WA</div>

@@ -3,6 +3,7 @@
 import React from "react";
 import { type DetailedInvoiceData } from "./page";
 import { format } from "date-fns";
+import { parseLocalDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Printer, ArrowLeft } from "lucide-react";
 import {
@@ -34,7 +35,7 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
   };
 
   const sortedDates = Object.keys(report.dailyBreakdown).sort(
-    (a, b) => new Date(a).getTime() - new Date(b).getTime()
+    (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime()
   );
 
   return (
@@ -113,8 +114,8 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
               </p>
               <p>
                 <strong>Period:</strong>{" "}
-                {format(new Date(report.date.from), "LLL dd, y")} -{" "}
-                {format(new Date(report.date.to), "LLL dd, y")}
+                {format(parseLocalDate(report.date.from), "LLL dd, y")} -{" "}
+                {format(parseLocalDate(report.date.to), "LLL dd, y")}
               </p>
             </div>
           </div>
@@ -124,7 +125,7 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
           {sortedDates.map((date) => (
             <div key={date}>
               <h2 className="font-semibold text-lg border-b-2 border-gray-200 pb-1 mb-2">
-                {format(new Date(date), "EEEE, LLL dd, yyyy")}
+                {format(parseLocalDate(date), "EEEE, LLL dd, yyyy")}
               </h2>
               <Table>
                 <TableHeader>
@@ -214,7 +215,7 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-primary mb-2">Employee Work Details</h1>
             <p className="text-sm text-gray-600">
-              Period: {format(new Date(report.date.from), "LLL dd, y")} - {format(new Date(report.date.to), "LLL dd, y")}
+              Period: {format(parseLocalDate(report.date.from), "LLL dd, y")} - {format(parseLocalDate(report.date.to), "LLL dd, y")}
             </p>
             <p className="text-sm text-gray-600">Client: {report.client.name}</p>
           </div>
@@ -232,7 +233,7 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
                 {employee.dailyWork.map((day) => (
                   <div key={day.date}>
                     <h3 className="font-semibold text-md border-b border-gray-200 pb-1 mb-2">
-                      {format(new Date(day.date), "EEEE, LLL dd, yyyy")}
+                      {format(parseLocalDate(day.date), "EEEE, LLL dd, yyyy")}
                     </h3>
                     <Table>
                       <TableHeader>
