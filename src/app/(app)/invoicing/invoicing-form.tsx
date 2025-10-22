@@ -107,15 +107,16 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
       const timeEntries = timeEntriesSnap.docs
         .map((doc) => ({ ...doc.data(), id: doc.id } as TimeEntry))
         .filter((te) => taskIds.includes(te.taskId))
-        .map((te) => ({
-          ...te,
-          timestamp:
-            (te.timestamp as unknown as Timestamp)?.toDate().toISOString() ||
-            null,
-          endTime:
-            (te.endTime as unknown as Timestamp)?.toDate()?.toISOString() ||
-            null,
-        }));
+        .map((te) => {
+          const timestampDate = (te.timestamp as unknown as Timestamp)?.toDate();
+          const endTimeDate = (te.endTime as unknown as Timestamp)?.toDate();
+          return {
+            ...te,
+            // Format as local date-time string without timezone (YYYY-MM-DDTHH:mm:ss)
+            timestamp: timestampDate ? format(timestampDate, "yyyy-MM-dd'T'HH:mm:ss") : null,
+            endTime: endTimeDate ? format(endTimeDate, "yyyy-MM-dd'T'HH:mm:ss") : null,
+          };
+        });
 
       const pieceworkQuery = query(
         collection(firestore, "piecework"),
@@ -126,12 +127,14 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
       const piecework = pieceworkSnap.docs
         .map((doc) => ({ ...doc.data(), id: doc.id } as Piecework))
         .filter((pw) => taskIds.includes(pw.taskId))
-        .map((pw) => ({
-          ...pw,
-          timestamp:
-            (pw.timestamp as unknown as Timestamp)?.toDate().toISOString() ||
-            null,
-        }));
+        .map((pw) => {
+          const timestampDate = (pw.timestamp as unknown as Timestamp)?.toDate();
+          return {
+            ...pw,
+            // Format as local date-time string without timezone (YYYY-MM-DDTHH:mm:ss)
+            timestamp: timestampDate ? format(timestampDate, "yyyy-MM-dd'T'HH:mm:ss") : null,
+          };
+        });
 
       const jsonData = JSON.stringify({
         employees: allEmployees,

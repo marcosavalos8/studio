@@ -21,11 +21,11 @@ export const clients: Omit<Client, 'id'>[] = [
 // This is a simplified representation to link tasks to clients by name for seeding.
 // In a real app, you'd use the generated IDs.
 const tasksWithClientNames: Omit<Task, 'id' | 'clientId'> & { clientName: string }[] = [
-    { name: 'Apple Picking', variety: 'Gala', clientName: 'Green Valley Farms', clientRate: 20, clientRateType: 'piece', employeePayType: 'piecework', employeeRate: 0.5, status: 'Active' },
-    { name: 'Cherry Sorting', clientName: 'Sunrise Orchards', clientRate: 25, clientRateType: 'hourly', employeePayType: 'hourly', employeeRate: 18, status: 'Active' },
-    { name: 'Vineyard Pruning', clientName: 'Green Valley Farms', clientRate: 22, clientRateType: 'hourly', employeePayType: 'hourly', employeeRate: 19, status: 'Inactive' },
-    { name: 'Packing Boxes', variety: 'Mixed', clientName: 'Columbia Basin Produce', clientRate: 0.8, clientRateType: 'piece', employeePayType: 'piecework', employeeRate: 0.2, status: 'Active' },
-    { name: 'Harvesting Asparagus', clientName: 'Columbia Basin Produce', clientRate: 1.2, clientRateType: 'piece', employeePayType: 'piecework', employeeRate: 0.3, status: 'Completed' },
+    { name: 'Apple Picking', variety: 'Gala', clientName: 'Green Valley Farms', clientRate: 20, clientRateType: 'piece', piecePrice: 0.5, status: 'Active' },
+    { name: 'Cherry Sorting', clientName: 'Sunrise Orchards', clientRate: 25, clientRateType: 'hourly', status: 'Active' },
+    { name: 'Vineyard Pruning', clientName: 'Green Valley Farms', clientRate: 22, clientRateType: 'hourly', status: 'Inactive' },
+    { name: 'Packing Boxes', variety: 'Mixed', clientName: 'Columbia Basin Produce', clientRate: 0.8, clientRateType: 'piece', piecePrice: 0.2, status: 'Active' },
+    { name: 'Harvesting Asparagus', clientName: 'Columbia Basin Produce', clientRate: 1.2, clientRateType: 'piece', piecePrice: 0.3, status: 'Completed' },
 ];
 
 
@@ -52,8 +52,7 @@ async function seedDatabase() {
                     clientId: clientId,
                     clientRate: task.clientRate,
                     clientRateType: task.clientRateType,
-                    employeePayType: task.employeePayType,
-                    employeeRate: task.employeeRate,
+                    piecePrice: task.piecePrice,
                     status: task.status,
                 };
                 await addDoc(collection(db, "tasks"), taskData);

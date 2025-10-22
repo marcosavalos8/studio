@@ -10,6 +10,7 @@ import {
   getYear,
   format,
   startOfDay,
+  endOfDay,
   parseISO,
   isWithinInterval,
   differenceInMilliseconds,
@@ -93,7 +94,7 @@ export async function generatePayrollReport({
 
     const reportInterval = {
       start: startOfDay(parseISO(startDate)),
-      end: startOfDay(parseISO(endDate)),
+      end: endOfDay(parseISO(endDate)),
     };
 
     const employeeSummaries: EmployeePayrollSummary[] = [];

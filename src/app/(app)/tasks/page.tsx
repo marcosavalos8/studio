@@ -120,7 +120,7 @@ export default function TasksPage() {
           <TableHead>Task Name</TableHead>
           <TableHead className="hidden md:table-cell">Location</TableHead>
           <TableHead className="hidden lg:table-cell">Status</TableHead>
-          <TableHead className="hidden lg:table-cell">Employee Pay</TableHead>
+          <TableHead className="hidden lg:table-cell">Rate</TableHead>
           <TableHead className="text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
@@ -180,13 +180,25 @@ export default function TasksPage() {
             </TableCell>
             <TableCell className="hidden lg:table-cell">
               <div className="flex flex-col">
-                <span className="font-medium">
-                  ${task.employeeRate.toFixed(2)}/
-                  {task.employeePayType === "hourly" ? "hr" : "piece"}
-                </span>
-                <span className="text-muted-foreground capitalize">
-                  {task.employeePayType}
-                </span>
+                {task.clientRateType === "piece" && task.piecePrice ? (
+                  <>
+                    <span className="font-medium">
+                      ${task.piecePrice.toFixed(2)}/piece
+                    </span>
+                    <span className="text-muted-foreground capitalize">
+                      Piecework
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-medium">
+                      ${task.clientRate.toFixed(2)}/hr
+                    </span>
+                    <span className="text-muted-foreground capitalize">
+                      Hourly
+                    </span>
+                  </>
+                )}
               </div>
             </TableCell>
             <TableCell className="text-right">
