@@ -176,84 +176,157 @@ export default function EmployeesPage() {
           </Button>
         </CardHeader>
         <CardContent className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead className="hidden sm:table-cell">Role</TableHead>
-                <TableHead className="hidden md:table-cell">Status</TableHead>
-                <TableHead className="hidden lg:table-cell">Sick Hours</TableHead>
-                <TableHead className="hidden lg:table-cell">Total Hours</TableHead>
-                <TableHead className="hidden xl:table-cell">QR Code</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(isLoading || isCalculating) && (
+          {/* Table view for large screens */}
+          <div className="hidden lg:block">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center">
-                    {isLoading ? "Loading employees..." : "Calculating sick hours..."}
-                  </TableCell>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Sick Hours</TableHead>
+                  <TableHead>Total Hours</TableHead>
+                  <TableHead className="hidden xl:table-cell">QR Code</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              )}
-              {!isLoading && !isCalculating && displayEmployees &&
-                displayEmployees.map((employee) => (
-                  <TableRow key={employee.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex flex-col">
-                        <span>{employee.name}</span>
-                        <span className="sm:hidden text-xs text-muted-foreground">
+              </TableHeader>
+              <TableBody>
+                {(isLoading || isCalculating) && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center">
+                      {isLoading ? "Loading employees..." : "Calculating sick hours..."}
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!isLoading && !isCalculating && displayEmployees &&
+                  displayEmployees.map((employee) => (
+                    <TableRow key={employee.id}>
+                      <TableCell className="font-medium">
+                        {employee.name}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            employee.role === "Supervisor"
+                              ? "default"
+                              : "secondary"
+                          }
+                        >
                           {employee.role}
-                        </span>
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={cn({
+                            "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200":
+                              employee.status === "Active",
+                            "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200":
+                              employee.status === "Inactive",
+                          })}
+                        >
+                          {employee.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="font-mono">
+                          {employee.calculatedSickHours !== undefined
+                            ? `${employee.calculatedSickHours.toFixed(2)} hrs`
+                            : employee.sickHoursBalance !== undefined
+                            ? `${employee.sickHoursBalance.toFixed(2)} hrs`
+                            : "0.00 hrs"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-mono">
+                          {employee.calculatedTotalHours !== undefined
+                            ? `${employee.calculatedTotalHours.toFixed(2)} hrs`
+                            : employee.totalHoursWorked !== undefined
+                            ? `${employee.totalHoursWorked.toFixed(2)} hrs`
+                            : "0.00 hrs"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden xl:table-cell font-mono flex items-center gap-2">
+                        <QrCode className="h-4 w-4 text-muted-foreground" />
+                        <span>{employee.qrCode}</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onClick={() => handleEdit(employee)}
+                            >
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Link
+                                href={`/employees/print-badge/${employee.id}`}
+                                target="_blank"
+                                passHref
+                              >
+                                Print Badge
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                              onClick={() => handleDelete(employee)}
+                            >
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Card view for mobile and tablet screens */}
+          <div className="lg:hidden space-y-4">
+            {(isLoading || isCalculating) && (
+              <div className="text-center py-8 text-muted-foreground">
+                {isLoading ? "Loading employees..." : "Calculating sick hours..."}
+              </div>
+            )}
+            {!isLoading && !isCalculating && displayEmployees &&
+              displayEmployees.map((employee) => (
+                <Card key={employee.id} className="relative">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1">
+                        <CardTitle className="text-lg">{employee.name}</CardTitle>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge
+                            variant={
+                              employee.role === "Supervisor"
+                                ? "default"
+                                : "secondary"
+                            }
+                          >
+                            {employee.role}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={cn({
+                              "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200":
+                                employee.status === "Active",
+                              "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200":
+                                employee.status === "Inactive",
+                            })}
+                          >
+                            {employee.status}
+                          </Badge>
+                        </div>
                       </div>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <Badge
-                        variant={
-                          employee.role === "Supervisor"
-                            ? "default"
-                            : "secondary"
-                        }
-                      >
-                        {employee.role}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <Badge
-                        variant="outline"
-                        className={cn({
-                          "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200":
-                            employee.status === "Active",
-                          "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200":
-                            employee.status === "Inactive",
-                        })}
-                      >
-                        {employee.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <Badge variant="secondary" className="font-mono">
-                        {employee.calculatedSickHours !== undefined
-                          ? `${employee.calculatedSickHours.toFixed(2)} hrs`
-                          : employee.sickHoursBalance !== undefined
-                          ? `${employee.sickHoursBalance.toFixed(2)} hrs`
-                          : "0.00 hrs"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <Badge variant="outline" className="font-mono">
-                        {employee.calculatedTotalHours !== undefined
-                          ? `${employee.calculatedTotalHours.toFixed(2)} hrs`
-                          : employee.totalHoursWorked !== undefined
-                          ? `${employee.totalHoursWorked.toFixed(2)} hrs`
-                          : "0.00 hrs"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden xl:table-cell font-mono flex items-center gap-2">
-                      <QrCode className="h-4 w-4 text-muted-foreground" />
-                      <span>{employee.qrCode}</span>
-                    </TableCell>
-                    <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="h-8 w-8 p-0">
@@ -286,11 +359,42 @@ export default function EmployeesPage() {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-            </TableBody>
-          </Table>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="text-sm text-muted-foreground mb-1">Sick Hours</div>
+                        <Badge variant="secondary" className="font-mono">
+                          {employee.calculatedSickHours !== undefined
+                            ? `${employee.calculatedSickHours.toFixed(2)} hrs`
+                            : employee.sickHoursBalance !== undefined
+                            ? `${employee.sickHoursBalance.toFixed(2)} hrs`
+                            : "0.00 hrs"}
+                        </Badge>
+                      </div>
+                      <div>
+                        <div className="text-sm text-muted-foreground mb-1">Total Hours</div>
+                        <Badge variant="outline" className="font-mono">
+                          {employee.calculatedTotalHours !== undefined
+                            ? `${employee.calculatedTotalHours.toFixed(2)} hrs`
+                            : employee.totalHoursWorked !== undefined
+                            ? `${employee.totalHoursWorked.toFixed(2)} hrs`
+                            : "0.00 hrs"}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-muted-foreground mb-1">QR Code</div>
+                      <div className="font-mono text-sm flex items-center gap-2">
+                        <QrCode className="h-4 w-4 text-muted-foreground" />
+                        <span>{employee.qrCode}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+          </div>
         </CardContent>
       </Card>
       <AddEmployeeDialog
