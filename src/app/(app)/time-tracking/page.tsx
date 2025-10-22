@@ -121,8 +121,11 @@ function TimeTrackingPage() {
   // Bulk clock out
   const [isBulkClockingOut, setIsBulkClockingOut] = useState(false);
   const [selectedBulkTask, setSelectedBulkTask] = useState<string>("");
-  const [useBulkClockOutManualDateTime, setUseBulkClockOutManualDateTime] = useState(false);
-  const [bulkClockOutDate, setBulkClockOutDate] = useState<Date | undefined>(undefined);
+  const [useBulkClockOutManualDateTime, setUseBulkClockOutManualDateTime] =
+    useState(false);
+  const [bulkClockOutDate, setBulkClockOutDate] = useState<Date | undefined>(
+    undefined
+  );
 
   // Bulk clock in
   const [isBulkClockingIn, setIsBulkClockingIn] = useState(false);
@@ -130,8 +133,11 @@ function TimeTrackingPage() {
   const [selectedBulkInEmployees, setSelectedBulkInEmployees] = useState<
     Set<string>
   >(new Set());
-  const [useBulkClockInManualDateTime, setUseBulkClockInManualDateTime] = useState(false);
-  const [bulkClockInDate, setBulkClockInDate] = useState<Date | undefined>(undefined);
+  const [useBulkClockInManualDateTime, setUseBulkClockInManualDateTime] =
+    useState(false);
+  const [bulkClockInDate, setBulkClockInDate] = useState<Date | undefined>(
+    undefined
+  );
 
   const [selectedClient, setSelectedClient] = useState<string>("");
   const [selectedRanch, setSelectedRanch] = useState<string>("");
@@ -151,26 +157,44 @@ function TimeTrackingPage() {
 
   // Manual Date/Time Selection State
   const [useManualDateTime, setUseManualDateTime] = useState(false);
-  const [manualClockInDate, setManualClockInDate] = useState<Date | undefined>(undefined);
-  const [manualClockOutDate, setManualClockOutDate] = useState<Date | undefined>(undefined);
-  const [manualPieceworkDate, setManualPieceworkDate] = useState<Date | undefined>(undefined);
+  const [manualClockInDate, setManualClockInDate] = useState<Date | undefined>(
+    undefined
+  );
+  const [manualClockOutDate, setManualClockOutDate] = useState<
+    Date | undefined
+  >(undefined);
+  const [manualPieceworkDate, setManualPieceworkDate] = useState<
+    Date | undefined
+  >(undefined);
 
   // History filtering state
-  const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>(undefined);
-  const [historyEndDate, setHistoryEndDate] = useState<Date | undefined>(undefined);
-  
+  const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>(
+    undefined
+  );
+  const [historyEndDate, setHistoryEndDate] = useState<Date | undefined>(
+    undefined
+  );
+
   // Delete confirmation state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{type: 'time' | 'piecework', id: string} | null>(null);
-  
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: "time" | "piecework";
+    id: string;
+  } | null>(null);
+
   // Delete all confirmation state
   const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
-  
+
   // Edit state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<{type: 'time' | 'piecework', entry: TimeEntry | Piecework} | null>(null);
-  const [editTimestamp, setEditTimestamp] = useState<Date | undefined>(undefined);
+  const [editTarget, setEditTarget] = useState<{
+    type: "time" | "piecework";
+    entry: TimeEntry | Piecework;
+  } | null>(null);
+  const [editTimestamp, setEditTimestamp] = useState<Date | undefined>(
+    undefined
+  );
   const [editEndTime, setEditEndTime] = useState<Date | undefined>(undefined);
 
   // Debounce state
@@ -207,7 +231,7 @@ function TimeTrackingPage() {
   const allTimeEntriesQuery = useMemo(() => {
     if (!firestore) return null;
     let q = collection(firestore, "time_entries");
-    
+
     // Build query with date filters if specified
     const constraints = [];
     if (historyStartDate) {
@@ -216,17 +240,28 @@ function TimeTrackingPage() {
     if (historyEndDate) {
       constraints.push(where("timestamp", "<=", endOfDay(historyEndDate)));
     }
-    
+
     return constraints.length > 0 ? query(q, ...constraints) : query(q);
   }, [firestore, historyStartDate, historyEndDate]);
-  const { data: allTimeEntriesRaw } = useCollection<TimeEntry>(allTimeEntriesQuery);
-  
+  const { data: allTimeEntriesRaw } =
+    useCollection<TimeEntry>(allTimeEntriesQuery);
+
   // Sort all time entries in memory by timestamp descending
   const allTimeEntries = useMemo(() => {
     if (!allTimeEntriesRaw) return null;
     return [...allTimeEntriesRaw].sort((a, b) => {
-      const aTime = a.timestamp instanceof Date ? a.timestamp : (a.timestamp as any)?.toDate?.() ? (a.timestamp as any).toDate() : new Date(a.timestamp as any);
-      const bTime = b.timestamp instanceof Date ? b.timestamp : (b.timestamp as any)?.toDate?.() ? (b.timestamp as any).toDate() : new Date(b.timestamp as any);
+      const aTime =
+        a.timestamp instanceof Date
+          ? a.timestamp
+          : (a.timestamp as any)?.toDate?.()
+          ? (a.timestamp as any).toDate()
+          : new Date(a.timestamp as any);
+      const bTime =
+        b.timestamp instanceof Date
+          ? b.timestamp
+          : (b.timestamp as any)?.toDate?.()
+          ? (b.timestamp as any).toDate()
+          : new Date(b.timestamp as any);
       return bTime.getTime() - aTime.getTime();
     });
   }, [allTimeEntriesRaw]);
@@ -235,7 +270,7 @@ function TimeTrackingPage() {
   const allPieceworkQuery = useMemo(() => {
     if (!firestore) return null;
     let q = collection(firestore, "piecework");
-    
+
     // Build query with date filters if specified
     const constraints = [];
     if (historyStartDate) {
@@ -244,17 +279,27 @@ function TimeTrackingPage() {
     if (historyEndDate) {
       constraints.push(where("timestamp", "<=", endOfDay(historyEndDate)));
     }
-    
+
     return constraints.length > 0 ? query(q, ...constraints) : query(q);
   }, [firestore, historyStartDate, historyEndDate]);
   const { data: allPieceworkRaw } = useCollection<Piecework>(allPieceworkQuery);
-  
+
   // Sort all piecework in memory by timestamp descending
   const allPiecework = useMemo(() => {
     if (!allPieceworkRaw) return null;
     return [...allPieceworkRaw].sort((a, b) => {
-      const aTime = a.timestamp instanceof Date ? a.timestamp : (a.timestamp as any)?.toDate?.() ? (a.timestamp as any).toDate() : new Date(a.timestamp as any);
-      const bTime = b.timestamp instanceof Date ? b.timestamp : (b.timestamp as any)?.toDate?.() ? (b.timestamp as any).toDate() : new Date(b.timestamp as any);
+      const aTime =
+        a.timestamp instanceof Date
+          ? a.timestamp
+          : (a.timestamp as any)?.toDate?.()
+          ? (a.timestamp as any).toDate()
+          : new Date(a.timestamp as any);
+      const bTime =
+        b.timestamp instanceof Date
+          ? b.timestamp
+          : (b.timestamp as any)?.toDate?.()
+          ? (b.timestamp as any).toDate()
+          : new Date(b.timestamp as any);
       return bTime.getTime() - aTime.getTime();
     });
   }, [allPieceworkRaw]);
@@ -267,14 +312,26 @@ function TimeTrackingPage() {
       where("endTime", "==", null)
     );
   }, [firestore]);
-  const { data: activeTimeEntriesRaw } = useCollection<TimeEntry>(activeTimeEntriesQuery);
-  
+  const { data: activeTimeEntriesRaw } = useCollection<TimeEntry>(
+    activeTimeEntriesQuery
+  );
+
   // Sort active time entries in memory by timestamp descending
   const activeTimeEntries = useMemo(() => {
     if (!activeTimeEntriesRaw) return null;
     return [...activeTimeEntriesRaw].sort((a, b) => {
-      const aTime = a.timestamp instanceof Date ? a.timestamp : (a.timestamp as any)?.toDate?.() ? (a.timestamp as any).toDate() : new Date(a.timestamp as any);
-      const bTime = b.timestamp instanceof Date ? b.timestamp : (b.timestamp as any)?.toDate?.() ? (b.timestamp as any).toDate() : new Date(b.timestamp as any);
+      const aTime =
+        a.timestamp instanceof Date
+          ? a.timestamp
+          : (a.timestamp as any)?.toDate?.()
+          ? (a.timestamp as any).toDate()
+          : new Date(a.timestamp as any);
+      const bTime =
+        b.timestamp instanceof Date
+          ? b.timestamp
+          : (b.timestamp as any)?.toDate?.()
+          ? (b.timestamp as any).toDate()
+          : new Date(b.timestamp as any);
       return bTime.getTime() - aTime.getTime();
     });
   }, [activeTimeEntriesRaw]);
@@ -490,7 +547,12 @@ function TimeTrackingPage() {
   );
 
   const recordPiecework = useCallback(
-    async (employeeIds: string[], taskId: string, binQr: string, customTimestamp?: Date) => {
+    async (
+      employeeIds: string[],
+      taskId: string,
+      binQr: string,
+      customTimestamp?: Date
+    ) => {
       if (!firestore) return;
 
       const newPiecework: Omit<Piecework, "id"> = {
@@ -599,7 +661,12 @@ function TimeTrackingPage() {
             .map((id) => activeEmployees?.find((e) => e.id === id)?.qrCode)
             .filter(Boolean) as string[];
           const timestamp = useManualDateTime ? manualPieceworkDate : undefined;
-          await recordPiecework(employeeQrCodes, selectedTask, scannedData, timestamp);
+          await recordPiecework(
+            employeeQrCodes,
+            selectedTask,
+            scannedData,
+            timestamp
+          );
           if (!isSharedPiece) {
             setScannedSharedEmployees([]);
           }
@@ -671,7 +738,10 @@ function TimeTrackingPage() {
       const newPiecework: Omit<Piecework, "id"> = {
         employeeId: manualSelectedEmployee.id,
         taskId: selectedTask,
-        timestamp: useManualDateTime && manualPieceworkDate ? manualPieceworkDate : new Date(),
+        timestamp:
+          useManualDateTime && manualPieceworkDate
+            ? manualPieceworkDate
+            : new Date(),
         pieceCount: pieceCount,
         pieceQrCode: "manual_entry",
         qcNote: manualNotes,
@@ -728,7 +798,12 @@ function TimeTrackingPage() {
       .filter(Boolean) as string[];
     if (employeeQrCodes.length > 0) {
       const timestamp = useManualDateTime ? manualPieceworkDate : undefined;
-      await recordPiecework(employeeQrCodes, selectedTask, "manual_entry", timestamp);
+      await recordPiecework(
+        employeeQrCodes,
+        selectedTask,
+        "manual_entry",
+        timestamp
+      );
     }
     setScannedSharedEmployees([]);
     setManualPieceQuantity(1);
@@ -764,7 +839,10 @@ function TimeTrackingPage() {
         return;
       }
 
-      const timestamp = useBulkClockOutManualDateTime && bulkClockOutDate ? bulkClockOutDate : new Date();
+      const timestamp =
+        useBulkClockOutManualDateTime && bulkClockOutDate
+          ? bulkClockOutDate
+          : new Date();
       const updatedData = { endTime: timestamp };
       const batch = writeBatch(firestore);
       querySnapshot.forEach((doc) => {
@@ -782,7 +860,12 @@ function TimeTrackingPage() {
         operation: "update",
         requestResourceData: {
           message: `Bulk clock out`,
-          data: { endTime: useBulkClockOutManualDateTime && bulkClockOutDate ? bulkClockOutDate : new Date() },
+          data: {
+            endTime:
+              useBulkClockOutManualDateTime && bulkClockOutDate
+                ? bulkClockOutDate
+                : new Date(),
+          },
         },
       });
       errorEmitter.emit("permission-error", permissionError);
@@ -808,13 +891,17 @@ function TimeTrackingPage() {
 
     try {
       const batch = writeBatch(firestore);
-      const clockInTimestamp = useBulkClockInManualDateTime && bulkClockInDate ? bulkClockInDate : new Date();
-      
+      const clockInTimestamp =
+        useBulkClockInManualDateTime && bulkClockInDate
+          ? bulkClockInDate
+          : new Date();
+
       // For clock out of active sessions, use current time or 1 second before clock-in time
       // This prevents zero-duration entries
-      const clockOutTimestamp = useBulkClockInManualDateTime && bulkClockInDate 
-        ? new Date(bulkClockInDate.getTime() - 1000) // 1 second before clock-in
-        : new Date();
+      const clockOutTimestamp =
+        useBulkClockInManualDateTime && bulkClockInDate
+          ? new Date(bulkClockInDate.getTime() - 1000) // 1 second before clock-in
+          : new Date();
 
       // Sub-query for currently active entries of the selected employees
       const activeEntriesQuery = query(
@@ -864,7 +951,7 @@ function TimeTrackingPage() {
 
   const handleDeleteTimeEntry = async (entryId: string) => {
     if (!firestore) return;
-    
+
     try {
       await deleteDoc(doc(firestore, "time_entries", entryId));
       toast({
@@ -890,7 +977,7 @@ function TimeTrackingPage() {
 
   const handleDeletePiecework = async (pieceworkId: string) => {
     if (!firestore) return;
-    
+
     try {
       await deleteDoc(doc(firestore, "piecework", pieceworkId));
       toast({
@@ -915,8 +1002,8 @@ function TimeTrackingPage() {
   };
 
   const handleEditTimeEntry = async () => {
-    if (!firestore || !editTarget || editTarget.type !== 'time') return;
-    
+    if (!firestore || !editTarget || editTarget.type !== "time") return;
+
     if (!editTimestamp) {
       toast({
         variant: "destructive",
@@ -925,17 +1012,20 @@ function TimeTrackingPage() {
       });
       return;
     }
-    
+
     try {
       const updateData: any = {
         timestamp: editTimestamp,
       };
-      
+
       if (editEndTime) {
         updateData.endTime = editEndTime;
       }
-      
-      await updateDoc(doc(firestore, "time_entries", editTarget.entry.id), updateData);
+
+      await updateDoc(
+        doc(firestore, "time_entries", editTarget.entry.id),
+        updateData
+      );
       toast({
         title: "Entry Updated",
         description: "Time entry has been successfully updated.",
@@ -960,8 +1050,8 @@ function TimeTrackingPage() {
   };
 
   const handleEditPiecework = async () => {
-    if (!firestore || !editTarget || editTarget.type !== 'piecework') return;
-    
+    if (!firestore || !editTarget || editTarget.type !== "piecework") return;
+
     if (!editTimestamp) {
       toast({
         variant: "destructive",
@@ -970,7 +1060,7 @@ function TimeTrackingPage() {
       });
       return;
     }
-    
+
     try {
       await updateDoc(doc(firestore, "piecework", editTarget.entry.id), {
         timestamp: editTimestamp,
@@ -999,8 +1089,8 @@ function TimeTrackingPage() {
 
   const confirmDelete = () => {
     if (!deleteTarget) return;
-    
-    if (deleteTarget.type === 'time') {
+
+    if (deleteTarget.type === "time") {
       handleDeleteTimeEntry(deleteTarget.id);
     } else {
       handleDeletePiecework(deleteTarget.id);
@@ -1009,13 +1099,13 @@ function TimeTrackingPage() {
 
   const handleDeleteAllMovements = async () => {
     if (!firestore) return;
-    
+
     setIsDeletingAll(true);
-    
+
     try {
       const batch = writeBatch(firestore);
       let deleteCount = 0;
-      
+
       // Delete all time entries in the current filter
       if (allTimeEntries && allTimeEntries.length > 0) {
         allTimeEntries.forEach((entry) => {
@@ -1024,7 +1114,7 @@ function TimeTrackingPage() {
           deleteCount++;
         });
       }
-      
+
       // Delete all piecework records in the current filter
       if (allPiecework && allPiecework.length > 0) {
         allPiecework.forEach((piece) => {
@@ -1033,7 +1123,7 @@ function TimeTrackingPage() {
           deleteCount++;
         });
       }
-      
+
       if (deleteCount > 0) {
         await batch.commit();
         toast({
@@ -1046,7 +1136,7 @@ function TimeTrackingPage() {
           description: "There are no movements in the current filter.",
         });
       }
-      
+
       setDeleteAllConfirmOpen(false);
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
@@ -1194,7 +1284,10 @@ function TimeTrackingPage() {
                       }
                     }}
                   />
-                  <Label htmlFor="manual-datetime-checkbox" className="font-semibold">
+                  <Label
+                    htmlFor="manual-datetime-checkbox"
+                    className="font-semibold"
+                  >
                     Use Manual Date/Time
                   </Label>
                 </div>
@@ -1421,7 +1514,10 @@ function TimeTrackingPage() {
                       }
                     }}
                   />
-                  <Label htmlFor="manual-datetime-checkbox-entry" className="font-semibold">
+                  <Label
+                    htmlFor="manual-datetime-checkbox-entry"
+                    className="font-semibold"
+                  >
                     Use Manual Date/Time
                   </Label>
                 </div>
@@ -1598,7 +1694,10 @@ function TimeTrackingPage() {
                       }
                     }}
                   />
-                  <Label htmlFor="bulk-clock-in-manual-datetime-checkbox" className="font-semibold">
+                  <Label
+                    htmlFor="bulk-clock-in-manual-datetime-checkbox"
+                    className="font-semibold"
+                  >
                     Use Manual Date/Time
                   </Label>
                 </div>
@@ -1736,7 +1835,10 @@ function TimeTrackingPage() {
                       }
                     }}
                   />
-                  <Label htmlFor="bulk-clock-out-manual-datetime-checkbox" className="font-semibold">
+                  <Label
+                    htmlFor="bulk-clock-out-manual-datetime-checkbox"
+                    className="font-semibold"
+                  >
                     Use Manual Date/Time
                   </Label>
                 </div>
@@ -1797,10 +1899,12 @@ function TimeTrackingPage() {
                     Complete History
                   </CardTitle>
                   <CardDescription>
-                    View and manage all clock-in/clock-out records and piecework entries. Filter by date range and delete individual records.
+                    View and manage all clock-in/clock-out records and piecework
+                    entries. Filter by date range and delete individual records.
                   </CardDescription>
                 </div>
-                {((allTimeEntries && allTimeEntries.length > 0) || (allPiecework && allPiecework.length > 0)) && (
+                {((allTimeEntries && allTimeEntries.length > 0) ||
+                  (allPiecework && allPiecework.length > 0)) && (
                   <Button
                     variant="destructive"
                     size="sm"
@@ -1826,9 +1930,15 @@ function TimeTrackingPage() {
                     <Input
                       id="history-start-date"
                       type="date"
-                      value={historyStartDate ? format(historyStartDate, "yyyy-MM-dd") : ""}
+                      value={
+                        historyStartDate
+                          ? format(historyStartDate, "yyyy-MM-dd")
+                          : ""
+                      }
                       onChange={(e) => {
-                        setHistoryStartDate(e.target.value ? new Date(e.target.value) : undefined);
+                        setHistoryStartDate(
+                          e.target.value ? new Date(e.target.value) : undefined
+                        );
                       }}
                     />
                   </div>
@@ -1837,9 +1947,15 @@ function TimeTrackingPage() {
                     <Input
                       id="history-end-date"
                       type="date"
-                      value={historyEndDate ? format(historyEndDate, "yyyy-MM-dd") : ""}
+                      value={
+                        historyEndDate
+                          ? format(historyEndDate, "yyyy-MM-dd")
+                          : ""
+                      }
                       onChange={(e) => {
-                        setHistoryEndDate(e.target.value ? new Date(e.target.value) : undefined);
+                        setHistoryEndDate(
+                          e.target.value ? new Date(e.target.value) : undefined
+                        );
                       }}
                     />
                   </div>
@@ -1868,28 +1984,35 @@ function TimeTrackingPage() {
                   <div className="text-center py-8 text-muted-foreground border rounded-lg">
                     <p>No time entries found.</p>
                     {(historyStartDate || historyEndDate) && (
-                      <p className="text-sm mt-2">Try adjusting your date filter.</p>
+                      <p className="text-sm mt-2">
+                        Try adjusting your date filter.
+                      </p>
                     )}
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {allTimeEntries.map((entry) => {
-                      const employee = activeEmployees?.find((e) => e.id === entry.employeeId);
+                      const employee = activeEmployees?.find(
+                        (e) => e.id === entry.employeeId
+                      );
                       const task = allTasks?.find((t) => t.id === entry.taskId);
-                      const client = clients?.find((c) => c.id === task?.clientId);
-                      const clockInTime = entry.timestamp instanceof Date 
-                        ? entry.timestamp 
-                        : (entry.timestamp as any)?.toDate 
-                          ? (entry.timestamp as any).toDate() 
+                      const client = clients?.find(
+                        (c) => c.id === task?.clientId
+                      );
+                      const clockInTime =
+                        entry.timestamp instanceof Date
+                          ? entry.timestamp
+                          : (entry.timestamp as any)?.toDate
+                          ? (entry.timestamp as any).toDate()
                           : new Date(entry.timestamp as any);
-                      const clockOutTime = entry.endTime 
-                        ? (entry.endTime instanceof Date 
-                          ? entry.endTime 
-                          : (entry.endTime as any)?.toDate 
-                            ? (entry.endTime as any).toDate() 
-                            : new Date(entry.endTime as any))
+                      const clockOutTime = entry.endTime
+                        ? entry.endTime instanceof Date
+                          ? entry.endTime
+                          : (entry.endTime as any)?.toDate
+                          ? (entry.endTime as any).toDate()
+                          : new Date(entry.endTime as any)
                         : null;
-                      
+
                       return (
                         <div
                           key={entry.id}
@@ -1898,7 +2021,9 @@ function TimeTrackingPage() {
                           <div className="flex-1 space-y-2">
                             <div className="flex items-center gap-2">
                               <User className="h-4 w-4 text-muted-foreground" />
-                              <p className="font-semibold">{employee?.name || "Unknown Employee"}</p>
+                              <p className="font-semibold">
+                                {employee?.name || "Unknown Employee"}
+                              </p>
                               {!entry.endTime && (
                                 <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
                                   Active
@@ -1939,7 +2064,7 @@ function TimeTrackingPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => {
-                                setEditTarget({type: 'time', entry: entry});
+                                setEditTarget({ type: "time", entry: entry });
                                 setEditTimestamp(clockInTime);
                                 setEditEndTime(clockOutTime || undefined);
                                 setEditDialogOpen(true);
@@ -1951,7 +2076,7 @@ function TimeTrackingPage() {
                               variant="destructive"
                               size="sm"
                               onClick={() => {
-                                setDeleteTarget({type: 'time', id: entry.id});
+                                setDeleteTarget({ type: "time", id: entry.id });
                                 setDeleteConfirmOpen(true);
                               }}
                             >
@@ -1975,7 +2100,9 @@ function TimeTrackingPage() {
                   <div className="text-center py-8 text-muted-foreground border rounded-lg">
                     <p>No piecework records found.</p>
                     {(historyStartDate || historyEndDate) && (
-                      <p className="text-sm mt-2">Try adjusting your date filter.</p>
+                      <p className="text-sm mt-2">
+                        Try adjusting your date filter.
+                      </p>
                     )}
                   </div>
                 ) : (
@@ -1983,18 +2110,27 @@ function TimeTrackingPage() {
                     {allPiecework.map((piece) => {
                       // Handle multiple employees (comma-separated IDs)
                       const employeeIds = piece.employeeId.split(",");
-                      const employeeNames = employeeIds
-                        .map((id) => activeEmployees?.find((e) => e.id === id || e.qrCode === id)?.name)
-                        .filter(Boolean)
-                        .join(", ") || "Unknown Employee(s)";
+                      const employeeNames =
+                        employeeIds
+                          .map(
+                            (id) =>
+                              activeEmployees?.find(
+                                (e) => e.id === id || e.qrCode === id
+                              )?.name
+                          )
+                          .filter(Boolean)
+                          .join(", ") || "Unknown Employee(s)";
                       const task = allTasks?.find((t) => t.id === piece.taskId);
-                      const client = clients?.find((c) => c.id === task?.clientId);
-                      const pieceTime = piece.timestamp instanceof Date 
-                        ? piece.timestamp 
-                        : (piece.timestamp as any)?.toDate 
-                          ? (piece.timestamp as any).toDate() 
+                      const client = clients?.find(
+                        (c) => c.id === task?.clientId
+                      );
+                      const pieceTime =
+                        piece.timestamp instanceof Date
+                          ? piece.timestamp
+                          : (piece.timestamp as any)?.toDate
+                          ? (piece.timestamp as any).toDate()
                           : new Date(piece.timestamp as any);
-                      
+
                       return (
                         <div
                           key={piece.id}
@@ -2030,11 +2166,12 @@ function TimeTrackingPage() {
                                   Quantity: {piece.pieceCount}
                                 </p>
                               </div>
-                              {piece.pieceQrCode && piece.pieceQrCode !== "manual_entry" && (
-                                <div className="text-xs text-muted-foreground">
-                                  Bin: {piece.pieceQrCode}
-                                </div>
-                              )}
+                              {piece.pieceQrCode &&
+                                piece.pieceQrCode !== "manual_entry" && (
+                                  <div className="text-xs text-muted-foreground">
+                                    Bin: {piece.pieceQrCode}
+                                  </div>
+                                )}
                               {piece.pieceQrCode === "manual_entry" && (
                                 <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
                                   Manual Entry
@@ -2052,7 +2189,10 @@ function TimeTrackingPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => {
-                                setEditTarget({type: 'piecework', entry: piece});
+                                setEditTarget({
+                                  type: "piecework",
+                                  entry: piece,
+                                });
                                 setEditTimestamp(pieceTime);
                                 setEditDialogOpen(true);
                               }}
@@ -2063,7 +2203,10 @@ function TimeTrackingPage() {
                               variant="destructive"
                               size="sm"
                               onClick={() => {
-                                setDeleteTarget({type: 'piecework', id: piece.id});
+                                setDeleteTarget({
+                                  type: "piecework",
+                                  id: piece.id,
+                                });
                                 setDeleteConfirmOpen(true);
                               }}
                             >
@@ -2087,18 +2230,24 @@ function TimeTrackingPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete this {deleteTarget?.type === 'time' ? 'time entry' : 'piecework'} record
-              from the database and it will not appear in any reports.
+              This action cannot be undone. This will permanently delete this{" "}
+              {deleteTarget?.type === "time" ? "time entry" : "piecework"}{" "}
+              record from the database and it will not appear in any reports.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => {
-              setDeleteConfirmOpen(false);
-              setDeleteTarget(null);
-            }}>
+            <AlertDialogCancel
+              onClick={() => {
+                setDeleteConfirmOpen(false);
+                setDeleteTarget(null);
+              }}
+            >
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -2106,37 +2255,45 @@ function TimeTrackingPage() {
       </AlertDialog>
 
       {/* Delete All Confirmation Dialog */}
-      <AlertDialog open={deleteAllConfirmOpen} onOpenChange={setDeleteAllConfirmOpen}>
+      <AlertDialog
+        open={deleteAllConfirmOpen}
+        onOpenChange={setDeleteAllConfirmOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete All Movements?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete{" "}
               <strong>
-                {(allTimeEntries?.length || 0) + (allPiecework?.length || 0)} record(s)
+                {(allTimeEntries?.length || 0) + (allPiecework?.length || 0)}{" "}
+                record(s)
               </strong>{" "}
-              ({allTimeEntries?.length || 0} time entries and {allPiecework?.length || 0} piecework records)
-              from the database. These records will not appear in any reports.
+              ({allTimeEntries?.length || 0} time entries and{" "}
+              {allPiecework?.length || 0} piecework records) from the database.
+              These records will not appear in any reports.
               {(historyStartDate || historyEndDate) && (
                 <span className="block mt-2 text-yellow-600 font-semibold">
-                  Note: Only records matching your current date filter will be deleted.
+                  Note: Only records matching your current date filter will be
+                  deleted.
                 </span>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel 
+            <AlertDialogCancel
               onClick={() => setDeleteAllConfirmOpen(false)}
               disabled={isDeletingAll}
             >
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDeleteAllMovements} 
+            <AlertDialogAction
+              onClick={handleDeleteAllMovements}
               disabled={isDeletingAll}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isDeletingAll && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isDeletingAll && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
               Delete All
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -2148,16 +2305,19 @@ function TimeTrackingPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              Edit {editTarget?.type === 'time' ? 'Time Entry' : 'Piecework Record'}
+              Edit{" "}
+              {editTarget?.type === "time" ? "Time Entry" : "Piecework Record"}
             </DialogTitle>
             <DialogDescription>
-              Update the timestamp{editTarget?.type === 'time' ? 's' : ''} for this {editTarget?.type === 'time' ? 'time entry' : 'piecework record'}.
+              Update the timestamp{editTarget?.type === "time" ? "s" : ""} for
+              this{" "}
+              {editTarget?.type === "time" ? "time entry" : "piecework record"}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="edit-timestamp">
-                {editTarget?.type === 'time' ? 'Clock-In Time' : 'Timestamp'}
+                {editTarget?.type === "time" ? "Clock-In Time" : "Timestamp"}
               </Label>
               <DateTimePicker
                 date={editTimestamp}
@@ -2166,7 +2326,7 @@ function TimeTrackingPage() {
                 placeholder="Select date and time"
               />
             </div>
-            {editTarget?.type === 'time' && (
+            {editTarget?.type === "time" && (
               <div className="space-y-2">
                 <Label htmlFor="edit-endtime">Clock-Out Time (optional)</Label>
                 <DateTimePicker
@@ -2191,7 +2351,11 @@ function TimeTrackingPage() {
               Cancel
             </Button>
             <Button
-              onClick={editTarget?.type === 'time' ? handleEditTimeEntry : handleEditPiecework}
+              onClick={
+                editTarget?.type === "time"
+                  ? handleEditTimeEntry
+                  : handleEditPiecework
+              }
             >
               Save Changes
             </Button>
@@ -2202,4 +2366,4 @@ function TimeTrackingPage() {
   );
 }
 
-export default withAuth(TimeTrackingPage, { askEveryVisit: true });
+export default TimeTrackingPage;
