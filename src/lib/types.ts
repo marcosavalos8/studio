@@ -42,6 +42,8 @@ export type TimeEntry = {
   breakReason?: "Paid" | "Unpaid Meal";
   piecesWorked?: number;
   paymentModality?: "Hourly" | "Piecework";
+  isSickLeave?: boolean; // Whether this entry uses sick hours
+  sickHoursUsed?: number; // Number of sick hours used for this entry
 };
 
 export type Piecework = {

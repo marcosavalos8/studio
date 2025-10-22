@@ -213,6 +213,9 @@ export async function generatePayrollReport({
             (1000 * 60 * 60);
           if (hours <= 0) return;
 
+          // Skip sick leave entries - they don't count as work hours
+          if (entry.isSickLeave) return;
+
           // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (unpaid meal break)
           if (hours > 5) {
             hours -= 0.5; // Deduct 30 minutes (0.5 hours)
