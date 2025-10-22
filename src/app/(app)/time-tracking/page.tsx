@@ -81,6 +81,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { withAuth } from "@/components/withAuth";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 const QrScanner = dynamic(
   () => import("./qr-scanner").then((mod) => mod.QrScannerComponent),
@@ -228,6 +234,13 @@ function TimeTrackingPage() {
     );
   }, [firestore]);
   const { data: activeEmployees } = useCollection<Employee>(employeesQuery);
+
+  // Query for ALL employees (not just active ones) to calculate sick hours
+  const allEmployeesQuery = useMemo(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, "employees"));
+  }, [firestore]);
+  const { data: allEmployees } = useCollection<Employee>(allEmployeesQuery);
 
   // Query for ALL time entries (for history tab) with date filtering
   const allTimeEntriesQuery = useMemo(() => {
@@ -381,6 +394,54 @@ function TimeTrackingPage() {
       emp.name.toLowerCase().includes(manualEmployeeSearch.toLowerCase())
     );
   }, [activeEmployees, manualEmployeeSearch]);
+
+  // Calculate total hours and sick hours for each employee
+  const employeeHoursStats = useMemo(() => {
+    if (!allEmployees || !allTimeEntriesRaw) return [];
+
+    const stats = allEmployees.map((employee) => {
+      // Filter all time entries for this employee
+      const employeeEntries = allTimeEntriesRaw.filter(
+        (entry) => entry.employeeId === employee.id
+      );
+
+      // Calculate total hours worked
+      let totalHours = 0;
+      employeeEntries.forEach((entry) => {
+        if (entry.endTime) {
+          const clockInTime =
+            entry.timestamp instanceof Date
+              ? entry.timestamp
+              : (entry.timestamp as any)?.toDate?.()
+              ? (entry.timestamp as any).toDate()
+              : new Date(entry.timestamp as any);
+          const clockOutTime =
+            entry.endTime instanceof Date
+              ? entry.endTime
+              : (entry.endTime as any)?.toDate?.()
+              ? (entry.endTime as any).toDate()
+              : new Date(entry.endTime as any);
+          
+          const hoursWorked =
+            (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
+          totalHours += hoursWorked;
+        }
+      });
+
+      // Calculate sick hours: 1 hour for every 40 hours worked
+      const sickHours = Math.floor(totalHours / 40);
+
+      return {
+        employeeId: employee.id,
+        employeeName: employee.name,
+        totalHours: totalHours,
+        sickHours: sickHours,
+      };
+    });
+
+    // Sort by total hours descending
+    return stats.sort((a, b) => b.totalHours - a.totalHours);
+  }, [allEmployees, allTimeEntriesRaw]);
 
   useEffect(() => {
     // Creating AudioContext on user interaction is best practice
@@ -2026,6 +2087,70 @@ function TimeTrackingPage() {
                     Clear Filters
                   </Button>
                 )}
+              </div>
+
+              {/* Employee Hours & Sick Hours Summary */}
+              <div className="mb-6 p-4 border rounded-lg bg-card">
+                <Accordion type="single" collapsible className="w-full">
+                  <AccordionItem value="sick-hours">
+                    <AccordionTrigger className="hover:no-underline">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-5 w-5 text-blue-600" />
+                        <span className="font-semibold">
+                          Employee Hours & Sick Leave Summary
+                        </span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="pt-4">
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Employees accumulate 1 sick hour for every 40 hours worked.
+                          This shows the total hours worked across all jobs and the
+                          accumulated sick hours for each employee.
+                        </p>
+                        {employeeHoursStats.length === 0 ? (
+                          <div className="text-center py-4 text-muted-foreground">
+                            <p>No employee data available.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {employeeHoursStats.map((stat) => (
+                              <div
+                                key={stat.employeeId}
+                                className="flex items-center justify-between p-3 border rounded-md bg-muted/30 hover:bg-muted/50 transition-colors"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <User className="h-4 w-4 text-muted-foreground" />
+                                  <span className="font-medium">
+                                    {stat.employeeName}
+                                  </span>
+                                </div>
+                                <div className="flex gap-6 text-sm">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-muted-foreground">
+                                      Total Hours:
+                                    </span>
+                                    <span className="font-semibold text-blue-600">
+                                      {stat.totalHours.toFixed(2)}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-muted-foreground">
+                                      Sick Hours:
+                                    </span>
+                                    <span className="font-semibold text-green-600">
+                                      {stat.sickHours}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               </div>
 
               {/* Time Entries Section */}
