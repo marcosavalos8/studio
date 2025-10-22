@@ -91,11 +91,14 @@ export function PayrollForm() {
             const timeEntriesSnap = await getDocs(timeEntriesQuery);
             const timeEntries = timeEntriesSnap.docs.map(doc => {
                 const data = doc.data();
+                const timestampDate = (data.timestamp as Timestamp)?.toDate();
+                const endTimeDate = (data.endTime as Timestamp)?.toDate();
                 return { 
                     ...data,
                     id: doc.id,
-                    timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || null,
-                    endTime: (data.endTime as Timestamp)?.toDate()?.toISOString() || null,
+                    // Format as local date-time string without timezone (YYYY-MM-DDTHH:mm:ss)
+                    timestamp: timestampDate ? format(timestampDate, "yyyy-MM-dd'T'HH:mm:ss") : null,
+                    endTime: endTimeDate ? format(endTimeDate, "yyyy-MM-dd'T'HH:mm:ss") : null,
                 } as any;
             });
 
@@ -106,10 +109,12 @@ export function PayrollForm() {
             const pieceworkSnap = await getDocs(pieceworkQuery);
             const piecework = pieceworkSnap.docs.map(doc => {
                 const data = doc.data();
+                const timestampDate = (data.timestamp as Timestamp)?.toDate();
                 return { 
                     ...data,
                     id: doc.id,
-                    timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || null,
+                    // Format as local date-time string without timezone (YYYY-MM-DDTHH:mm:ss)
+                    timestamp: timestampDate ? format(timestampDate, "yyyy-MM-dd'T'HH:mm:ss") : null,
                 } as any;
             });
             
