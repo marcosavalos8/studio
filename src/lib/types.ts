@@ -44,6 +44,7 @@ export type TimeEntry = {
   paymentModality?: "Hourly" | "Piecework";
   isSickLeave?: boolean; // Whether this entry uses sick hours
   sickHoursUsed?: number; // Number of sick hours used for this entry
+  useSickHoursForPayment?: boolean; // Whether employee wants to use sick hours to pay for this shift
 };
 
 export type Piecework = {

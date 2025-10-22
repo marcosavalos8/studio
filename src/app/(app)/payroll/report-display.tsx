@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react';
+import React from 'react';
 import type { ProcessedPayrollData } from "@/lib/types"
 import { format } from "date-fns"
 import { parseLocalDate } from "@/lib/utils"
@@ -20,10 +20,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { Button } from '@/components/ui/button';
-import { Printer, ArrowLeft, Save, CheckCircle } from 'lucide-react';
-import { useFirestore } from "@/firebase";
-import { doc, updateDoc } from "firebase/firestore";
-import { useToast } from "@/hooks/use-toast";
+import { Printer, ArrowLeft } from 'lucide-react';
 
 
 function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData['employeeSummaries'][0]['weeklySummaries'][0]['dailyBreakdown']}) {
@@ -79,51 +76,6 @@ interface ReportDisplayProps {
 
 export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
     const overallTotal = report.employeeSummaries.reduce((acc, emp) => acc + emp.finalPay, 0);
-    const firestore = useFirestore();
-    const { toast } = useToast();
-    const [isSavingSickHours, setIsSavingSickHours] = useState(false);
-    const [sickHoursSaved, setSickHoursSaved] = useState(false);
-
-    const handleSaveSickHours = async () => {
-        if (!firestore) {
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: "Firestore not initialized",
-            });
-            return;
-        }
-
-        setIsSavingSickHours(true);
-        try {
-            // Update each employee's sick hours balance
-            const updatePromises = report.employeeSummaries.map(async (employee) => {
-                if (employee.newSickHoursBalance !== undefined) {
-                    const employeeRef = doc(firestore, "employees", employee.employeeId);
-                    await updateDoc(employeeRef, {
-                        sickHoursBalance: employee.newSickHoursBalance,
-                    });
-                }
-            });
-
-            await Promise.all(updatePromises);
-            
-            setSickHoursSaved(true);
-            toast({
-                title: "Sick Hours Updated",
-                description: "All employee sick hours balances have been updated successfully.",
-            });
-        } catch (error) {
-            console.error("Error updating sick hours:", error);
-            toast({
-                variant: "destructive",
-                title: "Update Failed",
-                description: "Failed to update sick hours. Please try again.",
-            });
-        } finally {
-            setIsSavingSickHours(false);
-        }
-    };
 
     const handlePrint = () => {
         window.print();
@@ -136,29 +88,10 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Generate New Report
                 </Button>
-                <div className="flex gap-2">
-                    <Button 
-                        onClick={handleSaveSickHours} 
-                        disabled={isSavingSickHours || sickHoursSaved}
-                        variant={sickHoursSaved ? "default" : "secondary"}
-                    >
-                        {sickHoursSaved ? (
-                            <>
-                                <CheckCircle className="mr-2 h-4 w-4" />
-                                Sick Hours Saved
-                            </>
-                        ) : (
-                            <>
-                                <Save className="mr-2 h-4 w-4" />
-                                {isSavingSickHours ? "Saving..." : "Save Sick Hours"}
-                            </>
-                        )}
-                    </Button>
-                    <Button onClick={handlePrint}>
-                        <Printer className="mr-2 h-4 w-4" />
-                        Print / Save as PDF
-                    </Button>
-                </div>
+                <Button onClick={handlePrint}>
+                    <Printer className="mr-2 h-4 w-4" />
+                    Print / Save as PDF
+                </Button>
             </div>
             
             <div className="report-container bg-card text-card-foreground p-8 rounded-lg border shadow-sm">
