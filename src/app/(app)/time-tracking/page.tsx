@@ -205,6 +205,12 @@ function TimeTrackingPage() {
   >([]);
   const DEBOUNCE_MS = 3000; // 3 seconds
 
+  // Sick leave state
+  const [sickHoursToUse, setSickHoursToUse] = useState<number | string>(0);
+  const [sickLeaveDate, setSickLeaveDate] = useState<string>("");
+  const [sickLeaveNotes, setSickLeaveNotes] = useState("");
+  const [isLoggingSickLeave, setIsLoggingSickLeave] = useState(false);
+
   const clientsQuery = useMemo(() => {
     if (!firestore) return null;
     return query(collection(firestore, "clients"), where("name", "!=", ""));
@@ -1201,6 +1207,110 @@ function TimeTrackingPage() {
     }
   };
 
+  const handleLogSickLeave = async () => {
+    if (!firestore || !manualSelectedEmployee) {
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please select an employee.",
+      });
+      return;
+    }
+
+    const hours = typeof sickHoursToUse === 'number' ? sickHoursToUse : parseFloat(String(sickHoursToUse));
+    
+    if (isNaN(hours) || hours <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Hours",
+        description: "Please enter a valid number of hours.",
+      });
+      return;
+    }
+
+    const availableHours = manualSelectedEmployee.sickHoursBalance || 0;
+    if (hours > availableHours) {
+      toast({
+        variant: "destructive",
+        title: "Insufficient Sick Hours",
+        description: `Employee only has ${availableHours.toFixed(2)} sick hours available.`,
+      });
+      return;
+    }
+
+    if (!sickLeaveDate) {
+      toast({
+        variant: "destructive",
+        title: "Missing Date",
+        description: "Please select a date for the absence.",
+      });
+      return;
+    }
+
+    setIsLoggingSickLeave(true);
+
+    try {
+      // Create a time entry marking sick leave
+      const [year, month, day] = sickLeaveDate.split('-').map(Number);
+      const leaveDate = new Date(year, month - 1, day, 8, 0, 0); // Default to 8 AM
+      const endDate = new Date(leaveDate);
+      endDate.setHours(leaveDate.getHours() + hours);
+
+      // Find a default task or create a "Sick Leave" marker
+      // For now, we'll use the first active task or require task selection
+      const defaultTask = allTasks?.find((t) => t.status === "Active");
+      
+      if (!defaultTask) {
+        toast({
+          variant: "destructive",
+          title: "No Active Task",
+          description: "Please create an active task before logging sick leave.",
+        });
+        setIsLoggingSickLeave(false);
+        return;
+      }
+
+      const sickLeaveEntry: Omit<TimeEntry, "id"> = {
+        employeeId: manualSelectedEmployee.id,
+        taskId: defaultTask.id,
+        timestamp: leaveDate,
+        endTime: endDate,
+        isBreak: false,
+        isSickLeave: true,
+        sickHoursUsed: hours,
+      };
+
+      await addDoc(collection(firestore, "time_entries"), sickLeaveEntry);
+
+      // Update employee's sick hours balance
+      const newBalance = availableHours - hours;
+      await updateDoc(doc(firestore, "employees", manualSelectedEmployee.id), {
+        sickHoursBalance: newBalance,
+      });
+
+      toast({
+        title: "Sick Leave Logged",
+        description: `${hours} sick hours logged for ${manualSelectedEmployee.name}. New balance: ${newBalance.toFixed(2)} hrs`,
+      });
+
+      // Reset form
+      setSickHoursToUse(0);
+      setSickLeaveDate("");
+      setSickLeaveNotes("");
+      setManualSelectedEmployee(null);
+      setManualEmployeeSearch("");
+    } catch (error) {
+      console.error("Error logging sick leave:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to log sick leave. Please try again.",
+      });
+    } finally {
+      setIsLoggingSickLeave(false);
+    }
+  };
+
   const SelectionFields = ({ isManual = false }: { isManual?: boolean }) => (
     <div
       className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${
@@ -1931,6 +2041,107 @@ function TimeTrackingPage() {
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Clock Out All
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle>Log Sick Leave</CardTitle>
+              <CardDescription>
+                Record time off using accumulated sick hours. Sick hours will be deducted from employee balance.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="sick-leave-employee-search">Employee</Label>
+                <Input
+                  id="sick-leave-employee-search"
+                  placeholder="Search for an active employee..."
+                  value={manualEmployeeSearch}
+                  onChange={(e) => setManualEmployeeSearch(e.target.value)}
+                />
+                {manualEmployeeSearch &&
+                  filteredManualEmployees &&
+                  filteredManualEmployees.length > 0 && (
+                    <div className="border rounded-md max-h-48 overflow-y-auto">
+                      {filteredManualEmployees.map((employee) => (
+                        <Button
+                          key={employee.id}
+                          variant="ghost"
+                          className="w-full justify-start"
+                          onClick={() => {
+                            setManualSelectedEmployee(employee);
+                            setManualEmployeeSearch(employee.name);
+                          }}
+                        >
+                          {employee.name} - {employee.sickHoursBalance?.toFixed(2) || "0.00"} sick hrs available
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+              </div>
+              
+              {manualSelectedEmployee && (
+                <div className="p-4 border rounded-lg bg-muted/30 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="font-medium">Selected Employee:</span>
+                    <span>{manualSelectedEmployee.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Available Sick Hours:</span>
+                    <span className="text-green-600 font-semibold">
+                      {manualSelectedEmployee.sickHoursBalance?.toFixed(2) || "0.00"} hrs
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="sick-hours-to-use">Hours to Use</Label>
+                <Input
+                  id="sick-hours-to-use"
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  max={manualSelectedEmployee?.sickHoursBalance || 0}
+                  placeholder="Enter hours"
+                  value={sickHoursToUse}
+                  onChange={(e) => setSickHoursToUse(e.target.value === "" ? 0 : parseFloat(e.target.value))}
+                  disabled={!manualSelectedEmployee}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="sick-leave-date">Date of Absence</Label>
+                <Input
+                  id="sick-leave-date"
+                  type="date"
+                  value={sickLeaveDate}
+                  onChange={(e) => setSickLeaveDate(e.target.value)}
+                  disabled={!manualSelectedEmployee}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="sick-leave-notes">Notes (Optional)</Label>
+                <Textarea
+                  id="sick-leave-notes"
+                  placeholder="Reason for absence, doctor's note, etc."
+                  value={sickLeaveNotes}
+                  onChange={(e) => setSickLeaveNotes(e.target.value)}
+                  disabled={!manualSelectedEmployee}
+                />
+              </div>
+
+              <Button
+                className="w-full"
+                onClick={handleLogSickLeave}
+                disabled={!manualSelectedEmployee || isLoggingSickLeave}
+              >
+                {isLoggingSickLeave && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Log Sick Leave
               </Button>
             </CardContent>
           </Card>

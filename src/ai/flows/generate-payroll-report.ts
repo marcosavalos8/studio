@@ -213,6 +213,9 @@ export async function generatePayrollReport({
             (1000 * 60 * 60);
           if (hours <= 0) return;
 
+          // Skip sick leave entries - they don't count as work hours
+          if (entry.isSickLeave) return;
+
           // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (unpaid meal break)
           if (hours > 5) {
             hours -= 0.5; // Deduct 30 minutes (0.5 hours)
@@ -369,6 +372,10 @@ export async function generatePayrollReport({
 
         const finalWeeklyPay = totalEarningsBeforeRest + paidRestBreaksPay;
 
+        // PASO 4: CALCULAR HORAS DE ENFERMEDAD (SICK HOURS)
+        // 1 hora de enfermedad por cada 40 horas trabajadas
+        const sickHoursAccrued = weeklyTotalHours / 40;
+
         weeklySummaries.push({
           weekNumber,
           year,
@@ -379,6 +386,7 @@ export async function generatePayrollReport({
           paidRestBreaks: parseFloat(paidRestBreaksPay.toFixed(2)),
           finalPay: parseFloat(finalWeeklyPay.toFixed(2)),
           dailyBreakdown: dailyBreakdownsForWeek,
+          sickHoursAccrued: parseFloat(sickHoursAccrued.toFixed(2)),
         });
       }
 
@@ -389,11 +397,23 @@ export async function generatePayrollReport({
           0
         );
 
+        // Calculate total sick hours accrued in this period
+        const totalSickHoursAccrued = weeklySummaries.reduce(
+          (acc, week) => acc + (week.sickHoursAccrued || 0),
+          0
+        );
+
+        // Calculate new sick hours balance
+        const currentBalance = employee.sickHoursBalance || 0;
+        const newSickHoursBalance = currentBalance + totalSickHoursAccrued;
+
         employeeSummaries.push({
           employeeId: employee.id,
           employeeName: employee.name,
           weeklySummaries,
           finalPay: parseFloat(totalPayForPeriod.toFixed(2)),
+          totalSickHoursAccrued: parseFloat(totalSickHoursAccrued.toFixed(2)),
+          newSickHoursBalance: parseFloat(newSickHoursBalance.toFixed(2)),
         });
       }
     }

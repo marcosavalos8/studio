@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { ProcessedPayrollData } from "@/lib/types"
 import { format } from "date-fns"
 import { 
@@ -19,7 +19,10 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { Button } from '@/components/ui/button';
-import { Printer, ArrowLeft } from 'lucide-react';
+import { Printer, ArrowLeft, Save, CheckCircle } from 'lucide-react';
+import { useFirestore } from "@/firebase";
+import { doc, updateDoc } from "firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
 
 
 function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData['employeeSummaries'][0]['weeklySummaries'][0]['dailyBreakdown']}) {
@@ -75,6 +78,51 @@ interface ReportDisplayProps {
 
 export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
     const overallTotal = report.employeeSummaries.reduce((acc, emp) => acc + emp.finalPay, 0);
+    const firestore = useFirestore();
+    const { toast } = useToast();
+    const [isSavingSickHours, setIsSavingSickHours] = useState(false);
+    const [sickHoursSaved, setSickHoursSaved] = useState(false);
+
+    const handleSaveSickHours = async () => {
+        if (!firestore) {
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Firestore not initialized",
+            });
+            return;
+        }
+
+        setIsSavingSickHours(true);
+        try {
+            // Update each employee's sick hours balance
+            const updatePromises = report.employeeSummaries.map(async (employee) => {
+                if (employee.newSickHoursBalance !== undefined) {
+                    const employeeRef = doc(firestore, "employees", employee.employeeId);
+                    await updateDoc(employeeRef, {
+                        sickHoursBalance: employee.newSickHoursBalance,
+                    });
+                }
+            });
+
+            await Promise.all(updatePromises);
+            
+            setSickHoursSaved(true);
+            toast({
+                title: "Sick Hours Updated",
+                description: "All employee sick hours balances have been updated successfully.",
+            });
+        } catch (error) {
+            console.error("Error updating sick hours:", error);
+            toast({
+                variant: "destructive",
+                title: "Update Failed",
+                description: "Failed to update sick hours. Please try again.",
+            });
+        } finally {
+            setIsSavingSickHours(false);
+        }
+    };
 
     const handlePrint = () => {
         window.print();
@@ -87,10 +135,29 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Generate New Report
                 </Button>
-                <Button onClick={handlePrint}>
-                    <Printer className="mr-2 h-4 w-4" />
-                    Print / Save as PDF
-                </Button>
+                <div className="flex gap-2">
+                    <Button 
+                        onClick={handleSaveSickHours} 
+                        disabled={isSavingSickHours || sickHoursSaved}
+                        variant={sickHoursSaved ? "default" : "secondary"}
+                    >
+                        {sickHoursSaved ? (
+                            <>
+                                <CheckCircle className="mr-2 h-4 w-4" />
+                                Sick Hours Saved
+                            </>
+                        ) : (
+                            <>
+                                <Save className="mr-2 h-4 w-4" />
+                                {isSavingSickHours ? "Saving..." : "Save Sick Hours"}
+                            </>
+                        )}
+                    </Button>
+                    <Button onClick={handlePrint}>
+                        <Printer className="mr-2 h-4 w-4" />
+                        Print / Save as PDF
+                    </Button>
+                </div>
             </div>
             
             <div className="report-container bg-card text-card-foreground p-8 rounded-lg border shadow-sm">
@@ -173,6 +240,9 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                                                             <TableRow><TableCell>Raw Task Earnings</TableCell><TableCell className="text-right">${week.totalEarnings.toFixed(2)}</TableCell></TableRow>
                                                             <TableRow><TableCell>Minimum Wage Top-Up</TableCell><TableCell className="text-right text-amber-600">+ ${week.minimumWageTopUp.toFixed(2)}</TableCell></TableRow>
                                                             <TableRow><TableCell>Paid Rest Breaks (10min / 4hr)</TableCell><TableCell className="text-right text-blue-600">+ ${week.paidRestBreaks.toFixed(2)}</TableCell></TableRow>
+                                                            {week.sickHoursAccrued !== undefined && week.sickHoursAccrued > 0 && (
+                                                              <TableRow className="bg-green-50 dark:bg-green-900/20"><TableCell className="font-medium">Sick Hours Accrued (1hr / 40hrs)</TableCell><TableCell className="text-right text-green-600 font-medium">+ {week.sickHoursAccrued.toFixed(2)} hrs</TableCell></TableRow>
+                                                            )}
                                                         </TableBody>
                                                          <TableFooter>
                                                             <TableRow className="font-semibold"><TableCell>Total Weekly Pay</TableCell><TableCell className="text-right">${week.finalPay.toFixed(2)}</TableCell></TableRow>
@@ -187,6 +257,20 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                                     <div className="border rounded-md p-4 bg-muted/50">
                                         <h4 className="font-semibold text-lg mb-2">Employee Pay Summary for Period</h4>
                                         <Table>
+                                            <TableBody>
+                                                {employee.totalSickHoursAccrued !== undefined && employee.totalSickHoursAccrued > 0 && (
+                                                  <>
+                                                    <TableRow className="bg-green-50 dark:bg-green-900/20">
+                                                      <TableCell className="font-medium">Total Sick Hours Accrued</TableCell>
+                                                      <TableCell className="text-right text-green-600 font-medium">{employee.totalSickHoursAccrued.toFixed(2)} hrs</TableCell>
+                                                    </TableRow>
+                                                    <TableRow className="bg-green-50 dark:bg-green-900/20">
+                                                      <TableCell className="font-medium">New Sick Hours Balance</TableCell>
+                                                      <TableCell className="text-right text-green-600 font-medium">{employee.newSickHoursBalance?.toFixed(2)} hrs</TableCell>
+                                                    </TableRow>
+                                                  </>
+                                                )}
+                                            </TableBody>
                                             <TableFooter>
                                             <TableRow className="text-lg font-bold"><TableCell>Final Pay</TableCell><TableCell className="text-right">${employee.finalPay.toFixed(2)}</TableCell></TableRow>
                                             </TableFooter>
