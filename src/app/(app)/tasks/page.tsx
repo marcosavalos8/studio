@@ -52,11 +52,6 @@ export default function TasksPage() {
 
   const { data: clients, isLoading: loadingClients } =
     useCollection<Client>('/api/clients', { params: { orderBy: 'name' } });
-    if (!firestore) return null;
-    return query(collection(firestore, "clients"), orderBy("name"));
-  }, [firestore]);
-  const { data: clients, isLoading: loadingClients } =
-    useCollection<Client>('/api/clients', { params: { orderBy: 'name' } });
 
   const { tasksByClient, clientOrder } = useMemo(() => {
     if (!tasks || !clients) return { tasksByClient: {}, clientOrder: [] };

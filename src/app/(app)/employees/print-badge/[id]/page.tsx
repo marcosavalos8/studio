@@ -1,9 +1,7 @@
 "use client";
 
 import React from "react";
-import { doc } from "firebase/firestore";
-import { useFirestore } from "@/firebase";
-import { useDocument } from "@/firebase/firestore/use-doc";
+import { useDocument } from "@/lib/api/client";
 import { Employee } from "@/lib/types";
 import { QRCodeSVG } from "qrcode.react";
 import { useRouter } from "next/navigation";
@@ -16,9 +14,7 @@ interface PrintBadgePageProps {
 export default function PrintBadgePage({ params }: PrintBadgePageProps) {
   const router = useRouter();
   const { id } = React.use(params);
-  const firestore = useFirestore();
-  const employeeRef = firestore ? doc(firestore, "employees", id) : null;
-  const { data: employee, loading, error } = useDocument<Employee>(employeeRef);
+  const { data: employee, isLoading: loading, error } = useDocument<Employee>(`/api/employees/${id}`);
 
   const handlePrint = () => {
     const printWindow = window.open("", "", "width=600,height=600");
