@@ -28,14 +28,14 @@ import {
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useFirestore } from '@/firebase'
-import { doc, updateDoc } from 'firebase/firestore'
+
+import { apiClient } from '@/lib/api/client'
 import { useToast } from '@/hooks/use-toast'
 import type { Client } from '@/lib/types'
 import { Loader2 } from 'lucide-react'
 import { useEffect } from 'react'
-import { errorEmitter } from '@/firebase/error-emitter'
-import { FirestorePermissionError } from '@/firebase/errors'
+
+
 
 const clientSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -54,7 +54,6 @@ type EditClientDialogProps = {
 }
 
 export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDialogProps) {
-  const firestore = useFirestore()
   const { toast } = useToast()
   const form = useForm<z.infer<typeof clientSchema>>({
     resolver: zodResolver(clientSchema),
@@ -80,34 +79,24 @@ export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDia
   const { isSubmitting } = form.formState
 
   const onSubmit = async (values: z.infer<typeof clientSchema>) => {
-    if (!firestore) {
+    try {
+      const updatedData = { ...values, email: values.email || '' };
+      
+      await apiClient.update(`/api/clients/${client.id}`, updatedData);
+      
+      toast({
+        title: 'Client Updated',
+        description: `${values.name} has been updated successfully.`,
+      });
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error updating client:', error);
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Firestore is not available. Please try again later.',
-      })
-      return
+        description: 'Failed to update client. Please try again.',
+      });
     }
-
-    const clientRef = doc(firestore, 'clients', client.id)
-    const updatedData = { ...values, email: values.email || '' }
-
-    updateDoc(clientRef, updatedData)
-      .then(() => {
-        toast({
-          title: 'Client Updated',
-          description: `${values.name} has been updated successfully.`,
-        })
-        onOpenChange(false)
-      })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: clientRef.path,
-          operation: 'update',
-          requestResourceData: updatedData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      })
   }
 
   return (

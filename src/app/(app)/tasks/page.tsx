@@ -28,9 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PlusCircle, MoreHorizontal } from "lucide-react";
 
-import { useFirestore } from "@/firebase";
-import { useCollection } from "@/firebase/firestore/use-collection";
-import { collection, query, orderBy } from "firebase/firestore";
+import { useCollection } from "@/lib/api/client";
 import type { Task, Client } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { AddTaskDialog } from "./add-task-dialog";
@@ -44,25 +42,21 @@ import {
 } from "@/components/ui/accordion";
 
 export default function TasksPage() {
-  const firestore = useFirestore();
   const [isAddDialogOpen, setAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
-  const tasksQuery = useMemo(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "tasks"), orderBy("name"));
-  }, [firestore]);
   const { data: tasks, isLoading: loadingTasks } =
-    useCollection<Task>(tasksQuery);
+    useCollection<Task>('/api/tasks', { params: { orderBy: 'name' } });
 
-  const clientsQuery = useMemo(() => {
+  const { data: clients, isLoading: loadingClients } =
+    useCollection<Client>('/api/clients', { params: { orderBy: 'name' } });
     if (!firestore) return null;
     return query(collection(firestore, "clients"), orderBy("name"));
   }, [firestore]);
   const { data: clients, isLoading: loadingClients } =
-    useCollection<Client>(clientsQuery);
+    useCollection<Client>('/api/clients', { params: { orderBy: 'name' } });
 
   const { tasksByClient, clientOrder } = useMemo(() => {
     if (!tasks || !clients) return { tasksByClient: {}, clientOrder: [] };

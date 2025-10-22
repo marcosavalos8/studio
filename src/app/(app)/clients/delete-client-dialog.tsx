@@ -11,14 +11,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { useFirestore } from '@/firebase'
-import { doc, deleteDoc } from 'firebase/firestore'
+
+import { apiClient } from '@/lib/api/client'
 import { useToast } from '@/hooks/use-toast'
 import type { Client } from '@/lib/types'
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { errorEmitter } from '@/firebase/error-emitter'
-import { FirestorePermissionError } from '@/firebase/errors'
+
+
 
 type DeleteClientDialogProps = {
   isOpen: boolean
@@ -27,41 +27,30 @@ type DeleteClientDialogProps = {
 }
 
 export function DeleteClientDialog({ isOpen, onOpenChange, client }: DeleteClientDialogProps) {
-  const firestore = useFirestore()
   const { toast } = useToast()
   const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDelete = async () => {
-    if (!firestore) {
+    setIsDeleting(true)
+    
+    try {
+      await apiClient.delete(`/api/clients/${client.id}`);
+      
+      toast({
+        title: 'Client Deleted',
+        description: `${client.name} has been deleted successfully.`,
+      });
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error deleting client:', error);
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Firestore is not available. Please try again later.',
-      })
-      return
+        description: 'Failed to delete client. Please try again.',
+      });
+    } finally {
+      setIsDeleting(false);
     }
-
-    setIsDeleting(true)
-    const clientRef = doc(firestore, 'clients', client.id)
-
-    deleteDoc(clientRef)
-      .then(() => {
-        toast({
-          title: 'Client Deleted',
-          description: `${client.name} has been deleted successfully.`,
-        })
-        onOpenChange(false)
-      })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: clientRef.path,
-          operation: 'delete',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      })
-      .finally(() => {
-        setIsDeleting(false)
-      })
   }
 
   return (

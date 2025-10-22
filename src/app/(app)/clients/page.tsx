@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import {
   Card,
   CardContent,
@@ -28,26 +28,19 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle, MoreHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
-import { useFirestore } from "@/firebase";
-import { useCollection } from "@/firebase/firestore/use-collection";
-import { collection, query, orderBy } from "firebase/firestore";
+import { useCollection } from "@/lib/api/client";
 import type { Client } from "@/lib/types";
 import { AddClientDialog } from "./add-client-dialog";
 import { EditClientDialog } from "./edit-client-dialog";
 import { DeleteClientDialog } from "./delete-client-dialog";
 
 export default function ClientsPage() {
-  const firestore = useFirestore();
   const [isAddDialogOpen, setAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
-  const clientsQuery = useMemo(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "clients"), orderBy("name"));
-  }, [firestore]);
-  const { data: clients, isLoading } = useCollection<Client>(clientsQuery);
+  const { data: clients, isLoading } = useCollection<Client>('/api/clients', { params: { orderBy: 'name' } });
 
   const handleEdit = (client: Client) => {
     setSelectedClient(client);

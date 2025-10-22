@@ -11,14 +11,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { useFirestore } from '@/firebase'
-import { doc, deleteDoc } from 'firebase/firestore'
 import { useToast } from '@/hooks/use-toast'
 import type { Task } from '@/lib/types'
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { errorEmitter } from '@/firebase/error-emitter'
-import { FirestorePermissionError } from '@/firebase/errors'
+import { apiClient } from '@/lib/api/client'
 
 type DeleteTaskDialogProps = {
   isOpen: boolean
@@ -27,41 +24,30 @@ type DeleteTaskDialogProps = {
 }
 
 export function DeleteTaskDialog({ isOpen, onOpenChange, task }: DeleteTaskDialogProps) {
-  const firestore = useFirestore()
   const { toast } = useToast()
   const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDelete = async () => {
-    if (!firestore) {
+    setIsDeleting(true)
+    
+    try {
+      await apiClient.delete(`/api/tasks/${task.id}`);
+      
+      toast({
+        title: 'Task Deleted',
+        description: `${task.name} has been deleted successfully.`,
+      });
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error deleting task:', error);
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Firestore is not available. Please try again later.',
-      })
-      return
+        description: 'Failed to delete task. Please try again.',
+      });
+    } finally {
+      setIsDeleting(false);
     }
-
-    setIsDeleting(true)
-    const taskRef = doc(firestore, 'tasks', task.id)
-
-    deleteDoc(taskRef)
-      .then(() => {
-        toast({
-          title: 'Task Deleted',
-          description: `${task.name} has been deleted successfully.`,
-        })
-        onOpenChange(false)
-      })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: taskRef.path,
-          operation: 'delete',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      })
-      .finally(() => {
-        setIsDeleting(false)
-      })
   }
 
   return (

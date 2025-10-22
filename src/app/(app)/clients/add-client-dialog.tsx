@@ -28,12 +28,11 @@ import {
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useFirestore } from '@/firebase'
-import { addDoc, collection } from 'firebase/firestore'
+import { apiClient } from '@/lib/api/client'
 import { useToast } from '@/hooks/use-toast'
 import { Loader2 } from 'lucide-react'
-import { errorEmitter } from '@/firebase/error-emitter'
-import { FirestorePermissionError } from '@/firebase/errors'
+
+
 
 const clientSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -51,7 +50,6 @@ type AddClientDialogProps = {
 }
 
 export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) {
-  const firestore = useFirestore()
   const { toast } = useToast()
   const form = useForm<z.infer<typeof clientSchema>>({
     resolver: zodResolver(clientSchema),
@@ -69,35 +67,24 @@ export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) 
   const { isSubmitting } = form.formState
 
   const onSubmit = async (values: z.infer<typeof clientSchema>) => {
-    if (!firestore) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Firestore is not available. Please try again later.',
-      })
-      return
-    }
-
     try {
       const newClient = { ...values, email: values.email || '' }
-      const clientsCollection = collection(firestore, 'clients');
-
-      await addDoc(clientsCollection, newClient)
+      
+      await apiClient.create('/api/clients', newClient);
       
       toast({
         title: 'Client Added',
         description: `${values.name} has been added successfully.`,
-      })
-      form.reset()
-      onOpenChange(false)
-    } catch (serverError) {
-      const permissionError = new FirestorePermissionError({
-        path: 'clients',
-        operation: 'create',
-        requestResourceData: values,
       });
-
-      errorEmitter.emit('permission-error', permissionError);
+      form.reset();
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error creating client:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to create client. Please try again.',
+      });
     }
   }
 
