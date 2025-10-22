@@ -193,16 +193,10 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                                         <Table>
                                             <TableBody>
                                                 {employee.totalSickHoursAccrued !== undefined && employee.totalSickHoursAccrued > 0 && (
-                                                  <>
-                                                    <TableRow className="bg-green-50 dark:bg-green-900/20">
-                                                      <TableCell className="font-medium">Total Sick Hours Accrued</TableCell>
-                                                      <TableCell className="text-right text-green-600 font-medium">{employee.totalSickHoursAccrued.toFixed(2)} hrs</TableCell>
-                                                    </TableRow>
-                                                    <TableRow className="bg-green-50 dark:bg-green-900/20">
-                                                      <TableCell className="font-medium">New Sick Hours Balance</TableCell>
-                                                      <TableCell className="text-right text-green-600 font-medium">{employee.newSickHoursBalance?.toFixed(2)} hrs</TableCell>
-                                                    </TableRow>
-                                                  </>
+                                                  <TableRow className="bg-green-50 dark:bg-green-900/20">
+                                                    <TableCell className="font-medium">Total Sick Hours Accrued</TableCell>
+                                                    <TableCell className="text-right text-green-600 font-medium">{employee.totalSickHoursAccrued.toFixed(2)} hrs</TableCell>
+                                                  </TableRow>
                                                 )}
                                             </TableBody>
                                             <TableFooter>
