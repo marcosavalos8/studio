@@ -1982,9 +1982,13 @@ function TimeTrackingPage() {
                           : ""
                       }
                       onChange={(e) => {
-                        setHistoryStartDate(
-                          e.target.value ? new Date(e.target.value) : undefined
-                        );
+                        if (e.target.value) {
+                          // Parse as local date to avoid timezone offset issues
+                          const [year, month, day] = e.target.value.split('-').map(Number);
+                          setHistoryStartDate(new Date(year, month - 1, day));
+                        } else {
+                          setHistoryStartDate(undefined);
+                        }
                       }}
                     />
                   </div>
@@ -1999,9 +2003,13 @@ function TimeTrackingPage() {
                           : ""
                       }
                       onChange={(e) => {
-                        setHistoryEndDate(
-                          e.target.value ? new Date(e.target.value) : undefined
-                        );
+                        if (e.target.value) {
+                          // Parse as local date to avoid timezone offset issues
+                          const [year, month, day] = e.target.value.split('-').map(Number);
+                          setHistoryEndDate(new Date(year, month - 1, day));
+                        } else {
+                          setHistoryEndDate(undefined);
+                        }
                       }}
                     />
                   </div>

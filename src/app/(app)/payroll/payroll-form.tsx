@@ -5,7 +5,7 @@ import { useActionState } from "react"
 import { format, parseISO } from "date-fns"
 import { Calendar as CalendarIcon, Loader2, Users } from "lucide-react"
 
-import { cn } from "@/lib/utils"
+import { cn, toLocalMidnight } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -232,7 +232,11 @@ export function PayrollForm() {
                       // Only update if we have a valid range or are in the process of selecting
                       // Prevent completely clearing the date range
                       if (newDate?.from) {
-                        setDate(newDate);
+                        // Convert UTC dates to local timezone to prevent date offset issues
+                        setDate({
+                          from: toLocalMidnight(newDate.from),
+                          to: toLocalMidnight(newDate.to),
+                        });
                       }
                     }}
                     numberOfMonths={2}
@@ -262,7 +266,8 @@ export function PayrollForm() {
                             onSelect={(date) => {
                               // Prevent clearing the pay date - always keep a date selected
                               if (date) {
-                                setPayDate(date);
+                                // Convert UTC date to local timezone to prevent date offset issues
+                                setPayDate(toLocalMidnight(date));
                               }
                             }}
                             initialFocus

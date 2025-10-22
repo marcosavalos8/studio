@@ -4,7 +4,7 @@ import * as React from "react";
 import { format } from "date-fns";
 import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn, toLocalMidnight } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -376,7 +376,17 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
               mode="range"
               defaultMonth={date?.from}
               selected={date}
-              onSelect={setDate}
+              onSelect={(newDate) => {
+                // Convert UTC dates to local timezone to prevent date offset issues
+                if (newDate) {
+                  setDate({
+                    from: toLocalMidnight(newDate.from),
+                    to: toLocalMidnight(newDate.to),
+                  });
+                } else {
+                  setDate(undefined);
+                }
+              }}
               numberOfMonths={2}
             />
           </PopoverContent>
