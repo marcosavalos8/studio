@@ -217,19 +217,58 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
               )}
             />
 
-            <div className="space-y-2 p-3 border rounded-md">
+            <FormField
+              control={form.control}
+              name="clientRateType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Rate Type</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select rate type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="hourly">Hourly</SelectItem>
+                      <SelectItem value="piece">Piece</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="clientRate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Client Rate ($)</FormLabel>
+                  <FormControl>
+                    <Input type="number" step="0.01" placeholder="e.g., 25.00" {...field} />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Hourly rate or piece rate charged to client
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="space-y-2 p-3 border rounded-md col-span-1 md:col-span-2">
                 <FormLabel>Piece Price (Optional)</FormLabel>
                 <FormField
                   control={form.control}
                   name="piecePrice"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs">Price per piece ($)</FormLabel>
+                      <FormLabel className="text-xs">Price per piece for employees ($)</FormLabel>
                       <FormControl>
                         <Input type="number" step="0.01" placeholder="e.g., 0.50" {...field} />
                       </FormControl>
                       <p className="text-xs text-muted-foreground">
-                        Set the price per piece for piecework tasks. Payment calculation will be based on pieces completed and minimum wage adjustments.
+                        Set the price per piece paid to employees for piecework tasks. Payment calculation will be based on pieces completed with minimum wage adjustments applied automatically.
                       </p>
                       <FormMessage />
                     </FormItem>
