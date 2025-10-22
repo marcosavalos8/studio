@@ -246,7 +246,7 @@ export async function generatePayrollReport({
         let weeklyTotalMinimumWageEarnings = 0; // Ganancia que resulta de aplicar el ajuste diario (mínimo)
 
         const sortedDays = Object.keys(dailyWork).sort(
-          (a, b) => new Date(a).getTime() - new Date(b).getTime()
+          (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime()
         );
 
         for (const dayKey of sortedDays) {

@@ -35,7 +35,7 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
   };
 
   const sortedDates = Object.keys(report.dailyBreakdown).sort(
-    (a, b) => new Date(a).getTime() - new Date(b).getTime()
+    (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime()
   );
 
   return (
