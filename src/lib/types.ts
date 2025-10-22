@@ -4,6 +4,8 @@ export type Employee = {
   qrCode: string;
   role: "Worker" | "Supervisor";
   status: "Active" | "Inactive";
+  sickHoursBalance?: number; // Accumulated sick hours available
+  totalHoursWorked?: number; // Total hours worked for sick hours calculation
 };
 
 export type Client = {
@@ -88,6 +90,7 @@ export type WeeklySummary = {
   paidRestBreaks: number;
   finalPay: number; // totalEarnings + topUp + restBreaks
   dailyBreakdown: DailyBreakdown[];
+  sickHoursAccrued?: number; // Sick hours earned this week
 };
 
 export type EmployeePayrollSummary = {
@@ -95,6 +98,8 @@ export type EmployeePayrollSummary = {
   employeeName: string;
   weeklySummaries: WeeklySummary[];
   finalPay: number;
+  totalSickHoursAccrued?: number; // Total sick hours accrued in this period
+  newSickHoursBalance?: number; // Updated sick hours balance after this period
 };
 
 export type ProcessedPayrollData = {

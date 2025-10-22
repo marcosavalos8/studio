@@ -93,14 +93,15 @@ export default function EmployeesPage() {
                 <TableHead>Name</TableHead>
                 <TableHead className="hidden sm:table-cell">Role</TableHead>
                 <TableHead className="hidden md:table-cell">Status</TableHead>
-                <TableHead className="hidden lg:table-cell">QR Code</TableHead>
+                <TableHead className="hidden lg:table-cell">Sick Hours</TableHead>
+                <TableHead className="hidden xl:table-cell">QR Code</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center">
+                  <TableCell colSpan={6} className="text-center">
                     Loading...
                   </TableCell>
                 </TableRow>
@@ -140,7 +141,14 @@ export default function EmployeesPage() {
                         {employee.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell font-mono flex items-center gap-2">
+                    <TableCell className="hidden lg:table-cell">
+                      <Badge variant="secondary" className="font-mono">
+                        {employee.sickHoursBalance !== undefined
+                          ? `${employee.sickHoursBalance.toFixed(2)} hrs`
+                          : "0.00 hrs"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="hidden xl:table-cell font-mono flex items-center gap-2">
                       <QrCode className="h-4 w-4 text-muted-foreground" />
                       <span>{employee.qrCode}</span>
                     </TableCell>
