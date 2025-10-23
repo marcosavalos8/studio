@@ -110,7 +110,6 @@ export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDia
       errorEmitter.emit('permission-error', permissionError);
     }
   }
-  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
