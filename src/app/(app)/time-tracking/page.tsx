@@ -111,6 +111,7 @@ function TimeTrackingPage() {
   const [scanMode, setScanMode] = useState<ScanMode>("clock-in");
   const [isSharedPiece, setIsSharedPiece] = useState(false);
   const [pieceEntryMode, setPieceEntryMode] = useState<PieceEntryMode>("scan");
+  const [activeTab, setActiveTab] = useState<string>("qr-scanner");
 
   const [scannedSharedEmployees, setScannedSharedEmployees] = useState<
     string[]
@@ -535,19 +536,6 @@ function TimeTrackingPage() {
     setScannedSharedEmployees([]);
     setUseSickHoursForPayment(false); // Reset sick hours checkbox when mode changes
   }, [scanMode, isSharedPiece, selectedTask, pieceEntryMode]);
-
-  // Auto-select active piecework task when navigating to QR-SCANNER or MANUAL-ENTRY
-  useEffect(() => {
-    if (activePieceworkTask && clients) {
-      const client = clients.find(c => c.id === activePieceworkTask.clientId);
-      if (client && selectedTask !== activePieceworkTask.id) {
-        setSelectedClient(activePieceworkTask.clientId);
-        setSelectedRanch(activePieceworkTask.ranch || "");
-        setSelectedBlock(activePieceworkTask.block || "");
-        setSelectedTask(activePieceworkTask.id);
-      }
-    }
-  }, [activePieceworkTask, clients, selectedTask]);
 
   // Reset manual employee selection when searching
   useEffect(() => {
@@ -1657,7 +1645,7 @@ function TimeTrackingPage() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <Tabs defaultValue="qr-scanner">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="qr-scanner" className="text-xs sm:text-sm">
             <QrCode className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
@@ -2329,26 +2317,14 @@ function TimeTrackingPage() {
                     <div className="flex gap-2 mt-4">
                       <Button
                         variant="outline"
-                        onClick={() => {
-                          // Switch to QR Scanner tab
-                          const qrTab = document.querySelector('[value="qr-scanner"]');
-                          if (qrTab instanceof HTMLElement) {
-                            qrTab.click();
-                          }
-                        }}
+                        onClick={() => setActiveTab("qr-scanner")}
                       >
                         <QrCode className="mr-2 h-4 w-4" />
                         Go to QR Scanner
                       </Button>
                       <Button
                         variant="outline"
-                        onClick={() => {
-                          // Switch to Manual Entry tab
-                          const manualTab = document.querySelector('[value="manual-entry"]');
-                          if (manualTab instanceof HTMLElement) {
-                            manualTab.click();
-                          }
-                        }}
+                        onClick={() => setActiveTab("manual-entry")}
                       >
                         <ClipboardEdit className="mr-2 h-4 w-4" />
                         Go to Manual Entry
@@ -2362,59 +2338,53 @@ function TimeTrackingPage() {
             <>
               {/* Display Active Task Card */}
               <Card className="mb-4 border-2 border-green-500">
-                <CardHeader className="bg-green-50 dark:bg-green-950/30">
-                  <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-300">
+                <CardHeader className="bg-green-50 dark:bg-green-950/30 pb-3">
+                  <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-300 text-lg">
                     <CheckCircle className="h-5 w-5" />
                     Active Piecework Task
                   </CardTitle>
-                  <CardDescription>
-                    You are currently clocked in to this piecework task. All piecework entries will be recorded for this task.
+                  <CardDescription className="text-sm">
+                    You are currently clocked in to this task. All piecework will be recorded here.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground text-sm">Client</Label>
-                      <div className="p-3 bg-muted rounded-md font-medium">
-                        {clients?.find(c => c.id === activePieceworkTask.clientId)?.name || "Unknown"}
+                <CardContent className="pt-4">
+                  <div className="p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Package className="h-4 w-4 text-muted-foreground" />
+                        <p className="font-semibold text-base">
+                          {activePieceworkTask.name}
+                          {activePieceworkTask.variety && ` (${activePieceworkTask.variety})`}
+                        </p>
+                        {activePieceworkTask.piecePrice && (
+                          <span className="ml-auto text-sm font-medium text-green-600 dark:text-green-400">
+                            ${activePieceworkTask.piecePrice.toFixed(2)}/piece
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium">Client:</span>
+                          <span>{clients?.find(c => c.id === activePieceworkTask.clientId)?.name || "Unknown"}</span>
+                        </div>
+                        {activePieceworkTask.ranch && (
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium">Ranch:</span>
+                            <span>{activePieceworkTask.ranch}</span>
+                          </div>
+                        )}
+                        {activePieceworkTask.block && (
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium">Block:</span>
+                            <span>{activePieceworkTask.block}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    {activePieceworkTask.ranch && (
-                      <div className="space-y-2">
-                        <Label className="text-muted-foreground text-sm">Ranch</Label>
-                        <div className="p-3 bg-muted rounded-md font-medium">
-                          {activePieceworkTask.ranch}
-                        </div>
-                      </div>
-                    )}
-                    {activePieceworkTask.block && (
-                      <div className="space-y-2">
-                        <Label className="text-muted-foreground text-sm">Block</Label>
-                        <div className="p-3 bg-muted rounded-md font-medium">
-                          {activePieceworkTask.block}
-                        </div>
-                      </div>
-                    )}
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground text-sm">Task</Label>
-                      <div className="p-3 bg-muted rounded-md font-medium">
-                        {activePieceworkTask.name}
-                        {activePieceworkTask.variety && ` (${activePieceworkTask.variety})`}
-                      </div>
-                    </div>
-                    {activePieceworkTask.piecePrice && (
-                      <div className="space-y-2">
-                        <Label className="text-muted-foreground text-sm">Piece Rate</Label>
-                        <div className="p-3 bg-muted rounded-md font-medium">
-                          ${activePieceworkTask.piecePrice.toFixed(2)} per piece
-                        </div>
-                      </div>
-                    )}
                   </div>
-                  <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md">
-                    <p className="text-sm text-blue-700 dark:text-blue-300">
-                      <strong>Note:</strong> Task selection is locked while you have an active clock-in. 
-                      To change tasks, please clock out first from the QR Scanner or Manual Entry tab.
+                  <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                      <strong>Note:</strong> This task is locked while clocked in. To change tasks, clock out first from QR Scanner or Manual Entry.
                     </p>
                   </div>
                 </CardContent>
