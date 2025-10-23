@@ -192,7 +192,7 @@ export default function TasksPage() {
                 ) : (
                   <>
                     <span className="font-medium">
-                      ${task.clientRate.toFixed(2)}/hr
+                      ${task.clientRate?.toFixed(2) || '0.00'}/hr
                     </span>
                     <span className="text-muted-foreground capitalize">
                       Hourly
