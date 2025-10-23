@@ -198,6 +198,11 @@ function TimeTrackingPage() {
   const [editEndTime, setEditEndTime] = useState<Date | undefined>(undefined);
   const [editPiecesWorked, setEditPiecesWorked] = useState<number | string>(0);
   const [editPaymentModality, setEditPaymentModality] = useState<"Hourly" | "Piecework">("Hourly");
+  const [editPieceCount, setEditPieceCount] = useState<number | string>(1);
+  const [editTaskId, setEditTaskId] = useState<string>("");
+  const [editClient, setEditClient] = useState<string>("");
+  const [editRanch, setEditRanch] = useState<string>("");
+  const [editBlock, setEditBlock] = useState<string>("");
 
   // Debounce state
   const [recentScans, setRecentScans] = useState<
@@ -383,6 +388,43 @@ function TimeTrackingPage() {
     return filtered;
   }, [tasksForClient, selectedRanch, selectedBlock]);
 
+  // Filtered tasks for edit dialog
+  const editTasksForClient = useMemo(() => {
+    if (!allTasks || !editClient) return [];
+    return allTasks.filter((t) => t.clientId === editClient);
+  }, [allTasks, editClient]);
+
+  const editRanches = useMemo(() => {
+    if (!editTasksForClient) return [];
+    return [
+      ...new Set(editTasksForClient.map((t) => t.ranch).filter(Boolean)),
+    ] as string[];
+  }, [editTasksForClient]);
+
+  const editBlocks = useMemo(() => {
+    if (!editRanch || !editTasksForClient) return [];
+    return [
+      ...new Set(
+        editTasksForClient
+          .filter((t) => t.ranch === editRanch)
+          .map((t) => t.block)
+          .filter(Boolean)
+      ),
+    ] as string[];
+  }, [editTasksForClient, editRanch]);
+
+  const editFilteredTasks = useMemo(() => {
+    if (!editTasksForClient) return [];
+    let filtered = editTasksForClient;
+    if (editRanch) {
+      filtered = filtered.filter((t) => t.ranch === editRanch);
+    }
+    if (editBlock) {
+      filtered = filtered.filter((t) => t.block === editBlock);
+    }
+    return filtered;
+  }, [editTasksForClient, editRanch, editBlock]);
+
   const filteredManualEmployees = useMemo(() => {
     if (!activeEmployees) return [];
     if (!manualEmployeeSearch) return [];
@@ -457,6 +499,22 @@ function TimeTrackingPage() {
   useEffect(() => {
     setSelectedTask("");
   }, [selectedBlock]);
+
+  // Reset edit selections when edit client changes
+  useEffect(() => {
+    setEditRanch("");
+    setEditBlock("");
+    setEditTaskId("");
+  }, [editClient]);
+
+  useEffect(() => {
+    setEditBlock("");
+    setEditTaskId("");
+  }, [editRanch]);
+
+  useEffect(() => {
+    setEditTaskId("");
+  }, [editBlock]);
 
   // Reset scans when mode changes
   useEffect(() => {
@@ -1158,6 +1216,15 @@ function TimeTrackingPage() {
       return;
     }
 
+    if (!editTaskId) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Data",
+        description: "Task is required.",
+      });
+      return;
+    }
+
     if (editEndTime && editEndTime < editTimestamp) {
       toast({
         variant: "destructive",
@@ -1171,6 +1238,7 @@ function TimeTrackingPage() {
       const updateData: any = {
         timestamp: editTimestamp,
         paymentModality: editPaymentModality,
+        taskId: editTaskId,
       };
 
       if (editEndTime) {
@@ -1197,6 +1265,10 @@ function TimeTrackingPage() {
       setEditEndTime(undefined);
       setEditPiecesWorked(0);
       setEditPaymentModality("Hourly");
+      setEditTaskId("");
+      setEditClient("");
+      setEditRanch("");
+      setEditBlock("");
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
         path: "time_entries",
@@ -1224,9 +1296,31 @@ function TimeTrackingPage() {
       return;
     }
 
+    if (!editTaskId) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Data",
+        description: "Task is required.",
+      });
+      return;
+    }
+
+    // Validate piece count
+    const pieceCount = typeof editPieceCount === 'number' ? editPieceCount : parseFloat(String(editPieceCount));
+    if (isNaN(pieceCount) || pieceCount <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Quantity",
+        description: "Please enter a valid piece count (can include decimals).",
+      });
+      return;
+    }
+
     try {
       await updateDoc(doc(firestore, "piecework", editTarget.entry.id), {
         timestamp: editTimestamp,
+        pieceCount: pieceCount,
+        taskId: editTaskId,
       });
       toast({
         title: "Piecework Updated",
@@ -1235,6 +1329,11 @@ function TimeTrackingPage() {
       setEditDialogOpen(false);
       setEditTarget(null);
       setEditTimestamp(undefined);
+      setEditPieceCount(1);
+      setEditTaskId("");
+      setEditClient("");
+      setEditRanch("");
+      setEditBlock("");
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
         path: "piecework",
@@ -2676,6 +2775,21 @@ function TimeTrackingPage() {
                                   Active
                                 </span>
                               )}
+                              {/* Payment Type Badge */}
+                              {(() => {
+                                const taskForEntry = allTasks?.find((t) => t.id === entry.taskId);
+                                const paymentType = entry.paymentModality || 
+                                  (taskForEntry?.clientRateType === "piece" ? "Piecework" : "Hourly");
+                                return (
+                                  <span className={`text-xs px-2 py-1 rounded-full ${
+                                    paymentType === "Piecework" 
+                                      ? "bg-purple-100 text-purple-800" 
+                                      : "bg-blue-100 text-blue-800"
+                                  }`}>
+                                    {paymentType}
+                                  </span>
+                                );
+                              })()}
                             </div>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <Package className="h-3 w-3" />
@@ -2711,11 +2825,25 @@ function TimeTrackingPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => {
+                                const taskForEntry = allTasks?.find((t) => t.id === entry.taskId);
+                                // Initialize payment modality based on task type or entry's paymentModality
+                                const initialModality = entry.paymentModality || 
+                                  (taskForEntry?.clientRateType === "piece" ? "Piecework" : "Hourly");
+                                
                                 setEditTarget({ type: "time", entry: entry });
                                 setEditTimestamp(clockInTime);
                                 setEditEndTime(clockOutTime || undefined);
                                 setEditPiecesWorked(entry.piecesWorked || 0);
-                                setEditPaymentModality(entry.paymentModality || "Hourly");
+                                setEditPaymentModality(initialModality);
+                                
+                                // Initialize task selection
+                                setEditTaskId(entry.taskId);
+                                if (taskForEntry) {
+                                  setEditClient(taskForEntry.clientId);
+                                  setEditRanch(taskForEntry.ranch || "");
+                                  setEditBlock(taskForEntry.block || "");
+                                }
+                                
                                 setEditDialogOpen(true);
                               }}
                             >
@@ -2838,11 +2966,23 @@ function TimeTrackingPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => {
+                                const taskForPiece = allTasks?.find((t) => t.id === piece.taskId);
+                                
                                 setEditTarget({
                                   type: "piecework",
                                   entry: piece,
                                 });
                                 setEditTimestamp(pieceTime);
+                                setEditPieceCount(piece.pieceCount || 1);
+                                
+                                // Initialize task selection
+                                setEditTaskId(piece.taskId);
+                                if (taskForPiece) {
+                                  setEditClient(taskForPiece.clientId);
+                                  setEditRanch(taskForPiece.ranch || "");
+                                  setEditBlock(taskForPiece.block || "");
+                                }
+                                
                                 setEditDialogOpen(true);
                               }}
                             >
@@ -2951,16 +3091,16 @@ function TimeTrackingPage() {
 
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               Edit{" "}
               {editTarget?.type === "time" ? "Time Entry" : "Piecework Record"}
             </DialogTitle>
             <DialogDescription>
-              Update the timestamp{editTarget?.type === "time" ? "s" : ""} for
-              this{" "}
-              {editTarget?.type === "time" ? "time entry" : "piecework record"}.
+              {editTarget?.type === "time" 
+                ? "Update the client, task, timestamps and payment details for this time entry." 
+                : "Update the client, task, timestamp and quantity for this piecework record."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -2975,6 +3115,83 @@ function TimeTrackingPage() {
                 placeholder="Select date and time"
               />
             </div>
+            
+            {/* Task Selection Fields */}
+            <div className="space-y-4 p-4 border rounded-md bg-muted/30">
+              <div className="space-y-2">
+                <Label htmlFor="edit-client">Client</Label>
+                <Select value={editClient} onValueChange={setEditClient}>
+                  <SelectTrigger id="edit-client">
+                    <SelectValue placeholder="Select a client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients?.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-ranch">Ranch</Label>
+                <Select
+                  value={editRanch}
+                  onValueChange={setEditRanch}
+                  disabled={!editClient || editRanches.length === 0}
+                >
+                  <SelectTrigger id="edit-ranch">
+                    <SelectValue placeholder="Select a ranch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {editRanches.map((ranch) => (
+                      <SelectItem key={ranch} value={ranch}>
+                        {ranch}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-block">Block</Label>
+                <Select
+                  value={editBlock}
+                  onValueChange={setEditBlock}
+                  disabled={!editRanch || editBlocks.length === 0}
+                >
+                  <SelectTrigger id="edit-block">
+                    <SelectValue placeholder="Select a block" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {editBlocks.map((block) => (
+                      <SelectItem key={block} value={block}>
+                        {block}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-task">Task</Label>
+                <Select
+                  value={editTaskId}
+                  onValueChange={setEditTaskId}
+                  disabled={editFilteredTasks.length === 0}
+                >
+                  <SelectTrigger id="edit-task">
+                    <SelectValue placeholder="Select a task" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {editFilteredTasks?.map((task) => (
+                      <SelectItem key={task.id} value={task.id}>
+                        {task.name} ({task.variety})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
             {editTarget?.type === "time" && (
               <>
                 <div className="space-y-2">
@@ -3017,6 +3234,29 @@ function TimeTrackingPage() {
                 </div>
               </>
             )}
+            {editTarget?.type === "piecework" && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-piece-count">Quantity (can include decimals)</Label>
+                <Input
+                  id="edit-piece-count"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="Enter quantity"
+                  value={editPieceCount}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setEditPieceCount(value === "" ? "" : value);
+                  }}
+                  onBlur={(e) => {
+                    const value = parseFloat(e.target.value);
+                    if (isNaN(value) || value <= 0) {
+                      setEditPieceCount(1);
+                    }
+                  }}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -3028,6 +3268,11 @@ function TimeTrackingPage() {
                 setEditEndTime(undefined);
                 setEditPiecesWorked(0);
                 setEditPaymentModality("Hourly");
+                setEditPieceCount(1);
+                setEditTaskId("");
+                setEditClient("");
+                setEditRanch("");
+                setEditBlock("");
               }}
             >
               Cancel
