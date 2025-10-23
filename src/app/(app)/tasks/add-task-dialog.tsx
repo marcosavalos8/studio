@@ -94,27 +94,28 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
       return
     }
 
-    const newTask: Omit<Task, 'id'> = { ...values };
-    const tasksCollection = collection(firestore, 'tasks');
+    try {
+      const newTask: Omit<Task, 'id'> = { ...values };
+      const tasksCollection = collection(firestore, 'tasks');
 
-    addDoc(tasksCollection, newTask)
-      .then(() => {
-        toast({
-          title: 'Task Added',
-          description: `${values.name} has been added successfully.`,
-        })
-        form.reset()
-        onOpenChange(false)
+      await addDoc(tasksCollection, newTask);
+      
+      toast({
+        title: 'Task Added',
+        description: `${values.name} has been added successfully.`,
       })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: tasksCollection.path,
-          operation: 'create',
-          requestResourceData: newTask,
-        });
+      form.reset()
+      onOpenChange(false)
+    } catch (serverError) {
+      const tasksCollection = collection(firestore, 'tasks');
+      const permissionError = new FirestorePermissionError({
+        path: tasksCollection.path,
+        operation: 'create',
+        requestResourceData: values,
+      });
 
-        errorEmitter.emit('permission-error', permissionError);
-      })
+      errorEmitter.emit('permission-error', permissionError);
+    }
   }
 
   return (
@@ -148,7 +149,7 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Client</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a client" />
@@ -183,7 +184,7 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Status</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a status" />
@@ -232,7 +233,7 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Rate Type</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select rate type" />

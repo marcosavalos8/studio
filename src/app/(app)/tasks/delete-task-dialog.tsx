@@ -42,26 +42,26 @@ export function DeleteTaskDialog({ isOpen, onOpenChange, task }: DeleteTaskDialo
     }
 
     setIsDeleting(true)
-    const taskRef = doc(firestore, 'tasks', task.id)
-
-    deleteDoc(taskRef)
-      .then(() => {
-        toast({
-          title: 'Task Deleted',
-          description: `${task.name} has been deleted successfully.`,
-        })
-        onOpenChange(false)
+    
+    try {
+      const taskRef = doc(firestore, 'tasks', task.id)
+      await deleteDoc(taskRef);
+      
+      toast({
+        title: 'Task Deleted',
+        description: `${task.name} has been deleted successfully.`,
       })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: taskRef.path,
-          operation: 'delete',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      })
-      .finally(() => {
-        setIsDeleting(false)
-      })
+      onOpenChange(false)
+    } catch (serverError) {
+      const taskRef = doc(firestore, 'tasks', task.id)
+      const permissionError = new FirestorePermissionError({
+        path: taskRef.path,
+        operation: 'delete',
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (

@@ -42,26 +42,26 @@ export function DeleteClientDialog({ isOpen, onOpenChange, client }: DeleteClien
     }
 
     setIsDeleting(true)
-    const clientRef = doc(firestore, 'clients', client.id)
-
-    deleteDoc(clientRef)
-      .then(() => {
-        toast({
-          title: 'Client Deleted',
-          description: `${client.name} has been deleted successfully.`,
-        })
-        onOpenChange(false)
+    
+    try {
+      const clientRef = doc(firestore, 'clients', client.id)
+      await deleteDoc(clientRef);
+      
+      toast({
+        title: 'Client Deleted',
+        description: `${client.name} has been deleted successfully.`,
       })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: clientRef.path,
-          operation: 'delete',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      })
-      .finally(() => {
-        setIsDeleting(false)
-      })
+      onOpenChange(false)
+    } catch (serverError) {
+      const clientRef = doc(firestore, 'clients', client.id)
+      const permissionError = new FirestorePermissionError({
+        path: clientRef.path,
+        operation: 'delete',
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (

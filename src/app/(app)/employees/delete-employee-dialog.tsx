@@ -42,26 +42,26 @@ export function DeleteEmployeeDialog({ isOpen, onOpenChange, employee }: DeleteE
     }
 
     setIsDeleting(true)
-    const employeeRef = doc(firestore, 'employees', employee.id)
-
-    deleteDoc(employeeRef)
-      .then(() => {
-        toast({
-          title: 'Employee Deleted',
-          description: `${employee.name} has been deleted successfully.`,
-        })
-        onOpenChange(false)
+    
+    try {
+      const employeeRef = doc(firestore, 'employees', employee.id)
+      await deleteDoc(employeeRef);
+      
+      toast({
+        title: 'Employee Deleted',
+        description: `${employee.name} has been deleted successfully.`,
       })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: employeeRef.path,
-          operation: 'delete',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      })
-      .finally(() => {
-        setIsDeleting(false)
-      })
+      onOpenChange(false)
+    } catch (serverError) {
+      const employeeRef = doc(firestore, 'employees', employee.id)
+      const permissionError = new FirestorePermissionError({
+        path: employeeRef.path,
+        operation: 'delete',
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (

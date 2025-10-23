@@ -83,26 +83,26 @@ export function EditEmployeeDialog({ isOpen, onOpenChange, employee }: EditEmplo
       return
     }
 
-    const employeeRef = doc(firestore, 'employees', employee.id)
+    try {
+      const employeeRef = doc(firestore, 'employees', employee.id)
+      const updatedData = { ...values }
 
-    const updatedData = { ...values }
-
-    updateDoc(employeeRef, updatedData)
-      .then(() => {
-        toast({
-          title: 'Employee Updated',
-          description: `${values.name} has been updated successfully.`,
-        })
-        onOpenChange(false)
+      await updateDoc(employeeRef, updatedData);
+      
+      toast({
+        title: 'Employee Updated',
+        description: `${values.name} has been updated successfully.`,
       })
-      .catch(async (serverError) => {
-         const permissionError = new FirestorePermissionError({
-          path: employeeRef.path,
-          operation: 'update',
-          requestResourceData: updatedData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      })
+      onOpenChange(false)
+    } catch (serverError) {
+      const employeeRef = doc(firestore, 'employees', employee.id)
+      const permissionError = new FirestorePermissionError({
+        path: employeeRef.path,
+        operation: 'update',
+        requestResourceData: values,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    }
   }
 
   return (
@@ -135,7 +135,7 @@ export function EditEmployeeDialog({ isOpen, onOpenChange, employee }: EditEmplo
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Role</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a role" />
@@ -156,7 +156,7 @@ export function EditEmployeeDialog({ isOpen, onOpenChange, employee }: EditEmplo
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Status</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a status" />
