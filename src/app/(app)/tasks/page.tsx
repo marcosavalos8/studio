@@ -284,13 +284,11 @@ export default function TasksPage() {
           )}
         </CardContent>
       </Card>
-      {clients && (
-        <AddTaskDialog
-          isOpen={isAddDialogOpen}
-          onOpenChange={setAddDialogOpen}
-          clients={clients}
-        />
-      )}
+      <AddTaskDialog
+        isOpen={isAddDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        clients={clients || []}
+      />
       {selectedTask && clients && (
         <>
           <EditTaskDialog
