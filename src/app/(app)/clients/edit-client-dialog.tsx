@@ -89,25 +89,27 @@ export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDia
       return
     }
 
-    const clientRef = doc(firestore, 'clients', client.id)
-    const updatedData = { ...values, email: values.email || '' }
+    try {
+      const clientRef = doc(firestore, 'clients', client.id)
+      const updatedData = { ...values, email: values.email || '' }
 
-    updateDoc(clientRef, updatedData)
-      .then(() => {
-        toast({
-          title: 'Client Updated',
-          description: `${values.name} has been updated successfully.`,
-        })
-        onOpenChange(false)
+      await updateDoc(clientRef, updatedData);
+      
+      toast({
+        title: 'Client Updated',
+        description: `${values.name} has been updated successfully.`,
       })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: clientRef.path,
-          operation: 'update',
-          requestResourceData: updatedData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      })
+      onOpenChange(false)
+    } catch (serverError) {
+      const clientRef = doc(firestore, 'clients', client.id)
+      const permissionError = new FirestorePermissionError({
+        path: clientRef.path,
+        operation: 'update',
+        requestResourceData: values,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    }
+  }
   }
 
   return (

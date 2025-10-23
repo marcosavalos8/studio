@@ -71,30 +71,31 @@ export function AddEmployeeDialog({ isOpen, onOpenChange }: AddEmployeeDialogPro
       return
     }
 
-    const newDocRef = doc(collection(firestore, 'employees'))
-    const newEmployee: Omit<Employee, 'id'> = {
-      ...values,
-      qrCode: newDocRef.id,
+    try {
+      const newDocRef = doc(collection(firestore, 'employees'))
+      const newEmployee: Omit<Employee, 'id'> = {
+        ...values,
+        qrCode: newDocRef.id,
+      }
+
+      await setDoc(newDocRef, newEmployee);
+      
+      toast({
+        title: 'Employee Added',
+        description: `${values.name} has been added successfully.`,
+      })
+      form.reset()
+      onOpenChange(false)
+    } catch (serverError) {
+      const newDocRef = doc(collection(firestore, 'employees'))
+      const permissionError = new FirestorePermissionError({
+        path: newDocRef.path,
+        operation: 'create',
+        requestResourceData: values,
+      });
+
+      errorEmitter.emit('permission-error', permissionError);
     }
-
-    setDoc(newDocRef, newEmployee)
-      .then(() => {
-        toast({
-          title: 'Employee Added',
-          description: `${values.name} has been added successfully.`,
-        })
-        form.reset()
-        onOpenChange(false)
-      })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: newDocRef.path,
-          operation: 'create',
-          requestResourceData: newEmployee,
-        });
-
-        errorEmitter.emit('permission-error', permissionError);
-      })
   }
 
   return (
