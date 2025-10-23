@@ -231,7 +231,7 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="hourly">Hourly</SelectItem>
-                      <SelectItem value="piece">Piece</SelectItem>
+                      <SelectItem value="piece">Piecework</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -249,14 +249,37 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
                     <Input type="number" step="0.01" placeholder="e.g., 25.00" {...field} />
                   </FormControl>
                   <p className="text-xs text-muted-foreground">
-                    Hourly rate or piece rate charged to client
+                    Rate charged to client (per hour or per piece)
                   </p>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            <div className="space-y-2 p-3 border rounded-md col-span-1 md:col-span-2">
+            {form.watch('clientRateType') === 'piece' && (
+              <div className="space-y-2 p-3 border-2 border-blue-300 rounded-md col-span-1 md:col-span-2 bg-blue-50 dark:bg-blue-950/20">
+                <FormLabel className="text-blue-900 dark:text-blue-100">Piece Price for Employees (Required for Piecework)</FormLabel>
+                <FormField
+                  control={form.control}
+                  name="piecePrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm">Price per piece paid to employees ($)</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.01" placeholder="e.g., 0.50" {...field} />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        Set the price per piece paid to employees for piecework tasks. The app will automatically use this price when calculating employee earnings. Minimum wage adjustments will be applied automatically if needed.
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
+            
+            {form.watch('clientRateType') === 'hourly' && (
+              <div className="space-y-2 p-3 border rounded-md col-span-1 md:col-span-2 bg-muted/30">
                 <FormLabel>Piece Price (Optional)</FormLabel>
                 <FormField
                   control={form.control}
@@ -268,13 +291,14 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
                         <Input type="number" step="0.01" placeholder="e.g., 0.50" {...field} />
                       </FormControl>
                       <p className="text-xs text-muted-foreground">
-                        Set the price per piece paid to employees for piecework tasks. Payment calculation will be based on pieces completed with minimum wage adjustments applied automatically.
+                        Optional: Set a piece price for employees who may exceed hourly minimum through piecework. The system will pay hourly or by piece, whichever is higher.
                       </p>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-            </div>
+              </div>
+            )}
             
             <DialogFooter className="col-span-1 md:col-span-2 mt-4">
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
