@@ -198,6 +198,7 @@ function TimeTrackingPage() {
   const [editEndTime, setEditEndTime] = useState<Date | undefined>(undefined);
   const [editPiecesWorked, setEditPiecesWorked] = useState<number | string>(0);
   const [editPaymentModality, setEditPaymentModality] = useState<"Hourly" | "Piecework">("Hourly");
+  const [editPieceCount, setEditPieceCount] = useState<number | string>(1);
 
   // Debounce state
   const [recentScans, setRecentScans] = useState<
@@ -1224,9 +1225,21 @@ function TimeTrackingPage() {
       return;
     }
 
+    // Validate piece count
+    const pieceCount = typeof editPieceCount === 'number' ? editPieceCount : parseFloat(String(editPieceCount));
+    if (isNaN(pieceCount) || pieceCount <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Quantity",
+        description: "Please enter a valid piece count (can include decimals).",
+      });
+      return;
+    }
+
     try {
       await updateDoc(doc(firestore, "piecework", editTarget.entry.id), {
         timestamp: editTimestamp,
+        pieceCount: pieceCount,
       });
       toast({
         title: "Piecework Updated",
@@ -1235,6 +1248,7 @@ function TimeTrackingPage() {
       setEditDialogOpen(false);
       setEditTarget(null);
       setEditTimestamp(undefined);
+      setEditPieceCount(1);
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
         path: "piecework",
@@ -2676,6 +2690,21 @@ function TimeTrackingPage() {
                                   Active
                                 </span>
                               )}
+                              {/* Payment Type Badge */}
+                              {(() => {
+                                const taskForEntry = allTasks?.find((t) => t.id === entry.taskId);
+                                const paymentType = entry.paymentModality || 
+                                  (taskForEntry?.clientRateType === "piece" ? "Piecework" : "Hourly");
+                                return (
+                                  <span className={`text-xs px-2 py-1 rounded-full ${
+                                    paymentType === "Piecework" 
+                                      ? "bg-purple-100 text-purple-800" 
+                                      : "bg-blue-100 text-blue-800"
+                                  }`}>
+                                    {paymentType}
+                                  </span>
+                                );
+                              })()}
                             </div>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <Package className="h-3 w-3" />
@@ -2711,11 +2740,16 @@ function TimeTrackingPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => {
+                                const taskForEntry = allTasks?.find((t) => t.id === entry.taskId);
+                                // Initialize payment modality based on task type or entry's paymentModality
+                                const initialModality = entry.paymentModality || 
+                                  (taskForEntry?.clientRateType === "piece" ? "Piecework" : "Hourly");
+                                
                                 setEditTarget({ type: "time", entry: entry });
                                 setEditTimestamp(clockInTime);
                                 setEditEndTime(clockOutTime || undefined);
                                 setEditPiecesWorked(entry.piecesWorked || 0);
-                                setEditPaymentModality(entry.paymentModality || "Hourly");
+                                setEditPaymentModality(initialModality);
                                 setEditDialogOpen(true);
                               }}
                             >
@@ -2843,6 +2877,7 @@ function TimeTrackingPage() {
                                   entry: piece,
                                 });
                                 setEditTimestamp(pieceTime);
+                                setEditPieceCount(piece.pieceCount || 1);
                                 setEditDialogOpen(true);
                               }}
                             >
@@ -2958,9 +2993,9 @@ function TimeTrackingPage() {
               {editTarget?.type === "time" ? "Time Entry" : "Piecework Record"}
             </DialogTitle>
             <DialogDescription>
-              Update the timestamp{editTarget?.type === "time" ? "s" : ""} for
-              this{" "}
-              {editTarget?.type === "time" ? "time entry" : "piecework record"}.
+              {editTarget?.type === "time" 
+                ? "Update the timestamps and payment details for this time entry." 
+                : "Update the timestamp and quantity for this piecework record."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -3017,6 +3052,29 @@ function TimeTrackingPage() {
                 </div>
               </>
             )}
+            {editTarget?.type === "piecework" && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-piece-count">Quantity (can include decimals)</Label>
+                <Input
+                  id="edit-piece-count"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="Enter quantity"
+                  value={editPieceCount}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setEditPieceCount(value === "" ? "" : value);
+                  }}
+                  onBlur={(e) => {
+                    const value = parseFloat(e.target.value);
+                    if (isNaN(value) || value <= 0) {
+                      setEditPieceCount(1);
+                    }
+                  }}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -3028,6 +3086,7 @@ function TimeTrackingPage() {
                 setEditEndTime(undefined);
                 setEditPiecesWorked(0);
                 setEditPaymentModality("Hourly");
+                setEditPieceCount(1);
               }}
             >
               Cancel
