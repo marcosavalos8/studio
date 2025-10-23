@@ -92,25 +92,26 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, clients }: EditTask
       return
     }
 
-    const taskRef = doc(firestore, 'tasks', task.id)
-    const updatedData = { ...values };
+    try {
+      const taskRef = doc(firestore, 'tasks', task.id)
+      const updatedData = { ...values };
 
-    updateDoc(taskRef, updatedData)
-      .then(() => {
-        toast({
-          title: 'Task Updated',
-          description: `${values.name} has been updated successfully.`,
-        })
-        onOpenChange(false)
+      await updateDoc(taskRef, updatedData);
+      
+      toast({
+        title: 'Task Updated',
+        description: `${values.name} has been updated successfully.`,
       })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: taskRef.path,
-          operation: 'update',
-          requestResourceData: updatedData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      })
+      onOpenChange(false)
+    } catch (serverError) {
+      const taskRef = doc(firestore, 'tasks', task.id)
+      const permissionError = new FirestorePermissionError({
+        path: taskRef.path,
+        operation: 'update',
+        requestResourceData: values,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    }
   }
 
   return (

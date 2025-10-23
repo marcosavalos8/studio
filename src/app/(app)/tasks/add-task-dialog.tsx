@@ -94,27 +94,28 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
       return
     }
 
-    const newTask: Omit<Task, 'id'> = { ...values };
-    const tasksCollection = collection(firestore, 'tasks');
+    try {
+      const newTask: Omit<Task, 'id'> = { ...values };
+      const tasksCollection = collection(firestore, 'tasks');
 
-    addDoc(tasksCollection, newTask)
-      .then(() => {
-        toast({
-          title: 'Task Added',
-          description: `${values.name} has been added successfully.`,
-        })
-        form.reset()
-        onOpenChange(false)
+      await addDoc(tasksCollection, newTask);
+      
+      toast({
+        title: 'Task Added',
+        description: `${values.name} has been added successfully.`,
       })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: tasksCollection.path,
-          operation: 'create',
-          requestResourceData: newTask,
-        });
+      form.reset()
+      onOpenChange(false)
+    } catch (serverError) {
+      const tasksCollection = collection(firestore, 'tasks');
+      const permissionError = new FirestorePermissionError({
+        path: tasksCollection.path,
+        operation: 'create',
+        requestResourceData: values,
+      });
 
-        errorEmitter.emit('permission-error', permissionError);
-      })
+      errorEmitter.emit('permission-error', permissionError);
+    }
   }
 
   return (
