@@ -236,6 +236,20 @@ export async function generatePayrollReport({
           if (!dailyWork[dayKey].tasks[entry.taskId])
             dailyWork[dayKey].tasks[entry.taskId] = { hours: 0, pieces: 0 };
           dailyWork[dayKey].tasks[entry.taskId].pieces += entry.pieceCount;
+          
+          // Calculate hours from startDate and endDate if available
+          if (entry.startDate && entry.endDate) {
+            const startTime = parseLocalDateOrDateTime(String(entry.startDate));
+            const endTime = parseLocalDateOrDateTime(String(entry.endDate));
+            let pieceworkHours = differenceInMilliseconds(endTime, startTime) / (1000 * 60 * 60);
+            if (pieceworkHours > 0) {
+              // Apply meal break deduction if applicable
+              if (pieceworkHours > 5) {
+                pieceworkHours -= 0.5;
+              }
+              dailyWork[dayKey].tasks[entry.taskId].hours += pieceworkHours;
+            }
+          }
         });
 
         const dailyBreakdownsForWeek: DailyBreakdown[] = [];

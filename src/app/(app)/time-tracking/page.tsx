@@ -167,6 +167,14 @@ function TimeTrackingPage() {
     Date | undefined
   >(undefined);
 
+  // Piecework Start/End Date State
+  const [pieceworkStartDate, setPieceworkStartDate] = useState<Date | undefined>(
+    undefined
+  );
+  const [pieceworkEndDate, setPieceworkEndDate] = useState<Date | undefined>(
+    undefined
+  );
+
   // History filtering state
   const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>(
     undefined
@@ -639,7 +647,9 @@ function TimeTrackingPage() {
       employeeIds: string[],
       taskId: string,
       binQr: string,
-      customTimestamp?: Date
+      customTimestamp?: Date,
+      startDate?: Date,
+      endDate?: Date
     ) => {
       if (!firestore) return;
 
@@ -649,6 +659,8 @@ function TimeTrackingPage() {
         timestamp: customTimestamp || new Date(),
         pieceCount: 1, // Assume 1 bin per scan
         pieceQrCode: binQr,
+        startDate: startDate,
+        endDate: endDate,
       };
       try {
         await addDoc(collection(firestore, "piecework"), newPiecework);
@@ -861,7 +873,9 @@ function TimeTrackingPage() {
             employeeQrCodes,
             selectedTask,
             scannedData,
-            timestamp
+            timestamp,
+            pieceworkStartDate,
+            pieceworkEndDate
           );
           if (!isSharedPiece) {
             setScannedSharedEmployees([]);
@@ -886,6 +900,8 @@ function TimeTrackingPage() {
       scannedSharedEmployees,
       useManualDateTime,
       manualPieceworkDate,
+      pieceworkStartDate,
+      pieceworkEndDate,
     ]
   );
 
@@ -947,7 +963,9 @@ function TimeTrackingPage() {
         employeeQrCodes,
         selectedTask,
         "manual_entry",
-        timestamp
+        timestamp,
+        pieceworkStartDate,
+        pieceworkEndDate
       );
     }
     setScannedSharedEmployees([]);
@@ -2174,32 +2192,28 @@ function TimeTrackingPage() {
                   <SelectionFields />
 
                   <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="piece-qr-manual-datetime-checkbox"
-                        checked={useManualDateTime}
-                        onCheckedChange={(checked: boolean) => {
-                          setUseManualDateTime(checked);
-                          if (!checked) {
-                            setManualPieceworkDate(undefined);
-                          }
-                        }}
-                      />
-                      <Label
-                        htmlFor="piece-qr-manual-datetime-checkbox"
-                        className="font-semibold"
-                      >
-                        Use Manual Date/Time
-                      </Label>
-                    </div>
-                    {useManualDateTime && (
-                      <div className="space-y-3 pt-2">
+                    <Label className="font-semibold">Work Duration</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
                         <DateTimePicker
-                          date={manualPieceworkDate}
-                          setDate={setManualPieceworkDate}
-                          label="Piecework Date & Time"
-                          placeholder="Select date and time for piecework"
+                          date={pieceworkStartDate}
+                          setDate={setPieceworkStartDate}
+                          label="Start Date & Time"
+                          placeholder="Select start date and time"
                         />
+                      </div>
+                      <div className="space-y-2">
+                        <DateTimePicker
+                          date={pieceworkEndDate}
+                          setDate={setPieceworkEndDate}
+                          label="End Date & Time"
+                          placeholder="Select end date and time"
+                        />
+                      </div>
+                    </div>
+                    {pieceworkStartDate && pieceworkEndDate && (
+                      <div className="text-sm text-muted-foreground">
+                        Duration: {((pieceworkEndDate.getTime() - pieceworkStartDate.getTime()) / (1000 * 60 * 60)).toFixed(2)} hours
                       </div>
                     )}
                   </div>
@@ -2336,32 +2350,28 @@ function TimeTrackingPage() {
                   <SelectionFields isManual={true} />
 
                   <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="piece-manual-datetime-checkbox"
-                        checked={useManualDateTime}
-                        onCheckedChange={(checked: boolean) => {
-                          setUseManualDateTime(checked);
-                          if (!checked) {
-                            setManualPieceworkDate(undefined);
-                          }
-                        }}
-                      />
-                      <Label
-                        htmlFor="piece-manual-datetime-checkbox"
-                        className="font-semibold"
-                      >
-                        Use Manual Date/Time
-                      </Label>
-                    </div>
-                    {useManualDateTime && (
-                      <div className="space-y-3 pt-2">
+                    <Label className="font-semibold">Work Duration</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
                         <DateTimePicker
-                          date={manualPieceworkDate}
-                          setDate={setManualPieceworkDate}
-                          label="Piecework Date & Time"
-                          placeholder="Select date and time for piecework"
+                          date={pieceworkStartDate}
+                          setDate={setPieceworkStartDate}
+                          label="Start Date & Time"
+                          placeholder="Select start date and time"
                         />
+                      </div>
+                      <div className="space-y-2">
+                        <DateTimePicker
+                          date={pieceworkEndDate}
+                          setDate={setPieceworkEndDate}
+                          label="End Date & Time"
+                          placeholder="Select end date and time"
+                        />
+                      </div>
+                    </div>
+                    {pieceworkStartDate && pieceworkEndDate && (
+                      <div className="text-sm text-muted-foreground">
+                        Duration: {((pieceworkEndDate.getTime() - pieceworkStartDate.getTime()) / (1000 * 60 * 60)).toFixed(2)} hours
                       </div>
                     )}
                   </div>
@@ -2492,6 +2502,8 @@ function TimeTrackingPage() {
                         pieceCount: pieceCount,
                         pieceQrCode: "manual_entry",
                         qcNote: manualNotes,
+                        startDate: pieceworkStartDate,
+                        endDate: pieceworkEndDate,
                       };
                       try {
                         await addDoc(collection(firestore, "piecework"), newPiecework);
