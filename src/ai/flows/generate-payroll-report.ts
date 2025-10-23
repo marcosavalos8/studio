@@ -328,10 +328,11 @@ export async function generatePayrollReport({
             dailyTotalHours += hours;
             dailyTotalRawEarnings += earningsForTask;
 
-            // Determine task type label
+            // Determine task type label and rate for display
             const taskTypeLabel = task.clientRateType === 'piece' ? 'Piecework' : 
                                   task.clientRateType === 'hourly' ? 'Hourly' : 
                                   'Unknown';
+            const taskRate = task.clientRateType === 'piece' ? task.piecePrice : task.clientRate;
 
             taskDetailsForDay.push({
               taskName: `${task.name} (${task.variety || "N/A"}) - ${taskTypeLabel}`,
@@ -342,6 +343,7 @@ export async function generatePayrollReport({
               pieceworkCount: pieces,
               totalEarnings: earningsForTask,
               taskType: task.clientRateType,
+              rate: taskRate,
             });
           }
 
