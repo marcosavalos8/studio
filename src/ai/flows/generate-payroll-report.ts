@@ -328,14 +328,20 @@ export async function generatePayrollReport({
             dailyTotalHours += hours;
             dailyTotalRawEarnings += earningsForTask;
 
+            // Determine task type label
+            const taskTypeLabel = task.clientRateType === 'piece' ? 'Piecework' : 
+                                  task.clientRateType === 'hourly' ? 'Hourly' : 
+                                  'Unknown';
+
             taskDetailsForDay.push({
-              taskName: `${task.name} (${task.variety || "N/A"})`,
+              taskName: `${task.name} (${task.variety || "N/A"}) - ${taskTypeLabel}`,
               clientName: client?.name || "Unknown Client",
               ranch: task.ranch,
               block: task.block,
               hours: hours,
               pieceworkCount: pieces,
               totalEarnings: earningsForTask,
+              taskType: task.clientRateType,
             });
           }
 
