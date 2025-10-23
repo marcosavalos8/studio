@@ -542,8 +542,14 @@ function TimeTrackingPage() {
 
       try {
         const activeEntriesSnap = await getDocs(activeEntriesQuery);
-        activeEntriesSnap.forEach((doc) => {
-          batch.update(doc.ref, { endTime: customTimestamp || new Date() });
+        
+        // Check if we're switching from a piecework task to an hourly task
+        const newTask = allTasks?.find(t => t.id === taskId);
+        const isNewTaskHourly = newTask?.clientRateType === 'hourly';
+        
+        // Auto-close any active entries when switching tasks
+        activeEntriesSnap.forEach((docSnap) => {
+          batch.update(docSnap.ref, { endTime: customTimestamp || new Date() });
         });
 
         const newTimeEntryRef = doc(collection(firestore, "time_entries"));
@@ -559,9 +565,15 @@ function TimeTrackingPage() {
 
         await batch.commit();
         playSound("clock-in");
+        
+        let description = `Clocked in ${employee.name}.${useSickHours ? ' (Using sick hours for payment)' : ''}`;
+        if (activeEntriesSnap.size > 0) {
+          description += ` Previous task(s) automatically clocked out.`;
+        }
+        
         toast({
           title: "Clock In Successful",
-          description: `Clocked in ${employee.name}.${useSickHours ? ' (Using sick hours for payment)' : ''}`,
+          description: description,
         });
       } catch (serverError) {
         const permissionError = new FirestorePermissionError({
@@ -572,7 +584,7 @@ function TimeTrackingPage() {
         errorEmitter.emit("permission-error", permissionError);
       }
     },
-    [firestore, toast, playSound]
+    [firestore, toast, playSound, allTasks]
   );
 
   const clockOutEmployee = useCallback(
@@ -1001,12 +1013,19 @@ function TimeTrackingPage() {
       .filter(Boolean) as string[];
     if (employeeQrCodes.length > 0) {
       const timestamp = useManualDateTime ? manualPieceworkDate : undefined;
-      await recordPiecework(
-        employeeQrCodes,
-        selectedTask,
-        "manual_entry",
-        timestamp
-      );
+      
+      // Create individual records for each piece
+      const baseTimestamp = timestamp || new Date();
+      for (let i = 0; i < pieceCount; i++) {
+        // Add a small time offset (1 second) between each piece to maintain order
+        const pieceTimestamp = new Date(baseTimestamp.getTime() + (i * 1000));
+        await recordPiecework(
+          employeeQrCodes,
+          selectedTask,
+          "manual_entry",
+          pieceTimestamp
+        );
+      }
     }
     setScannedSharedEmployees([]);
     setManualPieceQuantity(1);
@@ -1521,86 +1540,93 @@ function TimeTrackingPage() {
     }
   };
 
-  const SelectionFields = ({ isManual = false }: { isManual?: boolean }) => (
-    <div
-      className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${
-        isManual ? "p-4 border rounded-md" : ""
-      }`}
-    >
-      <div className="space-y-2">
-        <Label htmlFor={`client-select-${isManual}`}>Client</Label>
-        <Select value={selectedClient} onValueChange={setSelectedClient}>
-          <SelectTrigger id={`client-select-${isManual}`}>
-            <SelectValue placeholder="Select a client" />
-          </SelectTrigger>
-          <SelectContent>
-            {clients?.map((client) => (
-              <SelectItem key={client.id} value={client.id}>
-                {client.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+  const SelectionFields = ({ isManual = false, filterPiecework = false }: { isManual?: boolean; filterPiecework?: boolean }) => {
+    // Filter tasks based on whether we're in piecework mode
+    const displayTasks = filterPiecework 
+      ? filteredTasks.filter(t => t.clientRateType === 'piece')
+      : filteredTasks;
+    
+    return (
+      <div
+        className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${
+          isManual ? "p-4 border rounded-md" : ""
+        }`}
+      >
+        <div className="space-y-2">
+          <Label htmlFor={`client-select-${isManual}`}>Client</Label>
+          <Select value={selectedClient} onValueChange={setSelectedClient}>
+            <SelectTrigger id={`client-select-${isManual}`}>
+              <SelectValue placeholder="Select a client" />
+            </SelectTrigger>
+            <SelectContent>
+              {clients?.map((client) => (
+                <SelectItem key={client.id} value={client.id}>
+                  {client.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`ranch-select-${isManual}`}>Ranch</Label>
+          <Select
+            value={selectedRanch}
+            onValueChange={setSelectedRanch}
+            disabled={!selectedClient || ranches.length === 0}
+          >
+            <SelectTrigger id={`ranch-select-${isManual}`}>
+              <SelectValue placeholder="Select a ranch" />
+            </SelectTrigger>
+            <SelectContent>
+              {ranches.map((ranch) => (
+                <SelectItem key={ranch} value={ranch}>
+                  {ranch}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`block-select-${isManual}`}>Block</Label>
+          <Select
+            value={selectedBlock}
+            onValueChange={setSelectedBlock}
+            disabled={!selectedRanch || blocks.length === 0}
+          >
+            <SelectTrigger id={`block-select-${isManual}`}>
+              <SelectValue placeholder="Select a block" />
+            </SelectTrigger>
+            <SelectContent>
+              {blocks.map((block) => (
+                <SelectItem key={block} value={block}>
+                  {block}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`task-select-${isManual}`}>Task</Label>
+          <Select
+            value={selectedTask}
+            onValueChange={setSelectedTask}
+            disabled={displayTasks.length === 0}
+          >
+            <SelectTrigger id={`task-select-${isManual}`}>
+              <SelectValue placeholder="Select a task" />
+            </SelectTrigger>
+            <SelectContent>
+              {displayTasks?.map((task) => (
+                <SelectItem key={task.id} value={task.id}>
+                  {task.name} ({task.variety}) - {task.clientRateType === 'piece' ? '📦 Piecework' : '⏰ Hourly'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor={`ranch-select-${isManual}`}>Ranch</Label>
-        <Select
-          value={selectedRanch}
-          onValueChange={setSelectedRanch}
-          disabled={!selectedClient || ranches.length === 0}
-        >
-          <SelectTrigger id={`ranch-select-${isManual}`}>
-            <SelectValue placeholder="Select a ranch" />
-          </SelectTrigger>
-          <SelectContent>
-            {ranches.map((ranch) => (
-              <SelectItem key={ranch} value={ranch}>
-                {ranch}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor={`block-select-${isManual}`}>Block</Label>
-        <Select
-          value={selectedBlock}
-          onValueChange={setSelectedBlock}
-          disabled={!selectedRanch || blocks.length === 0}
-        >
-          <SelectTrigger id={`block-select-${isManual}`}>
-            <SelectValue placeholder="Select a block" />
-          </SelectTrigger>
-          <SelectContent>
-            {blocks.map((block) => (
-              <SelectItem key={block} value={block}>
-                {block}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor={`task-select-${isManual}`}>Task</Label>
-        <Select
-          value={selectedTask}
-          onValueChange={setSelectedTask}
-          disabled={filteredTasks.length === 0}
-        >
-          <SelectTrigger id={`task-select-${isManual}`}>
-            <SelectValue placeholder="Select a task" />
-          </SelectTrigger>
-          <SelectContent>
-            {filteredTasks?.map((task) => (
-              <SelectItem key={task.id} value={task.id}>
-                {task.name} ({task.variety})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -2270,7 +2296,7 @@ function TimeTrackingPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 md:space-y-4">
-                  <SelectionFields />
+                  <SelectionFields filterPiecework={true} />
 
                   <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
                     <div className="flex items-center space-x-2">
@@ -2432,7 +2458,7 @@ function TimeTrackingPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <SelectionFields isManual={true} />
+                  <SelectionFields isManual={true} filterPiecework={true} />
 
                   <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
                     <div className="flex items-center space-x-2">
@@ -2581,19 +2607,28 @@ function TimeTrackingPage() {
 
                       setIsManualSubmitting(true);
 
-                      const newPiecework: Omit<Piecework, "id"> = {
-                        employeeId: manualSelectedEmployee.id,
-                        taskId: selectedTask,
-                        timestamp:
-                          useManualDateTime && manualPieceworkDate
-                            ? manualPieceworkDate
-                            : new Date(),
-                        pieceCount: pieceCount,
-                        pieceQrCode: "manual_entry",
-                        qcNote: manualNotes,
-                      };
                       try {
-                        await addDoc(collection(firestore, "piecework"), newPiecework);
+                        // Create individual records for each piece with incremental timestamps
+                        const baseTimestamp = useManualDateTime && manualPieceworkDate
+                          ? manualPieceworkDate
+                          : new Date();
+                        
+                        for (let i = 0; i < pieceCount; i++) {
+                          // Add a small time offset (1 second) between each piece to maintain order
+                          const pieceTimestamp = new Date(baseTimestamp.getTime() + (i * 1000));
+                          
+                          const newPiecework: Omit<Piecework, "id"> = {
+                            employeeId: manualSelectedEmployee.id,
+                            taskId: selectedTask,
+                            timestamp: pieceTimestamp,
+                            pieceCount: 1, // Each record represents 1 piece
+                            pieceQrCode: "manual_entry",
+                            qcNote: manualNotes,
+                          };
+                          
+                          await addDoc(collection(firestore, "piecework"), newPiecework);
+                        }
+                        
                         playSound("piece");
                         toast({
                           title: "Piecework Recorded",
