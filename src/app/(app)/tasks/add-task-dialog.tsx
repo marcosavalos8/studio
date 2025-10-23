@@ -47,6 +47,15 @@ const taskSchema = z.object({
   clientRateType: z.enum(['hourly', 'piece']),
   piecePrice: z.coerce.number().min(0, 'Piece price must be positive').optional(),
   status: z.enum(['Active', 'Inactive', 'Completed']),
+}).refine((data) => {
+  // If rate type is piece, piecePrice must be provided
+  if (data.clientRateType === 'piece' && (!data.piecePrice || data.piecePrice <= 0)) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Piece price is required when rate type is Piecework",
+  path: ["piecePrice"],
 })
 
 type AddTaskDialogProps = {
@@ -231,7 +240,7 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="hourly">Hourly</SelectItem>
-                      <SelectItem value="piece">Piece</SelectItem>
+                      <SelectItem value="piece">Piecework</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -239,42 +248,41 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="clientRate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Client Rate ($)</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.01" placeholder="e.g., 25.00" {...field} />
-                  </FormControl>
-                  <p className="text-xs text-muted-foreground">
-                    Hourly rate or piece rate charged to client
-                  </p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="space-y-2 p-3 border rounded-md col-span-1 md:col-span-2">
-                <FormLabel>Piece Price (Optional)</FormLabel>
-                <FormField
-                  control={form.control}
-                  name="piecePrice"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs">Price per piece for employees ($)</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.01" placeholder="e.g., 0.50" {...field} />
-                      </FormControl>
-                      <p className="text-xs text-muted-foreground">
-                        Set the price per piece paid to employees for piecework tasks. Payment calculation will be based on pieces completed with minimum wage adjustments applied automatically.
-                      </p>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-            </div>
+            {form.watch('clientRateType') === 'piece' ? (
+              <FormField
+                control={form.control}
+                name="piecePrice"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Piece Price ($)</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" placeholder="e.g., 0.50" {...field} />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Price per piece paid to employees
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : (
+              <FormField
+                control={form.control}
+                name="clientRate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Hourly Rate ($)</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" placeholder="e.g., 25.00" {...field} />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Hourly rate for this task
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             
             <DialogFooter className="col-span-1 md:col-span-2 mt-4">
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>

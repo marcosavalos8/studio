@@ -44,6 +44,13 @@ function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData[
                   <TableCell>
                     <div>{task.taskName}</div>
                     <div className="text-xs text-muted-foreground">{task.clientName} {task.ranch && ` - ${task.ranch}`}</div>
+                    {task.rate !== undefined && task.taskType && (
+                      <div className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">
+                        {task.taskType === 'piece' 
+                          ? `$${task.rate.toFixed(2)} per piece` 
+                          : `$${task.rate.toFixed(2)} per hour`}
+                      </div>
+                    )}
                     {task.hours > 0 && task.totalEarnings === 0 && (
                       <div className="text-xs text-amber-600 italic mt-1">
                         No pieces recorded - minimum wage adjustment applied at daily level

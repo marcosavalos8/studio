@@ -75,6 +75,8 @@ export type DailyTaskDetail = {
   hours: number;
   pieceworkCount: number;
   totalEarnings: number;
+  taskType?: "hourly" | "piece"; // Task rate type for display
+  rate?: number; // Hourly rate or piece price for display
 };
 
 export type DailyBreakdown = {

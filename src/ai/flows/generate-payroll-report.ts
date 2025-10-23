@@ -271,13 +271,16 @@ export async function generatePayrollReport({
             console.log("Processing task earnings:", {
               taskId,
               taskName: task.name,
+              clientRateType: task.clientRateType,
+              clientRate: task.clientRate,
               piecePrice: task.piecePrice,
               hours,
               pieces,
             });
             
-            // Calculate earnings based on pieces if piecePrice is set
-            if (pieces > 0 && task.piecePrice && task.piecePrice > 0) {
+            // Calculate earnings based on task type and rate
+            if (task.clientRateType === 'piece' && pieces > 0 && task.piecePrice && task.piecePrice > 0) {
+              // Piecework task: calculate based on pieces
               earningsForTask = pieces * task.piecePrice;
               console.log("Calculated piecework earnings:", {
                 taskName: task.name,
@@ -288,12 +291,30 @@ export async function generatePayrollReport({
 
               // ACUMULA las ganancias en bruto SOLO de piezas para la comparación semanal
               weeklyTotalPieceworkEarnings += earningsForTask;
-            } else if (hours > 0) {
-              // For hourly work, earnings will be calculated based on minimum wage
-              // The minimum wage adjustment will be applied later
-              console.log("Hourly work (will be adjusted to minimum wage):", {
+            } else if (task.clientRateType === 'hourly' && hours > 0) {
+              // Hourly task: calculate based on hours and clientRate
+              earningsForTask = hours * (task.clientRate || 0);
+              console.log("Calculated hourly earnings:", {
                 taskName: task.name,
                 hours,
+                clientRate: task.clientRate,
+                earnings: earningsForTask,
+              });
+            } else if (hours > 0) {
+              // Fallback for tasks without explicit type (backward compatibility)
+              // Check if it has piecePrice and pieces, otherwise treat as hourly
+              if (pieces > 0 && task.piecePrice && task.piecePrice > 0) {
+                earningsForTask = pieces * task.piecePrice;
+                weeklyTotalPieceworkEarnings += earningsForTask;
+              } else {
+                // Treat as hourly work
+                earningsForTask = hours * (task.clientRate || 0);
+              }
+              console.log("Calculated earnings (fallback):", {
+                taskName: task.name,
+                hours,
+                pieces,
+                earnings: earningsForTask,
               });
             } else {
               console.warn("⚠️ Task has neither hours nor pieces:", {
@@ -307,14 +328,22 @@ export async function generatePayrollReport({
             dailyTotalHours += hours;
             dailyTotalRawEarnings += earningsForTask;
 
+            // Determine task type label and rate for display
+            const taskTypeLabel = task.clientRateType === 'piece' ? 'Piecework' : 
+                                  task.clientRateType === 'hourly' ? 'Hourly' : 
+                                  'Unknown';
+            const taskRate = task.clientRateType === 'piece' ? task.piecePrice : task.clientRate;
+
             taskDetailsForDay.push({
-              taskName: `${task.name} (${task.variety || "N/A"})`,
+              taskName: `${task.name} (${task.variety || "N/A"}) - ${taskTypeLabel}`,
               clientName: client?.name || "Unknown Client",
               ranch: task.ranch,
               block: task.block,
               hours: hours,
               pieceworkCount: pieces,
               totalEarnings: earningsForTask,
+              taskType: task.clientRateType,
+              rate: taskRate,
             });
           }
 
