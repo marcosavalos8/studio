@@ -167,14 +167,6 @@ function TimeTrackingPage() {
     Date | undefined
   >(undefined);
 
-  // Piecework Start/End Date State
-  const [pieceworkStartDate, setPieceworkStartDate] = useState<Date | undefined>(
-    undefined
-  );
-  const [pieceworkEndDate, setPieceworkEndDate] = useState<Date | undefined>(
-    undefined
-  );
-
   // History filtering state
   const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>(
     undefined
@@ -206,8 +198,6 @@ function TimeTrackingPage() {
   const [editEndTime, setEditEndTime] = useState<Date | undefined>(undefined);
   const [editPiecesWorked, setEditPiecesWorked] = useState<number | string>(0);
   const [editPaymentModality, setEditPaymentModality] = useState<"Hourly" | "Piecework">("Hourly");
-  const [editPieceworkStartDate, setEditPieceworkStartDate] = useState<Date | undefined>(undefined);
-  const [editPieceworkEndDate, setEditPieceworkEndDate] = useState<Date | undefined>(undefined);
 
   // Debounce state
   const [recentScans, setRecentScans] = useState<
@@ -649,9 +639,7 @@ function TimeTrackingPage() {
       employeeIds: string[],
       taskId: string,
       binQr: string,
-      customTimestamp?: Date,
-      startDate?: Date,
-      endDate?: Date
+      customTimestamp?: Date
     ) => {
       if (!firestore) return;
 
@@ -661,8 +649,6 @@ function TimeTrackingPage() {
         timestamp: customTimestamp || new Date(),
         pieceCount: 1, // Assume 1 bin per scan
         pieceQrCode: binQr,
-        startDate: startDate,
-        endDate: endDate,
       };
       try {
         await addDoc(collection(firestore, "piecework"), newPiecework);
@@ -875,9 +861,7 @@ function TimeTrackingPage() {
             employeeQrCodes,
             selectedTask,
             scannedData,
-            timestamp,
-            pieceworkStartDate,
-            pieceworkEndDate
+            timestamp
           );
           if (!isSharedPiece) {
             setScannedSharedEmployees([]);
@@ -902,8 +886,6 @@ function TimeTrackingPage() {
       scannedSharedEmployees,
       useManualDateTime,
       manualPieceworkDate,
-      pieceworkStartDate,
-      pieceworkEndDate,
     ]
   );
 
@@ -965,9 +947,7 @@ function TimeTrackingPage() {
         employeeQrCodes,
         selectedTask,
         "manual_entry",
-        timestamp,
-        pieceworkStartDate,
-        pieceworkEndDate
+        timestamp
       );
     }
     setScannedSharedEmployees([]);
@@ -1235,29 +1215,19 @@ function TimeTrackingPage() {
   const handleEditPiecework = async () => {
     if (!firestore || !editTarget || editTarget.type !== "piecework") return;
 
-    // Build update object
-    const updateData: any = {};
-    
-    // If start and end dates are provided, use them
-    if (editPieceworkStartDate && editPieceworkEndDate) {
-      updateData.startDate = editPieceworkStartDate;
-      updateData.endDate = editPieceworkEndDate;
-      // Update timestamp to match startDate for consistency
-      updateData.timestamp = editPieceworkStartDate;
-    } else if (editTimestamp) {
-      // Fallback to timestamp if start/end not provided
-      updateData.timestamp = editTimestamp;
-    } else {
+    if (!editTimestamp) {
       toast({
         variant: "destructive",
         title: "Invalid Data",
-        description: "Start and end dates or timestamp is required.",
+        description: "Timestamp is required.",
       });
       return;
     }
 
     try {
-      await updateDoc(doc(firestore, "piecework", editTarget.entry.id), updateData);
+      await updateDoc(doc(firestore, "piecework", editTarget.entry.id), {
+        timestamp: editTimestamp,
+      });
       toast({
         title: "Piecework Updated",
         description: "Piecework record has been successfully updated.",
@@ -1265,8 +1235,6 @@ function TimeTrackingPage() {
       setEditDialogOpen(false);
       setEditTarget(null);
       setEditTimestamp(undefined);
-      setEditPieceworkStartDate(undefined);
-      setEditPieceworkEndDate(undefined);
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
         path: "piecework",
@@ -2206,28 +2174,32 @@ function TimeTrackingPage() {
                   <SelectionFields />
 
                   <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
-                    <Label className="font-semibold">Work Duration</Label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <DateTimePicker
-                          date={pieceworkStartDate}
-                          setDate={setPieceworkStartDate}
-                          label="Start Date & Time"
-                          placeholder="Select start date and time"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <DateTimePicker
-                          date={pieceworkEndDate}
-                          setDate={setPieceworkEndDate}
-                          label="End Date & Time"
-                          placeholder="Select end date and time"
-                        />
-                      </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="piece-qr-manual-datetime-checkbox"
+                        checked={useManualDateTime}
+                        onCheckedChange={(checked: boolean) => {
+                          setUseManualDateTime(checked);
+                          if (!checked) {
+                            setManualPieceworkDate(undefined);
+                          }
+                        }}
+                      />
+                      <Label
+                        htmlFor="piece-qr-manual-datetime-checkbox"
+                        className="font-semibold"
+                      >
+                        Use Manual Date/Time
+                      </Label>
                     </div>
-                    {pieceworkStartDate && pieceworkEndDate && (
-                      <div className="text-sm text-muted-foreground">
-                        Duration: {((pieceworkEndDate.getTime() - pieceworkStartDate.getTime()) / (1000 * 60 * 60)).toFixed(2)} hours
+                    {useManualDateTime && (
+                      <div className="space-y-3 pt-2">
+                        <DateTimePicker
+                          date={manualPieceworkDate}
+                          setDate={setManualPieceworkDate}
+                          label="Piecework Date & Time"
+                          placeholder="Select date and time for piecework"
+                        />
                       </div>
                     )}
                   </div>
@@ -2364,28 +2336,32 @@ function TimeTrackingPage() {
                   <SelectionFields isManual={true} />
 
                   <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
-                    <Label className="font-semibold">Work Duration</Label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <DateTimePicker
-                          date={pieceworkStartDate}
-                          setDate={setPieceworkStartDate}
-                          label="Start Date & Time"
-                          placeholder="Select start date and time"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <DateTimePicker
-                          date={pieceworkEndDate}
-                          setDate={setPieceworkEndDate}
-                          label="End Date & Time"
-                          placeholder="Select end date and time"
-                        />
-                      </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="piece-manual-datetime-checkbox"
+                        checked={useManualDateTime}
+                        onCheckedChange={(checked: boolean) => {
+                          setUseManualDateTime(checked);
+                          if (!checked) {
+                            setManualPieceworkDate(undefined);
+                          }
+                        }}
+                      />
+                      <Label
+                        htmlFor="piece-manual-datetime-checkbox"
+                        className="font-semibold"
+                      >
+                        Use Manual Date/Time
+                      </Label>
                     </div>
-                    {pieceworkStartDate && pieceworkEndDate && (
-                      <div className="text-sm text-muted-foreground">
-                        Duration: {((pieceworkEndDate.getTime() - pieceworkStartDate.getTime()) / (1000 * 60 * 60)).toFixed(2)} hours
+                    {useManualDateTime && (
+                      <div className="space-y-3 pt-2">
+                        <DateTimePicker
+                          date={manualPieceworkDate}
+                          setDate={setManualPieceworkDate}
+                          label="Piecework Date & Time"
+                          placeholder="Select date and time for piecework"
+                        />
                       </div>
                     )}
                   </div>
@@ -2516,8 +2492,6 @@ function TimeTrackingPage() {
                         pieceCount: pieceCount,
                         pieceQrCode: "manual_entry",
                         qcNote: manualNotes,
-                        startDate: pieceworkStartDate,
-                        endDate: pieceworkEndDate,
                       };
                       try {
                         await addDoc(collection(firestore, "piecework"), newPiecework);
@@ -2828,59 +2802,12 @@ function TimeTrackingPage() {
                                 Client: {client.name}
                               </div>
                             )}
-                            {piece.startDate && piece.endDate ? (
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2 text-sm">
-                                  <Calendar className="h-3 w-3 text-green-600" />
-                                  <p className="text-muted-foreground">
-                                    Start: {format(
-                                      piece.startDate instanceof Date
-                                        ? piece.startDate
-                                        : (piece.startDate as any)?.toDate
-                                        ? (piece.startDate as any).toDate()
-                                        : new Date(piece.startDate as any),
-                                      "PPp"
-                                    )}
-                                  </p>
-                                </div>
-                                <div className="flex items-center gap-2 text-sm">
-                                  <Calendar className="h-3 w-3 text-red-600" />
-                                  <p className="text-muted-foreground">
-                                    End: {format(
-                                      piece.endDate instanceof Date
-                                        ? piece.endDate
-                                        : (piece.endDate as any)?.toDate
-                                        ? (piece.endDate as any).toDate()
-                                        : new Date(piece.endDate as any),
-                                      "PPp"
-                                    )}
-                                  </p>
-                                </div>
-                                <div className="text-xs text-blue-600 font-medium">
-                                  Duration: {(() => {
-                                    const start = piece.startDate instanceof Date
-                                      ? piece.startDate
-                                      : (piece.startDate as any)?.toDate
-                                      ? (piece.startDate as any).toDate()
-                                      : new Date(piece.startDate as any);
-                                    const end = piece.endDate instanceof Date
-                                      ? piece.endDate
-                                      : (piece.endDate as any)?.toDate
-                                      ? (piece.endDate as any).toDate()
-                                      : new Date(piece.endDate as any);
-                                    const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-                                    return `${hours.toFixed(2)} hours`;
-                                  })()}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2 text-sm">
-                                <Calendar className="h-3 w-3 text-purple-600" />
-                                <p className="text-muted-foreground">
-                                  {format(pieceTime, "PPp")}
-                                </p>
-                              </div>
-                            )}
+                            <div className="flex items-center gap-2 text-sm">
+                              <Calendar className="h-3 w-3 text-purple-600" />
+                              <p className="text-muted-foreground">
+                                {format(pieceTime, "PPp")}
+                              </p>
+                            </div>
                             <div className="flex items-center gap-4 text-sm">
                               <div className="flex items-center gap-2">
                                 <CheckCircle className="h-3 w-3 text-green-600" />
@@ -2916,23 +2843,6 @@ function TimeTrackingPage() {
                                   entry: piece,
                                 });
                                 setEditTimestamp(pieceTime);
-                                // Set start and end dates if they exist
-                                if (piece.startDate) {
-                                  const startDate = piece.startDate instanceof Date
-                                    ? piece.startDate
-                                    : (piece.startDate as any)?.toDate
-                                    ? (piece.startDate as any).toDate()
-                                    : new Date(piece.startDate as any);
-                                  setEditPieceworkStartDate(startDate);
-                                }
-                                if (piece.endDate) {
-                                  const endDate = piece.endDate instanceof Date
-                                    ? piece.endDate
-                                    : (piece.endDate as any)?.toDate
-                                    ? (piece.endDate as any).toDate()
-                                    : new Date(piece.endDate as any);
-                                  setEditPieceworkEndDate(endDate);
-                                }
                                 setEditDialogOpen(true);
                               }}
                             >
@@ -3054,43 +2964,17 @@ function TimeTrackingPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {editTarget?.type === "piecework" ? (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-start-date">Start Date & Time</Label>
-                  <DateTimePicker
-                    date={editPieceworkStartDate}
-                    setDate={setEditPieceworkStartDate}
-                    label=""
-                    placeholder="Select start date and time"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-end-date">End Date & Time</Label>
-                  <DateTimePicker
-                    date={editPieceworkEndDate}
-                    setDate={setEditPieceworkEndDate}
-                    label=""
-                    placeholder="Select end date and time"
-                  />
-                </div>
-                {editPieceworkStartDate && editPieceworkEndDate && (
-                  <div className="text-sm text-muted-foreground">
-                    Duration: {((editPieceworkEndDate.getTime() - editPieceworkStartDate.getTime()) / (1000 * 60 * 60)).toFixed(2)} hours
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="space-y-2">
-                <Label htmlFor="edit-timestamp">Clock-In Time</Label>
-                <DateTimePicker
-                  date={editTimestamp}
-                  setDate={setEditTimestamp}
-                  label=""
-                  placeholder="Select date and time"
-                />
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="edit-timestamp">
+                {editTarget?.type === "time" ? "Clock-In Time" : "Timestamp"}
+              </Label>
+              <DateTimePicker
+                date={editTimestamp}
+                setDate={setEditTimestamp}
+                label=""
+                placeholder="Select date and time"
+              />
+            </div>
             {editTarget?.type === "time" && (
               <>
                 <div className="space-y-2">
@@ -3144,8 +3028,6 @@ function TimeTrackingPage() {
                 setEditEndTime(undefined);
                 setEditPiecesWorked(0);
                 setEditPaymentModality("Hourly");
-                setEditPieceworkStartDate(undefined);
-                setEditPieceworkEndDate(undefined);
               }}
             >
               Cancel

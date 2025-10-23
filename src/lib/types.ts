@@ -55,8 +55,6 @@ export type Piecework = {
   pieceCount: number;
   pieceQrCode: string;
   qcNote?: string;
-  startDate?: Date; // Start time for piecework
-  endDate?: Date; // End time for piecework
 };
 
 export type SharedPieceLog = {
