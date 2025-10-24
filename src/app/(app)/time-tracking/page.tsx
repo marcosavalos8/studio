@@ -167,6 +167,12 @@ function TimeTrackingPage() {
   const [manualPieceworkDate, setManualPieceworkDate] = useState<
     Date | undefined
   >(undefined);
+  
+  // Past records state - for creating both clock-in and clock-out at once
+  const [usePastRecords, setUsePastRecords] = useState(false);
+  const [pastRecordClockInDate, setPastRecordClockInDate] = useState<Date | undefined>(undefined);
+  const [pastRecordClockOutDate, setPastRecordClockOutDate] = useState<Date | undefined>(undefined);
+  const [pastRecordPiecesCount, setPastRecordPiecesCount] = useState<number | string>(0);
 
   // History filtering state
   const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>(
@@ -771,6 +777,86 @@ function TimeTrackingPage() {
     [firestore, toast, activeEmployees, playSound]
   );
 
+  const createPastRecord = useCallback(
+    async (employee: Employee, taskId: string, clockInTime: Date, clockOutTime: Date, piecesCount?: number) => {
+      if (!firestore) return;
+      
+      // Validate times
+      if (clockOutTime <= clockInTime) {
+        toast({
+          variant: "destructive",
+          title: "Invalid Times",
+          description: "Clock-out time must be after clock-in time.",
+        });
+        return;
+      }
+
+      try {
+        const batch = writeBatch(firestore);
+
+        // Close any active entries first
+        const activeEntriesQuery = query(
+          collection(firestore, "time_entries"),
+          where("employeeId", "==", employee.id),
+          where("endTime", "==", null)
+        );
+        const activeEntriesSnap = await getDocs(activeEntriesQuery);
+        activeEntriesSnap.forEach((docSnap) => {
+          batch.update(docSnap.ref, { endTime: new Date(clockInTime.getTime() - 1000) });
+        });
+
+        // Create the time entry with both clock-in and clock-out
+        const newTimeEntryRef = doc(collection(firestore, "time_entries"));
+        const newTimeEntry: Omit<TimeEntry, "id"> = {
+          employeeId: employee.id,
+          taskId: taskId,
+          timestamp: clockInTime,
+          endTime: clockOutTime,
+          isBreak: false,
+          piecesWorked: piecesCount && piecesCount > 0 ? piecesCount : undefined,
+        };
+        batch.set(newTimeEntryRef, newTimeEntry);
+
+        // Update employee's totalHoursWorked and sickHoursBalance
+        const hoursWorked = (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
+        const currentTotalHours = employee.totalHoursWorked || 0;
+        const newTotalHours = currentTotalHours + hoursWorked;
+        
+        const currentSickBalance = employee.sickHoursBalance || 0;
+        const sickHoursAccrued = hoursWorked / 40;
+        const newSickBalance = currentSickBalance + sickHoursAccrued;
+        
+        const employeeRef = doc(firestore, "employees", employee.id);
+        batch.update(employeeRef, {
+          totalHoursWorked: newTotalHours,
+          sickHoursBalance: newSickBalance,
+        });
+
+        await batch.commit();
+        playSound("clock-in");
+        
+        let description = `Created past record for ${employee.name}. Worked ${hoursWorked.toFixed(2)} hrs.`;
+        description += ` Accrued ${sickHoursAccrued.toFixed(2)} sick hrs. New balance: ${newSickBalance.toFixed(2)} hrs.`;
+        if (piecesCount && piecesCount > 0) {
+          description += ` Pieces worked: ${piecesCount}.`;
+        }
+        
+        toast({
+          title: "Past Record Created",
+          description: description,
+        });
+      } catch (serverError) {
+        const permissionError = new FirestorePermissionError({
+          path: "time_entries",
+          operation: "write",
+          requestResourceData: { message: `Past record for ${employee.name}` },
+        });
+        errorEmitter.emit("permission-error", permissionError);
+      }
+    },
+    [firestore, toast, playSound]
+  );
+
   const handleScanResult = useCallback(
     async (scannedData: string) => {
       if (!selectedTask) {
@@ -805,7 +891,28 @@ function TimeTrackingPage() {
       );
 
       if (scannedEmployee) {
-        if (scanMode === "clock-in") {
+        // If past records mode is enabled, create both clock-in and clock-out
+        if (usePastRecords) {
+          if (!pastRecordClockInDate || !pastRecordClockOutDate) {
+            toast({
+              variant: "destructive",
+              title: "Missing Times",
+              description: "Please set both clock-in and clock-out times for past records.",
+            });
+            return;
+          }
+          
+          const task = allTasks?.find(t => t.id === selectedTask);
+          const piecesCount = task?.clientRateType === 'piece' ? (typeof pastRecordPiecesCount === 'number' ? pastRecordPiecesCount : parseInt(String(pastRecordPiecesCount), 10)) : 0;
+          
+          await createPastRecord(
+            scannedEmployee, 
+            selectedTask, 
+            pastRecordClockInDate, 
+            pastRecordClockOutDate,
+            piecesCount > 0 ? piecesCount : undefined
+          );
+        } else if (scanMode === "clock-in") {
           const timestamp = useManualDateTime ? manualClockInDate : undefined;
           await clockInEmployee(scannedEmployee, selectedTask, timestamp, useSickHoursForPayment);
         } else if (scanMode === "clock-out") {
@@ -884,6 +991,12 @@ function TimeTrackingPage() {
       manualClockOutDate,
       manualPieceworkDate,
       useSickHoursForPayment,
+      usePastRecords,
+      pastRecordClockInDate,
+      pastRecordClockOutDate,
+      pastRecordPiecesCount,
+      createPastRecord,
+      allTasks,
     ]
   );
 
@@ -997,7 +1110,29 @@ function TimeTrackingPage() {
 
     setIsManualSubmitting(true);
 
-    if (manualLogType === "clock-in") {
+    // If past records mode is enabled, create both clock-in and clock-out
+    if (usePastRecords) {
+      if (!pastRecordClockInDate || !pastRecordClockOutDate) {
+        toast({
+          variant: "destructive",
+          title: "Missing Times",
+          description: "Please set both clock-in and clock-out times for past records.",
+        });
+        setIsManualSubmitting(false);
+        return;
+      }
+      
+      const task = allTasks?.find(t => t.id === selectedTask);
+      const piecesCount = task?.clientRateType === 'piece' ? (typeof pastRecordPiecesCount === 'number' ? pastRecordPiecesCount : parseInt(String(pastRecordPiecesCount), 10)) : 0;
+      
+      await createPastRecord(
+        manualSelectedEmployee, 
+        selectedTask, 
+        pastRecordClockInDate, 
+        pastRecordClockOutDate,
+        piecesCount > 0 ? piecesCount : undefined
+      );
+    } else if (manualLogType === "clock-in") {
       const timestamp = useManualDateTime ? manualClockInDate : undefined;
       await clockInEmployee(manualSelectedEmployee, selectedTask, timestamp, useSickHoursForPayment);
     } else if (manualLogType === "clock-out") {
@@ -1696,8 +1831,71 @@ function TimeTrackingPage() {
               <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
                 <div className="flex items-center space-x-2">
                   <Checkbox
-                    id="manual-datetime-checkbox"
-                    checked={useManualDateTime}
+                    id="past-records-checkbox"
+                    checked={usePastRecords}
+                    onCheckedChange={(checked: boolean) => {
+                      setUsePastRecords(checked);
+                      if (!checked) {
+                        setPastRecordClockInDate(undefined);
+                        setPastRecordClockOutDate(undefined);
+                        setPastRecordPiecesCount(0);
+                      }
+                      // Reset other modes when enabling past records
+                      if (checked) {
+                        setUseManualDateTime(false);
+                        setManualClockInDate(undefined);
+                        setManualClockOutDate(undefined);
+                      }
+                    }}
+                  />
+                  <Label
+                    htmlFor="past-records-checkbox"
+                    className="font-semibold"
+                  >
+                    Use Manual Date/Time for Past Records
+                  </Label>
+                </div>
+                {usePastRecords && (
+                  <div className="space-y-3 pt-2">
+                    <DateTimePicker
+                      date={pastRecordClockInDate}
+                      setDate={setPastRecordClockInDate}
+                      label="Clock-In Date & Time"
+                      placeholder="Select clock-in date and time"
+                    />
+                    <DateTimePicker
+                      date={pastRecordClockOutDate}
+                      setDate={setPastRecordClockOutDate}
+                      label="Clock-Out Date & Time"
+                      placeholder="Select clock-out date and time"
+                    />
+                    {selectedTask && allTasks?.find(t => t.id === selectedTask)?.clientRateType === 'piece' && (
+                      <div className="space-y-2">
+                        <Label htmlFor="past-pieces-count">Pieces Completed</Label>
+                        <Input
+                          id="past-pieces-count"
+                          type="number"
+                          min="0"
+                          placeholder="Enter number of pieces"
+                          value={pastRecordPiecesCount}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setPastRecordPiecesCount(value === "" ? 0 : parseInt(value, 10));
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {!usePastRecords && (
+                <>
+                  <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="manual-datetime-checkbox"
+                        checked={useManualDateTime}
                     onCheckedChange={(checked: boolean) => {
                       setUseManualDateTime(checked);
                       if (!checked) {
@@ -1769,41 +1967,45 @@ function TimeTrackingPage() {
                 </div>
               )}
 
-              <div className="space-y-3 md:space-y-4 rounded-lg border bg-card text-card-foreground shadow-sm p-3 md:p-4">
-                <Label className="font-semibold">Scan Mode</Label>
-                <RadioGroup
-                  value={scanMode}
-                  onValueChange={(value: string) =>
-                    setScanMode(value as ScanMode)
-                  }
-                  className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4"
-                >
-                  <Label
-                    htmlFor="mode-clock-in"
-                    className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
+              {!usePastRecords && (
+                <div className="space-y-3 md:space-y-4 rounded-lg border bg-card text-card-foreground shadow-sm p-3 md:p-4">
+                  <Label className="font-semibold">Scan Mode</Label>
+                  <RadioGroup
+                    value={scanMode}
+                    onValueChange={(value: string) =>
+                      setScanMode(value as ScanMode)
+                    }
+                    className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4"
                   >
-                    <RadioGroupItem value="clock-in" id="mode-clock-in" />
-                    <div className="flex items-center gap-1 md:gap-2">
-                      <LogIn className="h-4 w-4 md:h-5 md:w-5 text-green-600" />
-                      <p className="font-medium text-sm md:text-base">
-                        Clock In
-                      </p>
-                    </div>
-                  </Label>
-                  <Label
-                    htmlFor="mode-clock-out"
-                    className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
-                  >
-                    <RadioGroupItem value="clock-out" id="mode-clock-out" />
-                    <div className="flex items-center gap-1 md:gap-2">
-                      <LogOut className="h-4 w-4 md:h-5 md:w-5 text-red-600" />
-                      <p className="font-medium text-sm md:text-base">
-                        Clock Out
-                      </p>
-                    </div>
-                  </Label>
-                </RadioGroup>
-              </div>
+                    <Label
+                      htmlFor="mode-clock-in"
+                      className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
+                    >
+                      <RadioGroupItem value="clock-in" id="mode-clock-in" />
+                      <div className="flex items-center gap-1 md:gap-2">
+                        <LogIn className="h-4 w-4 md:h-5 md:w-5 text-green-600" />
+                        <p className="font-medium text-sm md:text-base">
+                          Clock In
+                        </p>
+                      </div>
+                    </Label>
+                    <Label
+                      htmlFor="mode-clock-out"
+                      className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
+                    >
+                      <RadioGroupItem value="clock-out" id="mode-clock-out" />
+                      <div className="flex items-center gap-1 md:gap-2">
+                        <LogOut className="h-4 w-4 md:h-5 md:w-5 text-red-600" />
+                        <p className="font-medium text-sm md:text-base">
+                          Clock Out
+                        </p>
+                      </div>
+                    </Label>
+                  </RadioGroup>
+                </div>
+              )}
+              </>
+              )}
 
               <QrScanner onScanResult={handleScanResult} />
             </CardContent>
@@ -1823,8 +2025,71 @@ function TimeTrackingPage() {
               <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
                 <div className="flex items-center space-x-2">
                   <Checkbox
-                    id="manual-datetime-checkbox-entry"
-                    checked={useManualDateTime}
+                    id="past-records-checkbox-manual"
+                    checked={usePastRecords}
+                    onCheckedChange={(checked: boolean) => {
+                      setUsePastRecords(checked);
+                      if (!checked) {
+                        setPastRecordClockInDate(undefined);
+                        setPastRecordClockOutDate(undefined);
+                        setPastRecordPiecesCount(0);
+                      }
+                      // Reset other modes when enabling past records
+                      if (checked) {
+                        setUseManualDateTime(false);
+                        setManualClockInDate(undefined);
+                        setManualClockOutDate(undefined);
+                      }
+                    }}
+                  />
+                  <Label
+                    htmlFor="past-records-checkbox-manual"
+                    className="font-semibold"
+                  >
+                    Use Manual Date/Time for Past Records
+                  </Label>
+                </div>
+                {usePastRecords && (
+                  <div className="space-y-3 pt-2">
+                    <DateTimePicker
+                      date={pastRecordClockInDate}
+                      setDate={setPastRecordClockInDate}
+                      label="Clock-In Date & Time"
+                      placeholder="Select clock-in date and time"
+                    />
+                    <DateTimePicker
+                      date={pastRecordClockOutDate}
+                      setDate={setPastRecordClockOutDate}
+                      label="Clock-Out Date & Time"
+                      placeholder="Select clock-out date and time"
+                    />
+                    {selectedTask && allTasks?.find(t => t.id === selectedTask)?.clientRateType === 'piece' && (
+                      <div className="space-y-2">
+                        <Label htmlFor="past-pieces-count-manual">Pieces Completed</Label>
+                        <Input
+                          id="past-pieces-count-manual"
+                          type="number"
+                          min="0"
+                          placeholder="Enter number of pieces"
+                          value={pastRecordPiecesCount}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setPastRecordPiecesCount(value === "" ? 0 : parseInt(value, 10));
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {!usePastRecords && (
+                <>
+                  <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="manual-datetime-checkbox-entry"
+                        checked={useManualDateTime}
                     onCheckedChange={(checked: boolean) => {
                       setUseManualDateTime(checked);
                       if (!checked) {
@@ -1896,23 +2161,28 @@ function TimeTrackingPage() {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="log-type">Log Type</Label>
-                <Select
-                  value={manualLogType}
-                  onValueChange={(v: string) =>
-                    setManualLogType(v as ManualLogType)
-                  }
-                >
-                  <SelectTrigger id="log-type">
-                    <SelectValue placeholder="Select log type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="clock-in">Clock In</SelectItem>
-                    <SelectItem value="clock-out">Clock Out</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {!usePastRecords && (
+                <div className="space-y-2">
+                  <Label htmlFor="log-type">Log Type</Label>
+                  <Select
+                    value={manualLogType}
+                    onValueChange={(v: string) =>
+                      setManualLogType(v as ManualLogType)
+                    }
+                  >
+                    <SelectTrigger id="log-type">
+                      <SelectValue placeholder="Select log type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="clock-in">Clock In</SelectItem>
+                      <SelectItem value="clock-out">Clock Out</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              </>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="employee-search">Employee</Label>
                 {manualSelectedEmployee ? (
