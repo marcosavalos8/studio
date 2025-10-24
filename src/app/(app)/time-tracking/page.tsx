@@ -23,6 +23,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar as CalendarUI } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -55,7 +57,7 @@ import {
   VideoOff,
   History,
   Trash2,
-  Calendar,
+  Calendar as CalendarIcon,
   Filter,
   Edit,
 } from "lucide-react";
@@ -152,7 +154,7 @@ function TimeTrackingPage() {
     useState<Employee | null>(null);
   const [manualPieceQuantity, setManualPieceQuantity] = useState<
     number | string
-  >(1);
+  >("");
   const [manualNotes, setManualNotes] = useState("");
   const [isManualSubmitting, setIsManualSubmitting] = useState(false);
 
@@ -176,9 +178,14 @@ function TimeTrackingPage() {
   const [pastRecordClockOutDate, setPastRecordClockOutDate] = useState<
     Date | undefined
   >(undefined);
+  const [pastRecordDate, setPastRecordDate] = useState<Date | undefined>(
+    undefined
+  );
+  const [pastRecordClockInTime, setPastRecordClockInTime] = useState<string>("");
+  const [pastRecordClockOutTime, setPastRecordClockOutTime] = useState<string>("");
   const [pastRecordPiecesCount, setPastRecordPiecesCount] = useState<
     number | string
-  >(0);
+  >("");
 
   // History filtering state
   const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>(
@@ -594,6 +601,47 @@ function TimeTrackingPage() {
   useEffect(() => {
     setEditTaskId("");
   }, [editBlock]);
+
+  // Synchronize past record date and time states
+  useEffect(() => {
+    if (pastRecordDate && pastRecordClockInTime) {
+      const [hours, minutes] = pastRecordClockInTime.split(":").map(Number);
+      if (!isNaN(hours) && !isNaN(minutes)) {
+        const dateWithTime = new Date(
+          pastRecordDate.getFullYear(),
+          pastRecordDate.getMonth(),
+          pastRecordDate.getDate(),
+          hours,
+          minutes,
+          0,
+          0
+        );
+        setPastRecordClockInDate(dateWithTime);
+      }
+    } else {
+      setPastRecordClockInDate(undefined);
+    }
+  }, [pastRecordDate, pastRecordClockInTime]);
+
+  useEffect(() => {
+    if (pastRecordDate && pastRecordClockOutTime) {
+      const [hours, minutes] = pastRecordClockOutTime.split(":").map(Number);
+      if (!isNaN(hours) && !isNaN(minutes)) {
+        const dateWithTime = new Date(
+          pastRecordDate.getFullYear(),
+          pastRecordDate.getMonth(),
+          pastRecordDate.getDate(),
+          hours,
+          minutes,
+          0,
+          0
+        );
+        setPastRecordClockOutDate(dateWithTime);
+      }
+    } else {
+      setPastRecordClockOutDate(undefined);
+    }
+  }, [pastRecordDate, pastRecordClockOutTime]);
 
   // Reset scans when mode changes
   useEffect(() => {
@@ -1297,7 +1345,7 @@ function TimeTrackingPage() {
       }
     }
     setScannedSharedEmployees([]);
-    setManualPieceQuantity(1);
+    setManualPieceQuantity("");
     setIsManualSubmitting(false);
   };
 
@@ -1983,7 +2031,10 @@ function TimeTrackingPage() {
                       if (!checked) {
                         setPastRecordClockInDate(undefined);
                         setPastRecordClockOutDate(undefined);
-                        setPastRecordPiecesCount(0);
+                        setPastRecordDate(undefined);
+                        setPastRecordClockInTime("");
+                        setPastRecordClockOutTime("");
+                        setPastRecordPiecesCount("");
                       }
                       // Reset other modes when enabling past records
                       if (checked) {
@@ -2002,18 +2053,60 @@ function TimeTrackingPage() {
                 </div>
                 {usePastRecords && (
                   <div className="space-y-3 pt-2">
-                    <DateTimePicker
-                      date={pastRecordClockInDate}
-                      setDate={setPastRecordClockInDate}
-                      label="Clock-In Date & Time"
-                      placeholder="Select clock-in date and time"
-                    />
-                    <DateTimePicker
-                      date={pastRecordClockOutDate}
-                      setDate={setPastRecordClockOutDate}
-                      label="Clock-Out Date & Time"
-                      placeholder="Select clock-out date and time"
-                    />
+                    {/* Single Date Picker */}
+                    <div className="space-y-2">
+                      <Label>Date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={`w-full justify-start text-left font-normal ${
+                              !pastRecordDate && "text-muted-foreground"
+                            }`}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {pastRecordDate ? (
+                              format(pastRecordDate, "PPP")
+                            ) : (
+                              <span>Select date</span>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarUI
+                            mode="single"
+                            selected={pastRecordDate}
+                            onSelect={setPastRecordDate}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    {/* Clock-In Time */}
+                    <div className="space-y-2">
+                      <Label htmlFor="past-clock-in-time">Clock-In Time</Label>
+                      <Input
+                        id="past-clock-in-time"
+                        type="time"
+                        value={pastRecordClockInTime}
+                        onChange={(e) => setPastRecordClockInTime(e.target.value)}
+                        placeholder="Select clock-in time"
+                      />
+                    </div>
+
+                    {/* Clock-Out Time */}
+                    <div className="space-y-2">
+                      <Label htmlFor="past-clock-out-time">Clock-Out Time</Label>
+                      <Input
+                        id="past-clock-out-time"
+                        type="time"
+                        value={pastRecordClockOutTime}
+                        onChange={(e) => setPastRecordClockOutTime(e.target.value)}
+                        placeholder="Select clock-out time"
+                      />
+                    </div>
+
                     {selectedTask &&
                       allTasks?.find((t) => t.id === selectedTask)
                         ?.clientRateType === "piece" && (
@@ -2030,7 +2123,7 @@ function TimeTrackingPage() {
                             onChange={(e) => {
                               const value = e.target.value;
                               setPastRecordPiecesCount(
-                                value === "" ? 0 : parseInt(value, 10)
+                                value === "" ? "" : parseInt(value, 10)
                               );
                             }}
                           />
@@ -2188,7 +2281,10 @@ function TimeTrackingPage() {
                       if (!checked) {
                         setPastRecordClockInDate(undefined);
                         setPastRecordClockOutDate(undefined);
-                        setPastRecordPiecesCount(0);
+                        setPastRecordDate(undefined);
+                        setPastRecordClockInTime("");
+                        setPastRecordClockOutTime("");
+                        setPastRecordPiecesCount("");
                       }
                       // Reset other modes when enabling past records
                       if (checked) {
@@ -2207,18 +2303,60 @@ function TimeTrackingPage() {
                 </div>
                 {usePastRecords && (
                   <div className="space-y-3 pt-2">
-                    <DateTimePicker
-                      date={pastRecordClockInDate}
-                      setDate={setPastRecordClockInDate}
-                      label="Clock-In Date & Time"
-                      placeholder="Select clock-in date and time"
-                    />
-                    <DateTimePicker
-                      date={pastRecordClockOutDate}
-                      setDate={setPastRecordClockOutDate}
-                      label="Clock-Out Date & Time"
-                      placeholder="Select clock-out date and time"
-                    />
+                    {/* Single Date Picker */}
+                    <div className="space-y-2">
+                      <Label>Date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={`w-full justify-start text-left font-normal ${
+                              !pastRecordDate && "text-muted-foreground"
+                            }`}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {pastRecordDate ? (
+                              format(pastRecordDate, "PPP")
+                            ) : (
+                              <span>Select date</span>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarUI
+                            mode="single"
+                            selected={pastRecordDate}
+                            onSelect={setPastRecordDate}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    {/* Clock-In Time */}
+                    <div className="space-y-2">
+                      <Label htmlFor="past-clock-in-time-manual">Clock-In Time</Label>
+                      <Input
+                        id="past-clock-in-time-manual"
+                        type="time"
+                        value={pastRecordClockInTime}
+                        onChange={(e) => setPastRecordClockInTime(e.target.value)}
+                        placeholder="Select clock-in time"
+                      />
+                    </div>
+
+                    {/* Clock-Out Time */}
+                    <div className="space-y-2">
+                      <Label htmlFor="past-clock-out-time-manual">Clock-Out Time</Label>
+                      <Input
+                        id="past-clock-out-time-manual"
+                        type="time"
+                        value={pastRecordClockOutTime}
+                        onChange={(e) => setPastRecordClockOutTime(e.target.value)}
+                        placeholder="Select clock-out time"
+                      />
+                    </div>
+
                     {selectedTask &&
                       allTasks?.find((t) => t.id === selectedTask)
                         ?.clientRateType === "piece" && (
@@ -2235,7 +2373,7 @@ function TimeTrackingPage() {
                             onChange={(e) => {
                               const value = e.target.value;
                               setPastRecordPiecesCount(
-                                value === "" ? 0 : parseInt(value, 10)
+                                value === "" ? "" : parseInt(value, 10)
                               );
                             }}
                           />
@@ -2965,12 +3103,6 @@ function TimeTrackingPage() {
                                   value === "" ? "" : parseInt(value, 10)
                                 );
                               }}
-                              onBlur={(e) => {
-                                const value = parseInt(e.target.value, 10);
-                                if (isNaN(value) || value <= 0) {
-                                  setManualPieceQuantity(1);
-                                }
-                              }}
                               min="1"
                             />
                           </div>
@@ -3160,12 +3292,6 @@ function TimeTrackingPage() {
                               value === "" ? "" : parseInt(value, 10)
                             );
                           }}
-                          onBlur={(e) => {
-                            const value = parseInt(e.target.value, 10);
-                            if (isNaN(value) || value <= 0) {
-                              setManualPieceQuantity(1);
-                            }
-                          }}
                           min="1"
                         />
                       </div>
@@ -3249,7 +3375,7 @@ function TimeTrackingPage() {
                             });
                             setManualSelectedEmployee(null);
                             setManualEmployeeSearch("");
-                            setManualPieceQuantity(1);
+                            setManualPieceQuantity("");
                             setManualNotes("");
                           } catch (serverError) {
                             const permissionError =
@@ -3784,7 +3910,7 @@ function TimeTrackingPage() {
                                 </div>
                               )}
                               <div className="flex items-center gap-2 text-sm">
-                                <Calendar className="h-3 w-3 text-purple-600" />
+                                <CalendarIcon className="h-3 w-3 text-purple-600" />
                                 <p className="text-muted-foreground">
                                   {format(pieceTime, "PPp")}
                                 </p>
@@ -4062,11 +4188,8 @@ function TimeTrackingPage() {
                   />
                 </div>
 
-                {/* Show all pieces with individual editable fields */}
-                {(editPiecesWorked > 0 ||
-                  editPiecesWorked === "" ||
-                  editRelatedPiecework.length > 0 ||
-                  (editTarget && editTarget.type === "time")) && (
+                {/* Show all pieces with individual editable fields - only for piecework tasks */}
+                {editPaymentModality === "Piecework" && (
                   <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
                     <p className="font-medium text-sm">Pieces Worked:</p>
 
