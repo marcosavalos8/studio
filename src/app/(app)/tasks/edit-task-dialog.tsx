@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 import {
   Dialog,
@@ -7,148 +7,120 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '@/components/ui/dialog'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { useFirestore } from '@/firebase'
-import { doc, updateDoc } from 'firebase/firestore'
-import { useToast } from '@/hooks/use-toast'
-import type { Client, Task } from '@/lib/types'
-import { Loader2 } from 'lucide-react'
-import { useEffect } from 'react'
-import { errorEmitter } from '@/firebase/error-emitter'
-import { FirestorePermissionError } from '@/firebase/errors'
-
-const taskSchema = z.object({
-  name: z.string().min(1, 'Task name is required'),
-  variety: z.string().optional(),
-  ranch: z.string().optional(),
-  block: z.string().optional(),
-  clientId: z.string().min(1, 'Client is required'),
-  clientRate: z.coerce.number().optional(),
-  clientRateType: z.enum(['hourly', 'piece']),
-  piecePrice: z.coerce.number().optional(),
-  status: z.enum(['Active', 'Inactive', 'Completed']),
-}).refine((data) => {
-  // If hourly, clientRate must be > 0
-  if (data.clientRateType === 'hourly') {
-    return data.clientRate !== undefined && data.clientRate > 0;
-  }
-  // If piecework, piecePrice must be > 0
-  if (data.clientRateType === 'piece') {
-    return data.piecePrice !== undefined && data.piecePrice > 0;
-  }
-  return true;
-}, {
-  message: "Please enter a valid rate",
-  path: ["clientRate"], // This will be overridden by the specific field that has the issue
-})
+} from "@/components/ui/select";
+import { useState, useEffect } from "react";
+import { useFirestore } from "@/firebase";
+import { doc, updateDoc } from "firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
+import type { Client, Task } from "@/lib/types";
+import { Loader2 } from "lucide-react";
 
 type EditTaskDialogProps = {
-  isOpen: boolean
-  onOpenChange: (isOpen: boolean) => void
-  task: Task
-  clients: Client[]
-}
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
+  task: Task;
+  clients: Client[];
+};
 
-export function EditTaskDialog({ isOpen, onOpenChange, task, clients }: EditTaskDialogProps) {
-  const firestore = useFirestore()
-  const { toast } = useToast()
-  const form = useForm<z.infer<typeof taskSchema>>({
-    resolver: zodResolver(taskSchema),
-    defaultValues: {
-      name: task.name || '',
-      variety: task.variety || '',
-      ranch: task.ranch || '',
-      block: task.block || '',
-      clientId: task.clientId || '',
-      clientRate: task.clientRate || undefined,
-      clientRateType: task.clientRateType,
-      piecePrice: task.piecePrice || undefined,
-      status: task.status,
-    },
-  })
+export function EditTaskDialog({
+  isOpen,
+  onOpenChange,
+  task,
+  clients,
+}: EditTaskDialogProps) {
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Estados simples sin validaciones
+  const [name, setName] = useState("");
+  const [variety, setVariety] = useState("");
+  const [ranch, setRanch] = useState("");
+  const [block, setBlock] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientRate, setClientRate] = useState("");
+  const [clientRateType, setClientRateType] = useState<"hourly" | "piece">(
+    "hourly"
+  );
+  const [piecePrice, setPiecePrice] = useState("");
+  const [status, setStatus] = useState<"Active" | "Inactive" | "Completed">(
+    "Active"
+  );
+
+  // Cargar datos de la tarea cuando se abre el diálogo
   useEffect(() => {
-    if (task) {
-      form.reset({
-        name: task.name || '',
-        variety: task.variety || '',
-        ranch: task.ranch || '',
-        block: task.block || '',
-        clientId: task.clientId || '',
-        clientRate: task.clientRate || undefined,
-        clientRateType: task.clientRateType,
-        piecePrice: task.piecePrice || undefined,
-        status: task.status,
-      })
+    if (task && isOpen) {
+      setName(task.name || "");
+      setVariety(task.variety || "");
+      setRanch(task.ranch || "");
+      setBlock(task.block || "");
+      setClientId(task.clientId || "");
+      setClientRate(task.clientRate?.toString() || "");
+      setClientRateType(task.clientRateType || "hourly");
+      setPiecePrice(task.piecePrice?.toString() || "");
+      setStatus(task.status || "Active");
     }
-  }, [task, form])
+  }, [task, isOpen]);
 
-  const { isSubmitting } = form.formState
-
-  const onSubmit = async (values: z.infer<typeof taskSchema>) => {
+  const handleSubmit = async () => {
     if (!firestore) {
       toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Firestore is not available.',
-      })
-      return
+        variant: "destructive",
+        title: "Error",
+        description: "Firestore is not available.",
+      });
+      return;
     }
 
+    setIsSubmitting(true);
+
     try {
-      const taskRef = doc(firestore, 'tasks', task.id)
-      
-      // Construct update data based on rate type
+      const taskRef = doc(firestore, "tasks", task.id);
+
       const updatedData: Partial<Task> = {
-        name: values.name,
-        variety: values.variety || '',
-        ranch: values.ranch || '',
-        block: values.block || '',
-        clientId: values.clientId,
-        clientRateType: values.clientRateType,
-        status: values.status,
-        clientRate: values.clientRateType === 'hourly' ? (values.clientRate || 0) : 0,
-        piecePrice: values.clientRateType === 'piece' ? values.piecePrice : undefined,
+        name: name || "Untitled Task",
+        variety: variety || "",
+        ranch: ranch || "",
+        block: block || "",
+        clientId: clientId || "",
+        clientRateType,
+        status,
+        clientRate:
+          clientRateType === "hourly"
+            ? parseFloat(clientRate) || 0
+            : parseFloat(piecePrice) || 0,
+        piecePrice: parseFloat(piecePrice) || 0, //Antes enviaba
       };
 
       await updateDoc(taskRef, updatedData);
-      
+
       toast({
-        title: 'Task Updated',
-        description: `${values.name} has been updated successfully.`,
-      })
-      onOpenChange(false)
-    } catch (serverError) {
-      const taskRef = doc(firestore, 'tasks', task.id)
-      const permissionError = new FirestorePermissionError({
-        path: taskRef.path,
-        operation: 'update',
-        requestResourceData: values,
+        title: "Task Updated",
+        description: `${updatedData.name} has been updated successfully.`,
       });
-      errorEmitter.emit('permission-error', permissionError);
+
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Error updating task:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update task. Please try again.",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -159,176 +131,151 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, clients }: EditTask
             Update the details for the task or project.
           </DialogDescription>
         </DialogHeader>
+
         <div className="flex-grow overflow-y-auto pr-4">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Task Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Apple Picking" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="clientId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Client</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a client" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {clients.map(client => (
-                        <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="variety"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Variety</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Gala" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-             <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Status</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a status" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="Active">Active</SelectItem>
-                      <SelectItem value="Inactive">Inactive</SelectItem>
-                      <SelectItem value="Completed">Completed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="ranch"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Ranch</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., North Ridge" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="block"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Block</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., A-15" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="clientRateType"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Rate Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select rate type" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="hourly">Hourly</SelectItem>
-                      <SelectItem value="piece">Piecework</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {form.watch('clientRateType') === 'piece' ? (
-              <FormField
-                control={form.control}
-                name="piecePrice"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Piece Price ($)</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" placeholder="e.g., 0.50" {...field} />
-                    </FormControl>
-                    <p className="text-xs text-muted-foreground">
-                      Price per piece paid to employees
-                    </p>
-                    <FormMessage />
-                  </FormItem>
-                )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Task Name</Label>
+              <Input
+                id="name"
+                placeholder="e.g., Apple Picking"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="client">Client</Label>
+              <Select value={clientId} onValueChange={setClientId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a client" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="variety">Variety</Label>
+              <Input
+                id="variety"
+                placeholder="e.g., Gala"
+                value={variety}
+                onChange={(e) => setVariety(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={status}
+                onValueChange={(value: "Active" | "Inactive" | "Completed") =>
+                  setStatus(value)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Inactive">Inactive</SelectItem>
+                  <SelectItem value="Completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ranch">Ranch</Label>
+              <Input
+                id="ranch"
+                placeholder="e.g., North Ridge"
+                value={ranch}
+                onChange={(e) => setRanch(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="block">Block</Label>
+              <Input
+                id="block"
+                placeholder="e.g., A-15"
+                value={block}
+                onChange={(e) => setBlock(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="rateType">Rate Type</Label>
+              <Select
+                value={clientRateType}
+                onValueChange={(value: "hourly" | "piece") =>
+                  setClientRateType(value)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select rate type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hourly">Hourly</SelectItem>
+                  <SelectItem value="piece">Piecework</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {clientRateType === "piece" ? (
+              <div className="space-y-2">
+                <Label htmlFor="piecePrice">Piece Price ($)</Label>
+                <Input
+                  id="piecePrice"
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g., 0.50"
+                  value={piecePrice}
+                  onChange={(e) => setPiecePrice(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Price per piece paid to employees
+                </p>
+              </div>
             ) : (
-              <FormField
-                control={form.control}
-                name="clientRate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Hourly Rate ($)</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" placeholder="e.g., 25.00" {...field} />
-                    </FormControl>
-                    <p className="text-xs text-muted-foreground">
-                      Hourly rate for this task
-                    </p>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="space-y-2">
+                <Label htmlFor="clientRate">Hourly Rate ($)</Label>
+                <Input
+                  id="clientRate"
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g., 25.00"
+                  value={clientRate}
+                  onChange={(e) => setClientRate(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Hourly rate for this task
+                </p>
+              </div>
             )}
-          </form>
-        </Form>
+          </div>
         </div>
+
         <DialogFooter>
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={isSubmitting}
+          >
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting} onClick={form.handleSubmit(onSubmit)}>
+          <Button type="button" disabled={isSubmitting} onClick={handleSubmit}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save Changes
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
