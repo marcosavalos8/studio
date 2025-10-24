@@ -167,12 +167,18 @@ function TimeTrackingPage() {
   const [manualPieceworkDate, setManualPieceworkDate] = useState<
     Date | undefined
   >(undefined);
-  
+
   // Past records state - for creating both clock-in and clock-out at once
   const [usePastRecords, setUsePastRecords] = useState(false);
-  const [pastRecordClockInDate, setPastRecordClockInDate] = useState<Date | undefined>(undefined);
-  const [pastRecordClockOutDate, setPastRecordClockOutDate] = useState<Date | undefined>(undefined);
-  const [pastRecordPiecesCount, setPastRecordPiecesCount] = useState<number | string>(0);
+  const [pastRecordClockInDate, setPastRecordClockInDate] = useState<
+    Date | undefined
+  >(undefined);
+  const [pastRecordClockOutDate, setPastRecordClockOutDate] = useState<
+    Date | undefined
+  >(undefined);
+  const [pastRecordPiecesCount, setPastRecordPiecesCount] = useState<
+    number | string
+  >(0);
 
   // History filtering state
   const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>(
@@ -204,13 +210,17 @@ function TimeTrackingPage() {
   );
   const [editEndTime, setEditEndTime] = useState<Date | undefined>(undefined);
   const [editPiecesWorked, setEditPiecesWorked] = useState<number | string>(0);
-  const [editPaymentModality, setEditPaymentModality] = useState<"Hourly" | "Piecework">("Hourly");
+  const [editPaymentModality, setEditPaymentModality] = useState<
+    "Hourly" | "Piecework"
+  >("Hourly");
   const [editPieceCount, setEditPieceCount] = useState<number | string>(1);
   const [editTaskId, setEditTaskId] = useState<string>("");
   const [editClient, setEditClient] = useState<string>("");
   const [editRanch, setEditRanch] = useState<string>("");
   const [editBlock, setEditBlock] = useState<string>("");
-  const [editRelatedPiecework, setEditRelatedPiecework] = useState<Piecework[]>([]);
+  const [editRelatedPiecework, setEditRelatedPiecework] = useState<Piecework[]>(
+    []
+  );
 
   // Debounce state
   const [recentScans, setRecentScans] = useState<
@@ -223,7 +233,7 @@ function TimeTrackingPage() {
   const [sickLeaveDate, setSickLeaveDate] = useState<string>("");
   const [sickLeaveNotes, setSickLeaveNotes] = useState("");
   const [isLoggingSickLeave, setIsLoggingSickLeave] = useState(false);
-  
+
   // Use sick hours for payment state
   const [useSickHoursForPayment, setUseSickHoursForPayment] = useState(false);
 
@@ -331,19 +341,18 @@ function TimeTrackingPage() {
   // Merged records - combining time entries and piecework for unified history view
   const mergedRecords = useMemo(() => {
     const records: Array<
-      | { type: 'time'; data: TimeEntry }
-      | { type: 'piecework'; data: Piecework }
+      { type: "time"; data: TimeEntry } | { type: "piecework"; data: Piecework }
     > = [];
 
     if (allTimeEntries) {
-      allTimeEntries.forEach(entry => {
-        records.push({ type: 'time', data: entry });
+      allTimeEntries.forEach((entry) => {
+        records.push({ type: "time", data: entry });
       });
     }
 
     if (allPiecework) {
-      allPiecework.forEach(piece => {
-        records.push({ type: 'piecework', data: piece });
+      allPiecework.forEach((piece) => {
+        records.push({ type: "piecework", data: piece });
       });
     }
 
@@ -400,11 +409,11 @@ function TimeTrackingPage() {
   // Find active piecework task - check if user has any active time entry with a piecework task
   const activePieceworkTask = useMemo(() => {
     if (!activeTimeEntries || !allTasks) return null;
-    
+
     // Find any active time entry where the task is a piecework task
     for (const entry of activeTimeEntries) {
-      const task = allTasks.find(t => t.id === entry.taskId);
-      if (task && task.clientRateType === 'piece') {
+      const task = allTasks.find((t) => t.id === entry.taskId);
+      if (task && task.clientRateType === "piece") {
         return task;
       }
     }
@@ -414,9 +423,9 @@ function TimeTrackingPage() {
   // Get the currently selected task for piecework - this is what shows in PIECEWORK tab
   const selectedPieceworkTask = useMemo(() => {
     if (!selectedTask || !allTasks) return null;
-    const task = allTasks.find(t => t.id === selectedTask);
+    const task = allTasks.find((t) => t.id === selectedTask);
     // Only return if it's a piecework task
-    if (task && task.clientRateType === 'piece') {
+    if (task && task.clientRateType === "piece") {
       return task;
     }
     return null;
@@ -600,7 +609,12 @@ function TimeTrackingPage() {
   }, [manualEmployeeSearch]);
 
   const clockInEmployee = useCallback(
-    async (employee: Employee, taskId: string, customTimestamp?: Date, useSickHours?: boolean) => {
+    async (
+      employee: Employee,
+      taskId: string,
+      customTimestamp?: Date,
+      useSickHours?: boolean
+    ) => {
       if (!firestore) return;
       const batch = writeBatch(firestore);
 
@@ -612,11 +626,11 @@ function TimeTrackingPage() {
 
       try {
         const activeEntriesSnap = await getDocs(activeEntriesQuery);
-        
+
         // Check if we're switching from a piecework task to an hourly task
-        const newTask = allTasks?.find(t => t.id === taskId);
-        const isNewTaskHourly = newTask?.clientRateType === 'hourly';
-        
+        const newTask = allTasks?.find((t) => t.id === taskId);
+        const isNewTaskHourly = newTask?.clientRateType === "hourly";
+
         // Auto-close any active entries when switching tasks
         activeEntriesSnap.forEach((docSnap) => {
           batch.update(docSnap.ref, { endTime: customTimestamp || new Date() });
@@ -635,12 +649,14 @@ function TimeTrackingPage() {
 
         await batch.commit();
         playSound("clock-in");
-        
-        let description = `Clocked in ${employee.name}.${useSickHours ? ' (Using sick hours for payment)' : ''}`;
+
+        let description = `Clocked in ${employee.name}.${
+          useSickHours ? " (Using sick hours for payment)" : ""
+        }`;
         if (activeEntriesSnap.size > 0) {
           description += ` Previous task(s) automatically clocked out.`;
         }
-        
+
         toast({
           title: "Clock In Successful",
           description: description,
@@ -676,30 +692,33 @@ function TimeTrackingPage() {
           });
         } else {
           const clockOutTime = customTimestamp || new Date();
-          
+
           // Validate that clock-out is not before clock-in
           let hasInvalidClockOut = false;
           let totalHoursForThisSession = 0;
           let usingSickHours = false;
-          
+
           querySnapshot.forEach((docSnap) => {
             const entry = docSnap.data() as TimeEntry;
-            const clockInTime = entry.timestamp instanceof Date
-              ? entry.timestamp
-              : (entry.timestamp as any)?.toDate?.()
-              ? (entry.timestamp as any).toDate()
-              : new Date(entry.timestamp as any);
-            
+            const clockInTime =
+              entry.timestamp instanceof Date
+                ? entry.timestamp
+                : (entry.timestamp as any)?.toDate?.()
+                ? (entry.timestamp as any).toDate()
+                : new Date(entry.timestamp as any);
+
             if (clockOutTime < clockInTime) {
               hasInvalidClockOut = true;
             } else {
               // Calculate hours for this session
-              const hoursWorked = (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
+              const hoursWorked =
+                (clockOutTime.getTime() - clockInTime.getTime()) /
+                (1000 * 60 * 60);
               totalHoursForThisSession += hoursWorked;
               usingSickHours = entry.useSickHoursForPayment || false;
             }
           });
-          
+
           if (hasInvalidClockOut) {
             toast({
               variant: "destructive",
@@ -708,21 +727,21 @@ function TimeTrackingPage() {
             });
             return;
           }
-          
+
           const batch = writeBatch(firestore);
           const updatedData = { endTime: clockOutTime };
           querySnapshot.forEach((doc) => {
             batch.update(doc.ref, updatedData);
           });
-          
+
           // Update employee's totalHoursWorked and sickHoursBalance
           const currentTotalHours = employee.totalHoursWorked || 0;
           const newTotalHours = currentTotalHours + totalHoursForThisSession;
-          
+
           const currentSickBalance = employee.sickHoursBalance || 0;
           let newSickBalance = currentSickBalance;
           let sickHoursAccrued = 0;
-          
+
           // If using sick hours for payment, deduct the hours worked from sick balance
           if (usingSickHours) {
             newSickBalance = currentSickBalance - totalHoursForThisSession;
@@ -730,7 +749,9 @@ function TimeTrackingPage() {
               toast({
                 variant: "destructive",
                 title: "Insufficient Sick Hours",
-                description: `Employee only has ${currentSickBalance.toFixed(2)} sick hours available. Cannot use sick hours for payment.`,
+                description: `Employee only has ${currentSickBalance.toFixed(
+                  2
+                )} sick hours available. Cannot use sick hours for payment.`,
               });
               return;
             }
@@ -740,23 +761,29 @@ function TimeTrackingPage() {
             sickHoursAccrued = totalHoursForThisSession / 40;
             newSickBalance = currentSickBalance + sickHoursAccrued;
           }
-          
+
           const employeeRef = doc(firestore, "employees", employee.id);
           batch.update(employeeRef, {
             totalHoursWorked: newTotalHours,
             sickHoursBalance: newSickBalance,
           });
-          
+
           await batch.commit();
           playSound("clock-out");
-          
-          let description = `Clocked out ${employee.name}. Worked ${totalHoursForThisSession.toFixed(2)} hrs.`;
+
+          let description = `Clocked out ${
+            employee.name
+          }. Worked ${totalHoursForThisSession.toFixed(2)} hrs.`;
           if (usingSickHours) {
-            description += ` Used sick hours for payment. New balance: ${newSickBalance.toFixed(2)} hrs.`;
+            description += ` Used sick hours for payment. New balance: ${newSickBalance.toFixed(
+              2
+            )} hrs.`;
           } else {
-            description += ` Accrued ${sickHoursAccrued.toFixed(2)} sick hrs. New balance: ${newSickBalance.toFixed(2)} hrs.`;
+            description += ` Accrued ${sickHoursAccrued.toFixed(
+              2
+            )} sick hrs. New balance: ${newSickBalance.toFixed(2)} hrs.`;
           }
-          
+
           toast({
             title: "Clock Out Successful",
             description: description,
@@ -816,9 +843,15 @@ function TimeTrackingPage() {
   );
 
   const createPastRecord = useCallback(
-    async (employee: Employee, taskId: string, clockInTime: Date, clockOutTime: Date, piecesCount?: number) => {
+    async (
+      employee: Employee,
+      taskId: string,
+      clockInTime: Date,
+      clockOutTime: Date,
+      piecesCount?: number
+    ) => {
       if (!firestore) return;
-      
+
       // Validate times
       if (clockOutTime <= clockInTime) {
         toast({
@@ -840,7 +873,9 @@ function TimeTrackingPage() {
         );
         const activeEntriesSnap = await getDocs(activeEntriesQuery);
         activeEntriesSnap.forEach((docSnap) => {
-          batch.update(docSnap.ref, { endTime: new Date(clockInTime.getTime() - 1000) });
+          batch.update(docSnap.ref, {
+            endTime: new Date(clockInTime.getTime() - 1000),
+          });
         });
 
         // Create the time entry with both clock-in and clock-out
@@ -851,19 +886,23 @@ function TimeTrackingPage() {
           timestamp: clockInTime,
           endTime: clockOutTime,
           isBreak: false,
-          piecesWorked: piecesCount && piecesCount > 0 ? piecesCount : undefined,
+          ...(piecesCount && piecesCount > 0
+            ? { piecesWorked: piecesCount }
+            : {}),
+          //piecesWorked: piecesCount && piecesCount > 0 ? piecesCount : undefined,
         };
         batch.set(newTimeEntryRef, newTimeEntry);
 
         // Update employee's totalHoursWorked and sickHoursBalance
-        const hoursWorked = (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
+        const hoursWorked =
+          (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
         const currentTotalHours = employee.totalHoursWorked || 0;
         const newTotalHours = currentTotalHours + hoursWorked;
-        
+
         const currentSickBalance = employee.sickHoursBalance || 0;
         const sickHoursAccrued = hoursWorked / 40;
         const newSickBalance = currentSickBalance + sickHoursAccrued;
-        
+
         const employeeRef = doc(firestore, "employees", employee.id);
         batch.update(employeeRef, {
           totalHoursWorked: newTotalHours,
@@ -872,13 +911,17 @@ function TimeTrackingPage() {
 
         await batch.commit();
         playSound("clock-in");
-        
-        let description = `Created past record for ${employee.name}. Worked ${hoursWorked.toFixed(2)} hrs.`;
-        description += ` Accrued ${sickHoursAccrued.toFixed(2)} sick hrs. New balance: ${newSickBalance.toFixed(2)} hrs.`;
+
+        let description = `Created past record for ${
+          employee.name
+        }. Worked ${hoursWorked.toFixed(2)} hrs.`;
+        description += ` Accrued ${sickHoursAccrued.toFixed(
+          2
+        )} sick hrs. New balance: ${newSickBalance.toFixed(2)} hrs.`;
         if (piecesCount && piecesCount > 0) {
           description += ` Pieces worked: ${piecesCount}.`;
         }
-        
+
         toast({
           title: "Past Record Created",
           description: description,
@@ -935,24 +978,35 @@ function TimeTrackingPage() {
             toast({
               variant: "destructive",
               title: "Missing Times",
-              description: "Please set both clock-in and clock-out times for past records.",
+              description:
+                "Please set both clock-in and clock-out times for past records.",
             });
             return;
           }
-          
-          const task = allTasks?.find(t => t.id === selectedTask);
-          const piecesCount = task?.clientRateType === 'piece' ? (typeof pastRecordPiecesCount === 'number' ? pastRecordPiecesCount : parseInt(String(pastRecordPiecesCount), 10)) : 0;
-          
+
+          const task = allTasks?.find((t) => t.id === selectedTask);
+          const piecesCount =
+            task?.clientRateType === "piece"
+              ? typeof pastRecordPiecesCount === "number"
+                ? pastRecordPiecesCount
+                : parseInt(String(pastRecordPiecesCount), 10)
+              : 0;
+
           await createPastRecord(
-            scannedEmployee, 
-            selectedTask, 
-            pastRecordClockInDate, 
+            scannedEmployee,
+            selectedTask,
+            pastRecordClockInDate,
             pastRecordClockOutDate,
             piecesCount > 0 ? piecesCount : undefined
           );
         } else if (scanMode === "clock-in") {
           const timestamp = useManualDateTime ? manualClockInDate : undefined;
-          await clockInEmployee(scannedEmployee, selectedTask, timestamp, useSickHoursForPayment);
+          await clockInEmployee(
+            scannedEmployee,
+            selectedTask,
+            timestamp,
+            useSickHoursForPayment
+          );
         } else if (scanMode === "clock-out") {
           const timestamp = useManualDateTime ? manualClockOutDate : undefined;
           await clockOutEmployee(scannedEmployee, selectedTask, timestamp);
@@ -1154,25 +1208,36 @@ function TimeTrackingPage() {
         toast({
           variant: "destructive",
           title: "Missing Times",
-          description: "Please set both clock-in and clock-out times for past records.",
+          description:
+            "Please set both clock-in and clock-out times for past records.",
         });
         setIsManualSubmitting(false);
         return;
       }
-      
-      const task = allTasks?.find(t => t.id === selectedTask);
-      const piecesCount = task?.clientRateType === 'piece' ? (typeof pastRecordPiecesCount === 'number' ? pastRecordPiecesCount : parseInt(String(pastRecordPiecesCount), 10)) : 0;
-      
+
+      const task = allTasks?.find((t) => t.id === selectedTask);
+      const piecesCount =
+        task?.clientRateType === "piece"
+          ? typeof pastRecordPiecesCount === "number"
+            ? pastRecordPiecesCount
+            : parseInt(String(pastRecordPiecesCount), 10)
+          : 0;
+
       await createPastRecord(
-        manualSelectedEmployee, 
-        selectedTask, 
-        pastRecordClockInDate, 
+        manualSelectedEmployee,
+        selectedTask,
+        pastRecordClockInDate,
         pastRecordClockOutDate,
         piecesCount > 0 ? piecesCount : undefined
       );
     } else if (manualLogType === "clock-in") {
       const timestamp = useManualDateTime ? manualClockInDate : undefined;
-      await clockInEmployee(manualSelectedEmployee, selectedTask, timestamp, useSickHoursForPayment);
+      await clockInEmployee(
+        manualSelectedEmployee,
+        selectedTask,
+        timestamp,
+        useSickHoursForPayment
+      );
     } else if (manualLogType === "clock-out") {
       const timestamp = useManualDateTime ? manualClockOutDate : undefined;
       await clockOutEmployee(manualSelectedEmployee, selectedTask, timestamp);
@@ -1185,11 +1250,16 @@ function TimeTrackingPage() {
   };
 
   const handleManualPieceSubmit = async () => {
-    if (!firestore || !selectedPieceworkTask || scannedSharedEmployees.length === 0) {
+    if (
+      !firestore ||
+      !selectedPieceworkTask ||
+      scannedSharedEmployees.length === 0
+    ) {
       toast({
         variant: "destructive",
         title: "Missing Information",
-        description: "Please select a piecework task and scan at least one employee.",
+        description:
+          "Please select a piecework task and scan at least one employee.",
       });
       return;
     }
@@ -1212,12 +1282,12 @@ function TimeTrackingPage() {
       .filter(Boolean) as string[];
     if (employeeQrCodes.length > 0) {
       const timestamp = useManualDateTime ? manualPieceworkDate : undefined;
-      
+
       // Create individual records for each piece
       const baseTimestamp = timestamp || new Date();
       for (let i = 0; i < pieceCount; i++) {
         // Add a small time offset (1 second) between each piece to maintain order
-        const pieceTimestamp = new Date(baseTimestamp.getTime() + (i * 1000));
+        const pieceTimestamp = new Date(baseTimestamp.getTime() + i * 1000);
         await recordPiecework(
           employeeQrCodes,
           selectedPieceworkTask.id,
@@ -1464,7 +1534,10 @@ function TimeTrackingPage() {
       }
 
       // Only include piecesWorked if it's a valid number and greater than 0
-      const pieces = typeof editPiecesWorked === 'number' ? editPiecesWorked : parseInt(String(editPiecesWorked), 10);
+      const pieces =
+        typeof editPiecesWorked === "number"
+          ? editPiecesWorked
+          : parseInt(String(editPiecesWorked), 10);
       if (!isNaN(pieces) && pieces > 0) {
         updateData.piecesWorked = pieces;
       } else {
@@ -1476,21 +1549,19 @@ function TimeTrackingPage() {
         doc(firestore, "time_entries", editTarget.entry.id),
         updateData
       );
-      
+
       // Update all related piecework records
       for (const piece of editRelatedPiecework) {
-        await updateDoc(
-          doc(firestore, "piecework", piece.id),
-          {
-            pieceCount: piece.pieceCount,
-            // Keep the timestamp and other fields as they were
-          }
-        );
+        await updateDoc(doc(firestore, "piecework", piece.id), {
+          pieceCount: piece.pieceCount,
+          // Keep the timestamp and other fields as they were
+        });
       }
-      
+
       toast({
         title: "Entry Updated",
-        description: "Time entry and all pieces have been successfully updated.",
+        description:
+          "Time entry and all pieces have been successfully updated.",
       });
       setEditDialogOpen(false);
       setEditTarget(null);
@@ -1540,7 +1611,10 @@ function TimeTrackingPage() {
     }
 
     // Validate piece count
-    const pieceCount = typeof editPieceCount === 'number' ? editPieceCount : parseFloat(String(editPieceCount));
+    const pieceCount =
+      typeof editPieceCount === "number"
+        ? editPieceCount
+        : parseFloat(String(editPieceCount));
     if (isNaN(pieceCount) || pieceCount <= 0) {
       toast({
         variant: "destructive",
@@ -1661,8 +1735,11 @@ function TimeTrackingPage() {
       return;
     }
 
-    const hours = typeof sickHoursToUse === 'number' ? sickHoursToUse : parseFloat(String(sickHoursToUse));
-    
+    const hours =
+      typeof sickHoursToUse === "number"
+        ? sickHoursToUse
+        : parseFloat(String(sickHoursToUse));
+
     if (isNaN(hours) || hours <= 0) {
       toast({
         variant: "destructive",
@@ -1677,7 +1754,9 @@ function TimeTrackingPage() {
       toast({
         variant: "destructive",
         title: "Insufficient Sick Hours",
-        description: `Employee only has ${availableHours.toFixed(2)} sick hours available.`,
+        description: `Employee only has ${availableHours.toFixed(
+          2
+        )} sick hours available.`,
       });
       return;
     }
@@ -1695,7 +1774,7 @@ function TimeTrackingPage() {
 
     try {
       // Create a time entry marking sick leave
-      const [year, month, day] = sickLeaveDate.split('-').map(Number);
+      const [year, month, day] = sickLeaveDate.split("-").map(Number);
       const leaveDate = new Date(year, month - 1, day, 8, 0, 0); // Default to 8 AM
       const endDate = new Date(leaveDate);
       endDate.setHours(leaveDate.getHours() + hours);
@@ -1703,12 +1782,13 @@ function TimeTrackingPage() {
       // Find a default task or create a "Sick Leave" marker
       // For now, we'll use the first active task or require task selection
       const defaultTask = allTasks?.find((t) => t.status === "Active");
-      
+
       if (!defaultTask) {
         toast({
           variant: "destructive",
           title: "No Active Task",
-          description: "Please create an active task before logging sick leave.",
+          description:
+            "Please create an active task before logging sick leave.",
         });
         setIsLoggingSickLeave(false);
         return;
@@ -1734,7 +1814,9 @@ function TimeTrackingPage() {
 
       toast({
         title: "Sick Leave Logged",
-        description: `${hours} sick hours logged for ${manualSelectedEmployee.name}. New balance: ${newBalance.toFixed(2)} hrs`,
+        description: `${hours} sick hours logged for ${
+          manualSelectedEmployee.name
+        }. New balance: ${newBalance.toFixed(2)} hrs`,
       });
 
       // Reset form
@@ -1755,12 +1837,18 @@ function TimeTrackingPage() {
     }
   };
 
-  const SelectionFields = ({ isManual = false, filterPiecework = false }: { isManual?: boolean; filterPiecework?: boolean }) => {
+  const SelectionFields = ({
+    isManual = false,
+    filterPiecework = false,
+  }: {
+    isManual?: boolean;
+    filterPiecework?: boolean;
+  }) => {
     // Filter tasks based on whether we're in piecework mode
-    const displayTasks = filterPiecework 
-      ? filteredTasks.filter(t => t.clientRateType === 'piece')
+    const displayTasks = filterPiecework
+      ? filteredTasks.filter((t) => t.clientRateType === "piece")
       : filteredTasks;
-    
+
     return (
       <div
         className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${
@@ -1833,7 +1921,10 @@ function TimeTrackingPage() {
             <SelectContent>
               {displayTasks?.map((task) => (
                 <SelectItem key={task.id} value={task.id}>
-                  {task.name} ({task.variety}) - {task.clientRateType === 'piece' ? '📦 Piecework' : '⏰ Hourly'}
+                  {task.name} ({task.variety}) -{" "}
+                  {task.clientRateType === "piece"
+                    ? "📦 Piecework"
+                    : "⏰ Hourly"}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -1923,22 +2014,28 @@ function TimeTrackingPage() {
                       label="Clock-Out Date & Time"
                       placeholder="Select clock-out date and time"
                     />
-                    {selectedTask && allTasks?.find(t => t.id === selectedTask)?.clientRateType === 'piece' && (
-                      <div className="space-y-2">
-                        <Label htmlFor="past-pieces-count">Pieces Completed</Label>
-                        <Input
-                          id="past-pieces-count"
-                          type="number"
-                          min="0"
-                          placeholder="Enter number of pieces"
-                          value={pastRecordPiecesCount}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setPastRecordPiecesCount(value === "" ? 0 : parseInt(value, 10));
-                          }}
-                        />
-                      </div>
-                    )}
+                    {selectedTask &&
+                      allTasks?.find((t) => t.id === selectedTask)
+                        ?.clientRateType === "piece" && (
+                        <div className="space-y-2">
+                          <Label htmlFor="past-pieces-count">
+                            Pieces Completed
+                          </Label>
+                          <Input
+                            id="past-pieces-count"
+                            type="number"
+                            min="0"
+                            placeholder="Enter number of pieces"
+                            value={pastRecordPiecesCount}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setPastRecordPiecesCount(
+                                value === "" ? 0 : parseInt(value, 10)
+                              );
+                            }}
+                          />
+                        </div>
+                      )}
                   </div>
                 )}
               </div>
@@ -1950,115 +2047,120 @@ function TimeTrackingPage() {
                       <Checkbox
                         id="manual-datetime-checkbox"
                         checked={useManualDateTime}
-                    onCheckedChange={(checked: boolean) => {
-                      setUseManualDateTime(checked);
-                      if (!checked) {
-                        setManualClockInDate(undefined);
-                        setManualClockOutDate(undefined);
-                        setManualPieceworkDate(undefined);
-                      }
-                    }}
-                  />
-                  <Label
-                    htmlFor="manual-datetime-checkbox"
-                    className="font-semibold"
-                  >
-                    Use Manual Date/Time
-                  </Label>
-                </div>
-                {useManualDateTime && (
-                  <div className="space-y-3 pt-2">
-                    {scanMode === "clock-in" && (
-                      <DateTimePicker
-                        date={manualClockInDate}
-                        setDate={setManualClockInDate}
-                        label="Clock-In Date & Time"
-                        placeholder="Select date and time for clock-in"
+                        onCheckedChange={(checked: boolean) => {
+                          setUseManualDateTime(checked);
+                          if (!checked) {
+                            setManualClockInDate(undefined);
+                            setManualClockOutDate(undefined);
+                            setManualPieceworkDate(undefined);
+                          }
+                        }}
                       />
-                    )}
-                    {scanMode === "clock-out" && (
-                      <DateTimePicker
-                        date={manualClockOutDate}
-                        setDate={setManualClockOutDate}
-                        label="Clock-Out Date & Time"
-                        placeholder="Select date and time for clock-out"
-                      />
-                    )}
-                    {scanMode === "piece" && (
-                      <DateTimePicker
-                        date={manualPieceworkDate}
-                        setDate={setManualPieceworkDate}
-                        label="Piecework Date & Time"
-                        placeholder="Select date and time for piecework"
-                      />
+                      <Label
+                        htmlFor="manual-datetime-checkbox"
+                        className="font-semibold"
+                      >
+                        Use Manual Date/Time
+                      </Label>
+                    </div>
+                    {useManualDateTime && (
+                      <div className="space-y-3 pt-2">
+                        {scanMode === "clock-in" && (
+                          <DateTimePicker
+                            date={manualClockInDate}
+                            setDate={setManualClockInDate}
+                            label="Clock-In Date & Time"
+                            placeholder="Select date and time for clock-in"
+                          />
+                        )}
+                        {scanMode === "clock-out" && (
+                          <DateTimePicker
+                            date={manualClockOutDate}
+                            setDate={setManualClockOutDate}
+                            label="Clock-Out Date & Time"
+                            placeholder="Select date and time for clock-out"
+                          />
+                        )}
+                        {scanMode === "piece" && (
+                          <DateTimePicker
+                            date={manualPieceworkDate}
+                            setDate={setManualPieceworkDate}
+                            label="Piecework Date & Time"
+                            placeholder="Select date and time for piecework"
+                          />
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
 
-              {scanMode === "clock-in" && (
-                <div className="p-4 border rounded-lg space-y-4 bg-blue-50 dark:bg-blue-950/20">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="use-sick-hours-checkbox"
-                      checked={useSickHoursForPayment}
-                      onCheckedChange={(checked: boolean) => {
-                        setUseSickHoursForPayment(checked);
-                      }}
-                    />
-                    <Label
-                      htmlFor="use-sick-hours-checkbox"
-                      className="font-semibold text-blue-900 dark:text-blue-100"
-                    >
-                      Use Sick Hours for Payment
-                    </Label>
-                  </div>
-                  {useSickHoursForPayment && (
-                    <p className="text-sm text-blue-700 dark:text-blue-300">
-                      ⚠️ The hours worked in this shift will be deducted from the employee's sick hours balance when they clock out.
-                    </p>
+                  {scanMode === "clock-in" && (
+                    <div className="p-4 border rounded-lg space-y-4 bg-blue-50 dark:bg-blue-950/20">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="use-sick-hours-checkbox"
+                          checked={useSickHoursForPayment}
+                          onCheckedChange={(checked: boolean) => {
+                            setUseSickHoursForPayment(checked);
+                          }}
+                        />
+                        <Label
+                          htmlFor="use-sick-hours-checkbox"
+                          className="font-semibold text-blue-900 dark:text-blue-100"
+                        >
+                          Use Sick Hours for Payment
+                        </Label>
+                      </div>
+                      {useSickHoursForPayment && (
+                        <p className="text-sm text-blue-700 dark:text-blue-300">
+                          ⚠️ The hours worked in this shift will be deducted
+                          from the employee's sick hours balance when they clock
+                          out.
+                        </p>
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
 
-              {!usePastRecords && (
-                <div className="space-y-3 md:space-y-4 rounded-lg border bg-card text-card-foreground shadow-sm p-3 md:p-4">
-                  <Label className="font-semibold">Scan Mode</Label>
-                  <RadioGroup
-                    value={scanMode}
-                    onValueChange={(value: string) =>
-                      setScanMode(value as ScanMode)
-                    }
-                    className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4"
-                  >
-                    <Label
-                      htmlFor="mode-clock-in"
-                      className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
-                    >
-                      <RadioGroupItem value="clock-in" id="mode-clock-in" />
-                      <div className="flex items-center gap-1 md:gap-2">
-                        <LogIn className="h-4 w-4 md:h-5 md:w-5 text-green-600" />
-                        <p className="font-medium text-sm md:text-base">
-                          Clock In
-                        </p>
-                      </div>
-                    </Label>
-                    <Label
-                      htmlFor="mode-clock-out"
-                      className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
-                    >
-                      <RadioGroupItem value="clock-out" id="mode-clock-out" />
-                      <div className="flex items-center gap-1 md:gap-2">
-                        <LogOut className="h-4 w-4 md:h-5 md:w-5 text-red-600" />
-                        <p className="font-medium text-sm md:text-base">
-                          Clock Out
-                        </p>
-                      </div>
-                    </Label>
-                  </RadioGroup>
-                </div>
-              )}
-              </>
+                  {!usePastRecords && (
+                    <div className="space-y-3 md:space-y-4 rounded-lg border bg-card text-card-foreground shadow-sm p-3 md:p-4">
+                      <Label className="font-semibold">Scan Mode</Label>
+                      <RadioGroup
+                        value={scanMode}
+                        onValueChange={(value: string) =>
+                          setScanMode(value as ScanMode)
+                        }
+                        className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4"
+                      >
+                        <Label
+                          htmlFor="mode-clock-in"
+                          className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
+                        >
+                          <RadioGroupItem value="clock-in" id="mode-clock-in" />
+                          <div className="flex items-center gap-1 md:gap-2">
+                            <LogIn className="h-4 w-4 md:h-5 md:w-5 text-green-600" />
+                            <p className="font-medium text-sm md:text-base">
+                              Clock In
+                            </p>
+                          </div>
+                        </Label>
+                        <Label
+                          htmlFor="mode-clock-out"
+                          className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
+                        >
+                          <RadioGroupItem
+                            value="clock-out"
+                            id="mode-clock-out"
+                          />
+                          <div className="flex items-center gap-1 md:gap-2">
+                            <LogOut className="h-4 w-4 md:h-5 md:w-5 text-red-600" />
+                            <p className="font-medium text-sm md:text-base">
+                              Clock Out
+                            </p>
+                          </div>
+                        </Label>
+                      </RadioGroup>
+                    </div>
+                  )}
+                </>
               )}
 
               <QrScanner onScanResult={handleScanResult} />
@@ -2117,22 +2219,28 @@ function TimeTrackingPage() {
                       label="Clock-Out Date & Time"
                       placeholder="Select clock-out date and time"
                     />
-                    {selectedTask && allTasks?.find(t => t.id === selectedTask)?.clientRateType === 'piece' && (
-                      <div className="space-y-2">
-                        <Label htmlFor="past-pieces-count-manual">Pieces Completed</Label>
-                        <Input
-                          id="past-pieces-count-manual"
-                          type="number"
-                          min="0"
-                          placeholder="Enter number of pieces"
-                          value={pastRecordPiecesCount}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setPastRecordPiecesCount(value === "" ? 0 : parseInt(value, 10));
-                          }}
-                        />
-                      </div>
-                    )}
+                    {selectedTask &&
+                      allTasks?.find((t) => t.id === selectedTask)
+                        ?.clientRateType === "piece" && (
+                        <div className="space-y-2">
+                          <Label htmlFor="past-pieces-count-manual">
+                            Pieces Completed
+                          </Label>
+                          <Input
+                            id="past-pieces-count-manual"
+                            type="number"
+                            min="0"
+                            placeholder="Enter number of pieces"
+                            value={pastRecordPiecesCount}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setPastRecordPiecesCount(
+                                value === "" ? 0 : parseInt(value, 10)
+                              );
+                            }}
+                          />
+                        </div>
+                      )}
                   </div>
                 )}
               </div>
@@ -2144,97 +2252,99 @@ function TimeTrackingPage() {
                       <Checkbox
                         id="manual-datetime-checkbox-entry"
                         checked={useManualDateTime}
-                    onCheckedChange={(checked: boolean) => {
-                      setUseManualDateTime(checked);
-                      if (!checked) {
-                        setManualClockInDate(undefined);
-                        setManualClockOutDate(undefined);
-                        setManualPieceworkDate(undefined);
-                      }
-                    }}
-                  />
-                  <Label
-                    htmlFor="manual-datetime-checkbox-entry"
-                    className="font-semibold"
-                  >
-                    Use Manual Date/Time
-                  </Label>
-                </div>
-                {useManualDateTime && (
-                  <div className="space-y-3 pt-2">
-                    {manualLogType === "clock-in" && (
-                      <DateTimePicker
-                        date={manualClockInDate}
-                        setDate={setManualClockInDate}
-                        label="Clock-In Date & Time"
-                        placeholder="Select date and time for clock-in"
+                        onCheckedChange={(checked: boolean) => {
+                          setUseManualDateTime(checked);
+                          if (!checked) {
+                            setManualClockInDate(undefined);
+                            setManualClockOutDate(undefined);
+                            setManualPieceworkDate(undefined);
+                          }
+                        }}
                       />
-                    )}
-                    {manualLogType === "clock-out" && (
-                      <DateTimePicker
-                        date={manualClockOutDate}
-                        setDate={setManualClockOutDate}
-                        label="Clock-Out Date & Time"
-                        placeholder="Select date and time for clock-out"
-                      />
-                    )}
-                    {manualLogType === "piecework" && (
-                      <DateTimePicker
-                        date={manualPieceworkDate}
-                        setDate={setManualPieceworkDate}
-                        label="Piecework Date & Time"
-                        placeholder="Select date and time for piecework"
-                      />
+                      <Label
+                        htmlFor="manual-datetime-checkbox-entry"
+                        className="font-semibold"
+                      >
+                        Use Manual Date/Time
+                      </Label>
+                    </div>
+                    {useManualDateTime && (
+                      <div className="space-y-3 pt-2">
+                        {manualLogType === "clock-in" && (
+                          <DateTimePicker
+                            date={manualClockInDate}
+                            setDate={setManualClockInDate}
+                            label="Clock-In Date & Time"
+                            placeholder="Select date and time for clock-in"
+                          />
+                        )}
+                        {manualLogType === "clock-out" && (
+                          <DateTimePicker
+                            date={manualClockOutDate}
+                            setDate={setManualClockOutDate}
+                            label="Clock-Out Date & Time"
+                            placeholder="Select date and time for clock-out"
+                          />
+                        )}
+                        {manualLogType === "piecework" && (
+                          <DateTimePicker
+                            date={manualPieceworkDate}
+                            setDate={setManualPieceworkDate}
+                            label="Piecework Date & Time"
+                            placeholder="Select date and time for piecework"
+                          />
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
 
-              {manualLogType === "clock-in" && (
-                <div className="p-4 border rounded-lg space-y-4 bg-blue-50 dark:bg-blue-950/20">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="use-sick-hours-checkbox-manual"
-                      checked={useSickHoursForPayment}
-                      onCheckedChange={(checked: boolean) => {
-                        setUseSickHoursForPayment(checked);
-                      }}
-                    />
-                    <Label
-                      htmlFor="use-sick-hours-checkbox-manual"
-                      className="font-semibold text-blue-900 dark:text-blue-100"
-                    >
-                      Use Sick Hours for Payment
-                    </Label>
-                  </div>
-                  {useSickHoursForPayment && (
-                    <p className="text-sm text-blue-700 dark:text-blue-300">
-                      ⚠️ The hours worked in this shift will be deducted from the employee's sick hours balance when they clock out.
-                    </p>
+                  {manualLogType === "clock-in" && (
+                    <div className="p-4 border rounded-lg space-y-4 bg-blue-50 dark:bg-blue-950/20">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="use-sick-hours-checkbox-manual"
+                          checked={useSickHoursForPayment}
+                          onCheckedChange={(checked: boolean) => {
+                            setUseSickHoursForPayment(checked);
+                          }}
+                        />
+                        <Label
+                          htmlFor="use-sick-hours-checkbox-manual"
+                          className="font-semibold text-blue-900 dark:text-blue-100"
+                        >
+                          Use Sick Hours for Payment
+                        </Label>
+                      </div>
+                      {useSickHoursForPayment && (
+                        <p className="text-sm text-blue-700 dark:text-blue-300">
+                          ⚠️ The hours worked in this shift will be deducted
+                          from the employee's sick hours balance when they clock
+                          out.
+                        </p>
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
 
-              {!usePastRecords && (
-                <div className="space-y-2">
-                  <Label htmlFor="log-type">Log Type</Label>
-                  <Select
-                    value={manualLogType}
-                    onValueChange={(v: string) =>
-                      setManualLogType(v as ManualLogType)
-                    }
-                  >
-                    <SelectTrigger id="log-type">
-                      <SelectValue placeholder="Select log type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="clock-in">Clock In</SelectItem>
-                      <SelectItem value="clock-out">Clock Out</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              </>
+                  {!usePastRecords && (
+                    <div className="space-y-2">
+                      <Label htmlFor="log-type">Log Type</Label>
+                      <Select
+                        value={manualLogType}
+                        onValueChange={(v: string) =>
+                          setManualLogType(v as ManualLogType)
+                        }
+                      >
+                        <SelectTrigger id="log-type">
+                          <SelectValue placeholder="Select log type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="clock-in">Clock In</SelectItem>
+                          <SelectItem value="clock-out">Clock Out</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </>
               )}
 
               <div className="space-y-2">
@@ -2525,7 +2635,8 @@ function TimeTrackingPage() {
             <CardHeader>
               <CardTitle>Log Sick Leave</CardTitle>
               <CardDescription>
-                Record time off using accumulated sick hours. Sick hours will be deducted from employee balance.
+                Record time off using accumulated sick hours. Sick hours will be
+                deducted from employee balance.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -2551,13 +2662,15 @@ function TimeTrackingPage() {
                             setManualEmployeeSearch(employee.name);
                           }}
                         >
-                          {employee.name} - {employee.sickHoursBalance?.toFixed(2) || "0.00"} sick hrs available
+                          {employee.name} -{" "}
+                          {employee.sickHoursBalance?.toFixed(2) || "0.00"} sick
+                          hrs available
                         </Button>
                       ))}
                     </div>
                   )}
               </div>
-              
+
               {manualSelectedEmployee && (
                 <div className="p-4 border rounded-lg bg-muted/30 space-y-2">
                   <div className="flex justify-between">
@@ -2567,7 +2680,9 @@ function TimeTrackingPage() {
                   <div className="flex justify-between">
                     <span className="font-medium">Available Sick Hours:</span>
                     <span className="text-green-600 font-semibold">
-                      {manualSelectedEmployee.sickHoursBalance?.toFixed(2) || "0.00"} hrs
+                      {manualSelectedEmployee.sickHoursBalance?.toFixed(2) ||
+                        "0.00"}{" "}
+                      hrs
                     </span>
                   </div>
                 </div>
@@ -2583,7 +2698,11 @@ function TimeTrackingPage() {
                   max={manualSelectedEmployee?.sickHoursBalance || 0}
                   placeholder="Enter hours"
                   value={sickHoursToUse}
-                  onChange={(e) => setSickHoursToUse(e.target.value === "" ? 0 : parseFloat(e.target.value))}
+                  onChange={(e) =>
+                    setSickHoursToUse(
+                      e.target.value === "" ? 0 : parseFloat(e.target.value)
+                    )
+                  }
                   disabled={!manualSelectedEmployee}
                 />
               </div>
@@ -2645,8 +2764,11 @@ function TimeTrackingPage() {
                         Select a Piecework Task First
                       </h3>
                       <p className="text-sm text-orange-700 dark:text-orange-300 max-w-md">
-                        To record piecework, you need to select a task that uses piece-rate payment (not hourly).
-                        Go to the <strong>QR Scanner</strong> or <strong>Manual Entry</strong> tab and select a piecework task.
+                        To record piecework, you need to select a task that uses
+                        piece-rate payment (not hourly). Go to the{" "}
+                        <strong>QR Scanner</strong> or{" "}
+                        <strong>Manual Entry</strong> tab and select a piecework
+                        task.
                       </p>
                     </div>
                     <div className="flex gap-2 mt-4">
@@ -2679,7 +2801,8 @@ function TimeTrackingPage() {
                     Selected Piecework Task
                   </CardTitle>
                   <CardDescription className="text-sm">
-                    Recording piecework for this task. Change selection in QR Scanner or Manual Entry.
+                    Recording piecework for this task. Change selection in QR
+                    Scanner or Manual Entry.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-4">
@@ -2689,7 +2812,8 @@ function TimeTrackingPage() {
                         <Package className="h-4 w-4 text-muted-foreground" />
                         <p className="font-semibold text-base">
                           {selectedPieceworkTask.name}
-                          {selectedPieceworkTask.variety && ` (${selectedPieceworkTask.variety})`}
+                          {selectedPieceworkTask.variety &&
+                            ` (${selectedPieceworkTask.variety})`}
                         </p>
                         {selectedPieceworkTask.piecePrice && (
                           <span className="ml-auto text-sm font-medium text-green-600 dark:text-green-400">
@@ -2700,7 +2824,11 @@ function TimeTrackingPage() {
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <span className="font-medium">Client:</span>
-                          <span>{clients?.find(c => c.id === selectedPieceworkTask.clientId)?.name || "Unknown"}</span>
+                          <span>
+                            {clients?.find(
+                              (c) => c.id === selectedPieceworkTask.clientId
+                            )?.name || "Unknown"}
+                          </span>
                         </div>
                         {selectedPieceworkTask.ranch && (
                           <div className="flex items-center gap-1">
@@ -2719,103 +2847,310 @@ function TimeTrackingPage() {
                   </div>
                   <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md">
                     <p className="text-xs text-blue-700 dark:text-blue-300">
-                      <strong>Note:</strong> To change tasks, go to QR Scanner or Manual Entry and select a different piecework task.
+                      <strong>Note:</strong> To change tasks, go to QR Scanner
+                      or Manual Entry and select a different piecework task.
                     </p>
                   </div>
                 </CardContent>
               </Card>
-              
+
               {/* Piecework Entry Tabs */}
-          <Tabs defaultValue="qr-piecework">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="qr-piecework">
-                <QrCode className="mr-2 h-4 w-4" />
-                QR Code Scanner
-              </TabsTrigger>
-              <TabsTrigger value="manual-piecework">
-                <ClipboardEdit className="mr-2 h-4 w-4" />
-                Manual Log Entry
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="qr-piecework">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg md:text-xl">
-                    QR Code Scanner - Piecework
-                  </CardTitle>
-                  <CardDescription className="text-sm">
-                    Scan employee QR codes and bins to record piecework.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3 md:space-y-4">
-                  <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="piece-qr-manual-datetime-checkbox"
-                        checked={useManualDateTime}
-                        onCheckedChange={(checked: boolean) => {
-                          setUseManualDateTime(checked);
-                          if (!checked) {
-                            setManualPieceworkDate(undefined);
+              <Tabs defaultValue="qr-piecework">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="qr-piecework">
+                    <QrCode className="mr-2 h-4 w-4" />
+                    QR Code Scanner
+                  </TabsTrigger>
+                  <TabsTrigger value="manual-piecework">
+                    <ClipboardEdit className="mr-2 h-4 w-4" />
+                    Manual Log Entry
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="qr-piecework">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg md:text-xl">
+                        QR Code Scanner - Piecework
+                      </CardTitle>
+                      <CardDescription className="text-sm">
+                        Scan employee QR codes and bins to record piecework.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3 md:space-y-4">
+                      <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="piece-qr-manual-datetime-checkbox"
+                            checked={useManualDateTime}
+                            onCheckedChange={(checked: boolean) => {
+                              setUseManualDateTime(checked);
+                              if (!checked) {
+                                setManualPieceworkDate(undefined);
+                              }
+                            }}
+                          />
+                          <Label
+                            htmlFor="piece-qr-manual-datetime-checkbox"
+                            className="font-semibold"
+                          >
+                            Use Manual Date/Time
+                          </Label>
+                        </div>
+                        {useManualDateTime && (
+                          <div className="space-y-3 pt-2">
+                            <DateTimePicker
+                              date={manualPieceworkDate}
+                              setDate={setManualPieceworkDate}
+                              label="Piecework Date & Time"
+                              placeholder="Select date and time for piecework"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="p-4 border rounded-lg space-y-4">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="piece-qr-shared-piece-switch"
+                            checked={isSharedPiece}
+                            onCheckedChange={setIsSharedPiece}
+                          />
+                          <Label htmlFor="piece-qr-shared-piece-switch">
+                            Shared Piece (Multiple Workers)
+                          </Label>
+                        </div>
+                        <RadioGroup
+                          value={pieceEntryMode}
+                          onValueChange={(v: string) =>
+                            setPieceEntryMode(v as PieceEntryMode)
                           }
-                        }}
-                      />
-                      <Label
-                        htmlFor="piece-qr-manual-datetime-checkbox"
-                        className="font-semibold"
-                      >
-                        Use Manual Date/Time
-                      </Label>
-                    </div>
-                    {useManualDateTime && (
-                      <div className="space-y-3 pt-2">
-                        <DateTimePicker
-                          date={manualPieceworkDate}
-                          setDate={setManualPieceworkDate}
-                          label="Piecework Date & Time"
-                          placeholder="Select date and time for piecework"
+                          className="flex gap-4"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="scan" id="piece-qr-scan" />
+                            <Label htmlFor="piece-qr-scan">Scan Bins</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem
+                              value="manual"
+                              id="piece-qr-manual"
+                            />
+                            <Label htmlFor="piece-qr-manual">
+                              Manual Count
+                            </Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+
+                      {pieceEntryMode === "scan" ? (
+                        <QrScanner
+                          onScanResult={(data) =>
+                            handlePieceworkScanResult(data)
+                          }
                         />
-                      </div>
-                    )}
-                  </div>
+                      ) : (
+                        <div className="p-4 border rounded-lg space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="piece-qr-quantity">
+                              Quantity (Pieces/Bins)
+                            </Label>
+                            <Input
+                              id="piece-qr-quantity"
+                              type="number"
+                              placeholder="Enter number of pieces"
+                              value={manualPieceQuantity}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setManualPieceQuantity(
+                                  value === "" ? "" : parseInt(value, 10)
+                                );
+                              }}
+                              onBlur={(e) => {
+                                const value = parseInt(e.target.value, 10);
+                                if (isNaN(value) || value <= 0) {
+                                  setManualPieceQuantity(1);
+                                }
+                              }}
+                              min="1"
+                            />
+                          </div>
+                          <Button
+                            className="w-full"
+                            onClick={handleManualPieceSubmit}
+                            disabled={
+                              isManualSubmitting ||
+                              scannedSharedEmployees.length === 0
+                            }
+                          >
+                            {isManualSubmitting && (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            )}
+                            Submit Pieces
+                          </Button>
+                        </div>
+                      )}
 
-                  <div className="p-4 border rounded-lg space-y-4">
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        id="piece-qr-shared-piece-switch"
-                        checked={isSharedPiece}
-                        onCheckedChange={setIsSharedPiece}
-                      />
-                      <Label htmlFor="piece-qr-shared-piece-switch">
-                        Shared Piece (Multiple Workers)
-                      </Label>
-                    </div>
-                    <RadioGroup
-                      value={pieceEntryMode}
-                      onValueChange={(v: string) =>
-                        setPieceEntryMode(v as PieceEntryMode)
-                      }
-                      className="flex gap-4"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="scan" id="piece-qr-scan" />
-                        <Label htmlFor="piece-qr-scan">Scan Bins</Label>
+                      {scannedSharedEmployees.length > 0 && (
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Users />
+                                Scanned Employees (
+                                {scannedSharedEmployees.length})
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setScannedSharedEmployees([])}
+                              >
+                                Clear List
+                              </Button>
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <ul className="space-y-1">
+                              {scannedSharedEmployees.map((id) => {
+                                const name =
+                                  activeEmployees?.find((e) => e.id === id)
+                                    ?.name || id;
+                                return (
+                                  <li
+                                    key={id}
+                                    className="flex items-center gap-2 text-green-600"
+                                  >
+                                    <CheckCircle className="h-5 w-5" />
+                                    <p className="font-mono text-sm">{name}</p>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                            <p className="text-muted-foreground text-sm mt-4">
+                              {isSharedPiece
+                                ? `Ready: Scan another employee or ${
+                                    pieceEntryMode === "scan"
+                                      ? "a bin"
+                                      : "submit count"
+                                  }.`
+                                : `Ready: ${
+                                    pieceEntryMode === "scan"
+                                      ? "Scan a bin"
+                                      : "submit count"
+                                  }.`}
+                            </p>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+                <TabsContent value="manual-piecework">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Manual Piecework Entry</CardTitle>
+                      <CardDescription>
+                        Manually log piecework for employees without QR
+                        scanning.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="piece-manual-datetime-checkbox"
+                            checked={useManualDateTime}
+                            onCheckedChange={(checked: boolean) => {
+                              setUseManualDateTime(checked);
+                              if (!checked) {
+                                setManualPieceworkDate(undefined);
+                              }
+                            }}
+                          />
+                          <Label
+                            htmlFor="piece-manual-datetime-checkbox"
+                            className="font-semibold"
+                          >
+                            Use Manual Date/Time
+                          </Label>
+                        </div>
+                        {useManualDateTime && (
+                          <div className="space-y-3 pt-2">
+                            <DateTimePicker
+                              date={manualPieceworkDate}
+                              setDate={setManualPieceworkDate}
+                              label="Piecework Date & Time"
+                              placeholder="Select date and time for piecework"
+                            />
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="manual" id="piece-qr-manual" />
-                        <Label htmlFor="piece-qr-manual">Manual Count</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
 
-                  {pieceEntryMode === "scan" ? (
-                    <QrScanner onScanResult={(data) => handlePieceworkScanResult(data)} />
-                  ) : (
-                    <div className="p-4 border rounded-lg space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="piece-qr-quantity">Quantity (Pieces/Bins)</Label>
+                        <Label htmlFor="piece-manual-employee-search">
+                          Employee
+                        </Label>
+                        {manualSelectedEmployee ? (
+                          <div className="flex items-center gap-2 rounded-md border p-2 bg-muted">
+                            <User className="h-4 w-4" />
+                            <span>{manualSelectedEmployee.name}</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="ml-auto"
+                              onClick={() => {
+                                setManualSelectedEmployee(null);
+                                setManualEmployeeSearch("");
+                              }}
+                            >
+                              Change
+                            </Button>
+                          </div>
+                        ) : (
+                          <>
+                            <Input
+                              id="piece-manual-employee-search"
+                              placeholder="Search for an active employee..."
+                              value={manualEmployeeSearch}
+                              onChange={(e) =>
+                                setManualEmployeeSearch(e.target.value)
+                              }
+                            />
+                            {manualEmployeeSearch &&
+                              filteredManualEmployees &&
+                              filteredManualEmployees.length > 0 && (
+                                <div className="border rounded-md max-h-48 overflow-y-auto">
+                                  {filteredManualEmployees.map((employee) => (
+                                    <Button
+                                      key={employee.id}
+                                      variant="ghost"
+                                      className="w-full justify-start"
+                                      onClick={() => {
+                                        setManualSelectedEmployee(employee);
+                                        setManualEmployeeSearch(employee.name);
+                                      }}
+                                    >
+                                      {employee.name}
+                                    </Button>
+                                  ))}
+                                </div>
+                              )}
+                            {manualEmployeeSearch &&
+                              filteredManualEmployees &&
+                              filteredManualEmployees.length === 0 && (
+                                <p className="p-4 text-sm text-muted-foreground">
+                                  No employees found.
+                                </p>
+                              )}
+                          </>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="piece-manual-quantity">
+                          Quantity (Pieces/Bins)
+                        </Label>
                         <Input
-                          id="piece-qr-quantity"
+                          id="piece-manual-quantity"
                           type="number"
                           placeholder="Enter number of pieces"
                           value={manualPieceQuantity}
@@ -2834,281 +3169,119 @@ function TimeTrackingPage() {
                           min="1"
                         />
                       </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="piece-manual-notes">
+                          Notes (Optional)
+                        </Label>
+                        <Textarea
+                          id="piece-manual-notes"
+                          placeholder="Add any relevant notes (e.g., QC issues)"
+                          value={manualNotes}
+                          onChange={(e) => setManualNotes(e.target.value)}
+                        />
+                      </div>
+
                       <Button
                         className="w-full"
-                        onClick={handleManualPieceSubmit}
+                        onClick={async () => {
+                          if (
+                            !firestore ||
+                            !selectedPieceworkTask ||
+                            !manualSelectedEmployee
+                          ) {
+                            toast({
+                              variant: "destructive",
+                              title: "Missing Information",
+                              description: "Please complete all fields.",
+                            });
+                            return;
+                          }
+
+                          const pieceCount =
+                            typeof manualPieceQuantity === "number"
+                              ? manualPieceQuantity
+                              : parseInt(String(manualPieceQuantity), 10);
+                          if (isNaN(pieceCount) || pieceCount <= 0) {
+                            toast({
+                              variant: "destructive",
+                              title: "Invalid Quantity",
+                              description:
+                                "Please enter a valid number of pieces.",
+                            });
+                            return;
+                          }
+
+                          setIsManualSubmitting(true);
+
+                          try {
+                            // Create individual records for each piece with incremental timestamps
+                            const baseTimestamp =
+                              useManualDateTime && manualPieceworkDate
+                                ? manualPieceworkDate
+                                : new Date();
+
+                            for (let i = 0; i < pieceCount; i++) {
+                              // Add a small time offset (1 second) between each piece to maintain order
+                              const pieceTimestamp = new Date(
+                                baseTimestamp.getTime() + i * 1000
+                              );
+
+                              const newPiecework: Omit<Piecework, "id"> = {
+                                employeeId: manualSelectedEmployee.id,
+                                taskId: selectedPieceworkTask.id,
+                                timestamp: pieceTimestamp,
+                                pieceCount: 1, // Each record represents 1 piece
+                                pieceQrCode: "manual_entry",
+                                qcNote: manualNotes,
+                              };
+
+                              await addDoc(
+                                collection(firestore, "piecework"),
+                                newPiecework
+                              );
+                            }
+
+                            playSound("piece");
+                            toast({
+                              title: "Piecework Recorded",
+                              description: `${pieceCount} piece(s) recorded for ${manualSelectedEmployee.name}.`,
+                            });
+                            setManualSelectedEmployee(null);
+                            setManualEmployeeSearch("");
+                            setManualPieceQuantity(1);
+                            setManualNotes("");
+                          } catch (serverError) {
+                            const permissionError =
+                              new FirestorePermissionError({
+                                path: "piecework",
+                                operation: "create",
+                                requestResourceData: {
+                                  taskId: selectedPieceworkTask.id,
+                                },
+                              });
+                            errorEmitter.emit(
+                              "permission-error",
+                              permissionError
+                            );
+                          }
+                          setIsManualSubmitting(false);
+                        }}
                         disabled={
-                          isManualSubmitting || scannedSharedEmployees.length === 0
+                          isManualSubmitting ||
+                          !manualSelectedEmployee ||
+                          !selectedPieceworkTask
                         }
                       >
                         {isManualSubmitting && (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         )}
-                        Submit Pieces
+                        Submit Piecework
                       </Button>
-                    </div>
-                  )}
-
-                  {scannedSharedEmployees.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Users />
-                            Scanned Employees ({scannedSharedEmployees.length})
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setScannedSharedEmployees([])}
-                          >
-                            Clear List
-                          </Button>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <ul className="space-y-1">
-                          {scannedSharedEmployees.map((id) => {
-                            const name =
-                              activeEmployees?.find((e) => e.id === id)?.name || id;
-                            return (
-                              <li
-                                key={id}
-                                className="flex items-center gap-2 text-green-600"
-                              >
-                                <CheckCircle className="h-5 w-5" />
-                                <p className="font-mono text-sm">{name}</p>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                        <p className="text-muted-foreground text-sm mt-4">
-                          {isSharedPiece
-                            ? `Ready: Scan another employee or ${
-                                pieceEntryMode === "scan" ? "a bin" : "submit count"
-                              }.`
-                            : `Ready: ${
-                                pieceEntryMode === "scan"
-                                  ? "Scan a bin"
-                                  : "submit count"
-                              }.`}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-            <TabsContent value="manual-piecework">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Manual Piecework Entry</CardTitle>
-                  <CardDescription>
-                    Manually log piecework for employees without QR scanning.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="piece-manual-datetime-checkbox"
-                        checked={useManualDateTime}
-                        onCheckedChange={(checked: boolean) => {
-                          setUseManualDateTime(checked);
-                          if (!checked) {
-                            setManualPieceworkDate(undefined);
-                          }
-                        }}
-                      />
-                      <Label
-                        htmlFor="piece-manual-datetime-checkbox"
-                        className="font-semibold"
-                      >
-                        Use Manual Date/Time
-                      </Label>
-                    </div>
-                    {useManualDateTime && (
-                      <div className="space-y-3 pt-2">
-                        <DateTimePicker
-                          date={manualPieceworkDate}
-                          setDate={setManualPieceworkDate}
-                          label="Piecework Date & Time"
-                          placeholder="Select date and time for piecework"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="piece-manual-employee-search">Employee</Label>
-                    {manualSelectedEmployee ? (
-                      <div className="flex items-center gap-2 rounded-md border p-2 bg-muted">
-                        <User className="h-4 w-4" />
-                        <span>{manualSelectedEmployee.name}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="ml-auto"
-                          onClick={() => {
-                            setManualSelectedEmployee(null);
-                            setManualEmployeeSearch("");
-                          }}
-                        >
-                          Change
-                        </Button>
-                      </div>
-                    ) : (
-                      <>
-                        <Input
-                          id="piece-manual-employee-search"
-                          placeholder="Search for an active employee..."
-                          value={manualEmployeeSearch}
-                          onChange={(e) => setManualEmployeeSearch(e.target.value)}
-                        />
-                        {manualEmployeeSearch &&
-                          filteredManualEmployees &&
-                          filteredManualEmployees.length > 0 && (
-                            <div className="border rounded-md max-h-48 overflow-y-auto">
-                              {filteredManualEmployees.map((employee) => (
-                                <Button
-                                  key={employee.id}
-                                  variant="ghost"
-                                  className="w-full justify-start"
-                                  onClick={() => {
-                                    setManualSelectedEmployee(employee);
-                                    setManualEmployeeSearch(employee.name);
-                                  }}
-                                >
-                                  {employee.name}
-                                </Button>
-                              ))}
-                            </div>
-                          )}
-                        {manualEmployeeSearch &&
-                          filteredManualEmployees &&
-                          filteredManualEmployees.length === 0 && (
-                            <p className="p-4 text-sm text-muted-foreground">
-                              No employees found.
-                            </p>
-                          )}
-                      </>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="piece-manual-quantity">Quantity (Pieces/Bins)</Label>
-                    <Input
-                      id="piece-manual-quantity"
-                      type="number"
-                      placeholder="Enter number of pieces"
-                      value={manualPieceQuantity}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setManualPieceQuantity(
-                          value === "" ? "" : parseInt(value, 10)
-                        );
-                      }}
-                      onBlur={(e) => {
-                        const value = parseInt(e.target.value, 10);
-                        if (isNaN(value) || value <= 0) {
-                          setManualPieceQuantity(1);
-                        }
-                      }}
-                      min="1"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="piece-manual-notes">Notes (Optional)</Label>
-                    <Textarea
-                      id="piece-manual-notes"
-                      placeholder="Add any relevant notes (e.g., QC issues)"
-                      value={manualNotes}
-                      onChange={(e) => setManualNotes(e.target.value)}
-                    />
-                  </div>
-
-                  <Button
-                    className="w-full"
-                    onClick={async () => {
-                      if (!firestore || !selectedPieceworkTask || !manualSelectedEmployee) {
-                        toast({
-                          variant: "destructive",
-                          title: "Missing Information",
-                          description: "Please complete all fields.",
-                        });
-                        return;
-                      }
-
-                      const pieceCount =
-                        typeof manualPieceQuantity === "number"
-                          ? manualPieceQuantity
-                          : parseInt(String(manualPieceQuantity), 10);
-                      if (isNaN(pieceCount) || pieceCount <= 0) {
-                        toast({
-                          variant: "destructive",
-                          title: "Invalid Quantity",
-                          description: "Please enter a valid number of pieces.",
-                        });
-                        return;
-                      }
-
-                      setIsManualSubmitting(true);
-
-                      try {
-                        // Create individual records for each piece with incremental timestamps
-                        const baseTimestamp = useManualDateTime && manualPieceworkDate
-                          ? manualPieceworkDate
-                          : new Date();
-                        
-                        for (let i = 0; i < pieceCount; i++) {
-                          // Add a small time offset (1 second) between each piece to maintain order
-                          const pieceTimestamp = new Date(baseTimestamp.getTime() + (i * 1000));
-                          
-                          const newPiecework: Omit<Piecework, "id"> = {
-                            employeeId: manualSelectedEmployee.id,
-                            taskId: selectedPieceworkTask.id,
-                            timestamp: pieceTimestamp,
-                            pieceCount: 1, // Each record represents 1 piece
-                            pieceQrCode: "manual_entry",
-                            qcNote: manualNotes,
-                          };
-                          
-                          await addDoc(collection(firestore, "piecework"), newPiecework);
-                        }
-                        
-                        playSound("piece");
-                        toast({
-                          title: "Piecework Recorded",
-                          description: `${pieceCount} piece(s) recorded for ${manualSelectedEmployee.name}.`,
-                        });
-                        setManualSelectedEmployee(null);
-                        setManualEmployeeSearch("");
-                        setManualPieceQuantity(1);
-                        setManualNotes("");
-                      } catch (serverError) {
-                        const permissionError = new FirestorePermissionError({
-                          path: "piecework",
-                          operation: "create",
-                          requestResourceData: { taskId: selectedPieceworkTask.id },
-                        });
-                        errorEmitter.emit("permission-error", permissionError);
-                      }
-                      setIsManualSubmitting(false);
-                    }}
-                    disabled={
-                      isManualSubmitting || !manualSelectedEmployee || !selectedPieceworkTask
-                    }
-                  >
-                    {isManualSubmitting && (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    )}
-                    Submit Piecework
-                  </Button>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
             </>
           )}
         </TabsContent>
@@ -3161,7 +3334,9 @@ function TimeTrackingPage() {
                       onChange={(e) => {
                         if (e.target.value) {
                           // Parse as local date to avoid timezone offset issues
-                          const [year, month, day] = e.target.value.split('-').map(Number);
+                          const [year, month, day] = e.target.value
+                            .split("-")
+                            .map(Number);
                           setHistoryStartDate(new Date(year, month - 1, day));
                         } else {
                           setHistoryStartDate(undefined);
@@ -3182,7 +3357,9 @@ function TimeTrackingPage() {
                       onChange={(e) => {
                         if (e.target.value) {
                           // Parse as local date to avoid timezone offset issues
-                          const [year, month, day] = e.target.value.split('-').map(Number);
+                          const [year, month, day] = e.target.value
+                            .split("-")
+                            .map(Number);
                           setHistoryEndDate(new Date(year, month - 1, day));
                         } else {
                           setHistoryEndDate(undefined);
@@ -3223,12 +3400,14 @@ function TimeTrackingPage() {
                 ) : (
                   <div className="space-y-3">
                     {mergedRecords.map((record) => {
-                      if (record.type === 'time') {
+                      if (record.type === "time") {
                         const entry = record.data;
                         const employee = activeEmployees?.find(
                           (e) => e.id === entry.employeeId
                         );
-                        const task = allTasks?.find((t) => t.id === entry.taskId);
+                        const task = allTasks?.find(
+                          (t) => t.id === entry.taskId
+                        );
                         const client = clients?.find(
                           (c) => c.id === task?.clientId
                         );
@@ -3268,15 +3447,22 @@ function TimeTrackingPage() {
                                 </span>
                                 {/* Payment Type Badge */}
                                 {(() => {
-                                  const taskForEntry = allTasks?.find((t) => t.id === entry.taskId);
-                                  const paymentType = entry.paymentModality || 
-                                    (taskForEntry?.clientRateType === "piece" ? "Piecework" : "Hourly");
+                                  const taskForEntry = allTasks?.find(
+                                    (t) => t.id === entry.taskId
+                                  );
+                                  const paymentType =
+                                    entry.paymentModality ||
+                                    (taskForEntry?.clientRateType === "piece"
+                                      ? "Piecework"
+                                      : "Hourly");
                                   return (
-                                    <span className={`text-xs px-2 py-1 rounded-full ${
-                                      paymentType === "Piecework" 
-                                        ? "bg-purple-100 text-purple-800" 
-                                        : "bg-orange-100 text-orange-800"
-                                    }`}>
+                                    <span
+                                      className={`text-xs px-2 py-1 rounded-full ${
+                                        paymentType === "Piecework"
+                                          ? "bg-purple-100 text-purple-800"
+                                          : "bg-orange-100 text-orange-800"
+                                      }`}
+                                    >
                                       {paymentType}
                                     </span>
                                   );
@@ -3312,46 +3498,95 @@ function TimeTrackingPage() {
                               </div>
                               {/* Show pieces: both from piecesWorked field and related piecework records */}
                               {(() => {
-                                const relatedPiecework = allPiecework?.filter(p => 
-                                  p.employeeId === entry.employeeId && 
-                                  p.taskId === entry.taskId &&
-                                  (() => {
-                                    const pieceTime = p.timestamp instanceof Date ? p.timestamp : (p.timestamp as any)?.toDate ? (p.timestamp as any).toDate() : new Date(p.timestamp as any);
-                                    // Show pieces that fall within the time entry period, or within same day if no end time
-                                    if (entry.endTime) {
-                                      const endTime = entry.endTime instanceof Date ? entry.endTime : (entry.endTime as any)?.toDate ? (entry.endTime as any).toDate() : new Date(entry.endTime as any);
-                                      return pieceTime.getTime() >= clockInTime.getTime() && pieceTime.getTime() <= endTime.getTime();
-                                    } else {
-                                      // If entry is still active, show pieces from same day
-                                      return pieceTime.toDateString() === clockInTime.toDateString();
-                                    }
-                                  })()
-                                ) || [];
-                                
-                                const hasPieces = (entry.piecesWorked && entry.piecesWorked > 0) || relatedPiecework.length > 0;
-                                
+                                const relatedPiecework =
+                                  allPiecework?.filter(
+                                    (p) =>
+                                      p.employeeId === entry.employeeId &&
+                                      p.taskId === entry.taskId &&
+                                      (() => {
+                                        const pieceTime =
+                                          p.timestamp instanceof Date
+                                            ? p.timestamp
+                                            : (p.timestamp as any)?.toDate
+                                            ? (p.timestamp as any).toDate()
+                                            : new Date(p.timestamp as any);
+                                        // Show pieces that fall within the time entry period, or within same day if no end time
+                                        if (entry.endTime) {
+                                          const endTime =
+                                            entry.endTime instanceof Date
+                                              ? entry.endTime
+                                              : (entry.endTime as any)?.toDate
+                                              ? (entry.endTime as any).toDate()
+                                              : new Date(entry.endTime as any);
+                                          return (
+                                            pieceTime.getTime() >=
+                                              clockInTime.getTime() &&
+                                            pieceTime.getTime() <=
+                                              endTime.getTime()
+                                          );
+                                        } else {
+                                          // If entry is still active, show pieces from same day
+                                          return (
+                                            pieceTime.toDateString() ===
+                                            clockInTime.toDateString()
+                                          );
+                                        }
+                                      })()
+                                  ) || [];
+
+                                const hasPieces =
+                                  (entry.piecesWorked &&
+                                    entry.piecesWorked > 0) ||
+                                  relatedPiecework.length > 0;
+
                                 if (!hasPieces) return null;
-                                
+
                                 // Calculate total pieces
-                                const totalPieces = (entry.piecesWorked || 0) + relatedPiecework.reduce((sum, p) => sum + p.pieceCount, 0);
-                                
+                                const totalPieces =
+                                  (entry.piecesWorked || 0) +
+                                  relatedPiecework.reduce(
+                                    (sum, p) => sum + p.pieceCount,
+                                    0
+                                  );
+
                                 return (
                                   <div className="text-sm">
-                                    <p className="font-medium text-muted-foreground mb-1">Pieces (Total: {totalPieces}):</p>
+                                    <p className="font-medium text-muted-foreground mb-1">
+                                      Pieces (Total: {totalPieces}):
+                                    </p>
                                     <ul className="list-none space-y-1 ml-4">
-                                      {entry.piecesWorked && entry.piecesWorked > 0 && (
-                                        <li className="text-muted-foreground">
-                                          {clockOutTime ? format(clockOutTime, "p") : "In progress"}: {entry.piecesWorked} piece(s)
-                                        </li>
-                                      )}
-                                      {relatedPiecework.map(piece => {
-                                        const pieceTime = piece.timestamp instanceof Date ? piece.timestamp : (piece.timestamp as any)?.toDate ? (piece.timestamp as any).toDate() : new Date(piece.timestamp as any);
+                                      {entry.piecesWorked &&
+                                        entry.piecesWorked > 0 && (
+                                          <li className="text-muted-foreground">
+                                            {clockOutTime
+                                              ? format(clockOutTime, "p")
+                                              : "In progress"}
+                                            : {entry.piecesWorked} piece(s)
+                                          </li>
+                                        )}
+                                      {relatedPiecework.map((piece) => {
+                                        const pieceTime =
+                                          piece.timestamp instanceof Date
+                                            ? piece.timestamp
+                                            : (piece.timestamp as any)?.toDate
+                                            ? (piece.timestamp as any).toDate()
+                                            : new Date(piece.timestamp as any);
                                         return (
-                                          <li key={piece.id} className="text-muted-foreground">
-                                            {format(pieceTime, "p")}: {piece.pieceCount} piece(s)
-                                            {piece.pieceQrCode && piece.pieceQrCode !== "manual_entry" && piece.pieceQrCode !== "past_record_entry" && (
-                                              <span className="text-xs ml-2">(Bin: {piece.pieceQrCode})</span>
-                                            )}
+                                          <li
+                                            key={piece.id}
+                                            className="text-muted-foreground"
+                                          >
+                                            {format(pieceTime, "p")}:{" "}
+                                            {piece.pieceCount} piece(s)
+                                            {piece.pieceQrCode &&
+                                              piece.pieceQrCode !==
+                                                "manual_entry" &&
+                                              piece.pieceQrCode !==
+                                                "past_record_entry" && (
+                                                <span className="text-xs ml-2">
+                                                  (Bin: {piece.pieceQrCode})
+                                                </span>
+                                              )}
                                           </li>
                                         );
                                       })}
@@ -3365,33 +3600,62 @@ function TimeTrackingPage() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
-                                  const taskForEntry = allTasks?.find((t) => t.id === entry.taskId);
+                                  const taskForEntry = allTasks?.find(
+                                    (t) => t.id === entry.taskId
+                                  );
                                   // Initialize payment modality based on task type or entry's paymentModality
-                                  const initialModality = entry.paymentModality || 
-                                    (taskForEntry?.clientRateType === "piece" ? "Piecework" : "Hourly");
-                                  
+                                  const initialModality =
+                                    entry.paymentModality ||
+                                    (taskForEntry?.clientRateType === "piece"
+                                      ? "Piecework"
+                                      : "Hourly");
+
                                   // Get related piecework for this time entry
-                                  const relatedPieces = allPiecework?.filter(p => 
-                                    p.employeeId === entry.employeeId && 
-                                    p.taskId === entry.taskId &&
-                                    (() => {
-                                      const pieceTime = p.timestamp instanceof Date ? p.timestamp : (p.timestamp as any)?.toDate ? (p.timestamp as any).toDate() : new Date(p.timestamp as any);
-                                      if (entry.endTime) {
-                                        const endTime = entry.endTime instanceof Date ? entry.endTime : (entry.endTime as any)?.toDate ? (entry.endTime as any).toDate() : new Date(entry.endTime as any);
-                                        return pieceTime.getTime() >= clockInTime.getTime() && pieceTime.getTime() <= endTime.getTime();
-                                      } else {
-                                        return pieceTime.toDateString() === clockInTime.toDateString();
-                                      }
-                                    })()
-                                  ) || [];
-                                  
+                                  const relatedPieces =
+                                    allPiecework?.filter(
+                                      (p) =>
+                                        p.employeeId === entry.employeeId &&
+                                        p.taskId === entry.taskId &&
+                                        (() => {
+                                          const pieceTime =
+                                            p.timestamp instanceof Date
+                                              ? p.timestamp
+                                              : (p.timestamp as any)?.toDate
+                                              ? (p.timestamp as any).toDate()
+                                              : new Date(p.timestamp as any);
+                                          if (entry.endTime) {
+                                            const endTime =
+                                              entry.endTime instanceof Date
+                                                ? entry.endTime
+                                                : (entry.endTime as any)?.toDate
+                                                ? (
+                                                    entry.endTime as any
+                                                  ).toDate()
+                                                : new Date(
+                                                    entry.endTime as any
+                                                  );
+                                            return (
+                                              pieceTime.getTime() >=
+                                                clockInTime.getTime() &&
+                                              pieceTime.getTime() <=
+                                                endTime.getTime()
+                                            );
+                                          } else {
+                                            return (
+                                              pieceTime.toDateString() ===
+                                              clockInTime.toDateString()
+                                            );
+                                          }
+                                        })()
+                                    ) || [];
+
                                   setEditTarget({ type: "time", entry: entry });
                                   setEditTimestamp(clockInTime);
                                   setEditEndTime(clockOutTime || undefined);
                                   setEditPiecesWorked(entry.piecesWorked || 0);
                                   setEditPaymentModality(initialModality);
                                   setEditRelatedPiecework(relatedPieces);
-                                  
+
                                   // Initialize task selection
                                   setEditTaskId(entry.taskId);
                                   if (taskForEntry) {
@@ -3399,7 +3663,7 @@ function TimeTrackingPage() {
                                     setEditRanch(taskForEntry.ranch || "");
                                     setEditBlock(taskForEntry.block || "");
                                   }
-                                  
+
                                   setEditDialogOpen(true);
                                 }}
                               >
@@ -3409,7 +3673,10 @@ function TimeTrackingPage() {
                                 variant="destructive"
                                 size="sm"
                                 onClick={() => {
-                                  setDeleteTarget({ type: "time", id: entry.id });
+                                  setDeleteTarget({
+                                    type: "time",
+                                    id: entry.id,
+                                  });
                                   setDeleteConfirmOpen(true);
                                 }}
                               >
@@ -3421,42 +3688,56 @@ function TimeTrackingPage() {
                       } else {
                         // Piecework record - only show if it's NOT already included in a TimeEntry
                         const piece = record.data;
-                        
+
                         // Check if this piecework is already shown within a time entry
-                        const pieceTime = piece.timestamp instanceof Date
-                          ? piece.timestamp
-                          : (piece.timestamp as any)?.toDate
-                          ? (piece.timestamp as any).toDate()
-                          : new Date(piece.timestamp as any);
-                        
-                        const isIncludedInTimeEntry = allTimeEntries?.some(entry => {
-                          if (entry.employeeId !== piece.employeeId || entry.taskId !== piece.taskId) {
-                            return false;
+                        const pieceTime =
+                          piece.timestamp instanceof Date
+                            ? piece.timestamp
+                            : (piece.timestamp as any)?.toDate
+                            ? (piece.timestamp as any).toDate()
+                            : new Date(piece.timestamp as any);
+
+                        const isIncludedInTimeEntry = allTimeEntries?.some(
+                          (entry) => {
+                            if (
+                              entry.employeeId !== piece.employeeId ||
+                              entry.taskId !== piece.taskId
+                            ) {
+                              return false;
+                            }
+                            const clockInTime =
+                              entry.timestamp instanceof Date
+                                ? entry.timestamp
+                                : (entry.timestamp as any)?.toDate
+                                ? (entry.timestamp as any).toDate()
+                                : new Date(entry.timestamp as any);
+
+                            if (entry.endTime) {
+                              const clockOutTime =
+                                entry.endTime instanceof Date
+                                  ? entry.endTime
+                                  : (entry.endTime as any)?.toDate
+                                  ? (entry.endTime as any).toDate()
+                                  : new Date(entry.endTime as any);
+                              return (
+                                pieceTime.getTime() >= clockInTime.getTime() &&
+                                pieceTime.getTime() <= clockOutTime.getTime()
+                              );
+                            } else {
+                              // Active entry - check if piece is from same day
+                              return (
+                                pieceTime.toDateString() ===
+                                clockInTime.toDateString()
+                              );
+                            }
                           }
-                          const clockInTime = entry.timestamp instanceof Date
-                            ? entry.timestamp
-                            : (entry.timestamp as any)?.toDate
-                            ? (entry.timestamp as any).toDate()
-                            : new Date(entry.timestamp as any);
-                          
-                          if (entry.endTime) {
-                            const clockOutTime = entry.endTime instanceof Date
-                              ? entry.endTime
-                              : (entry.endTime as any)?.toDate
-                              ? (entry.endTime as any).toDate()
-                              : new Date(entry.endTime as any);
-                            return pieceTime.getTime() >= clockInTime.getTime() && pieceTime.getTime() <= clockOutTime.getTime();
-                          } else {
-                            // Active entry - check if piece is from same day
-                            return pieceTime.toDateString() === clockInTime.toDateString();
-                          }
-                        });
-                        
+                        );
+
                         // Skip this piecework if it's already shown in a time entry
                         if (isIncludedInTimeEntry) {
                           return null;
                         }
-                        
+
                         // Handle multiple employees (comma-separated IDs)
                         const employeeIds = piece.employeeId.split(",");
                         const employeeNames =
@@ -3469,7 +3750,9 @@ function TimeTrackingPage() {
                             )
                             .filter(Boolean)
                             .join(", ") || "Unknown Employee(s)";
-                        const task = allTasks?.find((t) => t.id === piece.taskId);
+                        const task = allTasks?.find(
+                          (t) => t.id === piece.taskId
+                        );
                         const client = clients?.find(
                           (c) => c.id === task?.clientId
                         );
@@ -3536,15 +3819,17 @@ function TimeTrackingPage() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
-                                  const taskForPiece = allTasks?.find((t) => t.id === piece.taskId);
-                                  
+                                  const taskForPiece = allTasks?.find(
+                                    (t) => t.id === piece.taskId
+                                  );
+
                                   setEditTarget({
                                     type: "piecework",
                                     entry: piece,
                                   });
                                   setEditTimestamp(pieceTime);
                                   setEditPieceCount(piece.pieceCount || 1);
-                                  
+
                                   // Initialize task selection
                                   setEditTaskId(piece.taskId);
                                   if (taskForPiece) {
@@ -3552,7 +3837,7 @@ function TimeTrackingPage() {
                                     setEditRanch(taskForPiece.ranch || "");
                                     setEditBlock(taskForPiece.block || "");
                                   }
-                                  
+
                                   setEditDialogOpen(true);
                                 }}
                               >
@@ -3669,8 +3954,8 @@ function TimeTrackingPage() {
               {editTarget?.type === "time" ? "Time Entry" : "Piecework Record"}
             </DialogTitle>
             <DialogDescription>
-              {editTarget?.type === "time" 
-                ? "Update the client, task, timestamps and payment details for this time entry." 
+              {editTarget?.type === "time"
+                ? "Update the client, task, timestamps and payment details for this time entry."
                 : "Update the client, task, timestamp and quantity for this piecework record."}
             </DialogDescription>
           </DialogHeader>
@@ -3686,7 +3971,7 @@ function TimeTrackingPage() {
                 placeholder="Select date and time"
               />
             </div>
-            
+
             {/* Task Selection Fields */}
             <div className="space-y-4 p-4 border rounded-md bg-muted/30">
               <div className="space-y-2">
@@ -3762,11 +4047,13 @@ function TimeTrackingPage() {
                 </Select>
               </div>
             </div>
-            
+
             {editTarget?.type === "time" && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-endtime">Clock-Out Time (optional)</Label>
+                  <Label htmlFor="edit-endtime">
+                    Clock-Out Time (optional)
+                  </Label>
                   <DateTimePicker
                     date={editEndTime}
                     setDate={setEditEndTime}
@@ -3774,16 +4061,21 @@ function TimeTrackingPage() {
                     placeholder="Select date and time or leave empty"
                   />
                 </div>
-                
+
                 {/* Show all pieces with individual editable fields */}
-                {(editPiecesWorked > 0 || editPiecesWorked === "" || editRelatedPiecework.length > 0 || (editTarget && editTarget.type === "time")) && (
+                {(editPiecesWorked > 0 ||
+                  editPiecesWorked === "" ||
+                  editRelatedPiecework.length > 0 ||
+                  (editTarget && editTarget.type === "time")) && (
                   <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
                     <p className="font-medium text-sm">Pieces Worked:</p>
-                    
+
                     {/* Show piecesWorked field - always show for time entries */}
                     <div className="space-y-2">
                       <Label htmlFor="edit-pieces-main">
-                        {editEndTime ? format(editEndTime, "PPp") : "Clock-out time"}
+                        {editEndTime
+                          ? format(editEndTime, "PPp")
+                          : "Clock-out time"}
                       </Label>
                       <Input
                         id="edit-pieces-main"
@@ -3811,10 +4103,15 @@ function TimeTrackingPage() {
                         }}
                       />
                     </div>
-                    
+
                     {/* Show related piecework fields */}
                     {editRelatedPiecework.map((piece, index) => {
-                      const pieceTime = piece.timestamp instanceof Date ? piece.timestamp : (piece.timestamp as any)?.toDate ? (piece.timestamp as any).toDate() : new Date(piece.timestamp as any);
+                      const pieceTime =
+                        piece.timestamp instanceof Date
+                          ? piece.timestamp
+                          : (piece.timestamp as any)?.toDate
+                          ? (piece.timestamp as any).toDate()
+                          : new Date(piece.timestamp as any);
                       return (
                         <div key={piece.id} className="space-y-2">
                           <Label htmlFor={`edit-piece-${index}`}>
@@ -3828,30 +4125,43 @@ function TimeTrackingPage() {
                             value={piece.pieceCount}
                             onChange={(e) => {
                               const value = e.target.value;
-                              const newCount = value === "" ? 0 : parseInt(value, 10);
+                              const newCount =
+                                value === "" ? 0 : parseInt(value, 10);
                               const updated = [...editRelatedPiecework];
-                              updated[index] = { ...piece, pieceCount: newCount };
+                              updated[index] = {
+                                ...piece,
+                                pieceCount: newCount,
+                              };
                               setEditRelatedPiecework(updated);
                             }}
                           />
                         </div>
                       );
                     })}
-                    
+
                     {/* Show total */}
                     <div className="pt-2 border-t">
                       <p className="text-sm font-medium text-muted-foreground">
-                        Total Pieces: {(typeof editPiecesWorked === 'number' ? editPiecesWorked : parseInt(String(editPiecesWorked), 10) || 0) + editRelatedPiecework.reduce((sum, p) => sum + p.pieceCount, 0)}
+                        Total Pieces:{" "}
+                        {(typeof editPiecesWorked === "number"
+                          ? editPiecesWorked
+                          : parseInt(String(editPiecesWorked), 10) || 0) +
+                          editRelatedPiecework.reduce(
+                            (sum, p) => sum + p.pieceCount,
+                            0
+                          )}
                       </p>
                     </div>
                   </div>
                 )}
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="edit-modality">Payment Modality</Label>
                   <Select
                     value={editPaymentModality}
-                    onValueChange={(value: "Hourly" | "Piecework") => setEditPaymentModality(value)}
+                    onValueChange={(value: "Hourly" | "Piecework") =>
+                      setEditPaymentModality(value)
+                    }
                   >
                     <SelectTrigger id="edit-modality">
                       <SelectValue placeholder="Select payment type" />
@@ -3866,7 +4176,9 @@ function TimeTrackingPage() {
             )}
             {editTarget?.type === "piecework" && (
               <div className="space-y-2">
-                <Label htmlFor="edit-piece-count">Quantity (can include decimals)</Label>
+                <Label htmlFor="edit-piece-count">
+                  Quantity (can include decimals)
+                </Label>
                 <Input
                   id="edit-piece-count"
                   type="number"
