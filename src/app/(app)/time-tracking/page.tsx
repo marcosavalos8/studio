@@ -3776,29 +3776,41 @@ function TimeTrackingPage() {
                 </div>
                 
                 {/* Show all pieces with individual editable fields */}
-                {(editPiecesWorked > 0 || editRelatedPiecework.length > 0) && (
+                {(editPiecesWorked > 0 || editPiecesWorked === "" || editRelatedPiecework.length > 0 || (editTarget && editTarget.type === "time")) && (
                   <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
                     <p className="font-medium text-sm">Pieces Worked:</p>
                     
-                    {/* Show piecesWorked field */}
-                    {editPiecesWorked > 0 && (
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-pieces-main">
-                          {editEndTime ? format(editEndTime, "PPp") : "Clock-out time"}
-                        </Label>
-                        <Input
-                          id="edit-pieces-main"
-                          type="number"
-                          min="0"
-                          placeholder="Enter number of pieces"
-                          value={editPiecesWorked}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setEditPiecesWorked(value === "" ? 0 : parseInt(value, 10));
-                          }}
-                        />
-                      </div>
-                    )}
+                    {/* Show piecesWorked field - always show for time entries */}
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-pieces-main">
+                        {editEndTime ? format(editEndTime, "PPp") : "Clock-out time"}
+                      </Label>
+                      <Input
+                        id="edit-pieces-main"
+                        type="number"
+                        min="0"
+                        placeholder="Enter number of pieces"
+                        value={editPiecesWorked}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          // Allow empty string for deletion
+                          if (value === "") {
+                            setEditPiecesWorked("");
+                          } else {
+                            const numValue = parseInt(value, 10);
+                            if (!isNaN(numValue) && numValue >= 0) {
+                              setEditPiecesWorked(numValue);
+                            }
+                          }
+                        }}
+                        onBlur={(e) => {
+                          // Convert empty to 0 on blur
+                          if (e.target.value === "") {
+                            setEditPiecesWorked(0);
+                          }
+                        }}
+                      />
+                    </div>
                     
                     {/* Show related piecework fields */}
                     {editRelatedPiecework.map((piece, index) => {

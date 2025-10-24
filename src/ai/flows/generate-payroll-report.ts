@@ -225,6 +225,11 @@ export async function generatePayrollReport({
           if (!dailyWork[dayKey].tasks[entry.taskId])
             dailyWork[dayKey].tasks[entry.taskId] = { hours: 0, pieces: 0 };
           dailyWork[dayKey].tasks[entry.taskId].hours += hours;
+          
+          // Add pieces from piecesWorked field in TimeEntry
+          if (entry.piecesWorked && entry.piecesWorked > 0) {
+            dailyWork[dayKey].tasks[entry.taskId].pieces += entry.piecesWorked;
+          }
         });
 
         pieces.forEach((entry) => {
