@@ -212,6 +212,8 @@ function TimeTrackingPage() {
   const [editRanch, setEditRanch] = useState<string>("");
   const [editBlock, setEditBlock] = useState<string>("");
   const [editRelatedPiecework, setEditRelatedPiecework] = useState<Piecework[]>([]);
+  const [isPopulatingEditFields, setIsPopulatingEditFields] = useState(false); // Flag to prevent auto-reset during initialization
+
 
   // Debounce state
   const [recentScans, setRecentScans] = useState<
@@ -573,19 +575,25 @@ function TimeTrackingPage() {
 
   // Reset edit selections when edit client changes
   useEffect(() => {
-    setEditRanch("");
-    setEditBlock("");
-    setEditTaskId("");
-  }, [editClient]);
+    if (!isPopulatingEditFields) {
+      setEditRanch("");
+      setEditBlock("");
+      setEditTaskId("");
+    }
+  }, [editClient, isPopulatingEditFields]);
 
   useEffect(() => {
-    setEditBlock("");
-    setEditTaskId("");
-  }, [editRanch]);
+    if (!isPopulatingEditFields) {
+      setEditBlock("");
+      setEditTaskId("");
+    }
+  }, [editRanch, isPopulatingEditFields]);
 
   useEffect(() => {
-    setEditTaskId("");
-  }, [editBlock]);
+    if (!isPopulatingEditFields) {
+      setEditTaskId("");
+    }
+  }, [editBlock, isPopulatingEditFields]);
 
   // Reset scans when mode changes
   useEffect(() => {
@@ -1524,6 +1532,7 @@ function TimeTrackingPage() {
       setEditRanch("");
       setEditBlock("");
       setEditRelatedPiecework([]);
+      setIsPopulatingEditFields(false);
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
         path: "time_entries",
@@ -1589,6 +1598,7 @@ function TimeTrackingPage() {
       setEditClient("");
       setEditRanch("");
       setEditBlock("");
+      setIsPopulatingEditFields(false);
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
         path: "piecework",
@@ -3456,6 +3466,9 @@ function TimeTrackingPage() {
                                     })()
                                   ) || [];
                                   
+                                  // Set flag to prevent auto-reset during field population
+                                  setIsPopulatingEditFields(true);
+                                  
                                   setEditTarget({ type: "time", entry: entry });
                                   setEditTimestamp(clockInTime);
                                   setEditEndTime(clockOutTime || undefined);
@@ -3470,6 +3483,9 @@ function TimeTrackingPage() {
                                     setEditRanch(taskForEntry.ranch || "");
                                     setEditBlock(taskForEntry.block || "");
                                   }
+                                  
+                                  // Clear flag after a short delay to allow state updates
+                                  setTimeout(() => setIsPopulatingEditFields(false), 100);
                                   
                                   setEditDialogOpen(true);
                                 }}
@@ -3609,6 +3625,9 @@ function TimeTrackingPage() {
                                 onClick={() => {
                                   const taskForPiece = allTasks?.find((t) => t.id === piece.taskId);
                                   
+                                  // Set flag to prevent auto-reset during field population
+                                  setIsPopulatingEditFields(true);
+                                  
                                   setEditTarget({
                                     type: "piecework",
                                     entry: piece,
@@ -3623,6 +3642,9 @@ function TimeTrackingPage() {
                                     setEditRanch(taskForPiece.ranch || "");
                                     setEditBlock(taskForPiece.block || "");
                                   }
+                                  
+                                  // Clear flag after a short delay to allow state updates
+                                  setTimeout(() => setIsPopulatingEditFields(false), 100);
                                   
                                   setEditDialogOpen(true);
                                 }}
@@ -3983,6 +4005,7 @@ function TimeTrackingPage() {
                 setEditClient("");
                 setEditRanch("");
                 setEditBlock("");
+                setIsPopulatingEditFields(false);
               }}
             >
               Cancel
