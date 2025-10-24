@@ -210,6 +210,7 @@ function TimeTrackingPage() {
   const [editClient, setEditClient] = useState<string>("");
   const [editRanch, setEditRanch] = useState<string>("");
   const [editBlock, setEditBlock] = useState<string>("");
+  const [editRelatedPiecework, setEditRelatedPiecework] = useState<Piecework[]>([]);
 
   // Debounce state
   const [recentScans, setRecentScans] = useState<
@@ -1466,15 +1467,30 @@ function TimeTrackingPage() {
       const pieces = typeof editPiecesWorked === 'number' ? editPiecesWorked : parseInt(String(editPiecesWorked), 10);
       if (!isNaN(pieces) && pieces > 0) {
         updateData.piecesWorked = pieces;
+      } else {
+        updateData.piecesWorked = 0; // Set to 0 if empty or invalid
       }
 
+      // Update the time entry
       await updateDoc(
         doc(firestore, "time_entries", editTarget.entry.id),
         updateData
       );
+      
+      // Update all related piecework records
+      for (const piece of editRelatedPiecework) {
+        await updateDoc(
+          doc(firestore, "piecework", piece.id),
+          {
+            pieceCount: piece.pieceCount,
+            // Keep the timestamp and other fields as they were
+          }
+        );
+      }
+      
       toast({
         title: "Entry Updated",
-        description: "Time entry has been successfully updated.",
+        description: "Time entry and all pieces have been successfully updated.",
       });
       setEditDialogOpen(false);
       setEditTarget(null);
@@ -1486,6 +1502,7 @@ function TimeTrackingPage() {
       setEditClient("");
       setEditRanch("");
       setEditBlock("");
+      setEditRelatedPiecework([]);
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
         path: "time_entries",
@@ -3315,9 +3332,12 @@ function TimeTrackingPage() {
                                 
                                 if (!hasPieces) return null;
                                 
+                                // Calculate total pieces
+                                const totalPieces = (entry.piecesWorked || 0) + relatedPiecework.reduce((sum, p) => sum + p.pieceCount, 0);
+                                
                                 return (
                                   <div className="text-sm">
-                                    <p className="font-medium text-muted-foreground mb-1">Pieces:</p>
+                                    <p className="font-medium text-muted-foreground mb-1">Pieces (Total: {totalPieces}):</p>
                                     <ul className="list-none space-y-1 ml-4">
                                       {entry.piecesWorked && entry.piecesWorked > 0 && (
                                         <li className="text-muted-foreground">
@@ -3350,11 +3370,27 @@ function TimeTrackingPage() {
                                   const initialModality = entry.paymentModality || 
                                     (taskForEntry?.clientRateType === "piece" ? "Piecework" : "Hourly");
                                   
+                                  // Get related piecework for this time entry
+                                  const relatedPieces = allPiecework?.filter(p => 
+                                    p.employeeId === entry.employeeId && 
+                                    p.taskId === entry.taskId &&
+                                    (() => {
+                                      const pieceTime = p.timestamp instanceof Date ? p.timestamp : (p.timestamp as any)?.toDate ? (p.timestamp as any).toDate() : new Date(p.timestamp as any);
+                                      if (entry.endTime) {
+                                        const endTime = entry.endTime instanceof Date ? entry.endTime : (entry.endTime as any)?.toDate ? (entry.endTime as any).toDate() : new Date(entry.endTime as any);
+                                        return pieceTime.getTime() >= clockInTime.getTime() && pieceTime.getTime() <= endTime.getTime();
+                                      } else {
+                                        return pieceTime.toDateString() === clockInTime.toDateString();
+                                      }
+                                    })()
+                                  ) || [];
+                                  
                                   setEditTarget({ type: "time", entry: entry });
                                   setEditTimestamp(clockInTime);
                                   setEditEndTime(clockOutTime || undefined);
                                   setEditPiecesWorked(entry.piecesWorked || 0);
                                   setEditPaymentModality(initialModality);
+                                  setEditRelatedPiecework(relatedPieces);
                                   
                                   // Initialize task selection
                                   setEditTaskId(entry.taskId);
@@ -3738,20 +3774,67 @@ function TimeTrackingPage() {
                     placeholder="Select date and time or leave empty"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-pieces">Pieces Worked (optional)</Label>
-                  <Input
-                    id="edit-pieces"
-                    type="number"
-                    min="0"
-                    placeholder="Enter number of pieces"
-                    value={editPiecesWorked}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setEditPiecesWorked(value === "" ? 0 : parseInt(value, 10));
-                    }}
-                  />
-                </div>
+                
+                {/* Show all pieces with individual editable fields */}
+                {(editPiecesWorked > 0 || editRelatedPiecework.length > 0) && (
+                  <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+                    <p className="font-medium text-sm">Pieces Worked:</p>
+                    
+                    {/* Show piecesWorked field */}
+                    {editPiecesWorked > 0 && (
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-pieces-main">
+                          {editEndTime ? format(editEndTime, "PPp") : "Clock-out time"}
+                        </Label>
+                        <Input
+                          id="edit-pieces-main"
+                          type="number"
+                          min="0"
+                          placeholder="Enter number of pieces"
+                          value={editPiecesWorked}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setEditPiecesWorked(value === "" ? 0 : parseInt(value, 10));
+                          }}
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Show related piecework fields */}
+                    {editRelatedPiecework.map((piece, index) => {
+                      const pieceTime = piece.timestamp instanceof Date ? piece.timestamp : (piece.timestamp as any)?.toDate ? (piece.timestamp as any).toDate() : new Date(piece.timestamp as any);
+                      return (
+                        <div key={piece.id} className="space-y-2">
+                          <Label htmlFor={`edit-piece-${index}`}>
+                            {format(pieceTime, "PPp")}
+                          </Label>
+                          <Input
+                            id={`edit-piece-${index}`}
+                            type="number"
+                            min="0"
+                            placeholder="Enter number of pieces"
+                            value={piece.pieceCount}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              const newCount = value === "" ? 0 : parseInt(value, 10);
+                              const updated = [...editRelatedPiecework];
+                              updated[index] = { ...piece, pieceCount: newCount };
+                              setEditRelatedPiecework(updated);
+                            }}
+                          />
+                        </div>
+                      );
+                    })}
+                    
+                    {/* Show total */}
+                    <div className="pt-2 border-t">
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Total Pieces: {(typeof editPiecesWorked === 'number' ? editPiecesWorked : parseInt(String(editPiecesWorked), 10) || 0) + editRelatedPiecework.reduce((sum, p) => sum + p.pieceCount, 0)}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
                 <div className="space-y-2">
                   <Label htmlFor="edit-modality">Payment Modality</Label>
                   <Select
