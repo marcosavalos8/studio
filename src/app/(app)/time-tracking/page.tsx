@@ -24,7 +24,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar as CalendarUI } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -181,8 +185,10 @@ function TimeTrackingPage() {
   const [pastRecordDate, setPastRecordDate] = useState<Date | undefined>(
     undefined
   );
-  const [pastRecordClockInTime, setPastRecordClockInTime] = useState<string>("");
-  const [pastRecordClockOutTime, setPastRecordClockOutTime] = useState<string>("");
+  const [pastRecordClockInTime, setPastRecordClockInTime] =
+    useState<string>("");
+  const [pastRecordClockOutTime, setPastRecordClockOutTime] =
+    useState<string>("");
   const [pastRecordPiecesCount, setPastRecordPiecesCount] = useState<
     number | string
   >("");
@@ -570,7 +576,7 @@ function TimeTrackingPage() {
     [audioContext]
   );
 
-  // Reset selections when client changes
+  /*   // Reset selections when client changes
   useEffect(() => {
     setSelectedRanch("");
     setSelectedBlock("");
@@ -600,7 +606,7 @@ function TimeTrackingPage() {
 
   useEffect(() => {
     setEditTaskId("");
-  }, [editBlock]);
+  }, [editBlock]); */
 
   // Synchronize past record date and time states
   useEffect(() => {
@@ -1581,16 +1587,11 @@ function TimeTrackingPage() {
         updateData.endTime = editEndTime;
       }
 
-      // Only include piecesWorked if it's a valid number and greater than 0
       const pieces =
-        typeof editPiecesWorked === "number"
-          ? editPiecesWorked
-          : parseInt(String(editPiecesWorked), 10);
-      if (!isNaN(pieces) && pieces > 0) {
-        updateData.piecesWorked = pieces;
-      } else {
-        updateData.piecesWorked = 0; // Set to 0 if empty or invalid
-      }
+        typeof editPiecesWorked === "string"
+          ? parseFloat(editPiecesWorked) || 0
+          : editPiecesWorked || 0;
+      updateData.piecesWorked = pieces;
 
       // Update the time entry
       await updateDoc(
@@ -1600,8 +1601,13 @@ function TimeTrackingPage() {
 
       // Update all related piecework records
       for (const piece of editRelatedPiecework) {
+        const validPieceCount =
+          typeof piece.pieceCount === "number"
+            ? piece.pieceCount
+            : parseFloat(String(piece.pieceCount)) || 0;
+
         await updateDoc(doc(firestore, "piecework", piece.id), {
-          pieceCount: piece.pieceCount,
+          pieceCount: validPieceCount,
           // Keep the timestamp and other fields as they were
         });
       }
@@ -2090,19 +2096,25 @@ function TimeTrackingPage() {
                         id="past-clock-in-time"
                         type="time"
                         value={pastRecordClockInTime}
-                        onChange={(e) => setPastRecordClockInTime(e.target.value)}
+                        onChange={(e) =>
+                          setPastRecordClockInTime(e.target.value)
+                        }
                         placeholder="Select clock-in time"
                       />
                     </div>
 
                     {/* Clock-Out Time */}
                     <div className="space-y-2">
-                      <Label htmlFor="past-clock-out-time">Clock-Out Time</Label>
+                      <Label htmlFor="past-clock-out-time">
+                        Clock-Out Time
+                      </Label>
                       <Input
                         id="past-clock-out-time"
                         type="time"
                         value={pastRecordClockOutTime}
-                        onChange={(e) => setPastRecordClockOutTime(e.target.value)}
+                        onChange={(e) =>
+                          setPastRecordClockOutTime(e.target.value)
+                        }
                         placeholder="Select clock-out time"
                       />
                     </div>
@@ -2133,9 +2145,33 @@ function TimeTrackingPage() {
                 )}
               </div>
 
+              <div className="p-4 border rounded-lg space-y-4 bg-blue-50 dark:bg-blue-950/20">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="use-sick-hours-checkbox"
+                    checked={useSickHoursForPayment}
+                    onCheckedChange={(checked: boolean) => {
+                      setUseSickHoursForPayment(checked);
+                    }}
+                  />
+                  <Label
+                    htmlFor="use-sick-hours-checkbox"
+                    className="font-semibold text-blue-900 dark:text-blue-100"
+                  >
+                    Use Sick Hours for Payment
+                  </Label>
+                </div>
+                {useSickHoursForPayment && (
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    ⚠️ The hours worked in this shift will be deducted from the
+                    employee's sick hours balance when they clock out.
+                  </p>
+                )}
+              </div>
+
               {!usePastRecords && (
                 <>
-                  <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                  {/* <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="manual-datetime-checkbox"
@@ -2184,34 +2220,7 @@ function TimeTrackingPage() {
                         )}
                       </div>
                     )}
-                  </div>
-
-                  {scanMode === "clock-in" && (
-                    <div className="p-4 border rounded-lg space-y-4 bg-blue-50 dark:bg-blue-950/20">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="use-sick-hours-checkbox"
-                          checked={useSickHoursForPayment}
-                          onCheckedChange={(checked: boolean) => {
-                            setUseSickHoursForPayment(checked);
-                          }}
-                        />
-                        <Label
-                          htmlFor="use-sick-hours-checkbox"
-                          className="font-semibold text-blue-900 dark:text-blue-100"
-                        >
-                          Use Sick Hours for Payment
-                        </Label>
-                      </div>
-                      {useSickHoursForPayment && (
-                        <p className="text-sm text-blue-700 dark:text-blue-300">
-                          ⚠️ The hours worked in this shift will be deducted
-                          from the employee's sick hours balance when they clock
-                          out.
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  </div> */}
 
                   {!usePastRecords && (
                     <div className="space-y-3 md:space-y-4 rounded-lg border bg-card text-card-foreground shadow-sm p-3 md:p-4">
@@ -2335,24 +2344,32 @@ function TimeTrackingPage() {
 
                     {/* Clock-In Time */}
                     <div className="space-y-2">
-                      <Label htmlFor="past-clock-in-time-manual">Clock-In Time</Label>
+                      <Label htmlFor="past-clock-in-time-manual">
+                        Clock-In Time
+                      </Label>
                       <Input
                         id="past-clock-in-time-manual"
                         type="time"
                         value={pastRecordClockInTime}
-                        onChange={(e) => setPastRecordClockInTime(e.target.value)}
+                        onChange={(e) =>
+                          setPastRecordClockInTime(e.target.value)
+                        }
                         placeholder="Select clock-in time"
                       />
                     </div>
 
                     {/* Clock-Out Time */}
                     <div className="space-y-2">
-                      <Label htmlFor="past-clock-out-time-manual">Clock-Out Time</Label>
+                      <Label htmlFor="past-clock-out-time-manual">
+                        Clock-Out Time
+                      </Label>
                       <Input
                         id="past-clock-out-time-manual"
                         type="time"
                         value={pastRecordClockOutTime}
-                        onChange={(e) => setPastRecordClockOutTime(e.target.value)}
+                        onChange={(e) =>
+                          setPastRecordClockOutTime(e.target.value)
+                        }
                         placeholder="Select clock-out time"
                       />
                     </div>
@@ -2382,10 +2399,32 @@ function TimeTrackingPage() {
                   </div>
                 )}
               </div>
-
+              <div className="p-4 border rounded-lg space-y-4 bg-blue-50 dark:bg-blue-950/20">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="use-sick-hours-checkbox-manual"
+                    checked={useSickHoursForPayment}
+                    onCheckedChange={(checked: boolean) => {
+                      setUseSickHoursForPayment(checked);
+                    }}
+                  />
+                  <Label
+                    htmlFor="use-sick-hours-checkbox-manual"
+                    className="font-semibold text-blue-900 dark:text-blue-100"
+                  >
+                    Use Sick Hours for Payment
+                  </Label>
+                </div>
+                {useSickHoursForPayment && (
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    ⚠️ The hours worked in this shift will be deducted from the
+                    employee's sick hours balance when they clock out.
+                  </p>
+                )}
+              </div>
               {!usePastRecords && (
                 <>
-                  <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                  {/*  <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="manual-datetime-checkbox-entry"
@@ -2434,34 +2473,7 @@ function TimeTrackingPage() {
                         )}
                       </div>
                     )}
-                  </div>
-
-                  {manualLogType === "clock-in" && (
-                    <div className="p-4 border rounded-lg space-y-4 bg-blue-50 dark:bg-blue-950/20">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="use-sick-hours-checkbox-manual"
-                          checked={useSickHoursForPayment}
-                          onCheckedChange={(checked: boolean) => {
-                            setUseSickHoursForPayment(checked);
-                          }}
-                        />
-                        <Label
-                          htmlFor="use-sick-hours-checkbox-manual"
-                          className="font-semibold text-blue-900 dark:text-blue-100"
-                        >
-                          Use Sick Hours for Payment
-                        </Label>
-                      </div>
-                      {useSickHoursForPayment && (
-                        <p className="text-sm text-blue-700 dark:text-blue-300">
-                          ⚠️ The hours worked in this shift will be deducted
-                          from the employee's sick hours balance when they clock
-                          out.
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  </div> */}
 
                   {!usePastRecords && (
                     <div className="space-y-2">
@@ -2563,7 +2575,7 @@ function TimeTrackingPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+              {/*    <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="bulk-clock-in-manual-datetime-checkbox"
@@ -2592,7 +2604,7 @@ function TimeTrackingPage() {
                     />
                   </div>
                 )}
-              </div>
+              </div> */}
 
               <div className="space-y-2">
                 <Label htmlFor="bulk-in-task-select">Task</Label>
@@ -2704,7 +2716,7 @@ function TimeTrackingPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+              {/*  <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="bulk-clock-out-manual-datetime-checkbox"
@@ -2733,7 +2745,7 @@ function TimeTrackingPage() {
                     />
                   </div>
                 )}
-              </div>
+              </div> */}
 
               <div className="space-y-2">
                 <Label htmlFor="bulk-task-select">Task</Label>
@@ -3015,7 +3027,7 @@ function TimeTrackingPage() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3 md:space-y-4">
-                      <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                      {/*  <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
                         <div className="flex items-center space-x-2">
                           <Checkbox
                             id="piece-qr-manual-datetime-checkbox"
@@ -3044,7 +3056,7 @@ function TimeTrackingPage() {
                             />
                           </div>
                         )}
-                      </div>
+                      </div> */}
 
                       <div className="p-4 border rounded-lg space-y-4">
                         <div className="flex items-center space-x-2">
@@ -3186,7 +3198,7 @@ function TimeTrackingPage() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                      {/* <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
                         <div className="flex items-center space-x-2">
                           <Checkbox
                             id="piece-manual-datetime-checkbox"
@@ -3215,7 +3227,7 @@ function TimeTrackingPage() {
                             />
                           </div>
                         )}
-                      </div>
+                      </div> */}
 
                       <div className="space-y-2">
                         <Label htmlFor="piece-manual-employee-search">
@@ -3956,12 +3968,12 @@ function TimeTrackingPage() {
                                   setEditTimestamp(pieceTime);
                                   setEditPieceCount(piece.pieceCount || 1);
 
-                                  // Initialize task selection
+                                  // Inicializar selección de tarea COMPLETA
                                   setEditTaskId(piece.taskId);
                                   if (taskForPiece) {
                                     setEditClient(taskForPiece.clientId);
                                     setEditRanch(taskForPiece.ranch || "");
-                                    setEditBlock(taskForPiece.block || "");
+                                    setEditBlock(taskForPiece.block || ""); // <- Esto ya estaba
                                   }
 
                                   setEditDialogOpen(true);
@@ -4203,25 +4215,21 @@ function TimeTrackingPage() {
                       <Input
                         id="edit-pieces-main"
                         type="number"
+                        step="0.01"
                         min="0"
                         placeholder="Enter number of pieces"
-                        value={editPiecesWorked}
+                        value={
+                          editPiecesWorked === 0 ? "" : String(editPiecesWorked)
+                        } // <- Si es 0, mostrar vacío
                         onChange={(e) => {
                           const value = e.target.value;
-                          // Allow empty string for deletion
                           if (value === "") {
-                            setEditPiecesWorked("");
+                            setEditPiecesWorked(""); // <- Guardar como string vacío
                           } else {
-                            const numValue = parseInt(value, 10);
-                            if (!isNaN(numValue) && numValue >= 0) {
+                            const numValue = parseFloat(value);
+                            if (!isNaN(numValue)) {
                               setEditPiecesWorked(numValue);
                             }
-                          }
-                        }}
-                        onBlur={(e) => {
-                          // Convert empty to 0 on blur
-                          if (e.target.value === "") {
-                            setEditPiecesWorked(0);
                           }
                         }}
                       />
@@ -4243,18 +4251,29 @@ function TimeTrackingPage() {
                           <Input
                             id={`edit-piece-${index}`}
                             type="number"
+                            step="0.01"
                             min="0"
                             placeholder="Enter number of pieces"
-                            value={piece.pieceCount}
+                            value={
+                              piece.pieceCount === 0
+                                ? ""
+                                : String(piece.pieceCount)
+                            } // <- Si es 0, mostrar vacío
                             onChange={(e) => {
                               const value = e.target.value;
-                              const newCount =
-                                value === "" ? 0 : parseInt(value, 10);
                               const updated = [...editRelatedPiecework];
-                              updated[index] = {
-                                ...piece,
-                                pieceCount: newCount,
-                              };
+
+                              if (value === "") {
+                                updated[index] = { ...piece, pieceCount: "" }; // <- Guardar como string vacío
+                              } else {
+                                const numValue = parseFloat(value);
+                                if (!isNaN(numValue)) {
+                                  updated[index] = {
+                                    ...piece,
+                                    pieceCount: numValue,
+                                  };
+                                }
+                              }
                               setEditRelatedPiecework(updated);
                             }}
                           />
@@ -4262,17 +4281,66 @@ function TimeTrackingPage() {
                       );
                     })}
 
-                    {/* Show total */}
+                    {/* También para piecework individual */}
+                    {editTarget?.type === "piecework" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-piece-count">
+                          Quantity (can include decimals)
+                        </Label>
+                        <Input
+                          id="edit-piece-count"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="Enter quantity"
+                          value={
+                            editPieceCount === 1 || editPieceCount === 0
+                              ? ""
+                              : String(editPieceCount)
+                          } // <- Si es valor por defecto, mostrar vacío
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value === "") {
+                              setEditPieceCount(""); // <- Guardar como string vacío
+                            } else {
+                              const numValue = parseFloat(value);
+                              if (!isNaN(numValue)) {
+                                setEditPieceCount(numValue);
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    )}
+
                     <div className="pt-2 border-t">
                       <p className="text-sm font-medium text-muted-foreground">
                         Total Pieces:{" "}
-                        {(typeof editPiecesWorked === "number"
-                          ? editPiecesWorked
-                          : parseInt(String(editPiecesWorked), 10) || 0) +
-                          editRelatedPiecework.reduce(
-                            (sum, p) => sum + p.pieceCount,
+                        {(() => {
+                          // Cálculo seguro del total manejando strings vacíos
+                          const mainPieces =
+                            editPiecesWorked === "" || editPiecesWorked === 0
+                              ? 0
+                              : typeof editPiecesWorked === "string"
+                              ? parseFloat(editPiecesWorked) || 0
+                              : editPiecesWorked || 0;
+
+                          const relatedPieces = editRelatedPiecework.reduce(
+                            (sum, p) => {
+                              if (p.pieceCount === "" || p.pieceCount === 0)
+                                return sum;
+                              return (
+                                sum +
+                                (typeof p.pieceCount === "number"
+                                  ? p.pieceCount
+                                  : parseFloat(String(p.pieceCount)) || 0)
+                              );
+                            },
                             0
-                          )}
+                          );
+
+                          return (mainPieces + relatedPieces).toFixed(2);
+                        })()}
                       </p>
                     </div>
                   </div>
@@ -4306,19 +4374,15 @@ function TimeTrackingPage() {
                   id="edit-piece-count"
                   type="number"
                   step="0.01"
-                  min="0.01"
+                  min="0"
                   placeholder="Enter quantity"
                   value={editPieceCount}
                   onChange={(e) => {
                     const value = e.target.value;
-                    setEditPieceCount(value === "" ? "" : value);
+                    // Permitir cualquier entrada, incluso vacía
+                    setEditPieceCount(value);
                   }}
-                  onBlur={(e) => {
-                    const value = parseFloat(e.target.value);
-                    if (isNaN(value) || value <= 0) {
-                      setEditPieceCount(1);
-                    }
-                  }}
+                  // Remover onBlur que forzaba reset a 1
                 />
               </div>
             )}
