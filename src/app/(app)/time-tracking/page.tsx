@@ -842,7 +842,7 @@ function TimeTrackingPage() {
           batch.update(docSnap.ref, { endTime: new Date(clockInTime.getTime() - 1000) });
         });
 
-        // Create the time entry with both clock-in and clock-out (without piecesWorked)
+        // Create the time entry with both clock-in and clock-out
         const newTimeEntryRef = doc(collection(firestore, "time_entries"));
         const newTimeEntry: Omit<TimeEntry, "id"> = {
           employeeId: employee.id,
@@ -850,6 +850,7 @@ function TimeTrackingPage() {
           timestamp: clockInTime,
           endTime: clockOutTime,
           isBreak: false,
+          piecesWorked: piecesCount && piecesCount > 0 ? piecesCount : undefined,
         };
         batch.set(newTimeEntryRef, newTimeEntry);
 
@@ -869,30 +870,12 @@ function TimeTrackingPage() {
         });
 
         await batch.commit();
-        
-        // If pieces count is provided, create individual piecework records
-        if (piecesCount && piecesCount > 0) {
-          // Create piecework records at the clock-out time
-          for (let i = 0; i < piecesCount; i++) {
-            // Spread pieces over the work period with small time offsets
-            const pieceTimestamp = new Date(clockOutTime.getTime() - ((piecesCount - i - 1) * 1000));
-            const pieceworkRecord: Omit<Piecework, "id"> = {
-              employeeId: employee.id,
-              taskId: taskId,
-              timestamp: pieceTimestamp,
-              pieceCount: 1,
-              pieceQrCode: "past_record_entry",
-            };
-            await addDoc(collection(firestore, "piecework"), pieceworkRecord);
-          }
-        }
-        
         playSound("clock-in");
         
         let description = `Created past record for ${employee.name}. Worked ${hoursWorked.toFixed(2)} hrs.`;
         description += ` Accrued ${sickHoursAccrued.toFixed(2)} sick hrs. New balance: ${newSickBalance.toFixed(2)} hrs.`;
         if (piecesCount && piecesCount > 0) {
-          description += ` ${piecesCount} piece(s) recorded.`;
+          description += ` Pieces worked: ${piecesCount}.`;
         }
         
         toast({
@@ -1477,6 +1460,12 @@ function TimeTrackingPage() {
 
       if (editEndTime) {
         updateData.endTime = editEndTime;
+      }
+
+      // Only include piecesWorked if it's a valid number and greater than 0
+      const pieces = typeof editPiecesWorked === 'number' ? editPiecesWorked : parseInt(String(editPiecesWorked), 10);
+      if (!isNaN(pieces) && pieces > 0) {
+        updateData.piecesWorked = pieces;
       }
 
       await updateDoc(
@@ -3304,6 +3293,52 @@ function TimeTrackingPage() {
                                   </div>
                                 )}
                               </div>
+                              {/* Show pieces: both from piecesWorked field and related piecework records */}
+                              {(() => {
+                                const relatedPiecework = allPiecework?.filter(p => 
+                                  p.employeeId === entry.employeeId && 
+                                  p.taskId === entry.taskId &&
+                                  (() => {
+                                    const pieceTime = p.timestamp instanceof Date ? p.timestamp : (p.timestamp as any)?.toDate ? (p.timestamp as any).toDate() : new Date(p.timestamp as any);
+                                    // Show pieces that fall within the time entry period, or within same day if no end time
+                                    if (entry.endTime) {
+                                      const endTime = entry.endTime instanceof Date ? entry.endTime : (entry.endTime as any)?.toDate ? (entry.endTime as any).toDate() : new Date(entry.endTime as any);
+                                      return pieceTime.getTime() >= clockInTime.getTime() && pieceTime.getTime() <= endTime.getTime();
+                                    } else {
+                                      // If entry is still active, show pieces from same day
+                                      return pieceTime.toDateString() === clockInTime.toDateString();
+                                    }
+                                  })()
+                                ) || [];
+                                
+                                const hasPieces = (entry.piecesWorked && entry.piecesWorked > 0) || relatedPiecework.length > 0;
+                                
+                                if (!hasPieces) return null;
+                                
+                                return (
+                                  <div className="text-sm">
+                                    <p className="font-medium text-muted-foreground mb-1">Pieces:</p>
+                                    <ul className="list-none space-y-1 ml-4">
+                                      {entry.piecesWorked && entry.piecesWorked > 0 && (
+                                        <li className="text-muted-foreground">
+                                          {clockOutTime ? format(clockOutTime, "p") : "In progress"}: {entry.piecesWorked} piece(s)
+                                        </li>
+                                      )}
+                                      {relatedPiecework.map(piece => {
+                                        const pieceTime = piece.timestamp instanceof Date ? piece.timestamp : (piece.timestamp as any)?.toDate ? (piece.timestamp as any).toDate() : new Date(piece.timestamp as any);
+                                        return (
+                                          <li key={piece.id} className="text-muted-foreground">
+                                            {format(pieceTime, "p")}: {piece.pieceCount} piece(s)
+                                            {piece.pieceQrCode && piece.pieceQrCode !== "manual_entry" && piece.pieceQrCode !== "past_record_entry" && (
+                                              <span className="text-xs ml-2">(Bin: {piece.pieceQrCode})</span>
+                                            )}
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  </div>
+                                );
+                              })()}
                             </div>
                             <div className="flex gap-2 ml-4">
                               <Button
@@ -3348,8 +3383,44 @@ function TimeTrackingPage() {
                           </div>
                         );
                       } else {
-                        // Piecework record
+                        // Piecework record - only show if it's NOT already included in a TimeEntry
                         const piece = record.data;
+                        
+                        // Check if this piecework is already shown within a time entry
+                        const pieceTime = piece.timestamp instanceof Date
+                          ? piece.timestamp
+                          : (piece.timestamp as any)?.toDate
+                          ? (piece.timestamp as any).toDate()
+                          : new Date(piece.timestamp as any);
+                        
+                        const isIncludedInTimeEntry = allTimeEntries?.some(entry => {
+                          if (entry.employeeId !== piece.employeeId || entry.taskId !== piece.taskId) {
+                            return false;
+                          }
+                          const clockInTime = entry.timestamp instanceof Date
+                            ? entry.timestamp
+                            : (entry.timestamp as any)?.toDate
+                            ? (entry.timestamp as any).toDate()
+                            : new Date(entry.timestamp as any);
+                          
+                          if (entry.endTime) {
+                            const clockOutTime = entry.endTime instanceof Date
+                              ? entry.endTime
+                              : (entry.endTime as any)?.toDate
+                              ? (entry.endTime as any).toDate()
+                              : new Date(entry.endTime as any);
+                            return pieceTime.getTime() >= clockInTime.getTime() && pieceTime.getTime() <= clockOutTime.getTime();
+                          } else {
+                            // Active entry - check if piece is from same day
+                            return pieceTime.toDateString() === clockInTime.toDateString();
+                          }
+                        });
+                        
+                        // Skip this piecework if it's already shown in a time entry
+                        if (isIncludedInTimeEntry) {
+                          return null;
+                        }
+                        
                         // Handle multiple employees (comma-separated IDs)
                         const employeeIds = piece.employeeId.split(",");
                         const employeeNames =
@@ -3366,12 +3437,6 @@ function TimeTrackingPage() {
                         const client = clients?.find(
                           (c) => c.id === task?.clientId
                         );
-                        const pieceTime =
-                          piece.timestamp instanceof Date
-                            ? piece.timestamp
-                            : (piece.timestamp as any)?.toDate
-                            ? (piece.timestamp as any).toDate()
-                            : new Date(piece.timestamp as any);
 
                         return (
                           <div
@@ -3671,6 +3736,20 @@ function TimeTrackingPage() {
                     setDate={setEditEndTime}
                     label=""
                     placeholder="Select date and time or leave empty"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-pieces">Pieces Worked (optional)</Label>
+                  <Input
+                    id="edit-pieces"
+                    type="number"
+                    min="0"
+                    placeholder="Enter number of pieces"
+                    value={editPiecesWorked}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setEditPiecesWorked(value === "" ? 0 : parseInt(value, 10));
+                    }}
                   />
                 </div>
                 <div className="space-y-2">
