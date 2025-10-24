@@ -25,7 +25,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -46,17 +45,19 @@ const taskSchema = z.object({
   clientId: z.string().min(1, 'Client is required'),
   clientRate: z.coerce.number().min(0, 'Rate must be positive'),
   clientRateType: z.enum(['hourly', 'piece']),
-  piecePrice: z.coerce.number().min(0, 'Piece price must be positive').optional(),
+  piecePrice: z.coerce.number().optional(),
   status: z.enum(['Active', 'Inactive', 'Completed']),
-}).refine((data) => {
-  // If rate type is piece, piecePrice must be provided
-  if (data.clientRateType === 'piece' && (!data.piecePrice || data.piecePrice <= 0)) {
-    return false;
+}).superRefine((data, ctx) => {
+  // If rate type is piece, piecePrice must be provided and greater than 0
+  if (data.clientRateType === 'piece') {
+    if (!data.piecePrice || data.piecePrice <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Piece price must be greater than 0 for piecework tasks",
+        path: ["piecePrice"],
+      });
+    }
   }
-  return true;
-}, {
-  message: "Piece price is required when rate type is Piecework",
-  path: ["piecePrice"],
 })
 
 type EditTaskDialogProps = {
@@ -71,16 +72,37 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, clients }: EditTask
   const { toast } = useToast()
   const form = useForm<z.infer<typeof taskSchema>>({
     resolver: zodResolver(taskSchema),
-    defaultValues: task,
+    defaultValues: {
+      name: task.name,
+      variety: task.variety || '',
+      ranch: task.ranch || '',
+      block: task.block || '',
+      clientId: task.clientId,
+      clientRate: task.clientRate || 10,
+      clientRateType: task.clientRateType,
+      piecePrice: task.piecePrice || undefined,
+      status: task.status,
+    },
   })
 
   useEffect(() => {
     if (task) {
-      form.reset(task)
+      form.reset({
+        name: task.name,
+        variety: task.variety || '',
+        ranch: task.ranch || '',
+        block: task.block || '',
+        clientId: task.clientId,
+        clientRate: task.clientRate || 10,
+        clientRateType: task.clientRateType,
+        piecePrice: task.piecePrice || undefined,
+        status: task.status,
+      })
     }
   }, [task, form])
 
   const { isSubmitting } = form.formState
+  const rateType = form.watch('clientRateType')
 
   const onSubmit = async (values: z.infer<typeof taskSchema>) => {
     if (!firestore) {
@@ -94,9 +116,21 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, clients }: EditTask
 
     try {
       const taskRef = doc(firestore, 'tasks', task.id)
-      const updatedData = { ...values };
+      
+      // Build the task update object based on rate type
+      const updateData: Partial<Task> = {
+        name: values.name,
+        variety: values.variety || '',
+        ranch: values.ranch || '',
+        block: values.block || '',
+        clientId: values.clientId,
+        clientRateType: values.clientRateType,
+        status: values.status,
+        clientRate: values.clientRateType === 'hourly' ? values.clientRate : 0,
+        piecePrice: values.clientRateType === 'piece' ? values.piecePrice : undefined,
+      };
 
-      await updateDoc(taskRef, updatedData);
+      await updateDoc(taskRef, updateData);
       
       toast({
         title: 'Task Updated',
@@ -125,7 +159,7 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, clients }: EditTask
         </DialogHeader>
         <div className="flex-grow overflow-y-auto pr-4">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <form id="edit-task-form" onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
               control={form.control}
               name="name"
@@ -245,7 +279,7 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, clients }: EditTask
               )}
             />
 
-            {form.watch('clientRateType') === 'piece' ? (
+            {rateType === 'piece' ? (
               <FormField
                 control={form.control}
                 name="piecePrice"
@@ -253,7 +287,14 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, clients }: EditTask
                   <FormItem>
                     <FormLabel>Piece Price ($)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="e.g., 0.50" {...field} />
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        placeholder="10" 
+                        {...field}
+                        onChange={(e) => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
+                        value={field.value ?? ''}
+                      />
                     </FormControl>
                     <p className="text-xs text-muted-foreground">
                       Price per piece paid to employees
@@ -270,7 +311,13 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, clients }: EditTask
                   <FormItem>
                     <FormLabel>Hourly Rate ($)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="e.g., 25.00" {...field} />
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        placeholder="10" 
+                        {...field}
+                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                      />
                     </FormControl>
                     <p className="text-xs text-muted-foreground">
                       Hourly rate for this task
@@ -287,7 +334,7 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, clients }: EditTask
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting} onClick={form.handleSubmit(onSubmit)}>
+          <Button type="submit" form="edit-task-form" disabled={isSubmitting}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save Changes
           </Button>
