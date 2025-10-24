@@ -167,6 +167,12 @@ function TimeTrackingPage() {
   const [manualPieceworkDate, setManualPieceworkDate] = useState<
     Date | undefined
   >(undefined);
+  
+  // Past records state - for creating both clock-in and clock-out at once
+  const [usePastRecords, setUsePastRecords] = useState(false);
+  const [pastRecordClockInDate, setPastRecordClockInDate] = useState<Date | undefined>(undefined);
+  const [pastRecordClockOutDate, setPastRecordClockOutDate] = useState<Date | undefined>(undefined);
+  const [pastRecordPiecesCount, setPastRecordPiecesCount] = useState<number | string>(0);
 
   // History filtering state
   const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>(
@@ -204,6 +210,7 @@ function TimeTrackingPage() {
   const [editClient, setEditClient] = useState<string>("");
   const [editRanch, setEditRanch] = useState<string>("");
   const [editBlock, setEditBlock] = useState<string>("");
+  const [editRelatedPiecework, setEditRelatedPiecework] = useState<Piecework[]>([]);
 
   // Debounce state
   const [recentScans, setRecentScans] = useState<
@@ -320,6 +327,43 @@ function TimeTrackingPage() {
       return bTime.getTime() - aTime.getTime();
     });
   }, [allPieceworkRaw]);
+
+  // Merged records - combining time entries and piecework for unified history view
+  const mergedRecords = useMemo(() => {
+    const records: Array<
+      | { type: 'time'; data: TimeEntry }
+      | { type: 'piecework'; data: Piecework }
+    > = [];
+
+    if (allTimeEntries) {
+      allTimeEntries.forEach(entry => {
+        records.push({ type: 'time', data: entry });
+      });
+    }
+
+    if (allPiecework) {
+      allPiecework.forEach(piece => {
+        records.push({ type: 'piecework', data: piece });
+      });
+    }
+
+    // Sort all records by timestamp descending
+    return records.sort((a, b) => {
+      const aTime =
+        a.data.timestamp instanceof Date
+          ? a.data.timestamp
+          : (a.data.timestamp as any)?.toDate?.()
+          ? (a.data.timestamp as any).toDate()
+          : new Date(a.data.timestamp as any);
+      const bTime =
+        b.data.timestamp instanceof Date
+          ? b.data.timestamp
+          : (b.data.timestamp as any)?.toDate?.()
+          ? (b.data.timestamp as any).toDate()
+          : new Date(b.data.timestamp as any);
+      return bTime.getTime() - aTime.getTime();
+    });
+  }, [allTimeEntries, allPiecework]);
 
   // Query for active time entries (for history tab)
   const activeTimeEntriesQuery = useMemo(() => {
@@ -771,6 +815,86 @@ function TimeTrackingPage() {
     [firestore, toast, activeEmployees, playSound]
   );
 
+  const createPastRecord = useCallback(
+    async (employee: Employee, taskId: string, clockInTime: Date, clockOutTime: Date, piecesCount?: number) => {
+      if (!firestore) return;
+      
+      // Validate times
+      if (clockOutTime <= clockInTime) {
+        toast({
+          variant: "destructive",
+          title: "Invalid Times",
+          description: "Clock-out time must be after clock-in time.",
+        });
+        return;
+      }
+
+      try {
+        const batch = writeBatch(firestore);
+
+        // Close any active entries first
+        const activeEntriesQuery = query(
+          collection(firestore, "time_entries"),
+          where("employeeId", "==", employee.id),
+          where("endTime", "==", null)
+        );
+        const activeEntriesSnap = await getDocs(activeEntriesQuery);
+        activeEntriesSnap.forEach((docSnap) => {
+          batch.update(docSnap.ref, { endTime: new Date(clockInTime.getTime() - 1000) });
+        });
+
+        // Create the time entry with both clock-in and clock-out
+        const newTimeEntryRef = doc(collection(firestore, "time_entries"));
+        const newTimeEntry: Omit<TimeEntry, "id"> = {
+          employeeId: employee.id,
+          taskId: taskId,
+          timestamp: clockInTime,
+          endTime: clockOutTime,
+          isBreak: false,
+          piecesWorked: piecesCount && piecesCount > 0 ? piecesCount : undefined,
+        };
+        batch.set(newTimeEntryRef, newTimeEntry);
+
+        // Update employee's totalHoursWorked and sickHoursBalance
+        const hoursWorked = (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
+        const currentTotalHours = employee.totalHoursWorked || 0;
+        const newTotalHours = currentTotalHours + hoursWorked;
+        
+        const currentSickBalance = employee.sickHoursBalance || 0;
+        const sickHoursAccrued = hoursWorked / 40;
+        const newSickBalance = currentSickBalance + sickHoursAccrued;
+        
+        const employeeRef = doc(firestore, "employees", employee.id);
+        batch.update(employeeRef, {
+          totalHoursWorked: newTotalHours,
+          sickHoursBalance: newSickBalance,
+        });
+
+        await batch.commit();
+        playSound("clock-in");
+        
+        let description = `Created past record for ${employee.name}. Worked ${hoursWorked.toFixed(2)} hrs.`;
+        description += ` Accrued ${sickHoursAccrued.toFixed(2)} sick hrs. New balance: ${newSickBalance.toFixed(2)} hrs.`;
+        if (piecesCount && piecesCount > 0) {
+          description += ` Pieces worked: ${piecesCount}.`;
+        }
+        
+        toast({
+          title: "Past Record Created",
+          description: description,
+        });
+      } catch (serverError) {
+        const permissionError = new FirestorePermissionError({
+          path: "time_entries",
+          operation: "write",
+          requestResourceData: { message: `Past record for ${employee.name}` },
+        });
+        errorEmitter.emit("permission-error", permissionError);
+      }
+    },
+    [firestore, toast, playSound]
+  );
+
   const handleScanResult = useCallback(
     async (scannedData: string) => {
       if (!selectedTask) {
@@ -805,7 +929,28 @@ function TimeTrackingPage() {
       );
 
       if (scannedEmployee) {
-        if (scanMode === "clock-in") {
+        // If past records mode is enabled, create both clock-in and clock-out
+        if (usePastRecords) {
+          if (!pastRecordClockInDate || !pastRecordClockOutDate) {
+            toast({
+              variant: "destructive",
+              title: "Missing Times",
+              description: "Please set both clock-in and clock-out times for past records.",
+            });
+            return;
+          }
+          
+          const task = allTasks?.find(t => t.id === selectedTask);
+          const piecesCount = task?.clientRateType === 'piece' ? (typeof pastRecordPiecesCount === 'number' ? pastRecordPiecesCount : parseInt(String(pastRecordPiecesCount), 10)) : 0;
+          
+          await createPastRecord(
+            scannedEmployee, 
+            selectedTask, 
+            pastRecordClockInDate, 
+            pastRecordClockOutDate,
+            piecesCount > 0 ? piecesCount : undefined
+          );
+        } else if (scanMode === "clock-in") {
           const timestamp = useManualDateTime ? manualClockInDate : undefined;
           await clockInEmployee(scannedEmployee, selectedTask, timestamp, useSickHoursForPayment);
         } else if (scanMode === "clock-out") {
@@ -884,6 +1029,12 @@ function TimeTrackingPage() {
       manualClockOutDate,
       manualPieceworkDate,
       useSickHoursForPayment,
+      usePastRecords,
+      pastRecordClockInDate,
+      pastRecordClockOutDate,
+      pastRecordPiecesCount,
+      createPastRecord,
+      allTasks,
     ]
   );
 
@@ -997,7 +1148,29 @@ function TimeTrackingPage() {
 
     setIsManualSubmitting(true);
 
-    if (manualLogType === "clock-in") {
+    // If past records mode is enabled, create both clock-in and clock-out
+    if (usePastRecords) {
+      if (!pastRecordClockInDate || !pastRecordClockOutDate) {
+        toast({
+          variant: "destructive",
+          title: "Missing Times",
+          description: "Please set both clock-in and clock-out times for past records.",
+        });
+        setIsManualSubmitting(false);
+        return;
+      }
+      
+      const task = allTasks?.find(t => t.id === selectedTask);
+      const piecesCount = task?.clientRateType === 'piece' ? (typeof pastRecordPiecesCount === 'number' ? pastRecordPiecesCount : parseInt(String(pastRecordPiecesCount), 10)) : 0;
+      
+      await createPastRecord(
+        manualSelectedEmployee, 
+        selectedTask, 
+        pastRecordClockInDate, 
+        pastRecordClockOutDate,
+        piecesCount > 0 ? piecesCount : undefined
+      );
+    } else if (manualLogType === "clock-in") {
       const timestamp = useManualDateTime ? manualClockInDate : undefined;
       await clockInEmployee(manualSelectedEmployee, selectedTask, timestamp, useSickHoursForPayment);
     } else if (manualLogType === "clock-out") {
@@ -1294,15 +1467,30 @@ function TimeTrackingPage() {
       const pieces = typeof editPiecesWorked === 'number' ? editPiecesWorked : parseInt(String(editPiecesWorked), 10);
       if (!isNaN(pieces) && pieces > 0) {
         updateData.piecesWorked = pieces;
+      } else {
+        updateData.piecesWorked = 0; // Set to 0 if empty or invalid
       }
 
+      // Update the time entry
       await updateDoc(
         doc(firestore, "time_entries", editTarget.entry.id),
         updateData
       );
+      
+      // Update all related piecework records
+      for (const piece of editRelatedPiecework) {
+        await updateDoc(
+          doc(firestore, "piecework", piece.id),
+          {
+            pieceCount: piece.pieceCount,
+            // Keep the timestamp and other fields as they were
+          }
+        );
+      }
+      
       toast({
         title: "Entry Updated",
-        description: "Time entry has been successfully updated.",
+        description: "Time entry and all pieces have been successfully updated.",
       });
       setEditDialogOpen(false);
       setEditTarget(null);
@@ -1314,6 +1502,7 @@ function TimeTrackingPage() {
       setEditClient("");
       setEditRanch("");
       setEditBlock("");
+      setEditRelatedPiecework([]);
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
         path: "time_entries",
@@ -1696,8 +1885,71 @@ function TimeTrackingPage() {
               <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
                 <div className="flex items-center space-x-2">
                   <Checkbox
-                    id="manual-datetime-checkbox"
-                    checked={useManualDateTime}
+                    id="past-records-checkbox"
+                    checked={usePastRecords}
+                    onCheckedChange={(checked: boolean) => {
+                      setUsePastRecords(checked);
+                      if (!checked) {
+                        setPastRecordClockInDate(undefined);
+                        setPastRecordClockOutDate(undefined);
+                        setPastRecordPiecesCount(0);
+                      }
+                      // Reset other modes when enabling past records
+                      if (checked) {
+                        setUseManualDateTime(false);
+                        setManualClockInDate(undefined);
+                        setManualClockOutDate(undefined);
+                      }
+                    }}
+                  />
+                  <Label
+                    htmlFor="past-records-checkbox"
+                    className="font-semibold"
+                  >
+                    Use Manual Date/Time for Past Records
+                  </Label>
+                </div>
+                {usePastRecords && (
+                  <div className="space-y-3 pt-2">
+                    <DateTimePicker
+                      date={pastRecordClockInDate}
+                      setDate={setPastRecordClockInDate}
+                      label="Clock-In Date & Time"
+                      placeholder="Select clock-in date and time"
+                    />
+                    <DateTimePicker
+                      date={pastRecordClockOutDate}
+                      setDate={setPastRecordClockOutDate}
+                      label="Clock-Out Date & Time"
+                      placeholder="Select clock-out date and time"
+                    />
+                    {selectedTask && allTasks?.find(t => t.id === selectedTask)?.clientRateType === 'piece' && (
+                      <div className="space-y-2">
+                        <Label htmlFor="past-pieces-count">Pieces Completed</Label>
+                        <Input
+                          id="past-pieces-count"
+                          type="number"
+                          min="0"
+                          placeholder="Enter number of pieces"
+                          value={pastRecordPiecesCount}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setPastRecordPiecesCount(value === "" ? 0 : parseInt(value, 10));
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {!usePastRecords && (
+                <>
+                  <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="manual-datetime-checkbox"
+                        checked={useManualDateTime}
                     onCheckedChange={(checked: boolean) => {
                       setUseManualDateTime(checked);
                       if (!checked) {
@@ -1769,41 +2021,45 @@ function TimeTrackingPage() {
                 </div>
               )}
 
-              <div className="space-y-3 md:space-y-4 rounded-lg border bg-card text-card-foreground shadow-sm p-3 md:p-4">
-                <Label className="font-semibold">Scan Mode</Label>
-                <RadioGroup
-                  value={scanMode}
-                  onValueChange={(value: string) =>
-                    setScanMode(value as ScanMode)
-                  }
-                  className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4"
-                >
-                  <Label
-                    htmlFor="mode-clock-in"
-                    className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
+              {!usePastRecords && (
+                <div className="space-y-3 md:space-y-4 rounded-lg border bg-card text-card-foreground shadow-sm p-3 md:p-4">
+                  <Label className="font-semibold">Scan Mode</Label>
+                  <RadioGroup
+                    value={scanMode}
+                    onValueChange={(value: string) =>
+                      setScanMode(value as ScanMode)
+                    }
+                    className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4"
                   >
-                    <RadioGroupItem value="clock-in" id="mode-clock-in" />
-                    <div className="flex items-center gap-1 md:gap-2">
-                      <LogIn className="h-4 w-4 md:h-5 md:w-5 text-green-600" />
-                      <p className="font-medium text-sm md:text-base">
-                        Clock In
-                      </p>
-                    </div>
-                  </Label>
-                  <Label
-                    htmlFor="mode-clock-out"
-                    className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
-                  >
-                    <RadioGroupItem value="clock-out" id="mode-clock-out" />
-                    <div className="flex items-center gap-1 md:gap-2">
-                      <LogOut className="h-4 w-4 md:h-5 md:w-5 text-red-600" />
-                      <p className="font-medium text-sm md:text-base">
-                        Clock Out
-                      </p>
-                    </div>
-                  </Label>
-                </RadioGroup>
-              </div>
+                    <Label
+                      htmlFor="mode-clock-in"
+                      className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
+                    >
+                      <RadioGroupItem value="clock-in" id="mode-clock-in" />
+                      <div className="flex items-center gap-1 md:gap-2">
+                        <LogIn className="h-4 w-4 md:h-5 md:w-5 text-green-600" />
+                        <p className="font-medium text-sm md:text-base">
+                          Clock In
+                        </p>
+                      </div>
+                    </Label>
+                    <Label
+                      htmlFor="mode-clock-out"
+                      className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
+                    >
+                      <RadioGroupItem value="clock-out" id="mode-clock-out" />
+                      <div className="flex items-center gap-1 md:gap-2">
+                        <LogOut className="h-4 w-4 md:h-5 md:w-5 text-red-600" />
+                        <p className="font-medium text-sm md:text-base">
+                          Clock Out
+                        </p>
+                      </div>
+                    </Label>
+                  </RadioGroup>
+                </div>
+              )}
+              </>
+              )}
 
               <QrScanner onScanResult={handleScanResult} />
             </CardContent>
@@ -1823,8 +2079,71 @@ function TimeTrackingPage() {
               <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
                 <div className="flex items-center space-x-2">
                   <Checkbox
-                    id="manual-datetime-checkbox-entry"
-                    checked={useManualDateTime}
+                    id="past-records-checkbox-manual"
+                    checked={usePastRecords}
+                    onCheckedChange={(checked: boolean) => {
+                      setUsePastRecords(checked);
+                      if (!checked) {
+                        setPastRecordClockInDate(undefined);
+                        setPastRecordClockOutDate(undefined);
+                        setPastRecordPiecesCount(0);
+                      }
+                      // Reset other modes when enabling past records
+                      if (checked) {
+                        setUseManualDateTime(false);
+                        setManualClockInDate(undefined);
+                        setManualClockOutDate(undefined);
+                      }
+                    }}
+                  />
+                  <Label
+                    htmlFor="past-records-checkbox-manual"
+                    className="font-semibold"
+                  >
+                    Use Manual Date/Time for Past Records
+                  </Label>
+                </div>
+                {usePastRecords && (
+                  <div className="space-y-3 pt-2">
+                    <DateTimePicker
+                      date={pastRecordClockInDate}
+                      setDate={setPastRecordClockInDate}
+                      label="Clock-In Date & Time"
+                      placeholder="Select clock-in date and time"
+                    />
+                    <DateTimePicker
+                      date={pastRecordClockOutDate}
+                      setDate={setPastRecordClockOutDate}
+                      label="Clock-Out Date & Time"
+                      placeholder="Select clock-out date and time"
+                    />
+                    {selectedTask && allTasks?.find(t => t.id === selectedTask)?.clientRateType === 'piece' && (
+                      <div className="space-y-2">
+                        <Label htmlFor="past-pieces-count-manual">Pieces Completed</Label>
+                        <Input
+                          id="past-pieces-count-manual"
+                          type="number"
+                          min="0"
+                          placeholder="Enter number of pieces"
+                          value={pastRecordPiecesCount}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setPastRecordPiecesCount(value === "" ? 0 : parseInt(value, 10));
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {!usePastRecords && (
+                <>
+                  <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="manual-datetime-checkbox-entry"
+                        checked={useManualDateTime}
                     onCheckedChange={(checked: boolean) => {
                       setUseManualDateTime(checked);
                       if (!checked) {
@@ -1896,23 +2215,28 @@ function TimeTrackingPage() {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="log-type">Log Type</Label>
-                <Select
-                  value={manualLogType}
-                  onValueChange={(v: string) =>
-                    setManualLogType(v as ManualLogType)
-                  }
-                >
-                  <SelectTrigger id="log-type">
-                    <SelectValue placeholder="Select log type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="clock-in">Clock In</SelectItem>
-                    <SelectItem value="clock-out">Clock Out</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {!usePastRecords && (
+                <div className="space-y-2">
+                  <Label htmlFor="log-type">Log Type</Label>
+                  <Select
+                    value={manualLogType}
+                    onValueChange={(v: string) =>
+                      setManualLogType(v as ManualLogType)
+                    }
+                  >
+                    <SelectTrigger id="log-type">
+                      <SelectValue placeholder="Select log type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="clock-in">Clock In</SelectItem>
+                      <SelectItem value="clock-out">Clock Out</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              </>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="employee-search">Employee</Label>
                 {manualSelectedEmployee ? (
@@ -2881,15 +3205,15 @@ function TimeTrackingPage() {
                 )}
               </div>
 
-              {/* Time Entries Section */}
-              <div className="mb-8">
+              {/* Unified Records Section */}
+              <div>
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <LogIn className="h-5 w-5 text-blue-600" />
-                  Clock-In/Clock-Out Records
+                  <History className="h-5 w-5 text-blue-600" />
+                  All Records (Clock-In/Clock-Out & Piecework)
                 </h3>
-                {!allTimeEntries || allTimeEntries.length === 0 ? (
+                {!mergedRecords || mergedRecords.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground border rounded-lg">
-                    <p>No time entries found.</p>
+                    <p>No records found.</p>
                     {(historyStartDate || historyEndDate) && (
                       <p className="text-sm mt-2">
                         Try adjusting your date filter.
@@ -2898,273 +3222,359 @@ function TimeTrackingPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {allTimeEntries.map((entry) => {
-                      const employee = activeEmployees?.find(
-                        (e) => e.id === entry.employeeId
-                      );
-                      const task = allTasks?.find((t) => t.id === entry.taskId);
-                      const client = clients?.find(
-                        (c) => c.id === task?.clientId
-                      );
-                      const clockInTime =
-                        entry.timestamp instanceof Date
-                          ? entry.timestamp
-                          : (entry.timestamp as any)?.toDate
-                          ? (entry.timestamp as any).toDate()
-                          : new Date(entry.timestamp as any);
-                      const clockOutTime = entry.endTime
-                        ? entry.endTime instanceof Date
-                          ? entry.endTime
-                          : (entry.endTime as any)?.toDate
-                          ? (entry.endTime as any).toDate()
-                          : new Date(entry.endTime as any)
-                        : null;
+                    {mergedRecords.map((record) => {
+                      if (record.type === 'time') {
+                        const entry = record.data;
+                        const employee = activeEmployees?.find(
+                          (e) => e.id === entry.employeeId
+                        );
+                        const task = allTasks?.find((t) => t.id === entry.taskId);
+                        const client = clients?.find(
+                          (c) => c.id === task?.clientId
+                        );
+                        const clockInTime =
+                          entry.timestamp instanceof Date
+                            ? entry.timestamp
+                            : (entry.timestamp as any)?.toDate
+                            ? (entry.timestamp as any).toDate()
+                            : new Date(entry.timestamp as any);
+                        const clockOutTime = entry.endTime
+                          ? entry.endTime instanceof Date
+                            ? entry.endTime
+                            : (entry.endTime as any)?.toDate
+                            ? (entry.endTime as any).toDate()
+                            : new Date(entry.endTime as any)
+                          : null;
 
-                      return (
-                        <div
-                          key={entry.id}
-                          className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
-                        >
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <User className="h-4 w-4 text-muted-foreground" />
-                              <p className="font-semibold">
-                                {employee?.name || "Unknown Employee"}
-                              </p>
-                              {!entry.endTime && (
-                                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                                  Active
-                                </span>
-                              )}
-                              {/* Payment Type Badge */}
-                              {(() => {
-                                const taskForEntry = allTasks?.find((t) => t.id === entry.taskId);
-                                const paymentType = entry.paymentModality || 
-                                  (taskForEntry?.clientRateType === "piece" ? "Piecework" : "Hourly");
-                                return (
-                                  <span className={`text-xs px-2 py-1 rounded-full ${
-                                    paymentType === "Piecework" 
-                                      ? "bg-purple-100 text-purple-800" 
-                                      : "bg-blue-100 text-blue-800"
-                                  }`}>
-                                    {paymentType}
+                        return (
+                          <div
+                            key={`time-${entry.id}`}
+                            className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
+                          >
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <User className="h-4 w-4 text-muted-foreground" />
+                                <p className="font-semibold">
+                                  {employee?.name || "Unknown Employee"}
+                                </p>
+                                {!entry.endTime && (
+                                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                    Active
                                   </span>
+                                )}
+                                {/* Record Type Badge */}
+                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                  Time Entry
+                                </span>
+                                {/* Payment Type Badge */}
+                                {(() => {
+                                  const taskForEntry = allTasks?.find((t) => t.id === entry.taskId);
+                                  const paymentType = entry.paymentModality || 
+                                    (taskForEntry?.clientRateType === "piece" ? "Piecework" : "Hourly");
+                                  return (
+                                    <span className={`text-xs px-2 py-1 rounded-full ${
+                                      paymentType === "Piecework" 
+                                        ? "bg-purple-100 text-purple-800" 
+                                        : "bg-orange-100 text-orange-800"
+                                    }`}>
+                                      {paymentType}
+                                    </span>
+                                  );
+                                })()}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Package className="h-3 w-3" />
+                                <p>
+                                  {task?.name || "Unknown Task"}
+                                  {task?.variety && ` (${task.variety})`}
+                                </p>
+                              </div>
+                              {client && (
+                                <div className="text-xs text-muted-foreground">
+                                  Client: {client.name}
+                                </div>
+                              )}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                                <div className="flex items-center gap-2">
+                                  <LogIn className="h-3 w-3 text-green-600" />
+                                  <p className="text-muted-foreground">
+                                    In: {format(clockInTime, "PPp")}
+                                  </p>
+                                </div>
+                                {clockOutTime && (
+                                  <div className="flex items-center gap-2">
+                                    <LogOut className="h-3 w-3 text-red-600" />
+                                    <p className="text-muted-foreground">
+                                      Out: {format(clockOutTime, "PPp")}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                              {/* Show pieces: both from piecesWorked field and related piecework records */}
+                              {(() => {
+                                const relatedPiecework = allPiecework?.filter(p => 
+                                  p.employeeId === entry.employeeId && 
+                                  p.taskId === entry.taskId &&
+                                  (() => {
+                                    const pieceTime = p.timestamp instanceof Date ? p.timestamp : (p.timestamp as any)?.toDate ? (p.timestamp as any).toDate() : new Date(p.timestamp as any);
+                                    // Show pieces that fall within the time entry period, or within same day if no end time
+                                    if (entry.endTime) {
+                                      const endTime = entry.endTime instanceof Date ? entry.endTime : (entry.endTime as any)?.toDate ? (entry.endTime as any).toDate() : new Date(entry.endTime as any);
+                                      return pieceTime.getTime() >= clockInTime.getTime() && pieceTime.getTime() <= endTime.getTime();
+                                    } else {
+                                      // If entry is still active, show pieces from same day
+                                      return pieceTime.toDateString() === clockInTime.toDateString();
+                                    }
+                                  })()
+                                ) || [];
+                                
+                                const hasPieces = (entry.piecesWorked && entry.piecesWorked > 0) || relatedPiecework.length > 0;
+                                
+                                if (!hasPieces) return null;
+                                
+                                // Calculate total pieces
+                                const totalPieces = (entry.piecesWorked || 0) + relatedPiecework.reduce((sum, p) => sum + p.pieceCount, 0);
+                                
+                                return (
+                                  <div className="text-sm">
+                                    <p className="font-medium text-muted-foreground mb-1">Pieces (Total: {totalPieces}):</p>
+                                    <ul className="list-none space-y-1 ml-4">
+                                      {entry.piecesWorked && entry.piecesWorked > 0 && (
+                                        <li className="text-muted-foreground">
+                                          {clockOutTime ? format(clockOutTime, "p") : "In progress"}: {entry.piecesWorked} piece(s)
+                                        </li>
+                                      )}
+                                      {relatedPiecework.map(piece => {
+                                        const pieceTime = piece.timestamp instanceof Date ? piece.timestamp : (piece.timestamp as any)?.toDate ? (piece.timestamp as any).toDate() : new Date(piece.timestamp as any);
+                                        return (
+                                          <li key={piece.id} className="text-muted-foreground">
+                                            {format(pieceTime, "p")}: {piece.pieceCount} piece(s)
+                                            {piece.pieceQrCode && piece.pieceQrCode !== "manual_entry" && piece.pieceQrCode !== "past_record_entry" && (
+                                              <span className="text-xs ml-2">(Bin: {piece.pieceQrCode})</span>
+                                            )}
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  </div>
                                 );
                               })()}
                             </div>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Package className="h-3 w-3" />
-                              <p>
-                                {task?.name || "Unknown Task"}
-                                {task?.variety && ` (${task.variety})`}
-                              </p>
-                            </div>
-                            {client && (
-                              <div className="text-xs text-muted-foreground">
-                                Client: {client.name}
-                              </div>
-                            )}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                              <div className="flex items-center gap-2">
-                                <LogIn className="h-3 w-3 text-green-600" />
-                                <p className="text-muted-foreground">
-                                  In: {format(clockInTime, "PPp")}
-                                </p>
-                              </div>
-                              {clockOutTime && (
-                                <div className="flex items-center gap-2">
-                                  <LogOut className="h-3 w-3 text-red-600" />
-                                  <p className="text-muted-foreground">
-                                    Out: {format(clockOutTime, "PPp")}
-                                  </p>
-                                </div>
-                              )}
+                            <div className="flex gap-2 ml-4">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const taskForEntry = allTasks?.find((t) => t.id === entry.taskId);
+                                  // Initialize payment modality based on task type or entry's paymentModality
+                                  const initialModality = entry.paymentModality || 
+                                    (taskForEntry?.clientRateType === "piece" ? "Piecework" : "Hourly");
+                                  
+                                  // Get related piecework for this time entry
+                                  const relatedPieces = allPiecework?.filter(p => 
+                                    p.employeeId === entry.employeeId && 
+                                    p.taskId === entry.taskId &&
+                                    (() => {
+                                      const pieceTime = p.timestamp instanceof Date ? p.timestamp : (p.timestamp as any)?.toDate ? (p.timestamp as any).toDate() : new Date(p.timestamp as any);
+                                      if (entry.endTime) {
+                                        const endTime = entry.endTime instanceof Date ? entry.endTime : (entry.endTime as any)?.toDate ? (entry.endTime as any).toDate() : new Date(entry.endTime as any);
+                                        return pieceTime.getTime() >= clockInTime.getTime() && pieceTime.getTime() <= endTime.getTime();
+                                      } else {
+                                        return pieceTime.toDateString() === clockInTime.toDateString();
+                                      }
+                                    })()
+                                  ) || [];
+                                  
+                                  setEditTarget({ type: "time", entry: entry });
+                                  setEditTimestamp(clockInTime);
+                                  setEditEndTime(clockOutTime || undefined);
+                                  setEditPiecesWorked(entry.piecesWorked || 0);
+                                  setEditPaymentModality(initialModality);
+                                  setEditRelatedPiecework(relatedPieces);
+                                  
+                                  // Initialize task selection
+                                  setEditTaskId(entry.taskId);
+                                  if (taskForEntry) {
+                                    setEditClient(taskForEntry.clientId);
+                                    setEditRanch(taskForEntry.ranch || "");
+                                    setEditBlock(taskForEntry.block || "");
+                                  }
+                                  
+                                  setEditDialogOpen(true);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => {
+                                  setDeleteTarget({ type: "time", id: entry.id });
+                                  setDeleteConfirmOpen(true);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
                           </div>
-                          <div className="flex gap-2 ml-4">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                const taskForEntry = allTasks?.find((t) => t.id === entry.taskId);
-                                // Initialize payment modality based on task type or entry's paymentModality
-                                const initialModality = entry.paymentModality || 
-                                  (taskForEntry?.clientRateType === "piece" ? "Piecework" : "Hourly");
-                                
-                                setEditTarget({ type: "time", entry: entry });
-                                setEditTimestamp(clockInTime);
-                                setEditEndTime(clockOutTime || undefined);
-                                setEditPiecesWorked(entry.piecesWorked || 0);
-                                setEditPaymentModality(initialModality);
-                                
-                                // Initialize task selection
-                                setEditTaskId(entry.taskId);
-                                if (taskForEntry) {
-                                  setEditClient(taskForEntry.clientId);
-                                  setEditRanch(taskForEntry.ranch || "");
-                                  setEditBlock(taskForEntry.block || "");
-                                }
-                                
-                                setEditDialogOpen(true);
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => {
-                                setDeleteTarget({ type: "time", id: entry.id });
-                                setDeleteConfirmOpen(true);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Piecework Section */}
-              <div>
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Package className="h-5 w-5 text-purple-600" />
-                  Piecework Records
-                </h3>
-                {!allPiecework || allPiecework.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground border rounded-lg">
-                    <p>No piecework records found.</p>
-                    {(historyStartDate || historyEndDate) && (
-                      <p className="text-sm mt-2">
-                        Try adjusting your date filter.
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {allPiecework.map((piece) => {
-                      // Handle multiple employees (comma-separated IDs)
-                      const employeeIds = piece.employeeId.split(",");
-                      const employeeNames =
-                        employeeIds
-                          .map(
-                            (id) =>
-                              activeEmployees?.find(
-                                (e) => e.id === id || e.qrCode === id
-                              )?.name
-                          )
-                          .filter(Boolean)
-                          .join(", ") || "Unknown Employee(s)";
-                      const task = allTasks?.find((t) => t.id === piece.taskId);
-                      const client = clients?.find(
-                        (c) => c.id === task?.clientId
-                      );
-                      const pieceTime =
-                        piece.timestamp instanceof Date
+                        );
+                      } else {
+                        // Piecework record - only show if it's NOT already included in a TimeEntry
+                        const piece = record.data;
+                        
+                        // Check if this piecework is already shown within a time entry
+                        const pieceTime = piece.timestamp instanceof Date
                           ? piece.timestamp
                           : (piece.timestamp as any)?.toDate
                           ? (piece.timestamp as any).toDate()
                           : new Date(piece.timestamp as any);
+                        
+                        const isIncludedInTimeEntry = allTimeEntries?.some(entry => {
+                          if (entry.employeeId !== piece.employeeId || entry.taskId !== piece.taskId) {
+                            return false;
+                          }
+                          const clockInTime = entry.timestamp instanceof Date
+                            ? entry.timestamp
+                            : (entry.timestamp as any)?.toDate
+                            ? (entry.timestamp as any).toDate()
+                            : new Date(entry.timestamp as any);
+                          
+                          if (entry.endTime) {
+                            const clockOutTime = entry.endTime instanceof Date
+                              ? entry.endTime
+                              : (entry.endTime as any)?.toDate
+                              ? (entry.endTime as any).toDate()
+                              : new Date(entry.endTime as any);
+                            return pieceTime.getTime() >= clockInTime.getTime() && pieceTime.getTime() <= clockOutTime.getTime();
+                          } else {
+                            // Active entry - check if piece is from same day
+                            return pieceTime.toDateString() === clockInTime.toDateString();
+                          }
+                        });
+                        
+                        // Skip this piecework if it's already shown in a time entry
+                        if (isIncludedInTimeEntry) {
+                          return null;
+                        }
+                        
+                        // Handle multiple employees (comma-separated IDs)
+                        const employeeIds = piece.employeeId.split(",");
+                        const employeeNames =
+                          employeeIds
+                            .map(
+                              (id) =>
+                                activeEmployees?.find(
+                                  (e) => e.id === id || e.qrCode === id
+                                )?.name
+                            )
+                            .filter(Boolean)
+                            .join(", ") || "Unknown Employee(s)";
+                        const task = allTasks?.find((t) => t.id === piece.taskId);
+                        const client = clients?.find(
+                          (c) => c.id === task?.clientId
+                        );
 
-                      return (
-                        <div
-                          key={piece.id}
-                          className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
-                        >
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <User className="h-4 w-4 text-muted-foreground" />
-                              <p className="font-semibold">{employeeNames}</p>
-                            </div>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Package className="h-3 w-3" />
-                              <p>
-                                {task?.name || "Unknown Task"}
-                                {task?.variety && ` (${task.variety})`}
-                              </p>
-                            </div>
-                            {client && (
-                              <div className="text-xs text-muted-foreground">
-                                Client: {client.name}
-                              </div>
-                            )}
-                            <div className="flex items-center gap-2 text-sm">
-                              <Calendar className="h-3 w-3 text-purple-600" />
-                              <p className="text-muted-foreground">
-                                {format(pieceTime, "PPp")}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-4 text-sm">
+                        return (
+                          <div
+                            key={`piece-${piece.id}`}
+                            className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
+                          >
+                            <div className="flex-1 space-y-2">
                               <div className="flex items-center gap-2">
-                                <CheckCircle className="h-3 w-3 text-green-600" />
-                                <p className="text-muted-foreground">
-                                  Quantity: {piece.pieceCount}
+                                <User className="h-4 w-4 text-muted-foreground" />
+                                <p className="font-semibold">{employeeNames}</p>
+                                {/* Record Type Badge */}
+                                <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
+                                  Piecework
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Package className="h-3 w-3" />
+                                <p>
+                                  {task?.name || "Unknown Task"}
+                                  {task?.variety && ` (${task.variety})`}
                                 </p>
                               </div>
-                              {piece.pieceQrCode &&
-                                piece.pieceQrCode !== "manual_entry" && (
-                                  <div className="text-xs text-muted-foreground">
-                                    Bin: {piece.pieceQrCode}
-                                  </div>
+                              {client && (
+                                <div className="text-xs text-muted-foreground">
+                                  Client: {client.name}
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2 text-sm">
+                                <Calendar className="h-3 w-3 text-purple-600" />
+                                <p className="text-muted-foreground">
+                                  {format(pieceTime, "PPp")}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-4 text-sm">
+                                <div className="flex items-center gap-2">
+                                  <CheckCircle className="h-3 w-3 text-green-600" />
+                                  <p className="text-muted-foreground">
+                                    Quantity: {piece.pieceCount}
+                                  </p>
+                                </div>
+                                {piece.pieceQrCode &&
+                                  piece.pieceQrCode !== "manual_entry" && (
+                                    <div className="text-xs text-muted-foreground">
+                                      Bin: {piece.pieceQrCode}
+                                    </div>
+                                  )}
+                                {piece.pieceQrCode === "manual_entry" && (
+                                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                    Manual Entry
+                                  </span>
                                 )}
-                              {piece.pieceQrCode === "manual_entry" && (
-                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                                  Manual Entry
-                                </span>
+                              </div>
+                              {piece.qcNote && (
+                                <div className="text-xs text-muted-foreground italic">
+                                  Note: {piece.qcNote}
+                                </div>
                               )}
                             </div>
-                            {piece.qcNote && (
-                              <div className="text-xs text-muted-foreground italic">
-                                Note: {piece.qcNote}
-                              </div>
-                            )}
+                            <div className="flex gap-2 ml-4">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const taskForPiece = allTasks?.find((t) => t.id === piece.taskId);
+                                  
+                                  setEditTarget({
+                                    type: "piecework",
+                                    entry: piece,
+                                  });
+                                  setEditTimestamp(pieceTime);
+                                  setEditPieceCount(piece.pieceCount || 1);
+                                  
+                                  // Initialize task selection
+                                  setEditTaskId(piece.taskId);
+                                  if (taskForPiece) {
+                                    setEditClient(taskForPiece.clientId);
+                                    setEditRanch(taskForPiece.ranch || "");
+                                    setEditBlock(taskForPiece.block || "");
+                                  }
+                                  
+                                  setEditDialogOpen(true);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => {
+                                  setDeleteTarget({
+                                    type: "piecework",
+                                    id: piece.id,
+                                  });
+                                  setDeleteConfirmOpen(true);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex gap-2 ml-4">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                const taskForPiece = allTasks?.find((t) => t.id === piece.taskId);
-                                
-                                setEditTarget({
-                                  type: "piecework",
-                                  entry: piece,
-                                });
-                                setEditTimestamp(pieceTime);
-                                setEditPieceCount(piece.pieceCount || 1);
-                                
-                                // Initialize task selection
-                                setEditTaskId(piece.taskId);
-                                if (taskForPiece) {
-                                  setEditClient(taskForPiece.clientId);
-                                  setEditRanch(taskForPiece.ranch || "");
-                                  setEditBlock(taskForPiece.block || "");
-                                }
-                                
-                                setEditDialogOpen(true);
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => {
-                                setDeleteTarget({
-                                  type: "piecework",
-                                  id: piece.id,
-                                });
-                                setDeleteConfirmOpen(true);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      );
+                        );
+                      }
                     })}
                   </div>
                 )}
@@ -3364,20 +3774,79 @@ function TimeTrackingPage() {
                     placeholder="Select date and time or leave empty"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-pieces">Pieces Worked (optional)</Label>
-                  <Input
-                    id="edit-pieces"
-                    type="number"
-                    min="0"
-                    placeholder="Enter number of pieces"
-                    value={editPiecesWorked}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setEditPiecesWorked(value === "" ? 0 : parseInt(value, 10));
-                    }}
-                  />
-                </div>
+                
+                {/* Show all pieces with individual editable fields */}
+                {(editPiecesWorked > 0 || editPiecesWorked === "" || editRelatedPiecework.length > 0 || (editTarget && editTarget.type === "time")) && (
+                  <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+                    <p className="font-medium text-sm">Pieces Worked:</p>
+                    
+                    {/* Show piecesWorked field - always show for time entries */}
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-pieces-main">
+                        {editEndTime ? format(editEndTime, "PPp") : "Clock-out time"}
+                      </Label>
+                      <Input
+                        id="edit-pieces-main"
+                        type="number"
+                        min="0"
+                        placeholder="Enter number of pieces"
+                        value={editPiecesWorked}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          // Allow empty string for deletion
+                          if (value === "") {
+                            setEditPiecesWorked("");
+                          } else {
+                            const numValue = parseInt(value, 10);
+                            if (!isNaN(numValue) && numValue >= 0) {
+                              setEditPiecesWorked(numValue);
+                            }
+                          }
+                        }}
+                        onBlur={(e) => {
+                          // Convert empty to 0 on blur
+                          if (e.target.value === "") {
+                            setEditPiecesWorked(0);
+                          }
+                        }}
+                      />
+                    </div>
+                    
+                    {/* Show related piecework fields */}
+                    {editRelatedPiecework.map((piece, index) => {
+                      const pieceTime = piece.timestamp instanceof Date ? piece.timestamp : (piece.timestamp as any)?.toDate ? (piece.timestamp as any).toDate() : new Date(piece.timestamp as any);
+                      return (
+                        <div key={piece.id} className="space-y-2">
+                          <Label htmlFor={`edit-piece-${index}`}>
+                            {format(pieceTime, "PPp")}
+                          </Label>
+                          <Input
+                            id={`edit-piece-${index}`}
+                            type="number"
+                            min="0"
+                            placeholder="Enter number of pieces"
+                            value={piece.pieceCount}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              const newCount = value === "" ? 0 : parseInt(value, 10);
+                              const updated = [...editRelatedPiecework];
+                              updated[index] = { ...piece, pieceCount: newCount };
+                              setEditRelatedPiecework(updated);
+                            }}
+                          />
+                        </div>
+                      );
+                    })}
+                    
+                    {/* Show total */}
+                    <div className="pt-2 border-t">
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Total Pieces: {(typeof editPiecesWorked === 'number' ? editPiecesWorked : parseInt(String(editPiecesWorked), 10) || 0) + editRelatedPiecework.reduce((sum, p) => sum + p.pieceCount, 0)}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
                 <div className="space-y-2">
                   <Label htmlFor="edit-modality">Payment Modality</Label>
                   <Select
