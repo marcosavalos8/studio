@@ -842,7 +842,7 @@ function TimeTrackingPage() {
           batch.update(docSnap.ref, { endTime: new Date(clockInTime.getTime() - 1000) });
         });
 
-        // Create the time entry with both clock-in and clock-out
+        // Create the time entry with both clock-in and clock-out (without piecesWorked)
         const newTimeEntryRef = doc(collection(firestore, "time_entries"));
         const newTimeEntry: Omit<TimeEntry, "id"> = {
           employeeId: employee.id,
@@ -850,7 +850,6 @@ function TimeTrackingPage() {
           timestamp: clockInTime,
           endTime: clockOutTime,
           isBreak: false,
-          piecesWorked: piecesCount && piecesCount > 0 ? piecesCount : undefined,
         };
         batch.set(newTimeEntryRef, newTimeEntry);
 
@@ -870,12 +869,30 @@ function TimeTrackingPage() {
         });
 
         await batch.commit();
+        
+        // If pieces count is provided, create individual piecework records
+        if (piecesCount && piecesCount > 0) {
+          // Create piecework records at the clock-out time
+          for (let i = 0; i < piecesCount; i++) {
+            // Spread pieces over the work period with small time offsets
+            const pieceTimestamp = new Date(clockOutTime.getTime() - ((piecesCount - i - 1) * 1000));
+            const pieceworkRecord: Omit<Piecework, "id"> = {
+              employeeId: employee.id,
+              taskId: taskId,
+              timestamp: pieceTimestamp,
+              pieceCount: 1,
+              pieceQrCode: "past_record_entry",
+            };
+            await addDoc(collection(firestore, "piecework"), pieceworkRecord);
+          }
+        }
+        
         playSound("clock-in");
         
         let description = `Created past record for ${employee.name}. Worked ${hoursWorked.toFixed(2)} hrs.`;
         description += ` Accrued ${sickHoursAccrued.toFixed(2)} sick hrs. New balance: ${newSickBalance.toFixed(2)} hrs.`;
         if (piecesCount && piecesCount > 0) {
-          description += ` Pieces worked: ${piecesCount}.`;
+          description += ` ${piecesCount} piece(s) recorded.`;
         }
         
         toast({
@@ -1460,12 +1477,6 @@ function TimeTrackingPage() {
 
       if (editEndTime) {
         updateData.endTime = editEndTime;
-      }
-
-      // Only include piecesWorked if it's a valid number and greater than 0
-      const pieces = typeof editPiecesWorked === 'number' ? editPiecesWorked : parseInt(String(editPiecesWorked), 10);
-      if (!isNaN(pieces) && pieces > 0) {
-        updateData.piecesWorked = pieces;
       }
 
       await updateDoc(
@@ -3293,11 +3304,6 @@ function TimeTrackingPage() {
                                   </div>
                                 )}
                               </div>
-                              {entry.piecesWorked && entry.piecesWorked > 0 && (
-                                <div className="text-sm text-muted-foreground">
-                                  Pieces: {entry.piecesWorked}
-                                </div>
-                              )}
                             </div>
                             <div className="flex gap-2 ml-4">
                               <Button
@@ -3665,20 +3671,6 @@ function TimeTrackingPage() {
                     setDate={setEditEndTime}
                     label=""
                     placeholder="Select date and time or leave empty"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-pieces">Pieces Worked (optional)</Label>
-                  <Input
-                    id="edit-pieces"
-                    type="number"
-                    min="0"
-                    placeholder="Enter number of pieces"
-                    value={editPiecesWorked}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setEditPiecesWorked(value === "" ? 0 : parseInt(value, 10));
-                    }}
                   />
                 </div>
                 <div className="space-y-2">
