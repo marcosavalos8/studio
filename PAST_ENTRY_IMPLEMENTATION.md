@@ -66,6 +66,8 @@ This document describes the implementation of improvements to the Time Tracking 
 
 ### New State Variables
 ```typescript
+// State can be number or string to handle partial input values
+// (e.g., user typing "7." before completing "7.5")
 const [pastEntryPieces, setPastEntryPieces] = useState<number | string>(0);
 ```
 

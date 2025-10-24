@@ -5,13 +5,14 @@
 ### Before
 - Only "Clock In" and "Clock Out" options
 - Had to create two separate entries for past records
-- No way to enter pieces at the same time
-- Pieces field not available in manual entry with date/time
+- Pieces could only be added in Piecework tab or edited later in History
+- No integrated way to create complete past record with pieces
 
 ### After
 - **New "Past Entry" option** in Log Type dropdown
 - Single form to enter complete record
 - Pieces field included with decimal support
+- All information entered in one step
 
 ### UI Elements Added
 
