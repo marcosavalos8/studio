@@ -327,6 +327,43 @@ function TimeTrackingPage() {
     });
   }, [allPieceworkRaw]);
 
+  // Merged records - combining time entries and piecework for unified history view
+  const mergedRecords = useMemo(() => {
+    const records: Array<
+      | { type: 'time'; data: TimeEntry }
+      | { type: 'piecework'; data: Piecework }
+    > = [];
+
+    if (allTimeEntries) {
+      allTimeEntries.forEach(entry => {
+        records.push({ type: 'time', data: entry });
+      });
+    }
+
+    if (allPiecework) {
+      allPiecework.forEach(piece => {
+        records.push({ type: 'piecework', data: piece });
+      });
+    }
+
+    // Sort all records by timestamp descending
+    return records.sort((a, b) => {
+      const aTime =
+        a.data.timestamp instanceof Date
+          ? a.data.timestamp
+          : (a.data.timestamp as any)?.toDate?.()
+          ? (a.data.timestamp as any).toDate()
+          : new Date(a.data.timestamp as any);
+      const bTime =
+        b.data.timestamp instanceof Date
+          ? b.data.timestamp
+          : (b.data.timestamp as any)?.toDate?.()
+          ? (b.data.timestamp as any).toDate()
+          : new Date(b.data.timestamp as any);
+      return bTime.getTime() - aTime.getTime();
+    });
+  }, [allTimeEntries, allPiecework]);
+
   // Query for active time entries (for history tab)
   const activeTimeEntriesQuery = useMemo(() => {
     if (!firestore) return null;
@@ -3151,15 +3188,15 @@ function TimeTrackingPage() {
                 )}
               </div>
 
-              {/* Time Entries Section */}
-              <div className="mb-8">
+              {/* Unified Records Section */}
+              <div>
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <LogIn className="h-5 w-5 text-blue-600" />
-                  Clock-In/Clock-Out Records
+                  <History className="h-5 w-5 text-blue-600" />
+                  All Records (Clock-In/Clock-Out & Piecework)
                 </h3>
-                {!allTimeEntries || allTimeEntries.length === 0 ? (
+                {!mergedRecords || mergedRecords.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground border rounded-lg">
-                    <p>No time entries found.</p>
+                    <p>No records found.</p>
                     {(historyStartDate || historyEndDate) && (
                       <p className="text-sm mt-2">
                         Try adjusting your date filter.
@@ -3168,273 +3205,269 @@ function TimeTrackingPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {allTimeEntries.map((entry) => {
-                      const employee = activeEmployees?.find(
-                        (e) => e.id === entry.employeeId
-                      );
-                      const task = allTasks?.find((t) => t.id === entry.taskId);
-                      const client = clients?.find(
-                        (c) => c.id === task?.clientId
-                      );
-                      const clockInTime =
-                        entry.timestamp instanceof Date
-                          ? entry.timestamp
-                          : (entry.timestamp as any)?.toDate
-                          ? (entry.timestamp as any).toDate()
-                          : new Date(entry.timestamp as any);
-                      const clockOutTime = entry.endTime
-                        ? entry.endTime instanceof Date
-                          ? entry.endTime
-                          : (entry.endTime as any)?.toDate
-                          ? (entry.endTime as any).toDate()
-                          : new Date(entry.endTime as any)
-                        : null;
+                    {mergedRecords.map((record) => {
+                      if (record.type === 'time') {
+                        const entry = record.data;
+                        const employee = activeEmployees?.find(
+                          (e) => e.id === entry.employeeId
+                        );
+                        const task = allTasks?.find((t) => t.id === entry.taskId);
+                        const client = clients?.find(
+                          (c) => c.id === task?.clientId
+                        );
+                        const clockInTime =
+                          entry.timestamp instanceof Date
+                            ? entry.timestamp
+                            : (entry.timestamp as any)?.toDate
+                            ? (entry.timestamp as any).toDate()
+                            : new Date(entry.timestamp as any);
+                        const clockOutTime = entry.endTime
+                          ? entry.endTime instanceof Date
+                            ? entry.endTime
+                            : (entry.endTime as any)?.toDate
+                            ? (entry.endTime as any).toDate()
+                            : new Date(entry.endTime as any)
+                          : null;
 
-                      return (
-                        <div
-                          key={entry.id}
-                          className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
-                        >
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <User className="h-4 w-4 text-muted-foreground" />
-                              <p className="font-semibold">
-                                {employee?.name || "Unknown Employee"}
-                              </p>
-                              {!entry.endTime && (
-                                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                                  Active
-                                </span>
-                              )}
-                              {/* Payment Type Badge */}
-                              {(() => {
-                                const taskForEntry = allTasks?.find((t) => t.id === entry.taskId);
-                                const paymentType = entry.paymentModality || 
-                                  (taskForEntry?.clientRateType === "piece" ? "Piecework" : "Hourly");
-                                return (
-                                  <span className={`text-xs px-2 py-1 rounded-full ${
-                                    paymentType === "Piecework" 
-                                      ? "bg-purple-100 text-purple-800" 
-                                      : "bg-blue-100 text-blue-800"
-                                  }`}>
-                                    {paymentType}
-                                  </span>
-                                );
-                              })()}
-                            </div>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Package className="h-3 w-3" />
-                              <p>
-                                {task?.name || "Unknown Task"}
-                                {task?.variety && ` (${task.variety})`}
-                              </p>
-                            </div>
-                            {client && (
-                              <div className="text-xs text-muted-foreground">
-                                Client: {client.name}
-                              </div>
-                            )}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                        return (
+                          <div
+                            key={`time-${entry.id}`}
+                            className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
+                          >
+                            <div className="flex-1 space-y-2">
                               <div className="flex items-center gap-2">
-                                <LogIn className="h-3 w-3 text-green-600" />
-                                <p className="text-muted-foreground">
-                                  In: {format(clockInTime, "PPp")}
+                                <User className="h-4 w-4 text-muted-foreground" />
+                                <p className="font-semibold">
+                                  {employee?.name || "Unknown Employee"}
+                                </p>
+                                {!entry.endTime && (
+                                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                    Active
+                                  </span>
+                                )}
+                                {/* Record Type Badge */}
+                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                  Time Entry
+                                </span>
+                                {/* Payment Type Badge */}
+                                {(() => {
+                                  const taskForEntry = allTasks?.find((t) => t.id === entry.taskId);
+                                  const paymentType = entry.paymentModality || 
+                                    (taskForEntry?.clientRateType === "piece" ? "Piecework" : "Hourly");
+                                  return (
+                                    <span className={`text-xs px-2 py-1 rounded-full ${
+                                      paymentType === "Piecework" 
+                                        ? "bg-purple-100 text-purple-800" 
+                                        : "bg-orange-100 text-orange-800"
+                                    }`}>
+                                      {paymentType}
+                                    </span>
+                                  );
+                                })()}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Package className="h-3 w-3" />
+                                <p>
+                                  {task?.name || "Unknown Task"}
+                                  {task?.variety && ` (${task.variety})`}
                                 </p>
                               </div>
-                              {clockOutTime && (
+                              {client && (
+                                <div className="text-xs text-muted-foreground">
+                                  Client: {client.name}
+                                </div>
+                              )}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                                 <div className="flex items-center gap-2">
-                                  <LogOut className="h-3 w-3 text-red-600" />
+                                  <LogIn className="h-3 w-3 text-green-600" />
                                   <p className="text-muted-foreground">
-                                    Out: {format(clockOutTime, "PPp")}
+                                    In: {format(clockInTime, "PPp")}
                                   </p>
+                                </div>
+                                {clockOutTime && (
+                                  <div className="flex items-center gap-2">
+                                    <LogOut className="h-3 w-3 text-red-600" />
+                                    <p className="text-muted-foreground">
+                                      Out: {format(clockOutTime, "PPp")}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                              {entry.piecesWorked && entry.piecesWorked > 0 && (
+                                <div className="text-sm text-muted-foreground">
+                                  Pieces: {entry.piecesWorked}
                                 </div>
                               )}
                             </div>
+                            <div className="flex gap-2 ml-4">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const taskForEntry = allTasks?.find((t) => t.id === entry.taskId);
+                                  // Initialize payment modality based on task type or entry's paymentModality
+                                  const initialModality = entry.paymentModality || 
+                                    (taskForEntry?.clientRateType === "piece" ? "Piecework" : "Hourly");
+                                  
+                                  setEditTarget({ type: "time", entry: entry });
+                                  setEditTimestamp(clockInTime);
+                                  setEditEndTime(clockOutTime || undefined);
+                                  setEditPiecesWorked(entry.piecesWorked || 0);
+                                  setEditPaymentModality(initialModality);
+                                  
+                                  // Initialize task selection
+                                  setEditTaskId(entry.taskId);
+                                  if (taskForEntry) {
+                                    setEditClient(taskForEntry.clientId);
+                                    setEditRanch(taskForEntry.ranch || "");
+                                    setEditBlock(taskForEntry.block || "");
+                                  }
+                                  
+                                  setEditDialogOpen(true);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => {
+                                  setDeleteTarget({ type: "time", id: entry.id });
+                                  setDeleteConfirmOpen(true);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex gap-2 ml-4">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                const taskForEntry = allTasks?.find((t) => t.id === entry.taskId);
-                                // Initialize payment modality based on task type or entry's paymentModality
-                                const initialModality = entry.paymentModality || 
-                                  (taskForEntry?.clientRateType === "piece" ? "Piecework" : "Hourly");
-                                
-                                setEditTarget({ type: "time", entry: entry });
-                                setEditTimestamp(clockInTime);
-                                setEditEndTime(clockOutTime || undefined);
-                                setEditPiecesWorked(entry.piecesWorked || 0);
-                                setEditPaymentModality(initialModality);
-                                
-                                // Initialize task selection
-                                setEditTaskId(entry.taskId);
-                                if (taskForEntry) {
-                                  setEditClient(taskForEntry.clientId);
-                                  setEditRanch(taskForEntry.ranch || "");
-                                  setEditBlock(taskForEntry.block || "");
-                                }
-                                
-                                setEditDialogOpen(true);
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => {
-                                setDeleteTarget({ type: "time", id: entry.id });
-                                setDeleteConfirmOpen(true);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                        );
+                      } else {
+                        // Piecework record
+                        const piece = record.data;
+                        // Handle multiple employees (comma-separated IDs)
+                        const employeeIds = piece.employeeId.split(",");
+                        const employeeNames =
+                          employeeIds
+                            .map(
+                              (id) =>
+                                activeEmployees?.find(
+                                  (e) => e.id === id || e.qrCode === id
+                                )?.name
+                            )
+                            .filter(Boolean)
+                            .join(", ") || "Unknown Employee(s)";
+                        const task = allTasks?.find((t) => t.id === piece.taskId);
+                        const client = clients?.find(
+                          (c) => c.id === task?.clientId
+                        );
+                        const pieceTime =
+                          piece.timestamp instanceof Date
+                            ? piece.timestamp
+                            : (piece.timestamp as any)?.toDate
+                            ? (piece.timestamp as any).toDate()
+                            : new Date(piece.timestamp as any);
 
-              {/* Piecework Section */}
-              <div>
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Package className="h-5 w-5 text-purple-600" />
-                  Piecework Records
-                </h3>
-                {!allPiecework || allPiecework.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground border rounded-lg">
-                    <p>No piecework records found.</p>
-                    {(historyStartDate || historyEndDate) && (
-                      <p className="text-sm mt-2">
-                        Try adjusting your date filter.
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {allPiecework.map((piece) => {
-                      // Handle multiple employees (comma-separated IDs)
-                      const employeeIds = piece.employeeId.split(",");
-                      const employeeNames =
-                        employeeIds
-                          .map(
-                            (id) =>
-                              activeEmployees?.find(
-                                (e) => e.id === id || e.qrCode === id
-                              )?.name
-                          )
-                          .filter(Boolean)
-                          .join(", ") || "Unknown Employee(s)";
-                      const task = allTasks?.find((t) => t.id === piece.taskId);
-                      const client = clients?.find(
-                        (c) => c.id === task?.clientId
-                      );
-                      const pieceTime =
-                        piece.timestamp instanceof Date
-                          ? piece.timestamp
-                          : (piece.timestamp as any)?.toDate
-                          ? (piece.timestamp as any).toDate()
-                          : new Date(piece.timestamp as any);
-
-                      return (
-                        <div
-                          key={piece.id}
-                          className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
-                        >
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <User className="h-4 w-4 text-muted-foreground" />
-                              <p className="font-semibold">{employeeNames}</p>
-                            </div>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Package className="h-3 w-3" />
-                              <p>
-                                {task?.name || "Unknown Task"}
-                                {task?.variety && ` (${task.variety})`}
-                              </p>
-                            </div>
-                            {client && (
-                              <div className="text-xs text-muted-foreground">
-                                Client: {client.name}
-                              </div>
-                            )}
-                            <div className="flex items-center gap-2 text-sm">
-                              <Calendar className="h-3 w-3 text-purple-600" />
-                              <p className="text-muted-foreground">
-                                {format(pieceTime, "PPp")}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-4 text-sm">
+                        return (
+                          <div
+                            key={`piece-${piece.id}`}
+                            className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
+                          >
+                            <div className="flex-1 space-y-2">
                               <div className="flex items-center gap-2">
-                                <CheckCircle className="h-3 w-3 text-green-600" />
-                                <p className="text-muted-foreground">
-                                  Quantity: {piece.pieceCount}
+                                <User className="h-4 w-4 text-muted-foreground" />
+                                <p className="font-semibold">{employeeNames}</p>
+                                {/* Record Type Badge */}
+                                <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
+                                  Piecework
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Package className="h-3 w-3" />
+                                <p>
+                                  {task?.name || "Unknown Task"}
+                                  {task?.variety && ` (${task.variety})`}
                                 </p>
                               </div>
-                              {piece.pieceQrCode &&
-                                piece.pieceQrCode !== "manual_entry" && (
-                                  <div className="text-xs text-muted-foreground">
-                                    Bin: {piece.pieceQrCode}
-                                  </div>
+                              {client && (
+                                <div className="text-xs text-muted-foreground">
+                                  Client: {client.name}
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2 text-sm">
+                                <Calendar className="h-3 w-3 text-purple-600" />
+                                <p className="text-muted-foreground">
+                                  {format(pieceTime, "PPp")}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-4 text-sm">
+                                <div className="flex items-center gap-2">
+                                  <CheckCircle className="h-3 w-3 text-green-600" />
+                                  <p className="text-muted-foreground">
+                                    Quantity: {piece.pieceCount}
+                                  </p>
+                                </div>
+                                {piece.pieceQrCode &&
+                                  piece.pieceQrCode !== "manual_entry" && (
+                                    <div className="text-xs text-muted-foreground">
+                                      Bin: {piece.pieceQrCode}
+                                    </div>
+                                  )}
+                                {piece.pieceQrCode === "manual_entry" && (
+                                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                    Manual Entry
+                                  </span>
                                 )}
-                              {piece.pieceQrCode === "manual_entry" && (
-                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                                  Manual Entry
-                                </span>
+                              </div>
+                              {piece.qcNote && (
+                                <div className="text-xs text-muted-foreground italic">
+                                  Note: {piece.qcNote}
+                                </div>
                               )}
                             </div>
-                            {piece.qcNote && (
-                              <div className="text-xs text-muted-foreground italic">
-                                Note: {piece.qcNote}
-                              </div>
-                            )}
+                            <div className="flex gap-2 ml-4">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const taskForPiece = allTasks?.find((t) => t.id === piece.taskId);
+                                  
+                                  setEditTarget({
+                                    type: "piecework",
+                                    entry: piece,
+                                  });
+                                  setEditTimestamp(pieceTime);
+                                  setEditPieceCount(piece.pieceCount || 1);
+                                  
+                                  // Initialize task selection
+                                  setEditTaskId(piece.taskId);
+                                  if (taskForPiece) {
+                                    setEditClient(taskForPiece.clientId);
+                                    setEditRanch(taskForPiece.ranch || "");
+                                    setEditBlock(taskForPiece.block || "");
+                                  }
+                                  
+                                  setEditDialogOpen(true);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => {
+                                  setDeleteTarget({
+                                    type: "piecework",
+                                    id: piece.id,
+                                  });
+                                  setDeleteConfirmOpen(true);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex gap-2 ml-4">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                const taskForPiece = allTasks?.find((t) => t.id === piece.taskId);
-                                
-                                setEditTarget({
-                                  type: "piecework",
-                                  entry: piece,
-                                });
-                                setEditTimestamp(pieceTime);
-                                setEditPieceCount(piece.pieceCount || 1);
-                                
-                                // Initialize task selection
-                                setEditTaskId(piece.taskId);
-                                if (taskForPiece) {
-                                  setEditClient(taskForPiece.clientId);
-                                  setEditRanch(taskForPiece.ranch || "");
-                                  setEditBlock(taskForPiece.block || "");
-                                }
-                                
-                                setEditDialogOpen(true);
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => {
-                                setDeleteTarget({
-                                  type: "piecework",
-                                  id: piece.id,
-                                });
-                                setDeleteConfirmOpen(true);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      );
+                        );
+                      }
                     })}
                   </div>
                 )}
