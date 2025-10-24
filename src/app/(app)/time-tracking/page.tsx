@@ -62,6 +62,9 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { useFirestore } from "@/firebase";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import {
@@ -1148,40 +1151,43 @@ function TimeTrackingPage() {
 
     setIsManualSubmitting(true);
 
-    // If past records mode is enabled, create both clock-in and clock-out
-    if (usePastRecords) {
-      if (!pastRecordClockInDate || !pastRecordClockOutDate) {
-        toast({
-          variant: "destructive",
-          title: "Missing Times",
-          description: "Please set both clock-in and clock-out times for past records.",
-        });
-        setIsManualSubmitting(false);
-        return;
+    try {
+      // If past records mode is enabled, create both clock-in and clock-out
+      if (usePastRecords) {
+        if (!pastRecordClockInDate || !pastRecordClockOutDate) {
+          toast({
+            variant: "destructive",
+            title: "Missing Times",
+            description: "Please set both clock-in and clock-out times for past records.",
+          });
+          setIsManualSubmitting(false);
+          return;
+        }
+        
+        const task = allTasks?.find(t => t.id === selectedTask);
+        const piecesCount = task?.clientRateType === 'piece' ? (typeof pastRecordPiecesCount === 'number' ? pastRecordPiecesCount : parseInt(String(pastRecordPiecesCount), 10)) : 0;
+        
+        await createPastRecord(
+          manualSelectedEmployee, 
+          selectedTask, 
+          pastRecordClockInDate, 
+          pastRecordClockOutDate,
+          piecesCount > 0 ? piecesCount : undefined
+        );
+      } else if (manualLogType === "clock-in") {
+        const timestamp = useManualDateTime ? manualClockInDate : undefined;
+        await clockInEmployee(manualSelectedEmployee, selectedTask, timestamp, useSickHoursForPayment);
+      } else if (manualLogType === "clock-out") {
+        const timestamp = useManualDateTime ? manualClockOutDate : undefined;
+        await clockOutEmployee(manualSelectedEmployee, selectedTask, timestamp);
       }
-      
-      const task = allTasks?.find(t => t.id === selectedTask);
-      const piecesCount = task?.clientRateType === 'piece' ? (typeof pastRecordPiecesCount === 'number' ? pastRecordPiecesCount : parseInt(String(pastRecordPiecesCount), 10)) : 0;
-      
-      await createPastRecord(
-        manualSelectedEmployee, 
-        selectedTask, 
-        pastRecordClockInDate, 
-        pastRecordClockOutDate,
-        piecesCount > 0 ? piecesCount : undefined
-      );
-    } else if (manualLogType === "clock-in") {
-      const timestamp = useManualDateTime ? manualClockInDate : undefined;
-      await clockInEmployee(manualSelectedEmployee, selectedTask, timestamp, useSickHoursForPayment);
-    } else if (manualLogType === "clock-out") {
-      const timestamp = useManualDateTime ? manualClockOutDate : undefined;
-      await clockOutEmployee(manualSelectedEmployee, selectedTask, timestamp);
-    }
 
-    setManualSelectedEmployee(null);
-    setManualEmployeeSearch("");
-    setUseSickHoursForPayment(false);
-    setIsManualSubmitting(false);
+      setManualSelectedEmployee(null);
+      setManualEmployeeSearch("");
+      setUseSickHoursForPayment(false);
+    } finally {
+      setIsManualSubmitting(false);
+    }
   };
 
   const handleManualPieceSubmit = async () => {
@@ -2105,18 +2111,119 @@ function TimeTrackingPage() {
                 </div>
                 {usePastRecords && (
                   <div className="space-y-3 pt-2">
-                    <DateTimePicker
-                      date={pastRecordClockInDate}
-                      setDate={setPastRecordClockInDate}
-                      label="Clock-In Date & Time"
-                      placeholder="Select clock-in date and time"
-                    />
-                    <DateTimePicker
-                      date={pastRecordClockOutDate}
-                      setDate={setPastRecordClockOutDate}
-                      label="Clock-Out Date & Time"
-                      placeholder="Select clock-out date and time"
-                    />
+                    {/* Single date picker for the day */}
+                    <div className="space-y-2">
+                      <Label>Date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !pastRecordClockInDate && "text-muted-foreground"
+                            )}
+                          >
+                            <Calendar className="mr-2 h-4 w-4" />
+                            {pastRecordClockInDate ? (
+                              format(pastRecordClockInDate, "PPP")
+                            ) : (
+                              <span>Select date</span>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={pastRecordClockInDate}
+                            onSelect={(date) => {
+                              if (!date) {
+                                setPastRecordClockInDate(undefined);
+                                setPastRecordClockOutDate(undefined);
+                                return;
+                              }
+                              // Preserve the time from existing dates or use defaults
+                              const clockInTime = pastRecordClockInDate ? format(pastRecordClockInDate, "HH:mm") : "08:00";
+                              const clockOutTime = pastRecordClockOutDate ? format(pastRecordClockOutDate, "HH:mm") : "17:00";
+                              
+                              const [inHours, inMinutes] = clockInTime.split(":").map(Number);
+                              const [outHours, outMinutes] = clockOutTime.split(":").map(Number);
+                              
+                              const newClockIn = new Date(date.getFullYear(), date.getMonth(), date.getDate(), inHours, inMinutes, 0, 0);
+                              const newClockOut = new Date(date.getFullYear(), date.getMonth(), date.getDate(), outHours, outMinutes, 0, 0);
+                              
+                              setPastRecordClockInDate(newClockIn);
+                              setPastRecordClockOutDate(newClockOut);
+                            }}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    
+                    {/* Start time input */}
+                    <div className="space-y-2">
+                      <Label htmlFor="past-start-time">Start Time</Label>
+                      <Input
+                        id="past-start-time"
+                        type="time"
+                        value={pastRecordClockInDate ? format(pastRecordClockInDate, "HH:mm") : "08:00"}
+                        onChange={(e) => {
+                          const time = e.target.value;
+                          if (!pastRecordClockInDate) {
+                            // If no date selected yet, use today
+                            const today = new Date();
+                            const [hours, minutes] = time.split(":").map(Number);
+                            const newDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes, 0, 0);
+                            setPastRecordClockInDate(newDate);
+                          } else {
+                            const [hours, minutes] = time.split(":").map(Number);
+                            const newDate = new Date(
+                              pastRecordClockInDate.getFullYear(),
+                              pastRecordClockInDate.getMonth(),
+                              pastRecordClockInDate.getDate(),
+                              hours,
+                              minutes,
+                              0,
+                              0
+                            );
+                            setPastRecordClockInDate(newDate);
+                          }
+                        }}
+                      />
+                    </div>
+                    
+                    {/* End time input */}
+                    <div className="space-y-2">
+                      <Label htmlFor="past-end-time">End Time</Label>
+                      <Input
+                        id="past-end-time"
+                        type="time"
+                        value={pastRecordClockOutDate ? format(pastRecordClockOutDate, "HH:mm") : "17:00"}
+                        onChange={(e) => {
+                          const time = e.target.value;
+                          if (!pastRecordClockOutDate) {
+                            // Use same date as clock-in or today
+                            const baseDate = pastRecordClockInDate || new Date();
+                            const [hours, minutes] = time.split(":").map(Number);
+                            const newDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), hours, minutes, 0, 0);
+                            setPastRecordClockOutDate(newDate);
+                          } else {
+                            const [hours, minutes] = time.split(":").map(Number);
+                            const newDate = new Date(
+                              pastRecordClockOutDate.getFullYear(),
+                              pastRecordClockOutDate.getMonth(),
+                              pastRecordClockOutDate.getDate(),
+                              hours,
+                              minutes,
+                              0,
+                              0
+                            );
+                            setPastRecordClockOutDate(newDate);
+                          }
+                        }}
+                      />
+                    </div>
+                    
                     {selectedTask && allTasks?.find(t => t.id === selectedTask)?.clientRateType === 'piece' && (
                       <div className="space-y-2">
                         <Label htmlFor="past-pieces-count-manual">Pieces Completed</Label>
@@ -3775,12 +3882,16 @@ function TimeTrackingPage() {
                   />
                 </div>
                 
-                {/* Show all pieces with individual editable fields */}
-                {(editPiecesWorked > 0 || editPiecesWorked === "" || editRelatedPiecework.length > 0 || (editTarget && editTarget.type === "time")) && (
+                {/* Show all pieces with individual editable fields - only for piecework tasks */}
+                {(() => {
+                  const editTask = allTasks?.find(t => t.id === editTaskId);
+                  const isPieceworkTask = editTask?.clientRateType === 'piece';
+                  return isPieceworkTask && (editPiecesWorked > 0 || editPiecesWorked === "" || editRelatedPiecework.length > 0 || editPaymentModality === "Piecework");
+                })() && (
                   <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
                     <p className="font-medium text-sm">Pieces Worked:</p>
                     
-                    {/* Show piecesWorked field - always show for time entries */}
+                    {/* Show piecesWorked field - only for piecework tasks */}
                     <div className="space-y-2">
                       <Label htmlFor="edit-pieces-main">
                         {editEndTime ? format(editEndTime, "PPp") : "Clock-out time"}
@@ -3803,12 +3914,6 @@ function TimeTrackingPage() {
                             }
                           }
                         }}
-                        onBlur={(e) => {
-                          // Convert empty to 0 on blur
-                          if (e.target.value === "") {
-                            setEditPiecesWorked(0);
-                          }
-                        }}
                       />
                     </div>
                     
@@ -3828,10 +3933,19 @@ function TimeTrackingPage() {
                             value={piece.pieceCount}
                             onChange={(e) => {
                               const value = e.target.value;
-                              const newCount = value === "" ? 0 : parseInt(value, 10);
-                              const updated = [...editRelatedPiecework];
-                              updated[index] = { ...piece, pieceCount: newCount };
-                              setEditRelatedPiecework(updated);
+                              // Allow empty string for user to clear the field
+                              if (value === "") {
+                                const updated = [...editRelatedPiecework];
+                                updated[index] = { ...piece, pieceCount: 0 };
+                                setEditRelatedPiecework(updated);
+                              } else {
+                                const newCount = parseInt(value, 10);
+                                if (!isNaN(newCount) && newCount >= 0) {
+                                  const updated = [...editRelatedPiecework];
+                                  updated[index] = { ...piece, pieceCount: newCount };
+                                  setEditRelatedPiecework(updated);
+                                }
+                              }
                             }}
                           />
                         </div>
