@@ -43,19 +43,23 @@ const taskSchema = z.object({
   ranch: z.string().optional(),
   block: z.string().optional(),
   clientId: z.string().min(1, 'Client is required'),
-  clientRate: z.coerce.number().min(0, 'Rate must be positive'),
+  clientRate: z.coerce.number().optional(),
   clientRateType: z.enum(['hourly', 'piece']),
-  piecePrice: z.coerce.number().min(0, 'Piece price must be positive').optional(),
+  piecePrice: z.coerce.number().optional(),
   status: z.enum(['Active', 'Inactive', 'Completed']),
 }).refine((data) => {
-  // If rate type is piece, piecePrice must be provided
-  if (data.clientRateType === 'piece' && (!data.piecePrice || data.piecePrice <= 0)) {
-    return false;
+  // If hourly, clientRate must be > 0
+  if (data.clientRateType === 'hourly') {
+    return data.clientRate !== undefined && data.clientRate > 0;
+  }
+  // If piecework, piecePrice must be > 0
+  if (data.clientRateType === 'piece') {
+    return data.piecePrice !== undefined && data.piecePrice > 0;
   }
   return true;
 }, {
-  message: "Piece price is required when rate type is Piecework",
-  path: ["piecePrice"],
+  message: "Please enter a valid rate",
+  path: ["clientRate"], // This will be overridden by the specific field that has the issue
 })
 
 type AddTaskDialogProps = {
@@ -75,9 +79,9 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
       ranch: '',
       block: '',
       clientId: '',
-      clientRate: 0,
+      clientRate: undefined,
       clientRateType: 'hourly',
-      piecePrice: 0,
+      piecePrice: undefined,
       status: 'Active',
     },
   })
@@ -95,9 +99,20 @@ export function AddTaskDialog({ isOpen, onOpenChange, clients }: AddTaskDialogPr
     }
 
     try {
-      const newTask: Omit<Task, 'id'> = { ...values };
+      // Construct task based on rate type
+      const newTask: Omit<Task, 'id'> = {
+        name: values.name,
+        variety: values.variety || '',
+        ranch: values.ranch || '',
+        block: values.block || '',
+        clientId: values.clientId,
+        clientRateType: values.clientRateType,
+        status: values.status,
+        clientRate: values.clientRateType === 'hourly' ? (values.clientRate || 0) : 0,
+        piecePrice: values.clientRateType === 'piece' ? values.piecePrice : undefined,
+      };
+      
       const tasksCollection = collection(firestore, 'tasks');
-
       await addDoc(tasksCollection, newTask);
       
       toast({

@@ -44,19 +44,23 @@ const taskSchema = z.object({
   ranch: z.string().optional(),
   block: z.string().optional(),
   clientId: z.string().min(1, 'Client is required'),
-  clientRate: z.coerce.number().min(0, 'Rate must be positive'),
+  clientRate: z.coerce.number().optional(),
   clientRateType: z.enum(['hourly', 'piece']),
-  piecePrice: z.coerce.number().min(0, 'Piece price must be positive').optional(),
+  piecePrice: z.coerce.number().optional(),
   status: z.enum(['Active', 'Inactive', 'Completed']),
 }).refine((data) => {
-  // If rate type is piece, piecePrice must be provided
-  if (data.clientRateType === 'piece' && (!data.piecePrice || data.piecePrice <= 0)) {
-    return false;
+  // If hourly, clientRate must be > 0
+  if (data.clientRateType === 'hourly') {
+    return data.clientRate !== undefined && data.clientRate > 0;
+  }
+  // If piecework, piecePrice must be > 0
+  if (data.clientRateType === 'piece') {
+    return data.piecePrice !== undefined && data.piecePrice > 0;
   }
   return true;
 }, {
-  message: "Piece price is required when rate type is Piecework",
-  path: ["piecePrice"],
+  message: "Please enter a valid rate",
+  path: ["clientRate"], // This will be overridden by the specific field that has the issue
 })
 
 type EditTaskDialogProps = {
@@ -71,12 +75,32 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, clients }: EditTask
   const { toast } = useToast()
   const form = useForm<z.infer<typeof taskSchema>>({
     resolver: zodResolver(taskSchema),
-    defaultValues: task,
+    defaultValues: {
+      name: task.name || '',
+      variety: task.variety || '',
+      ranch: task.ranch || '',
+      block: task.block || '',
+      clientId: task.clientId || '',
+      clientRate: task.clientRate || undefined,
+      clientRateType: task.clientRateType,
+      piecePrice: task.piecePrice || undefined,
+      status: task.status,
+    },
   })
 
   useEffect(() => {
     if (task) {
-      form.reset(task)
+      form.reset({
+        name: task.name || '',
+        variety: task.variety || '',
+        ranch: task.ranch || '',
+        block: task.block || '',
+        clientId: task.clientId || '',
+        clientRate: task.clientRate || undefined,
+        clientRateType: task.clientRateType,
+        piecePrice: task.piecePrice || undefined,
+        status: task.status,
+      })
     }
   }, [task, form])
 
@@ -94,7 +118,19 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, clients }: EditTask
 
     try {
       const taskRef = doc(firestore, 'tasks', task.id)
-      const updatedData = { ...values };
+      
+      // Construct update data based on rate type
+      const updatedData: Partial<Task> = {
+        name: values.name,
+        variety: values.variety || '',
+        ranch: values.ranch || '',
+        block: values.block || '',
+        clientId: values.clientId,
+        clientRateType: values.clientRateType,
+        status: values.status,
+        clientRate: values.clientRateType === 'hourly' ? (values.clientRate || 0) : 0,
+        piecePrice: values.clientRateType === 'piece' ? values.piecePrice : undefined,
+      };
 
       await updateDoc(taskRef, updatedData);
       
