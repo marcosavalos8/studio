@@ -2169,24 +2169,33 @@ function TimeTrackingPage() {
                         value={pastRecordClockInDate ? format(pastRecordClockInDate, "HH:mm") : "08:00"}
                         onChange={(e) => {
                           const time = e.target.value;
-                          if (!pastRecordClockInDate) {
-                            // If no date selected yet, use today
-                            const today = new Date();
-                            const [hours, minutes] = time.split(":").map(Number);
-                            const newDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes, 0, 0);
-                            setPastRecordClockInDate(newDate);
-                          } else {
-                            const [hours, minutes] = time.split(":").map(Number);
-                            const newDate = new Date(
-                              pastRecordClockInDate.getFullYear(),
-                              pastRecordClockInDate.getMonth(),
-                              pastRecordClockInDate.getDate(),
-                              hours,
-                              minutes,
+                          const baseDate = pastRecordClockInDate || new Date();
+                          const [hours, minutes] = time.split(":").map(Number);
+                          const newClockIn = new Date(
+                            baseDate.getFullYear(),
+                            baseDate.getMonth(),
+                            baseDate.getDate(),
+                            hours,
+                            minutes,
+                            0,
+                            0
+                          );
+                          setPastRecordClockInDate(newClockIn);
+                          
+                          // Update clock-out to be on the same date if it exists
+                          if (pastRecordClockOutDate) {
+                            const outTime = format(pastRecordClockOutDate, "HH:mm");
+                            const [outHours, outMinutes] = outTime.split(":").map(Number);
+                            const newClockOut = new Date(
+                              baseDate.getFullYear(),
+                              baseDate.getMonth(),
+                              baseDate.getDate(),
+                              outHours,
+                              outMinutes,
                               0,
                               0
                             );
-                            setPastRecordClockInDate(newDate);
+                            setPastRecordClockOutDate(newClockOut);
                           }
                         }}
                       />
@@ -2201,25 +2210,18 @@ function TimeTrackingPage() {
                         value={pastRecordClockOutDate ? format(pastRecordClockOutDate, "HH:mm") : "17:00"}
                         onChange={(e) => {
                           const time = e.target.value;
-                          if (!pastRecordClockOutDate) {
-                            // Use same date as clock-in or today
-                            const baseDate = pastRecordClockInDate || new Date();
-                            const [hours, minutes] = time.split(":").map(Number);
-                            const newDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), hours, minutes, 0, 0);
-                            setPastRecordClockOutDate(newDate);
-                          } else {
-                            const [hours, minutes] = time.split(":").map(Number);
-                            const newDate = new Date(
-                              pastRecordClockOutDate.getFullYear(),
-                              pastRecordClockOutDate.getMonth(),
-                              pastRecordClockOutDate.getDate(),
-                              hours,
-                              minutes,
-                              0,
-                              0
-                            );
-                            setPastRecordClockOutDate(newDate);
-                          }
+                          const baseDate = pastRecordClockInDate || new Date();
+                          const [hours, minutes] = time.split(":").map(Number);
+                          const newClockOut = new Date(
+                            baseDate.getFullYear(),
+                            baseDate.getMonth(),
+                            baseDate.getDate(),
+                            hours,
+                            minutes,
+                            0,
+                            0
+                          );
+                          setPastRecordClockOutDate(newClockOut);
                         }}
                       />
                     </div>
@@ -3898,8 +3900,8 @@ function TimeTrackingPage() {
                       </Label>
                       <Input
                         id="edit-pieces-main"
-                        type="number"
-                        min="0"
+                        type="text"
+                        inputMode="numeric"
                         placeholder="Enter number of pieces"
                         value={editPiecesWorked}
                         onChange={(e) => {
@@ -3908,9 +3910,12 @@ function TimeTrackingPage() {
                           if (value === "") {
                             setEditPiecesWorked("");
                           } else {
-                            const numValue = parseInt(value, 10);
-                            if (!isNaN(numValue) && numValue >= 0) {
-                              setEditPiecesWorked(numValue);
+                            // Only allow digits
+                            if (/^\d+$/.test(value)) {
+                              const numValue = parseInt(value, 10);
+                              if (!isNaN(numValue) && numValue >= 0) {
+                                setEditPiecesWorked(numValue);
+                              }
                             }
                           }
                         }}
@@ -3927,8 +3932,8 @@ function TimeTrackingPage() {
                           </Label>
                           <Input
                             id={`edit-piece-${index}`}
-                            type="number"
-                            min="0"
+                            type="text"
+                            inputMode="numeric"
                             placeholder="Enter number of pieces"
                             value={piece.pieceCount}
                             onChange={(e) => {
@@ -3939,11 +3944,14 @@ function TimeTrackingPage() {
                                 updated[index] = { ...piece, pieceCount: 0 };
                                 setEditRelatedPiecework(updated);
                               } else {
-                                const newCount = parseInt(value, 10);
-                                if (!isNaN(newCount) && newCount >= 0) {
-                                  const updated = [...editRelatedPiecework];
-                                  updated[index] = { ...piece, pieceCount: newCount };
-                                  setEditRelatedPiecework(updated);
+                                // Only allow digits
+                                if (/^\d+$/.test(value)) {
+                                  const newCount = parseInt(value, 10);
+                                  if (!isNaN(newCount) && newCount >= 0) {
+                                    const updated = [...editRelatedPiecework];
+                                    updated[index] = { ...piece, pieceCount: newCount };
+                                    setEditRelatedPiecework(updated);
+                                  }
                                 }
                               }
                             }}
