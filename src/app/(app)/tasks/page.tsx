@@ -138,7 +138,7 @@ export default function TasksPage() {
                 <span className="md:hidden text-xs text-muted-foreground mt-1">
                   {task.ranch || "-"} - {task.block || "-"}
                 </span>
-                <span className="lg:hidden text-xs mt-1">
+                <div className="lg:hidden flex items-center gap-2 mt-1">
                   <Badge
                     className={cn("text-xs", {
                       "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300":
@@ -152,7 +152,17 @@ export default function TasksPage() {
                   >
                     {task.status}
                   </Badge>
-                </span>
+                  <span className="text-xs text-muted-foreground">•</span>
+                  {task.clientRateType === "piece" && task.piecePrice ? (
+                    <span className="text-xs font-medium">
+                      ${task.piecePrice.toFixed(2)}/piece
+                    </span>
+                  ) : (
+                    <span className="text-xs font-medium">
+                      ${task.clientRate?.toFixed(2) || '0.00'}/hr
+                    </span>
+                  )}
+                </div>
               </div>
             </TableCell>
             <TableCell className="hidden md:table-cell">
