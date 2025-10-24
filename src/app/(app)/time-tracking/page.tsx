@@ -170,8 +170,9 @@ function TimeTrackingPage() {
   
   // Past records state - for creating both clock-in and clock-out at once
   const [usePastRecords, setUsePastRecords] = useState(false);
-  const [pastRecordClockInDate, setPastRecordClockInDate] = useState<Date | undefined>(undefined);
-  const [pastRecordClockOutDate, setPastRecordClockOutDate] = useState<Date | undefined>(undefined);
+  const [pastRecordDate, setPastRecordDate] = useState<Date | undefined>(undefined); // Single date field
+  const [pastRecordStartTime, setPastRecordStartTime] = useState<string>(""); // Start time (HH:MM format)
+  const [pastRecordEndTime, setPastRecordEndTime] = useState<string>(""); // End time (HH:MM format)
   const [pastRecordPiecesCount, setPastRecordPiecesCount] = useState<number | string>(0);
 
   // History filtering state
@@ -851,7 +852,7 @@ function TimeTrackingPage() {
           timestamp: clockInTime,
           endTime: clockOutTime,
           isBreak: false,
-          piecesWorked: piecesCount && piecesCount > 0 ? piecesCount : undefined,
+          piecesWorked: piecesCount && piecesCount > 0 ? piecesCount : 0,
         };
         batch.set(newTimeEntryRef, newTimeEntry);
 
@@ -931,14 +932,24 @@ function TimeTrackingPage() {
       if (scannedEmployee) {
         // If past records mode is enabled, create both clock-in and clock-out
         if (usePastRecords) {
-          if (!pastRecordClockInDate || !pastRecordClockOutDate) {
+          if (!pastRecordDate || !pastRecordStartTime || !pastRecordEndTime) {
             toast({
               variant: "destructive",
               title: "Missing Times",
-              description: "Please set both clock-in and clock-out times for past records.",
+              description: "Please set the date, start time, and end time for past records.",
             });
             return;
           }
+          
+          // Combine date with start and end times
+          const [startHour, startMinute] = pastRecordStartTime.split(':').map(Number);
+          const [endHour, endMinute] = pastRecordEndTime.split(':').map(Number);
+          
+          const clockInDateTime = new Date(pastRecordDate);
+          clockInDateTime.setHours(startHour, startMinute, 0, 0);
+          
+          const clockOutDateTime = new Date(pastRecordDate);
+          clockOutDateTime.setHours(endHour, endMinute, 0, 0);
           
           const task = allTasks?.find(t => t.id === selectedTask);
           const piecesCount = task?.clientRateType === 'piece' ? (typeof pastRecordPiecesCount === 'number' ? pastRecordPiecesCount : parseInt(String(pastRecordPiecesCount), 10)) : 0;
@@ -946,8 +957,8 @@ function TimeTrackingPage() {
           await createPastRecord(
             scannedEmployee, 
             selectedTask, 
-            pastRecordClockInDate, 
-            pastRecordClockOutDate,
+            clockInDateTime, 
+            clockOutDateTime,
             piecesCount > 0 ? piecesCount : undefined
           );
         } else if (scanMode === "clock-in") {
@@ -1150,15 +1161,25 @@ function TimeTrackingPage() {
 
     // If past records mode is enabled, create both clock-in and clock-out
     if (usePastRecords) {
-      if (!pastRecordClockInDate || !pastRecordClockOutDate) {
+      if (!pastRecordDate || !pastRecordStartTime || !pastRecordEndTime) {
         toast({
           variant: "destructive",
           title: "Missing Times",
-          description: "Please set both clock-in and clock-out times for past records.",
+          description: "Please set the date, start time, and end time for past records.",
         });
         setIsManualSubmitting(false);
         return;
       }
+      
+      // Combine date with start and end times
+      const [startHour, startMinute] = pastRecordStartTime.split(':').map(Number);
+      const [endHour, endMinute] = pastRecordEndTime.split(':').map(Number);
+      
+      const clockInDateTime = new Date(pastRecordDate);
+      clockInDateTime.setHours(startHour, startMinute, 0, 0);
+      
+      const clockOutDateTime = new Date(pastRecordDate);
+      clockOutDateTime.setHours(endHour, endMinute, 0, 0);
       
       const task = allTasks?.find(t => t.id === selectedTask);
       const piecesCount = task?.clientRateType === 'piece' ? (typeof pastRecordPiecesCount === 'number' ? pastRecordPiecesCount : parseInt(String(pastRecordPiecesCount), 10)) : 0;
@@ -1166,8 +1187,8 @@ function TimeTrackingPage() {
       await createPastRecord(
         manualSelectedEmployee, 
         selectedTask, 
-        pastRecordClockInDate, 
-        pastRecordClockOutDate,
+        clockInDateTime, 
+        clockOutDateTime,
         piecesCount > 0 ? piecesCount : undefined
       );
     } else if (manualLogType === "clock-in") {
@@ -1890,8 +1911,9 @@ function TimeTrackingPage() {
                     onCheckedChange={(checked: boolean) => {
                       setUsePastRecords(checked);
                       if (!checked) {
-                        setPastRecordClockInDate(undefined);
-                        setPastRecordClockOutDate(undefined);
+                        setPastRecordDate(undefined);
+                        setPastRecordStartTime("");
+                        setPastRecordEndTime("");
                         setPastRecordPiecesCount(0);
                       }
                       // Reset other modes when enabling past records
@@ -1911,18 +1933,42 @@ function TimeTrackingPage() {
                 </div>
                 {usePastRecords && (
                   <div className="space-y-3 pt-2">
-                    <DateTimePicker
-                      date={pastRecordClockInDate}
-                      setDate={setPastRecordClockInDate}
-                      label="Clock-In Date & Time"
-                      placeholder="Select clock-in date and time"
-                    />
-                    <DateTimePicker
-                      date={pastRecordClockOutDate}
-                      setDate={setPastRecordClockOutDate}
-                      label="Clock-Out Date & Time"
-                      placeholder="Select clock-out date and time"
-                    />
+                    <div className="space-y-2">
+                      <Label htmlFor="past-record-date">Date</Label>
+                      <Input
+                        id="past-record-date"
+                        type="date"
+                        value={pastRecordDate ? format(pastRecordDate, "yyyy-MM-dd") : ""}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            const [year, month, day] = e.target.value.split('-').map(Number);
+                            setPastRecordDate(new Date(year, month - 1, day));
+                          } else {
+                            setPastRecordDate(undefined);
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="past-record-start-time">Start Time</Label>
+                        <Input
+                          id="past-record-start-time"
+                          type="time"
+                          value={pastRecordStartTime}
+                          onChange={(e) => setPastRecordStartTime(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="past-record-end-time">End Time</Label>
+                        <Input
+                          id="past-record-end-time"
+                          type="time"
+                          value={pastRecordEndTime}
+                          onChange={(e) => setPastRecordEndTime(e.target.value)}
+                        />
+                      </div>
+                    </div>
                     {selectedTask && allTasks?.find(t => t.id === selectedTask)?.clientRateType === 'piece' && (
                       <div className="space-y-2">
                         <Label htmlFor="past-pieces-count">Pieces Completed</Label>
@@ -2084,8 +2130,9 @@ function TimeTrackingPage() {
                     onCheckedChange={(checked: boolean) => {
                       setUsePastRecords(checked);
                       if (!checked) {
-                        setPastRecordClockInDate(undefined);
-                        setPastRecordClockOutDate(undefined);
+                        setPastRecordDate(undefined);
+                        setPastRecordStartTime("");
+                        setPastRecordEndTime("");
                         setPastRecordPiecesCount(0);
                       }
                       // Reset other modes when enabling past records
@@ -2105,18 +2152,42 @@ function TimeTrackingPage() {
                 </div>
                 {usePastRecords && (
                   <div className="space-y-3 pt-2">
-                    <DateTimePicker
-                      date={pastRecordClockInDate}
-                      setDate={setPastRecordClockInDate}
-                      label="Clock-In Date & Time"
-                      placeholder="Select clock-in date and time"
-                    />
-                    <DateTimePicker
-                      date={pastRecordClockOutDate}
-                      setDate={setPastRecordClockOutDate}
-                      label="Clock-Out Date & Time"
-                      placeholder="Select clock-out date and time"
-                    />
+                    <div className="space-y-2">
+                      <Label htmlFor="past-record-date-manual">Date</Label>
+                      <Input
+                        id="past-record-date-manual"
+                        type="date"
+                        value={pastRecordDate ? format(pastRecordDate, "yyyy-MM-dd") : ""}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            const [year, month, day] = e.target.value.split('-').map(Number);
+                            setPastRecordDate(new Date(year, month - 1, day));
+                          } else {
+                            setPastRecordDate(undefined);
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="past-record-start-time-manual">Start Time</Label>
+                        <Input
+                          id="past-record-start-time-manual"
+                          type="time"
+                          value={pastRecordStartTime}
+                          onChange={(e) => setPastRecordStartTime(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="past-record-end-time-manual">End Time</Label>
+                        <Input
+                          id="past-record-end-time-manual"
+                          type="time"
+                          value={pastRecordEndTime}
+                          onChange={(e) => setPastRecordEndTime(e.target.value)}
+                        />
+                      </div>
+                    </div>
                     {selectedTask && allTasks?.find(t => t.id === selectedTask)?.clientRateType === 'piece' && (
                       <div className="space-y-2">
                         <Label htmlFor="past-pieces-count-manual">Pieces Completed</Label>
@@ -3775,77 +3846,86 @@ function TimeTrackingPage() {
                   />
                 </div>
                 
-                {/* Show all pieces with individual editable fields */}
-                {(editPiecesWorked > 0 || editPiecesWorked === "" || editRelatedPiecework.length > 0 || (editTarget && editTarget.type === "time")) && (
-                  <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
-                    <p className="font-medium text-sm">Pieces Worked:</p>
-                    
-                    {/* Show piecesWorked field - always show for time entries */}
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-pieces-main">
-                        {editEndTime ? format(editEndTime, "PPp") : "Clock-out time"}
-                      </Label>
-                      <Input
-                        id="edit-pieces-main"
-                        type="number"
-                        min="0"
-                        placeholder="Enter number of pieces"
-                        value={editPiecesWorked}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          // Allow empty string for deletion
-                          if (value === "") {
-                            setEditPiecesWorked("");
-                          } else {
-                            const numValue = parseInt(value, 10);
-                            if (!isNaN(numValue) && numValue >= 0) {
-                              setEditPiecesWorked(numValue);
+                {/* Show all pieces with individual editable fields - only for piecework tasks */}
+                {(() => {
+                  const editTask = allTasks?.find(t => t.id === editTaskId);
+                  const isPieceworkTask = editTask?.clientRateType === 'piece' || editPaymentModality === 'Piecework';
+                  const hasPieces = editPiecesWorked > 0 || editPiecesWorked === "" || editRelatedPiecework.length > 0;
+                  
+                  // Only show pieces section for piecework tasks
+                  if (!isPieceworkTask) return null;
+                  
+                  return (
+                    <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+                      <p className="font-medium text-sm">Pieces Worked:</p>
+                      
+                      {/* Show piecesWorked field */}
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-pieces-main">
+                          {editEndTime ? format(editEndTime, "PPp") : "Clock-out time"}
+                        </Label>
+                        <Input
+                          id="edit-pieces-main"
+                          type="number"
+                          min="0"
+                          placeholder="Enter number of pieces"
+                          value={editPiecesWorked}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            // Allow empty string for deletion
+                            if (value === "") {
+                              setEditPiecesWorked("");
+                            } else {
+                              const numValue = parseInt(value, 10);
+                              if (!isNaN(numValue) && numValue >= 0) {
+                                setEditPiecesWorked(numValue);
+                              }
                             }
-                          }
-                        }}
-                        onBlur={(e) => {
-                          // Convert empty to 0 on blur
-                          if (e.target.value === "") {
-                            setEditPiecesWorked(0);
-                          }
-                        }}
-                      />
+                          }}
+                          onBlur={(e) => {
+                            // Convert empty to 0 on blur
+                            if (e.target.value === "") {
+                              setEditPiecesWorked(0);
+                            }
+                          }}
+                        />
+                      </div>
+                      
+                      {/* Show related piecework fields */}
+                      {editRelatedPiecework.map((piece, index) => {
+                        const pieceTime = piece.timestamp instanceof Date ? piece.timestamp : (piece.timestamp as any)?.toDate ? (piece.timestamp as any).toDate() : new Date(piece.timestamp as any);
+                        return (
+                          <div key={piece.id} className="space-y-2">
+                            <Label htmlFor={`edit-piece-${index}`}>
+                              {format(pieceTime, "PPp")}
+                            </Label>
+                            <Input
+                              id={`edit-piece-${index}`}
+                              type="number"
+                              min="0"
+                              placeholder="Enter number of pieces"
+                              value={piece.pieceCount}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                const newCount = value === "" ? 0 : parseInt(value, 10);
+                                const updated = [...editRelatedPiecework];
+                                updated[index] = { ...piece, pieceCount: newCount };
+                                setEditRelatedPiecework(updated);
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
+                      
+                      {/* Show total */}
+                      <div className="pt-2 border-t">
+                        <p className="text-sm font-medium text-muted-foreground">
+                          Total Pieces: {(typeof editPiecesWorked === 'number' ? editPiecesWorked : parseInt(String(editPiecesWorked), 10) || 0) + editRelatedPiecework.reduce((sum, p) => sum + p.pieceCount, 0)}
+                        </p>
+                      </div>
                     </div>
-                    
-                    {/* Show related piecework fields */}
-                    {editRelatedPiecework.map((piece, index) => {
-                      const pieceTime = piece.timestamp instanceof Date ? piece.timestamp : (piece.timestamp as any)?.toDate ? (piece.timestamp as any).toDate() : new Date(piece.timestamp as any);
-                      return (
-                        <div key={piece.id} className="space-y-2">
-                          <Label htmlFor={`edit-piece-${index}`}>
-                            {format(pieceTime, "PPp")}
-                          </Label>
-                          <Input
-                            id={`edit-piece-${index}`}
-                            type="number"
-                            min="0"
-                            placeholder="Enter number of pieces"
-                            value={piece.pieceCount}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              const newCount = value === "" ? 0 : parseInt(value, 10);
-                              const updated = [...editRelatedPiecework];
-                              updated[index] = { ...piece, pieceCount: newCount };
-                              setEditRelatedPiecework(updated);
-                            }}
-                          />
-                        </div>
-                      );
-                    })}
-                    
-                    {/* Show total */}
-                    <div className="pt-2 border-t">
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Total Pieces: {(typeof editPiecesWorked === 'number' ? editPiecesWorked : parseInt(String(editPiecesWorked), 10) || 0) + editRelatedPiecework.reduce((sum, p) => sum + p.pieceCount, 0)}
-                      </p>
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
                 
                 <div className="space-y-2">
                   <Label htmlFor="edit-modality">Payment Modality</Label>
