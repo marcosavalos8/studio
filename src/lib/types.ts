@@ -68,6 +68,7 @@ export type SharedPieceLog = {
 
 // Define schemas for our processed data. This is what the tool will output.
 export type DailyTaskDetail = {
+  taskId: string;
   taskName: string;
   clientName: string;
   ranch?: string;

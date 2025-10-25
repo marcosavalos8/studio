@@ -107,14 +107,20 @@ export async function generatePayrollReport({
           e.employeeId === employeeId &&
           e.timestamp &&
           e.endTime &&
-          isWithinInterval(parseLocalDateOrDateTime(String(e.timestamp)), reportInterval)
+          isWithinInterval(
+            parseLocalDateOrDateTime(String(e.timestamp)),
+            reportInterval
+          )
       );
 
       const empPiecework: Piecework[] = [];
       piecework.forEach((pw: Piecework) => {
         if (
           !pw.timestamp ||
-          !isWithinInterval(parseLocalDateOrDateTime(String(pw.timestamp)), reportInterval)
+          !isWithinInterval(
+            parseLocalDateOrDateTime(String(pw.timestamp)),
+            reportInterval
+          )
         ) {
           return;
         }
@@ -209,7 +215,10 @@ export async function generatePayrollReport({
           const date = parseLocalDateOrDateTime(String(entry.timestamp));
           const dayKey = format(date, "yyyy-MM-dd");
           let hours =
-            differenceInMilliseconds(parseLocalDateOrDateTime(String(entry.endTime)), date) /
+            differenceInMilliseconds(
+              parseLocalDateOrDateTime(String(entry.endTime)),
+              date
+            ) /
             (1000 * 60 * 60);
           if (hours <= 0) return;
 
@@ -225,7 +234,7 @@ export async function generatePayrollReport({
           if (!dailyWork[dayKey].tasks[entry.taskId])
             dailyWork[dayKey].tasks[entry.taskId] = { hours: 0, pieces: 0 };
           dailyWork[dayKey].tasks[entry.taskId].hours += hours;
-          
+
           // Add pieces from piecesWorked field in TimeEntry
           if (entry.piecesWorked && entry.piecesWorked > 0) {
             dailyWork[dayKey].tasks[entry.taskId].pieces += entry.piecesWorked;
@@ -281,9 +290,14 @@ export async function generatePayrollReport({
               hours,
               pieces,
             });
-            
+
             // Calculate earnings based on task type and rate
-            if (task.clientRateType === 'piece' && pieces > 0 && task.piecePrice && task.piecePrice > 0) {
+            if (
+              task.clientRateType === "piece" &&
+              pieces > 0 &&
+              task.piecePrice &&
+              task.piecePrice > 0
+            ) {
               // Piecework task: calculate based on pieces
               earningsForTask = pieces * task.piecePrice;
               console.log("Calculated piecework earnings:", {
@@ -292,7 +306,7 @@ export async function generatePayrollReport({
                 piecePrice: task.piecePrice,
                 earnings: earningsForTask,
               });
-            } else if (task.clientRateType === 'hourly' && hours > 0) {
+            } else if (task.clientRateType === "hourly" && hours > 0) {
               // Hourly task: calculate based on hours and clientRate
               earningsForTask = hours * (task.clientRate || 0);
               console.log("Calculated hourly earnings:", {
@@ -329,13 +343,22 @@ export async function generatePayrollReport({
             dailyTotalRawEarnings += earningsForTask;
 
             // Determine task type label and rate for display
-            const taskTypeLabel = task.clientRateType === 'piece' ? 'Piecework' : 
-                                  task.clientRateType === 'hourly' ? 'Hourly' : 
-                                  'Unknown';
-            const taskRate = task.clientRateType === 'piece' ? task.piecePrice : task.clientRate;
+            const taskTypeLabel =
+              task.clientRateType === "piece"
+                ? "Piecework"
+                : task.clientRateType === "hourly"
+                ? "Hourly"
+                : "Unknown";
+            const taskRate =
+              task.clientRateType === "piece"
+                ? task.piecePrice
+                : task.clientRate;
 
             taskDetailsForDay.push({
-              taskName: `${task.name} (${task.variety || "N/A"}) - ${taskTypeLabel}`,
+              taskId: taskId, // <- Agregar esto
+              taskName: `${task.name} (${
+                task.variety || "N/A"
+              }) - ${taskTypeLabel}`,
               clientName: client?.name || "Unknown Client",
               ranch: task.ranch,
               block: task.block,
@@ -374,12 +397,14 @@ export async function generatePayrollReport({
         const paidRestBreaksPay = paidRestBreakHours * regularRateOfPay;
 
         // PASO 2: SUMAR GANANCIAS RAW + DESCANSOS
-        const totalEarningsWithBreaks = weeklyTotalRawEarnings + paidRestBreaksPay;
+        const totalEarningsWithBreaks =
+          weeklyTotalRawEarnings + paidRestBreaksPay;
 
         // PASO 3: COMPARACIÓN SEMANAL FINAL (WAC 296-126-021)
         // Calcular el requisito de salario mínimo para toda la semana
-        const weeklyMinimumWageRequirement = weeklyTotalHours * applicableMinWage;
-        
+        const weeklyMinimumWageRequirement =
+          weeklyTotalHours * applicableMinWage;
+
         // El ajuste (top-up) se calcula comparando el total CON DESCANSOS contra el mínimo
         const minimumWageTopUp = Math.max(
           0,

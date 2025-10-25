@@ -110,13 +110,19 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         .map((doc) => ({ ...doc.data(), id: doc.id } as TimeEntry))
         .filter((te) => taskIds.includes(te.taskId))
         .map((te) => {
-          const timestampDate = (te.timestamp as unknown as Timestamp)?.toDate();
+          const timestampDate = (
+            te.timestamp as unknown as Timestamp
+          )?.toDate();
           const endTimeDate = (te.endTime as unknown as Timestamp)?.toDate();
           return {
             ...te,
             // Format as local date-time string without timezone (YYYY-MM-DDTHH:mm:ss)
-            timestamp: timestampDate ? format(timestampDate, "yyyy-MM-dd'T'HH:mm:ss") : null,
-            endTime: endTimeDate ? format(endTimeDate, "yyyy-MM-dd'T'HH:mm:ss") : null,
+            timestamp: timestampDate
+              ? format(timestampDate, "yyyy-MM-dd'T'HH:mm:ss")
+              : null,
+            endTime: endTimeDate
+              ? format(endTimeDate, "yyyy-MM-dd'T'HH:mm:ss")
+              : null,
           };
         });
 
@@ -130,11 +136,15 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         .map((doc) => ({ ...doc.data(), id: doc.id } as Piecework))
         .filter((pw) => taskIds.includes(pw.taskId))
         .map((pw) => {
-          const timestampDate = (pw.timestamp as unknown as Timestamp)?.toDate();
+          const timestampDate = (
+            pw.timestamp as unknown as Timestamp
+          )?.toDate();
           return {
             ...pw,
             // Format as local date-time string without timezone (YYYY-MM-DDTHH:mm:ss)
-            timestamp: timestampDate ? format(timestampDate, "yyyy-MM-dd'T'HH:mm:ss") : null,
+            timestamp: timestampDate
+              ? format(timestampDate, "yyyy-MM-dd'T'HH:mm:ss")
+              : null,
           };
         });
 
@@ -169,29 +179,50 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
             if (!dailyBreakdown[day.date]) {
               dailyBreakdown[day.date] = { tasks: {}, total: 0 };
             }
+            // En el forEach que procesa los tasks:
             day.tasks.forEach((task) => {
-              // Ensure task is for the currently selected client
-              const originalTask = tasks.find(
-                (t) =>
-                  t.name === task.taskName.split(" (")[0] &&
-                  t.clientId === clientData.id
-              );
-              
+              // CORRECCIÓN: Buscar directamente por taskId en lugar de nombre
+              const originalTask = tasks.find((t) => t.id === task.taskId);
+
               if (!originalTask) {
                 console.warn("⚠️ Task not found for invoicing:", {
+                  taskId: task.taskId,
                   taskName: task.taskName,
-                  extractedName: task.taskName.split(" (")[0],
                   clientId: clientData.id,
+                  availableTaskIds: tasks.map((t) => t.id),
                 });
                 return;
               }
 
-              // For piecework tasks, use clientRate if available, otherwise fall back to piecePrice
-              // This handles cases where tasks were created with only employee piece price
+              // Verificar que la tarea pertenece al cliente correcto
+              if (originalTask.clientId !== clientData.id) {
+                console.warn("⚠️ Task belongs to different client:", {
+                  taskId: task.taskId,
+                  taskName: task.taskName,
+                  taskClientId: originalTask.clientId,
+                  expectedClientId: clientData.id,
+                });
+                return;
+              }
+
+              // Debug log para verificar el rate usado
+              console.log("Rate calculation for invoicing:", {
+                taskId: originalTask.id,
+                taskName: originalTask.name,
+                originalClientRate: originalTask.clientRate,
+                piecePrice: originalTask.piecePrice,
+                rateType: originalTask.clientRateType,
+              });
+
+              // Para tareas de piezas, usar clientRate si está disponible, sino piecePrice
               let effectiveClientRate = originalTask.clientRate;
-              if (originalTask.clientRateType === "piece" && (!effectiveClientRate || effectiveClientRate === 0)) {
+              if (
+                originalTask.clientRateType === "piece" &&
+                (!effectiveClientRate || effectiveClientRate === 0)
+              ) {
                 effectiveClientRate = originalTask.piecePrice || 0;
                 console.log("Using piecePrice as fallback for client rate:", {
+                  taskId: originalTask.id,
                   taskName: originalTask.name,
                   piecePrice: originalTask.piecePrice,
                 });
@@ -280,7 +311,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
             pieces: number;
           }>;
         }> = [];
-        
+
         let totalHours = 0;
         let totalPieces = 0;
 
@@ -291,14 +322,17 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
               hours: task.hours,
               pieces: task.pieceworkCount,
             }));
-            
+
             dailyWork.push({
               date: day.date,
               tasks: dayTasks,
             });
-            
+
             totalHours += day.totalDailyHours;
-            totalPieces += day.tasks.reduce((sum, task) => sum + task.pieceworkCount, 0);
+            totalPieces += day.tasks.reduce(
+              (sum, task) => sum + task.pieceworkCount,
+              0
+            );
           });
         });
 
@@ -307,7 +341,11 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           employeeId: emp.employeeId,
           totalHours,
           totalPieces,
-          dailyWork: dailyWork.sort((a, b) => parseLocalDate(a.date).getTime() - parseLocalDate(b.date).getTime()),
+          dailyWork: dailyWork.sort(
+            (a, b) =>
+              parseLocalDate(a.date).getTime() -
+              parseLocalDate(b.date).getTime()
+          ),
         };
       });
 
