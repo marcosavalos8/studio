@@ -66,8 +66,10 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
       return;
     }
 
-    const startDate = new Date(date.from.setHours(0, 0, 0, 0));
-    const endDate = new Date(date.to.setHours(23, 59, 59, 999));
+    const startDate = new Date(date.from);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(date.to);
+    endDate.setHours(23, 59, 59, 999);
 
     try {
       // Fetch all data required for the payroll flow
@@ -174,7 +176,26 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
                   t.name === task.taskName.split(" (")[0] &&
                   t.clientId === clientData.id
               );
-              if (!originalTask) return;
+              
+              if (!originalTask) {
+                console.warn("⚠️ Task not found for invoicing:", {
+                  taskName: task.taskName,
+                  extractedName: task.taskName.split(" (")[0],
+                  clientId: clientData.id,
+                });
+                return;
+              }
+
+              // For piecework tasks, use clientRate if available, otherwise fall back to piecePrice
+              // This handles cases where tasks were created with only employee piece price
+              let effectiveClientRate = originalTask.clientRate;
+              if (originalTask.clientRateType === "piece" && (!effectiveClientRate || effectiveClientRate === 0)) {
+                effectiveClientRate = originalTask.piecePrice || 0;
+                console.log("Using piecePrice as fallback for client rate:", {
+                  taskName: originalTask.name,
+                  piecePrice: originalTask.piecePrice,
+                });
+              }
 
               if (!dailyBreakdown[day.date].tasks[task.taskName]) {
                 dailyBreakdown[day.date].tasks[task.taskName] = {
@@ -182,7 +203,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
                   hours: 0,
                   pieces: 0,
                   cost: 0,
-                  clientRate: originalTask.clientRate,
+                  clientRate: effectiveClientRate,
                   clientRateType: originalTask.clientRateType,
                 };
               }
@@ -293,8 +314,8 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
       const finalInvoiceData: DetailedInvoiceData = {
         client: clientData,
         date: {
-          from: startDate.toISOString(),
-          to: endDate.toISOString(),
+          from: format(startDate, "yyyy-MM-dd"),
+          to: format(endDate, "yyyy-MM-dd"),
         },
         dailyBreakdown,
         laborCost,
@@ -380,14 +401,14 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
               defaultMonth={date?.from}
               selected={date}
               onSelect={(newDate) => {
-                // Convert UTC dates to local timezone to prevent date offset issues
-                if (newDate) {
+                // Only update if we have a valid range or are in the process of selecting
+                // Prevent completely clearing the date range
+                if (newDate?.from) {
+                  // Convert UTC dates to local timezone to prevent date offset issues
                   setDate({
                     from: toLocalMidnight(newDate.from),
                     to: toLocalMidnight(newDate.to),
                   });
-                } else {
-                  setDate(undefined);
                 }
               }}
               numberOfMonths={2}

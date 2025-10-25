@@ -363,34 +363,33 @@ export async function generatePayrollReport({
           continue; // Skip weeks with no work
         }
 
-        // PASO 2: COMPARACIÓN SEMANAL FINAL (WAC 296-126-021)
-        // Calcular el requisito de salario mínimo para toda la semana
-        const weeklyMinimumWageRequirement = weeklyTotalHours * applicableMinWage;
-        
-        // El pago base es el MAYOR entre las ganancias brutas y el salario mínimo semanal
-        const totalEarningsBeforeRest = Math.max(
-          weeklyTotalRawEarnings,
-          weeklyMinimumWageRequirement
-        );
-        
-        // El ajuste (top-up) es la diferencia entre el mínimo y lo ganado
-        const minimumWageTopUp = Math.max(
-          0,
-          weeklyMinimumWageRequirement - weeklyTotalRawEarnings
-        );
-
-        // PASO 3: CALCULAR PAGO DE DESCANSOS (REST BREAKS)
+        // PASO 1: CALCULAR PAGO DE DESCANSOS (REST BREAKS) basado en la tasa RAW
+        // Los descansos se calculan PRIMERO, antes de cualquier ajuste de salario mínimo
+        // La tasa para descansos se basa en las ganancias reales por piezas/horas, no en el salario mínimo
         const regularRateOfPay =
-          weeklyTotalHours > 0 ? totalEarningsBeforeRest / weeklyTotalHours : 0;
+          weeklyTotalHours > 0 ? weeklyTotalRawEarnings / weeklyTotalHours : 0;
 
-        // 10 minutos por cada 4 horas trabajadas o fracción mayor.
-        // Math.floor(weeklyTotalHours / 4) * (10 / 60)
+        // 10 minutos por cada 4 horas trabajadas
         const paidRestBreakHours = Math.floor(weeklyTotalHours / 4) * (10 / 60);
         const paidRestBreaksPay = paidRestBreakHours * regularRateOfPay;
 
-        const finalWeeklyPay = totalEarningsBeforeRest + paidRestBreaksPay;
+        // PASO 2: SUMAR GANANCIAS RAW + DESCANSOS
+        const totalEarningsWithBreaks = weeklyTotalRawEarnings + paidRestBreaksPay;
 
-        // PASO 4: CALCULAR HORAS DE ENFERMEDAD (SICK HOURS)
+        // PASO 3: COMPARACIÓN SEMANAL FINAL (WAC 296-126-021)
+        // Calcular el requisito de salario mínimo para toda la semana
+        const weeklyMinimumWageRequirement = weeklyTotalHours * applicableMinWage;
+        
+        // El ajuste (top-up) se calcula comparando el total CON DESCANSOS contra el mínimo
+        const minimumWageTopUp = Math.max(
+          0,
+          weeklyMinimumWageRequirement - totalEarningsWithBreaks
+        );
+
+        // PASO 4: CALCULAR PAGO FINAL
+        const finalWeeklyPay = totalEarningsWithBreaks + minimumWageTopUp;
+
+        // PASO 5: CALCULAR HORAS DE ENFERMEDAD (SICK HOURS)
         // 1 hora de enfermedad por cada 40 horas trabajadas
         const sickHoursAccrued = weeklyTotalHours / 40;
 
@@ -398,8 +397,8 @@ export async function generatePayrollReport({
           weekNumber,
           year,
           totalHours: parseFloat(weeklyTotalHours.toFixed(2)),
-          // totalEarnings es la cantidad base final (con ajuste si es necesario)
-          totalEarnings: parseFloat(totalEarningsBeforeRest.toFixed(2)),
+          // totalEarnings es la ganancia RAW (sin ajustes de salario mínimo ni descansos)
+          totalEarnings: parseFloat(weeklyTotalRawEarnings.toFixed(2)),
           minimumWageTopUp: parseFloat(minimumWageTopUp.toFixed(2)),
           paidRestBreaks: parseFloat(paidRestBreaksPay.toFixed(2)),
           finalPay: parseFloat(finalWeeklyPay.toFixed(2)),
