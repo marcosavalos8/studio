@@ -295,8 +295,8 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
       const finalInvoiceData: DetailedInvoiceData = {
         client: clientData,
         date: {
-          from: startDate.toISOString(),
-          to: endDate.toISOString(),
+          from: format(startDate, "yyyy-MM-dd"),
+          to: format(endDate, "yyyy-MM-dd"),
         },
         dailyBreakdown,
         laborCost,
@@ -382,14 +382,14 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
               defaultMonth={date?.from}
               selected={date}
               onSelect={(newDate) => {
-                // Convert UTC dates to local timezone to prevent date offset issues
-                if (newDate) {
+                // Only update if we have a valid range or are in the process of selecting
+                // Prevent completely clearing the date range
+                if (newDate?.from) {
+                  // Convert UTC dates to local timezone to prevent date offset issues
                   setDate({
                     from: toLocalMidnight(newDate.from),
                     to: toLocalMidnight(newDate.to),
                   });
-                } else {
-                  setDate(undefined);
                 }
               }}
               numberOfMonths={2}
