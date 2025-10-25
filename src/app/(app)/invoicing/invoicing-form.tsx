@@ -66,8 +66,10 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
       return;
     }
 
-    const startDate = new Date(date.from.setHours(0, 0, 0, 0));
-    const endDate = new Date(date.to.setHours(23, 59, 59, 999));
+    const startDate = new Date(date.from);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(date.to);
+    endDate.setHours(23, 59, 59, 999);
 
     try {
       // Fetch all data required for the payroll flow
