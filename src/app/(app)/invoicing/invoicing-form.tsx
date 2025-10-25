@@ -176,7 +176,26 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
                   t.name === task.taskName.split(" (")[0] &&
                   t.clientId === clientData.id
               );
-              if (!originalTask) return;
+              
+              if (!originalTask) {
+                console.warn("⚠️ Task not found for invoicing:", {
+                  taskName: task.taskName,
+                  extractedName: task.taskName.split(" (")[0],
+                  clientId: clientData.id,
+                });
+                return;
+              }
+
+              // For piecework tasks, use clientRate if available, otherwise fall back to piecePrice
+              // This handles cases where tasks were created with only employee piece price
+              let effectiveClientRate = originalTask.clientRate;
+              if (originalTask.clientRateType === "piece" && (!effectiveClientRate || effectiveClientRate === 0)) {
+                effectiveClientRate = originalTask.piecePrice || 0;
+                console.log("Using piecePrice as fallback for client rate:", {
+                  taskName: originalTask.name,
+                  piecePrice: originalTask.piecePrice,
+                });
+              }
 
               if (!dailyBreakdown[day.date].tasks[task.taskName]) {
                 dailyBreakdown[day.date].tasks[task.taskName] = {
@@ -184,7 +203,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
                   hours: 0,
                   pieces: 0,
                   cost: 0,
-                  clientRate: originalTask.clientRate,
+                  clientRate: effectiveClientRate,
                   clientRateType: originalTask.clientRateType,
                 };
               }
