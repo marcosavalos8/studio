@@ -1043,7 +1043,7 @@ function TimeTrackingPage() {
             task?.clientRateType === "piece"
               ? typeof pastRecordPiecesCount === "number"
                 ? pastRecordPiecesCount
-                : parseInt(String(pastRecordPiecesCount), 10)
+                : parseFloat(String(pastRecordPiecesCount))
               : 0;
 
           await createPastRecord(
@@ -1274,7 +1274,7 @@ function TimeTrackingPage() {
         task?.clientRateType === "piece"
           ? typeof pastRecordPiecesCount === "number"
             ? pastRecordPiecesCount
-            : parseInt(String(pastRecordPiecesCount), 10)
+            : parseFloat(String(pastRecordPiecesCount))
           : 0;
 
       await createPastRecord(
@@ -1320,7 +1320,7 @@ function TimeTrackingPage() {
     const pieceCount =
       typeof manualPieceQuantity === "number"
         ? manualPieceQuantity
-        : parseInt(String(manualPieceQuantity), 10);
+        : parseFloat(String(manualPieceQuantity));
     if (isNaN(pieceCount) || pieceCount <= 0) {
       toast({
         variant: "destructive",
@@ -2129,13 +2129,14 @@ function TimeTrackingPage() {
                           <Input
                             id="past-pieces-count"
                             type="number"
+                            step="0.01"
                             min="0"
                             placeholder="Enter number of pieces"
                             value={pastRecordPiecesCount}
                             onChange={(e) => {
                               const value = e.target.value;
                               setPastRecordPiecesCount(
-                                value === "" ? "" : parseInt(value, 10)
+                                value === "" ? "" : parseFloat(value)
                               );
                             }}
                           />
@@ -2384,13 +2385,14 @@ function TimeTrackingPage() {
                           <Input
                             id="past-pieces-count-manual"
                             type="number"
+                            step="0.01"
                             min="0"
                             placeholder="Enter number of pieces"
                             value={pastRecordPiecesCount}
                             onChange={(e) => {
                               const value = e.target.value;
                               setPastRecordPiecesCount(
-                                value === "" ? "" : parseInt(value, 10)
+                                value === "" ? "" : parseFloat(value)
                               );
                             }}
                           />
@@ -3107,15 +3109,16 @@ function TimeTrackingPage() {
                             <Input
                               id="piece-qr-quantity"
                               type="number"
+                              step="0.01"
                               placeholder="Enter number of pieces"
                               value={manualPieceQuantity}
                               onChange={(e) => {
                                 const value = e.target.value;
                                 setManualPieceQuantity(
-                                  value === "" ? "" : parseInt(value, 10)
+                                  value === "" ? "" : parseFloat(value)
                                 );
                               }}
-                              min="1"
+                              min="0"
                             />
                           </div>
                           <Button
@@ -3296,15 +3299,16 @@ function TimeTrackingPage() {
                         <Input
                           id="piece-manual-quantity"
                           type="number"
+                          step="0.01"
                           placeholder="Enter number of pieces"
                           value={manualPieceQuantity}
                           onChange={(e) => {
                             const value = e.target.value;
                             setManualPieceQuantity(
-                              value === "" ? "" : parseInt(value, 10)
+                              value === "" ? "" : parseFloat(value)
                             );
                           }}
-                          min="1"
+                          min="0"
                         />
                       </div>
 
@@ -3339,7 +3343,7 @@ function TimeTrackingPage() {
                           const pieceCount =
                             typeof manualPieceQuantity === "number"
                               ? manualPieceQuantity
-                              : parseInt(String(manualPieceQuantity), 10);
+                              : parseFloat(String(manualPieceQuantity));
                           if (isNaN(pieceCount) || pieceCount <= 0) {
                             toast({
                               variant: "destructive",
