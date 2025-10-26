@@ -29,7 +29,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useFirestore } from '@/firebase'
-import { collection, doc, setDoc } from 'firebase/firestore'
+import { collection, doc, setDoc, query, where, getDocs } from 'firebase/firestore'
 import { useToast } from '@/hooks/use-toast'
 import type { Employee } from '@/lib/types'
 import { Loader2 } from 'lucide-react'
@@ -72,6 +72,23 @@ export function AddEmployeeDialog({ isOpen, onOpenChange }: AddEmployeeDialogPro
     }
 
     try {
+      // Check for duplicate name
+      const employeesRef = collection(firestore, 'employees');
+      const duplicateQuery = query(
+        employeesRef,
+        where('name', '==', values.name)
+      );
+      const duplicateSnapshot = await getDocs(duplicateQuery);
+      
+      if (!duplicateSnapshot.empty) {
+        toast({
+          variant: 'destructive',
+          title: 'Duplicate Employee',
+          description: `An employee with the name "${values.name}" already exists.`,
+        });
+        return;
+      }
+
       const newDocRef = doc(collection(firestore, 'employees'))
       const newEmployee: Omit<Employee, 'id'> = {
         ...values,

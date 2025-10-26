@@ -765,9 +765,15 @@ function TimeTrackingPage() {
               hasInvalidClockOut = true;
             } else {
               // Calculate hours for this session
-              const hoursWorked =
+              let hoursWorked =
                 (clockOutTime.getTime() - clockInTime.getTime()) /
                 (1000 * 60 * 60);
+              
+              // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (unpaid meal break)
+              if (hoursWorked > 5) {
+                hoursWorked -= 0.5; // Deduct 30 minutes (0.5 hours)
+              }
+              
               totalHoursForThisSession += hoursWorked;
               usingSickHours = entry.useSickHoursForPayment || false;
             }
@@ -948,8 +954,14 @@ function TimeTrackingPage() {
         batch.set(newTimeEntryRef, newTimeEntry);
 
         // Update employee's totalHoursWorked and sickHoursBalance
-        const hoursWorked =
+        let hoursWorked =
           (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
+        
+        // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (unpaid meal break)
+        if (hoursWorked > 5) {
+          hoursWorked -= 0.5; // Deduct 30 minutes (0.5 hours)
+        }
+        
         const currentTotalHours = employee.totalHoursWorked || 0;
         const newTotalHours = currentTotalHours + hoursWorked;
 
@@ -1911,11 +1923,12 @@ function TimeTrackingPage() {
       >
         <div className="space-y-2">
           <Label htmlFor={`client-select-${isManual}`}>Client</Label>
-          <Select value={selectedClient} onValueChange={setSelectedClient}>
+          <Select value={selectedClient || ""} onValueChange={(value) => setSelectedClient(value === "none" ? "" : value)}>
             <SelectTrigger id={`client-select-${isManual}`}>
               <SelectValue placeholder="Select a client" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="none">-- Clear selection --</SelectItem>
               {clients?.map((client) => (
                 <SelectItem key={client.id} value={client.id}>
                   {client.name}
@@ -1927,14 +1940,15 @@ function TimeTrackingPage() {
         <div className="space-y-2">
           <Label htmlFor={`ranch-select-${isManual}`}>Ranch</Label>
           <Select
-            value={selectedRanch}
-            onValueChange={setSelectedRanch}
+            value={selectedRanch || ""}
+            onValueChange={(value) => setSelectedRanch(value === "none" ? "" : value)}
             disabled={!selectedClient || ranches.length === 0}
           >
             <SelectTrigger id={`ranch-select-${isManual}`}>
               <SelectValue placeholder="Select a ranch" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="none">-- Clear selection --</SelectItem>
               {ranches.map((ranch) => (
                 <SelectItem key={ranch} value={ranch}>
                   {ranch}
@@ -1946,14 +1960,15 @@ function TimeTrackingPage() {
         <div className="space-y-2">
           <Label htmlFor={`block-select-${isManual}`}>Block</Label>
           <Select
-            value={selectedBlock}
-            onValueChange={setSelectedBlock}
+            value={selectedBlock || ""}
+            onValueChange={(value) => setSelectedBlock(value === "none" ? "" : value)}
             disabled={!selectedRanch || blocks.length === 0}
           >
             <SelectTrigger id={`block-select-${isManual}`}>
               <SelectValue placeholder="Select a block" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="none">-- Clear selection --</SelectItem>
               {blocks.map((block) => (
                 <SelectItem key={block} value={block}>
                   {block}
@@ -1965,14 +1980,15 @@ function TimeTrackingPage() {
         <div className="space-y-2">
           <Label htmlFor={`task-select-${isManual}`}>Task</Label>
           <Select
-            value={selectedTask}
-            onValueChange={setSelectedTask}
+            value={selectedTask || ""}
+            onValueChange={(value) => setSelectedTask(value === "none" ? "" : value)}
             disabled={displayTasks.length === 0}
           >
             <SelectTrigger id={`task-select-${isManual}`}>
               <SelectValue placeholder="Select a task" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="none">-- Clear selection --</SelectItem>
               {displayTasks?.map((task) => (
                 <SelectItem key={task.id} value={task.id}>
                   {task.name} ({task.variety}) -{" "}
@@ -4118,11 +4134,12 @@ function TimeTrackingPage() {
             <div className="space-y-4 p-4 border rounded-md bg-muted/30">
               <div className="space-y-2">
                 <Label htmlFor="edit-client">Client</Label>
-                <Select value={editClient} onValueChange={setEditClient}>
+                <Select value={editClient || ""} onValueChange={(value) => setEditClient(value === "none" ? "" : value)}>
                   <SelectTrigger id="edit-client">
                     <SelectValue placeholder="Select a client" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">-- Clear selection --</SelectItem>
                     {clients?.map((client) => (
                       <SelectItem key={client.id} value={client.id}>
                         {client.name}
@@ -4134,14 +4151,15 @@ function TimeTrackingPage() {
               <div className="space-y-2">
                 <Label htmlFor="edit-ranch">Ranch</Label>
                 <Select
-                  value={editRanch}
-                  onValueChange={setEditRanch}
+                  value={editRanch || ""}
+                  onValueChange={(value) => setEditRanch(value === "none" ? "" : value)}
                   disabled={!editClient || editRanches.length === 0}
                 >
                   <SelectTrigger id="edit-ranch">
                     <SelectValue placeholder="Select a ranch" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">-- Clear selection --</SelectItem>
                     {editRanches.map((ranch) => (
                       <SelectItem key={ranch} value={ranch}>
                         {ranch}
@@ -4153,14 +4171,15 @@ function TimeTrackingPage() {
               <div className="space-y-2">
                 <Label htmlFor="edit-block">Block</Label>
                 <Select
-                  value={editBlock}
-                  onValueChange={setEditBlock}
+                  value={editBlock || ""}
+                  onValueChange={(value) => setEditBlock(value === "none" ? "" : value)}
                   disabled={!editRanch || editBlocks.length === 0}
                 >
                   <SelectTrigger id="edit-block">
                     <SelectValue placeholder="Select a block" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">-- Clear selection --</SelectItem>
                     {editBlocks.map((block) => (
                       <SelectItem key={block} value={block}>
                         {block}
@@ -4172,14 +4191,15 @@ function TimeTrackingPage() {
               <div className="space-y-2">
                 <Label htmlFor="edit-task">Task</Label>
                 <Select
-                  value={editTaskId}
-                  onValueChange={setEditTaskId}
+                  value={editTaskId || ""}
+                  onValueChange={(value) => setEditTaskId(value === "none" ? "" : value)}
                   disabled={editFilteredTasks.length === 0}
                 >
                   <SelectTrigger id="edit-task">
                     <SelectValue placeholder="Select a task" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">-- Clear selection --</SelectItem>
                     {editFilteredTasks?.map((task) => (
                       <SelectItem key={task.id} value={task.id}>
                         {task.name} ({task.variety})
