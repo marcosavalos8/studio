@@ -26,7 +26,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PlusCircle, Printer, QrCode, MoreHorizontal } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { PlusCircle, Printer, QrCode, MoreHorizontal, Search } from "lucide-react";
 
 import type { Employee } from "@/lib/types";
 
@@ -55,6 +56,8 @@ export default function EmployeesPage() {
   );
   const [employeesWithHours, setEmployeesWithHours] = useState<EmployeeWithCalculatedHours[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchFilter, setSearchFilter] = useState("");
 
   const employeesQuery = useMemo(() => {
     if (!firestore) return null;
@@ -104,7 +107,12 @@ export default function EmployeesPage() {
               const endTime = entry.endTime?.toDate?.() || new Date(entry.endTime);
 
               // Calculate hours worked in this entry
-              const hoursWorked = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+              let hoursWorked = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+              
+              // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (0.5 hours) unpaid meal break
+              if (hoursWorked > 5) {
+                hoursWorked -= 0.5; // Deduct 30 minutes (0.5 hours)
+              }
               
               if (hoursWorked > 0) {
                 totalHoursWorked += hoursWorked;
@@ -144,6 +152,20 @@ export default function EmployeesPage() {
   // Use calculated hours if available, otherwise use stored values
   const displayEmployees = employeesWithHours.length > 0 ? employeesWithHours : employees || [];
 
+  // Filter employees based on search filter
+  const filteredEmployees = useMemo(() => {
+    if (!searchFilter.trim()) {
+      return displayEmployees;
+    }
+    const lowerSearchFilter = searchFilter.toLowerCase();
+    return displayEmployees.filter((emp) =>
+      emp.name.toLowerCase().includes(lowerSearchFilter)
+    );
+  }, [displayEmployees, searchFilter]);
+
+  const handleSearch = () => {
+    setSearchFilter(searchQuery);
+  };
 
   const handleEdit = (employee: Employee) => {
     setSelectedEmployee(employee);
@@ -175,7 +197,42 @@ export default function EmployeesPage() {
             <span className="sm:hidden">Add</span>
           </Button>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
+        <CardContent className="overflow-x-auto space-y-4">
+          {/* Search bar */}
+          <div className="flex gap-2">
+            <Input
+              placeholder="Search employees by name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleSearch();
+                }
+              }}
+              className="flex-1"
+            />
+            <Button
+              onClick={handleSearch}
+              size="default"
+              variant="secondary"
+            >
+              <Search className="h-4 w-4 mr-2" />
+              Search
+            </Button>
+            {searchFilter && (
+              <Button
+                onClick={() => {
+                  setSearchQuery("");
+                  setSearchFilter("");
+                }}
+                size="default"
+                variant="outline"
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+          
           {/* Table view for large screens */}
           <div className="hidden lg:block">
             <Table>
@@ -198,8 +255,8 @@ export default function EmployeesPage() {
                     </TableCell>
                   </TableRow>
                 )}
-                {!isLoading && !isCalculating && displayEmployees &&
-                  displayEmployees.map((employee) => (
+                {!isLoading && !isCalculating && filteredEmployees &&
+                  filteredEmployees.map((employee) => (
                     <TableRow key={employee.id}>
                       <TableCell className="font-medium">
                         {employee.name}
@@ -297,8 +354,8 @@ export default function EmployeesPage() {
                 {isLoading ? "Loading employees..." : "Calculating sick hours..."}
               </div>
             )}
-            {!isLoading && !isCalculating && displayEmployees &&
-              displayEmployees.map((employee) => (
+            {!isLoading && !isCalculating && filteredEmployees &&
+              filteredEmployees.map((employee) => (
                 <Card key={employee.id} className="relative">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
