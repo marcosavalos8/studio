@@ -110,6 +110,9 @@ type ManualLogType =
 type PieceEntryMode = "scan" | "manual";
 type SoundType = "clock-in" | "clock-out" | "piece";
 
+// Constant for clear selection value in dropdowns
+const CLEAR_SELECTION_VALUE = "none";
+
 function TimeTrackingPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -769,9 +772,9 @@ function TimeTrackingPage() {
                 (clockOutTime.getTime() - clockInTime.getTime()) /
                 (1000 * 60 * 60);
               
-              // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (unpaid meal break)
+              // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (0.5 hours) unpaid meal break
               if (hoursWorked > 5) {
-                hoursWorked -= 0.5; // Deduct 30 minutes (0.5 hours)
+                hoursWorked -= 0.5;
               }
               
               totalHoursForThisSession += hoursWorked;
@@ -957,9 +960,9 @@ function TimeTrackingPage() {
         let hoursWorked =
           (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
         
-        // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (unpaid meal break)
+        // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (0.5 hours) unpaid meal break
         if (hoursWorked > 5) {
-          hoursWorked -= 0.5; // Deduct 30 minutes (0.5 hours)
+          hoursWorked -= 0.5;
         }
         
         const currentTotalHours = employee.totalHoursWorked || 0;
@@ -1923,12 +1926,12 @@ function TimeTrackingPage() {
       >
         <div className="space-y-2">
           <Label htmlFor={`client-select-${isManual}`}>Client</Label>
-          <Select value={selectedClient || ""} onValueChange={(value) => setSelectedClient(value === "none" ? "" : value)}>
+          <Select value={selectedClient || ""} onValueChange={(value) => setSelectedClient(value === CLEAR_SELECTION_VALUE ? "" : value)}>
             <SelectTrigger id={`client-select-${isManual}`}>
               <SelectValue placeholder="Select a client" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">-- Clear selection --</SelectItem>
+              <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
               {clients?.map((client) => (
                 <SelectItem key={client.id} value={client.id}>
                   {client.name}
@@ -1941,14 +1944,14 @@ function TimeTrackingPage() {
           <Label htmlFor={`ranch-select-${isManual}`}>Ranch</Label>
           <Select
             value={selectedRanch || ""}
-            onValueChange={(value) => setSelectedRanch(value === "none" ? "" : value)}
+            onValueChange={(value) => setSelectedRanch(value === CLEAR_SELECTION_VALUE ? "" : value)}
             disabled={!selectedClient || ranches.length === 0}
           >
             <SelectTrigger id={`ranch-select-${isManual}`}>
               <SelectValue placeholder="Select a ranch" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">-- Clear selection --</SelectItem>
+              <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
               {ranches.map((ranch) => (
                 <SelectItem key={ranch} value={ranch}>
                   {ranch}
@@ -1961,14 +1964,14 @@ function TimeTrackingPage() {
           <Label htmlFor={`block-select-${isManual}`}>Block</Label>
           <Select
             value={selectedBlock || ""}
-            onValueChange={(value) => setSelectedBlock(value === "none" ? "" : value)}
+            onValueChange={(value) => setSelectedBlock(value === CLEAR_SELECTION_VALUE ? "" : value)}
             disabled={!selectedRanch || blocks.length === 0}
           >
             <SelectTrigger id={`block-select-${isManual}`}>
               <SelectValue placeholder="Select a block" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">-- Clear selection --</SelectItem>
+              <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
               {blocks.map((block) => (
                 <SelectItem key={block} value={block}>
                   {block}
@@ -1981,14 +1984,14 @@ function TimeTrackingPage() {
           <Label htmlFor={`task-select-${isManual}`}>Task</Label>
           <Select
             value={selectedTask || ""}
-            onValueChange={(value) => setSelectedTask(value === "none" ? "" : value)}
+            onValueChange={(value) => setSelectedTask(value === CLEAR_SELECTION_VALUE ? "" : value)}
             disabled={displayTasks.length === 0}
           >
             <SelectTrigger id={`task-select-${isManual}`}>
               <SelectValue placeholder="Select a task" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">-- Clear selection --</SelectItem>
+              <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
               {displayTasks?.map((task) => (
                 <SelectItem key={task.id} value={task.id}>
                   {task.name} ({task.variety}) -{" "}
@@ -4134,12 +4137,12 @@ function TimeTrackingPage() {
             <div className="space-y-4 p-4 border rounded-md bg-muted/30">
               <div className="space-y-2">
                 <Label htmlFor="edit-client">Client</Label>
-                <Select value={editClient || ""} onValueChange={(value) => setEditClient(value === "none" ? "" : value)}>
+                <Select value={editClient || ""} onValueChange={(value) => setEditClient(value === CLEAR_SELECTION_VALUE ? "" : value)}>
                   <SelectTrigger id="edit-client">
                     <SelectValue placeholder="Select a client" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">-- Clear selection --</SelectItem>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
                     {clients?.map((client) => (
                       <SelectItem key={client.id} value={client.id}>
                         {client.name}
@@ -4152,14 +4155,14 @@ function TimeTrackingPage() {
                 <Label htmlFor="edit-ranch">Ranch</Label>
                 <Select
                   value={editRanch || ""}
-                  onValueChange={(value) => setEditRanch(value === "none" ? "" : value)}
+                  onValueChange={(value) => setEditRanch(value === CLEAR_SELECTION_VALUE ? "" : value)}
                   disabled={!editClient || editRanches.length === 0}
                 >
                   <SelectTrigger id="edit-ranch">
                     <SelectValue placeholder="Select a ranch" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">-- Clear selection --</SelectItem>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
                     {editRanches.map((ranch) => (
                       <SelectItem key={ranch} value={ranch}>
                         {ranch}
@@ -4172,14 +4175,14 @@ function TimeTrackingPage() {
                 <Label htmlFor="edit-block">Block</Label>
                 <Select
                   value={editBlock || ""}
-                  onValueChange={(value) => setEditBlock(value === "none" ? "" : value)}
+                  onValueChange={(value) => setEditBlock(value === CLEAR_SELECTION_VALUE ? "" : value)}
                   disabled={!editRanch || editBlocks.length === 0}
                 >
                   <SelectTrigger id="edit-block">
                     <SelectValue placeholder="Select a block" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">-- Clear selection --</SelectItem>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
                     {editBlocks.map((block) => (
                       <SelectItem key={block} value={block}>
                         {block}
@@ -4192,14 +4195,14 @@ function TimeTrackingPage() {
                 <Label htmlFor="edit-task">Task</Label>
                 <Select
                   value={editTaskId || ""}
-                  onValueChange={(value) => setEditTaskId(value === "none" ? "" : value)}
+                  onValueChange={(value) => setEditTaskId(value === CLEAR_SELECTION_VALUE ? "" : value)}
                   disabled={editFilteredTasks.length === 0}
                 >
                   <SelectTrigger id="edit-task">
                     <SelectValue placeholder="Select a task" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">-- Clear selection --</SelectItem>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
                     {editFilteredTasks?.map((task) => (
                       <SelectItem key={task.id} value={task.id}>
                         {task.name} ({task.variety})
