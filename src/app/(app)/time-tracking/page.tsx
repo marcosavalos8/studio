@@ -774,7 +774,7 @@ function TimeTrackingPage() {
               
               // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (0.5 hours) unpaid meal break
               if (hoursWorked > 5) {
-                hoursWorked -= 0.5;
+                hoursWorked -= 0.5; // Deduct 30 minutes (0.5 hours)
               }
               
               totalHoursForThisSession += hoursWorked;
@@ -962,7 +962,7 @@ function TimeTrackingPage() {
         
         // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (0.5 hours) unpaid meal break
         if (hoursWorked > 5) {
-          hoursWorked -= 0.5;
+          hoursWorked -= 0.5; // Deduct 30 minutes (0.5 hours)
         }
         
         const currentTotalHours = employee.totalHoursWorked || 0;
