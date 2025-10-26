@@ -107,7 +107,12 @@ export default function EmployeesPage() {
               const endTime = entry.endTime?.toDate?.() || new Date(entry.endTime);
 
               // Calculate hours worked in this entry
-              const hoursWorked = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+              let hoursWorked = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+              
+              // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (0.5 hours) unpaid meal break
+              if (hoursWorked > 5) {
+                hoursWorked -= 0.5; // Deduct 30 minutes (0.5 hours)
+              }
               
               if (hoursWorked > 0) {
                 totalHoursWorked += hoursWorked;
