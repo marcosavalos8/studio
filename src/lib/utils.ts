@@ -67,7 +67,7 @@ export function parseLocalDateOrDateTime(dateString: string): Date {
  */
 export function getWeekRange(weeksAgo: number = 0): DateRange {
   const today = new Date();
-  const targetDate = weeksAgo > 0 ? subWeeks(today, weeksAgo) : today;
+  const targetDate = subWeeks(today, weeksAgo);
   const weekStart = startOfWeek(targetDate, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(targetDate, { weekStartsOn: 1 }); // Sunday
   return {
