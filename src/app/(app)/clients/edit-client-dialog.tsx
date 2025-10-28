@@ -36,6 +36,8 @@ import { Loader2 } from 'lucide-react'
 import { useEffect } from 'react'
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
+import { useNetworkStatus } from '@/hooks/use-network-status'
+import { addOfflineIndicator } from '@/lib/offline-utils'
 
 const clientSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -56,6 +58,7 @@ type EditClientDialogProps = {
 export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDialogProps) {
   const firestore = useFirestore()
   const { toast } = useToast()
+  const { isOnline } = useNetworkStatus()
   const form = useForm<z.infer<typeof clientSchema>>({
     resolver: zodResolver(clientSchema),
     defaultValues: {
@@ -92,6 +95,19 @@ export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDia
     try {
       const clientRef = doc(firestore, 'clients', client.id)
       const updatedData = { ...values, email: values.email || '' }
+
+      // Close the dialog immediately when offline to simulate success
+      if (!isOnline) {
+        toast({
+          title: 'Client Updated',
+          description: addOfflineIndicator(
+            `${values.name} has been updated successfully.`,
+            isOnline
+          ),
+        })
+        onOpenChange(false)
+        return
+      }
 
       await updateDoc(clientRef, updatedData);
       

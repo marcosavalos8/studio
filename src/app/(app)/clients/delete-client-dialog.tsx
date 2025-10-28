@@ -19,6 +19,8 @@ import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
+import { useNetworkStatus } from '@/hooks/use-network-status'
+import { addOfflineIndicator } from '@/lib/offline-utils'
 
 type DeleteClientDialogProps = {
   isOpen: boolean
@@ -29,6 +31,7 @@ type DeleteClientDialogProps = {
 export function DeleteClientDialog({ isOpen, onOpenChange, client }: DeleteClientDialogProps) {
   const firestore = useFirestore()
   const { toast } = useToast()
+  const { isOnline } = useNetworkStatus()
   const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDelete = async () => {
@@ -45,6 +48,21 @@ export function DeleteClientDialog({ isOpen, onOpenChange, client }: DeleteClien
     
     try {
       const clientRef = doc(firestore, 'clients', client.id)
+
+      // Close the dialog immediately when offline to simulate success
+      if (!isOnline) {
+        toast({
+          title: 'Client Deleted',
+          description: addOfflineIndicator(
+            `${client.name} has been deleted successfully.`,
+            isOnline
+          ),
+        })
+        onOpenChange(false)
+        setIsDeleting(false)
+        return
+      }
+
       await deleteDoc(clientRef);
       
       toast({

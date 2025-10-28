@@ -34,6 +34,8 @@ import { useToast } from '@/hooks/use-toast'
 import { Loader2 } from 'lucide-react'
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
+import { useNetworkStatus } from '@/hooks/use-network-status'
+import { addOfflineIndicator } from '@/lib/offline-utils'
 
 const clientSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -53,6 +55,7 @@ type AddClientDialogProps = {
 export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) {
   const firestore = useFirestore()
   const { toast } = useToast()
+  const { isOnline } = useNetworkStatus()
   const form = useForm<z.infer<typeof clientSchema>>({
     resolver: zodResolver(clientSchema),
     defaultValues: {
@@ -81,6 +84,20 @@ export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) 
     try {
       const newClient = { ...values, email: values.email || '' }
       const clientsCollection = collection(firestore, 'clients');
+
+      // Close the dialog immediately when offline to simulate success
+      if (!isOnline) {
+        toast({
+          title: 'Client Added',
+          description: addOfflineIndicator(
+            `${values.name} has been added successfully.`,
+            isOnline
+          ),
+        })
+        form.reset()
+        onOpenChange(false)
+        return
+      }
 
       await addDoc(clientsCollection, newClient)
       

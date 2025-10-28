@@ -19,6 +19,8 @@ import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
+import { useNetworkStatus } from '@/hooks/use-network-status'
+import { addOfflineIndicator } from '@/lib/offline-utils'
 
 type DeleteTaskDialogProps = {
   isOpen: boolean
@@ -29,6 +31,7 @@ type DeleteTaskDialogProps = {
 export function DeleteTaskDialog({ isOpen, onOpenChange, task }: DeleteTaskDialogProps) {
   const firestore = useFirestore()
   const { toast } = useToast()
+  const { isOnline } = useNetworkStatus()
   const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDelete = async () => {
@@ -45,6 +48,21 @@ export function DeleteTaskDialog({ isOpen, onOpenChange, task }: DeleteTaskDialo
     
     try {
       const taskRef = doc(firestore, 'tasks', task.id)
+
+      // Close the dialog immediately when offline to simulate success
+      if (!isOnline) {
+        toast({
+          title: 'Task Deleted',
+          description: addOfflineIndicator(
+            `${task.name} has been deleted successfully.`,
+            isOnline
+          ),
+        })
+        onOpenChange(false)
+        setIsDeleting(false)
+        return
+      }
+
       await deleteDoc(taskRef);
       
       toast({

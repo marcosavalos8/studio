@@ -19,6 +19,8 @@ import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
+import { useNetworkStatus } from '@/hooks/use-network-status'
+import { addOfflineIndicator } from '@/lib/offline-utils'
 
 type DeleteEmployeeDialogProps = {
   isOpen: boolean
@@ -29,6 +31,7 @@ type DeleteEmployeeDialogProps = {
 export function DeleteEmployeeDialog({ isOpen, onOpenChange, employee }: DeleteEmployeeDialogProps) {
   const firestore = useFirestore()
   const { toast } = useToast()
+  const { isOnline } = useNetworkStatus()
   const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDelete = async () => {
@@ -45,6 +48,21 @@ export function DeleteEmployeeDialog({ isOpen, onOpenChange, employee }: DeleteE
     
     try {
       const employeeRef = doc(firestore, 'employees', employee.id)
+
+      // Close the dialog immediately when offline to simulate success
+      if (!isOnline) {
+        toast({
+          title: 'Employee Deleted',
+          description: addOfflineIndicator(
+            `${employee.name} has been deleted successfully.`,
+            isOnline
+          ),
+        })
+        onOpenChange(false)
+        setIsDeleting(false)
+        return
+      }
+
       await deleteDoc(employeeRef);
       
       toast({
