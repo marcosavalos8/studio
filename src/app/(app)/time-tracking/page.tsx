@@ -87,6 +87,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { withAuth } from "@/components/withAuth";
+import { useNetworkStatus } from "@/hooks/use-network-status";
+import { addOfflineIndicator } from "@/lib/offline-utils";
 
 const QrScanner = dynamic(
   () => import("./qr-scanner").then((mod) => mod.QrScannerComponent),
@@ -116,6 +118,7 @@ const CLEAR_SELECTION_VALUE = "none";
 function TimeTrackingPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const { isOnline } = useNetworkStatus();
 
   const [scanMode, setScanMode] = useState<ScanMode>("clock-in");
   const [isSharedPiece, setIsSharedPiece] = useState(false);
@@ -716,7 +719,7 @@ function TimeTrackingPage() {
 
         toast({
           title: "Clock In Successful",
-          description: description,
+          description: addOfflineIndicator(description, isOnline),
         });
       } catch (serverError) {
         const permissionError = new FirestorePermissionError({
@@ -727,7 +730,7 @@ function TimeTrackingPage() {
         errorEmitter.emit("permission-error", permissionError);
       }
     },
-    [firestore, toast, playSound, allTasks]
+    [firestore, toast, playSound, allTasks, isOnline]
   );
 
   const clockOutEmployee = useCallback(
@@ -849,7 +852,7 @@ function TimeTrackingPage() {
 
           toast({
             title: "Clock Out Successful",
-            description: description,
+            description: addOfflineIndicator(description, isOnline),
           });
         }
       } catch (serverError) {
@@ -861,7 +864,7 @@ function TimeTrackingPage() {
         errorEmitter.emit("permission-error", permissionError);
       }
     },
-    [firestore, toast, playSound]
+    [firestore, toast, playSound, isOnline]
   );
 
   const recordPiecework = useCallback(
@@ -889,9 +892,10 @@ function TimeTrackingPage() {
               activeEmployees?.find((e) => e.qrCode === id)?.name || "Unknown"
           )
           .join(", ");
+        
         toast({
           title: "Piecework Recorded",
-          description: `1 piece recorded for ${employeeNames}.`,
+          description: addOfflineIndicator(`1 piece recorded for ${employeeNames}.`, isOnline),
         });
       } catch (serverError) {
         const permissionError = new FirestorePermissionError({
@@ -902,7 +906,7 @@ function TimeTrackingPage() {
         errorEmitter.emit("permission-error", permissionError);
       }
     },
-    [firestore, toast, activeEmployees, playSound]
+    [firestore, toast, activeEmployees, playSound, isOnline]
   );
 
   const createPastRecord = useCallback(
@@ -993,7 +997,7 @@ function TimeTrackingPage() {
 
         toast({
           title: "Past Record Created",
-          description: description,
+          description: addOfflineIndicator(description, isOnline),
         });
       } catch (serverError) {
         const permissionError = new FirestorePermissionError({
@@ -1004,7 +1008,7 @@ function TimeTrackingPage() {
         errorEmitter.emit("permission-error", permissionError);
       }
     },
-    [firestore, toast, playSound]
+    [firestore, toast, playSound, isOnline]
   );
 
   const handleScanResult = useCallback(
@@ -1410,9 +1414,11 @@ function TimeTrackingPage() {
       });
 
       await batch.commit();
+      
+      
       toast({
         title: "Bulk Clock Out Successful",
-        description: `Successfully clocked out ${querySnapshot.size} employee(s) from the task.`,
+        description: addOfflineIndicator(`Successfully clocked out ${querySnapshot.size} employee(s) from the task.`, isOnline),
       });
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
@@ -1490,9 +1496,10 @@ function TimeTrackingPage() {
       });
 
       await batch.commit();
+      
       toast({
         title: "Bulk Clock In Successful",
-        description: `Successfully clocked in ${selectedBulkInEmployees.size} employee(s).`,
+        description: addOfflineIndicator(`Successfully clocked in ${selectedBulkInEmployees.size} employee(s).`, isOnline),
       });
       setSelectedBulkInEmployees(new Set()); // Clear selection after success
     } catch (serverError) {
@@ -1514,9 +1521,10 @@ function TimeTrackingPage() {
 
     try {
       await deleteDoc(doc(firestore, "time_entries", entryId));
+      
       toast({
         title: "Entry Deleted",
-        description: "Time entry has been successfully deleted.",
+        description: addOfflineIndicator("Time entry has been successfully deleted.", isOnline),
       });
       setDeleteConfirmOpen(false);
       setDeleteTarget(null);
@@ -1540,9 +1548,10 @@ function TimeTrackingPage() {
 
     try {
       await deleteDoc(doc(firestore, "piecework", pieceworkId));
+      
       toast({
         title: "Piecework Deleted",
-        description: "Piecework record has been successfully deleted.",
+        description: addOfflineIndicator("Piecework record has been successfully deleted.", isOnline),
       });
       setDeleteConfirmOpen(false);
       setDeleteTarget(null);
@@ -1629,8 +1638,7 @@ function TimeTrackingPage() {
 
       toast({
         title: "Entry Updated",
-        description:
-          "Time entry and all pieces have been successfully updated.",
+        description: addOfflineIndicator("Time entry and all pieces have been successfully updated.", isOnline),
       });
       setEditDialogOpen(false);
       setEditTarget(null);
@@ -1699,9 +1707,11 @@ function TimeTrackingPage() {
         pieceCount: pieceCount,
         taskId: editTaskId,
       });
+      
+      
       toast({
         title: "Piecework Updated",
-        description: "Piecework record has been successfully updated.",
+        description: addOfflineIndicator("Piecework record has been successfully updated.", isOnline),
       });
       setEditDialogOpen(false);
       setEditTarget(null);
@@ -1765,9 +1775,10 @@ function TimeTrackingPage() {
 
       if (deleteCount > 0) {
         await batch.commit();
+        
         toast({
           title: "All Movements Deleted",
-          description: `Successfully deleted ${deleteCount} record(s).`,
+          description: addOfflineIndicator(`Successfully deleted ${deleteCount} record(s).`, isOnline),
         });
       } else {
         toast({
@@ -1883,9 +1894,10 @@ function TimeTrackingPage() {
 
       toast({
         title: "Sick Leave Logged",
-        description: `${hours} sick hours logged for ${
-          manualSelectedEmployee.name
-        }. New balance: ${newBalance.toFixed(2)} hrs`,
+        description: addOfflineIndicator(
+          `${hours} sick hours logged for ${manualSelectedEmployee.name}. New balance: ${newBalance.toFixed(2)} hrs`,
+          isOnline
+        ),
       });
 
       // Reset form
@@ -3404,9 +3416,13 @@ function TimeTrackingPage() {
                             }
 
                             playSound("piece");
+                            
                             toast({
                               title: "Piecework Recorded",
-                              description: `${pieceCount} piece(s) recorded for ${manualSelectedEmployee.name}.`,
+                              description: addOfflineIndicator(
+                                `${pieceCount} piece(s) recorded for ${manualSelectedEmployee.name}.`,
+                                isOnline
+                              ),
                             });
                             setManualSelectedEmployee(null);
                             setManualEmployeeSearch("");

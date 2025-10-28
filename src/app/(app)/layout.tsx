@@ -9,6 +9,7 @@ import { useEffect } from 'react'
 import { signInAnonymously } from 'firebase/auth'
 import { Loader2 } from 'lucide-react'
 import { auth } from '@/firebase'
+import { NetworkStatusIndicator } from '@/components/network-status-indicator'
 
 function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { user, loading } = useUser()
@@ -34,6 +35,7 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
       <AppSidebar />
       <SidebarInset>
         <AppHeader />
+        <NetworkStatusIndicator />
         <div className="p-3 sm:p-4 md:p-6 lg:p-8">{children}</div>
       </SidebarInset>
     </SidebarProvider>
