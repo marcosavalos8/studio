@@ -88,6 +88,7 @@ import { FirestorePermissionError } from "@/firebase/errors";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { withAuth } from "@/components/withAuth";
 import { useNetworkStatus } from "@/hooks/use-network-status";
+import { addOfflineIndicator } from "@/lib/offline-utils";
 
 const QrScanner = dynamic(
   () => import("./qr-scanner").then((mod) => mod.QrScannerComponent),
@@ -113,11 +114,6 @@ type SoundType = "clock-in" | "clock-out" | "piece";
 
 // Constant for clear selection value in dropdowns
 const CLEAR_SELECTION_VALUE = "none";
-
-// Helper function to add offline indicator to toast messages
-const addOfflineIndicator = (baseMessage: string, isOnline: boolean): string => {
-  return isOnline ? baseMessage : `${baseMessage} (Saved locally - will sync when online)`;
-};
 
 function TimeTrackingPage() {
   const firestore = useFirestore();

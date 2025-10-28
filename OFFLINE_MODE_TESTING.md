@@ -201,22 +201,95 @@
 **For actual field testing:**
 
 ### Airplane Mode Test
-1. Enable airplane mode on device
-2. Perform all standard operations
-3. Disable airplane mode
-4. Verify sync
+
+**Prerequisites:**
+- Mobile device or laptop with airplane mode capability
+- Application loaded and logged in
+- At least 2 active employees and 1 active task
+
+**Steps:**
+1. Ensure application is fully loaded and online
+2. Navigate to Time Tracking page
+3. Enable airplane mode on device
+4. Verify offline indicator appears (orange, pulsing)
+5. Perform clock-in for first employee
+6. Perform clock-in for second employee
+7. Record 3 piecework entries (scan or manual)
+8. Perform clock-out for first employee
+9. Edit a time entry from history
+10. Delete a piecework record
+11. Verify all operations show offline message
+12. Disable airplane mode
+13. Verify "Back Online" toast appears
+14. Wait 10-15 seconds for sync
+15. Check Firestore console to verify all operations synced
+16. Verify no duplicate entries
+17. Verify all timestamps are correct
+
+**Expected Results:**
+- ✅ All operations work in airplane mode
+- ✅ Offline indicator visible throughout
+- ✅ All toast messages include offline text
+- ✅ No error messages displayed
+- ✅ Sync occurs automatically when online
+- ✅ All data integrity maintained
+- ✅ No data loss occurred
 
 ### Weak Signal Test
-1. Move to area with weak signal
-2. Perform operations
-3. Observe behavior during intermittent connectivity
-4. Verify eventual sync
+
+**Prerequisites:**
+- Device with intermittent connectivity capability (or throttling in DevTools)
+- Application loaded
+
+**Steps:**
+1. Navigate to DevTools → Network tab
+2. Set throttling to "Slow 3G" or "Fast 3G"
+3. Perform clock-in operation
+4. Observe network requests in DevTools
+5. Perform 5 more operations
+6. Switch throttling to "Online"
+7. Verify all operations eventually sync
+8. Check for any retry attempts in console
+
+**Expected Results:**
+- ✅ Operations complete despite slow connection
+- ✅ Some operations may queue
+- ✅ All operations eventually sync
+- ✅ No errors in console
+- ✅ User can continue working
 
 ### Complete Loss Test
-1. Work in area with no signal
-2. Perform full day operations
-3. Return to area with signal
-4. Verify complete sync
+
+**Prerequisites:**
+- Physical location with no signal OR router that can be turned off
+- Application loaded and logged in
+
+**Steps:**
+1. Load application with good connection
+2. Navigate to Time Tracking page
+3. Turn off router/move to no-signal area
+4. Verify offline indicator appears
+5. Perform full day simulation:
+   - Clock-in 10 employees
+   - Record 50+ piecework entries
+   - Clock-out 5 employees
+   - Create 3 past records
+   - Edit 2 time entries
+   - Delete 1 piecework record
+6. Keep browser/app open
+7. After 30+ minutes, restore connection
+8. Verify sync begins automatically
+9. Monitor sync completion
+10. Verify all data in Firestore
+
+**Expected Results:**
+- ✅ All operations work offline
+- ✅ Large number of operations handled
+- ✅ No browser storage errors
+- ✅ Complete sync when online
+- ✅ All data accurate
+- ✅ No duplicate entries
+- ✅ Correct chronological order maintained
 
 ## Debugging
 
