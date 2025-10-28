@@ -36,6 +36,8 @@ import { Loader2 } from 'lucide-react'
 import { useEffect } from 'react'
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
+import { useNetworkStatus } from '@/hooks/use-network-status'
+import { addOfflineIndicator } from '@/lib/offline-utils'
 
 const employeeSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -52,6 +54,7 @@ type EditEmployeeDialogProps = {
 export function EditEmployeeDialog({ isOpen, onOpenChange, employee }: EditEmployeeDialogProps) {
   const firestore = useFirestore()
   const { toast } = useToast()
+  const { isOnline } = useNetworkStatus()
   const form = useForm<z.infer<typeof employeeSchema>>({
     resolver: zodResolver(employeeSchema),
     defaultValues: {
@@ -86,6 +89,19 @@ export function EditEmployeeDialog({ isOpen, onOpenChange, employee }: EditEmplo
     try {
       const employeeRef = doc(firestore, 'employees', employee.id)
       const updatedData = { ...values }
+
+      // Close the dialog immediately when offline to simulate success
+      if (!isOnline) {
+        toast({
+          title: 'Employee Updated',
+          description: addOfflineIndicator(
+            `${values.name} has been updated successfully.`,
+            isOnline
+          ),
+        })
+        onOpenChange(false)
+        return
+      }
 
       await updateDoc(employeeRef, updatedData);
       

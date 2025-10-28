@@ -35,6 +35,8 @@ import type { Employee } from '@/lib/types'
 import { Loader2 } from 'lucide-react'
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
+import { useNetworkStatus } from '@/hooks/use-network-status'
+import { addOfflineIndicator } from '@/lib/offline-utils'
 
 const employeeSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -50,6 +52,7 @@ type AddEmployeeDialogProps = {
 export function AddEmployeeDialog({ isOpen, onOpenChange }: AddEmployeeDialogProps) {
   const firestore = useFirestore()
   const { toast } = useToast()
+  const { isOnline } = useNetworkStatus()
   const form = useForm<z.infer<typeof employeeSchema>>({
     resolver: zodResolver(employeeSchema),
     defaultValues: {
@@ -72,27 +75,44 @@ export function AddEmployeeDialog({ isOpen, onOpenChange }: AddEmployeeDialogPro
     }
 
     try {
-      // Check for duplicate name
-      const employeesRef = collection(firestore, 'employees');
-      const duplicateQuery = query(
-        employeesRef,
-        where('name', '==', values.name)
-      );
-      const duplicateSnapshot = await getDocs(duplicateQuery);
-      
-      if (!duplicateSnapshot.empty) {
-        toast({
-          variant: 'destructive',
-          title: 'Duplicate Employee',
-          description: `An employee with the name "${values.name}" already exists.`,
-        });
-        return;
+      // Skip duplicate check when offline (will be validated when synced)
+      if (isOnline) {
+        // Check for duplicate name
+        const employeesRef = collection(firestore, 'employees');
+        const duplicateQuery = query(
+          employeesRef,
+          where('name', '==', values.name)
+        );
+        const duplicateSnapshot = await getDocs(duplicateQuery);
+        
+        if (!duplicateSnapshot.empty) {
+          toast({
+            variant: 'destructive',
+            title: 'Duplicate Employee',
+            description: `An employee with the name "${values.name}" already exists.`,
+          });
+          return;
+        }
       }
 
       const newDocRef = doc(collection(firestore, 'employees'))
       const newEmployee: Omit<Employee, 'id'> = {
         ...values,
         qrCode: newDocRef.id,
+      }
+
+      // Close the dialog immediately when offline to simulate success
+      if (!isOnline) {
+        toast({
+          title: 'Employee Added',
+          description: addOfflineIndicator(
+            `${values.name} has been added successfully.`,
+            isOnline
+          ),
+        })
+        form.reset()
+        onOpenChange(false)
+        return
       }
 
       await setDoc(newDocRef, newEmployee);

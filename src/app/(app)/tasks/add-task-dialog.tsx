@@ -24,6 +24,8 @@ import { addDoc, collection } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import type { Client, Task } from "@/lib/types";
 import { Loader2 } from "lucide-react";
+import { useNetworkStatus } from "@/hooks/use-network-status";
+import { addOfflineIndicator } from "@/lib/offline-utils";
 
 type AddTaskDialogProps = {
   isOpen: boolean;
@@ -38,6 +40,7 @@ export function AddTaskDialog({
 }: AddTaskDialogProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const { isOnline } = useNetworkStatus();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Estados simples sin validaciones
@@ -95,15 +98,31 @@ export function AddTaskDialog({
         piecePrice: parseFloat(piecePrice) || 0, // <- Siempre envía 0, nunca undefined
       };
 
+      // Close the dialog immediately when offline to simulate success
+      if (!isOnline) {
+        toast({
+          title: "Task Added",
+          description: addOfflineIndicator(
+            `${newTask.name} has been added successfully.`,
+            isOnline
+          ),
+        });
+        resetForm();
+        onOpenChange(false);
+        setIsSubmitting(false);
+      }
+
       await addDoc(collection(firestore, "tasks"), newTask);
 
-      toast({
-        title: "Task Added",
-        description: `${newTask.name} has been added successfully.`,
-      });
-
-      resetForm();
-      onOpenChange(false);
+      // Only show toast and close dialog if online (offline already handled above)
+      if (isOnline) {
+        toast({
+          title: "Task Added",
+          description: `${newTask.name} has been added successfully.`,
+        });
+        resetForm();
+        onOpenChange(false);
+      }
     } catch (error) {
       console.error("Error adding task:", error);
       toast({

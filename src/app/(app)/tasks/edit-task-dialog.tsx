@@ -24,6 +24,8 @@ import { doc, updateDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import type { Client, Task } from "@/lib/types";
 import { Loader2 } from "lucide-react";
+import { useNetworkStatus } from "@/hooks/use-network-status";
+import { addOfflineIndicator } from "@/lib/offline-utils";
 
 type EditTaskDialogProps = {
   isOpen: boolean;
@@ -40,6 +42,7 @@ export function EditTaskDialog({
 }: EditTaskDialogProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const { isOnline } = useNetworkStatus();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Estados simples sin validaciones
@@ -102,14 +105,29 @@ export function EditTaskDialog({
         piecePrice: parseFloat(piecePrice) || 0, //Antes enviaba
       };
 
+      // Close the dialog immediately when offline to simulate success
+      if (!isOnline) {
+        toast({
+          title: "Task Updated",
+          description: addOfflineIndicator(
+            `${updatedData.name} has been updated successfully.`,
+            isOnline
+          ),
+        });
+        onOpenChange(false);
+        setIsSubmitting(false);
+      }
+
       await updateDoc(taskRef, updatedData);
 
-      toast({
-        title: "Task Updated",
-        description: `${updatedData.name} has been updated successfully.`,
-      });
-
-      onOpenChange(false);
+      // Only show toast and close dialog if online (offline already handled above)
+      if (isOnline) {
+        toast({
+          title: "Task Updated",
+          description: `${updatedData.name} has been updated successfully.`,
+        });
+        onOpenChange(false);
+      }
     } catch (error) {
       console.error("Error updating task:", error);
       toast({

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { useToast } from "@/hooks/use-toast";
 import { Wifi, WifiOff } from "lucide-react";
@@ -8,8 +8,12 @@ import { Wifi, WifiOff } from "lucide-react";
 export function NetworkStatusIndicator() {
   const { isOnline } = useNetworkStatus();
   const { toast } = useToast();
+  const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
+    // Show indicator when network status changes
+    setIsVisible(true);
+    
     if (!isOnline) {
       toast({
         title: "Offline Mode",
@@ -36,10 +40,22 @@ export function NetworkStatusIndicator() {
     if (!isOnline) {
       sessionStorage.setItem("wasOffline", "true");
     }
+
+    // Auto-hide indicator after 5 seconds
+    const timer = setTimeout(() => {
+      setIsVisible(false);
+    }, 5000);
+
+    return () => clearTimeout(timer);
   }, [isOnline, toast]);
 
+  // Don't render if not visible
+  if (!isVisible) {
+    return null;
+  }
+
   return (
-    <div className="fixed top-4 right-4 z-50">
+    <div className="fixed top-4 right-4 z-50 transition-opacity duration-300">
       <div
         className={`flex items-center gap-2 px-3 py-2 rounded-lg shadow-lg ${
           isOnline
