@@ -41,12 +41,20 @@ export function NetworkStatusIndicator() {
       sessionStorage.setItem("wasOffline", "true");
     }
 
-    // Auto-hide indicator after 5 seconds
-    const timer = setTimeout(() => {
-      setIsVisible(false);
-    }, 5000);
+    // Auto-hide indicator after 5 seconds ONLY when online
+    // When offline, keep the indicator visible
+    let timer: NodeJS.Timeout | undefined;
+    if (isOnline) {
+      timer = setTimeout(() => {
+        setIsVisible(false);
+      }, 5000);
+    }
 
-    return () => clearTimeout(timer);
+    return () => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
   }, [isOnline, toast]);
 
   // Don't render if not visible

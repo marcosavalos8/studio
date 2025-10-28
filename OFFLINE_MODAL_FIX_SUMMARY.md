@@ -10,16 +10,17 @@ La aplicación ya tiene soporte para trabajar offline, pero cuando edité una ta
 
 **Changes**:
 - Added state management (`isVisible`) to control indicator visibility
-- Implemented auto-hide after 5 seconds using `setTimeout`
-- Indicator now shows when network status changes and auto-hides
+- Implemented conditional auto-hide: only when online after 5 seconds using `setTimeout`
+- When offline, indicator stays visible to remind user of offline state
+- Indicator shows when network status changes
 - Returns `null` when not visible (completely removes from DOM)
 - Added transition-opacity for smooth fade effect
 
 **Behavior**:
-- ✅ Shows for 5 seconds when page loads
-- ✅ Shows for 5 seconds when going offline
-- ✅ Shows for 5 seconds when coming back online
-- ✅ Auto-hides after 5 seconds
+- ✅ When **online**: Shows for 5 seconds then auto-hides
+- ✅ When **offline**: Stays visible until connection is restored
+- ✅ Shows when going offline (remains visible)
+- ✅ Shows when coming back online (auto-hides after 5 seconds)
 
 ### 2. Dialog/Modal Immediate Closure When Offline
 **Files Modified**:
@@ -102,12 +103,12 @@ All dialogs now use the `addOfflineIndicator` utility to append "(Saved locally 
 
 ### Testing Network Indicator Auto-Hide:
 1. Open the application in a browser
-2. Observe the network status indicator in the top-right corner
-3. Wait 5 seconds - indicator should disappear
+2. Observe the network status indicator in the top-right corner (if online)
+3. Wait 5 seconds - indicator should disappear (when online)
 4. Open browser DevTools (F12) → Network tab
 5. Toggle offline mode
 6. Observe indicator appears again showing "Offline"
-7. Wait 5 seconds - indicator should disappear
+7. **Wait any amount of time - indicator should STAY VISIBLE (remains until back online)**
 8. Toggle online mode
 9. Observe indicator appears again showing "Online"
 10. Wait 5 seconds - indicator should disappear

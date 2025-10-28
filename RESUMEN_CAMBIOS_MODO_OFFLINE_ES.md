@@ -63,13 +63,14 @@ Indicador siempre visible en esquina superior derecha ❌
 
 **Comportamiento nuevo:**
 ```
-Indicador aparece → Se muestra 5 segundos → Se oculta automáticamente ✅
+Online: Indicador aparece → Se muestra 5 segundos → Se oculta automáticamente ✅
+Offline: Indicador aparece → PERMANECE VISIBLE hasta recuperar conexión ✅
 ```
 
 **Cuándo aparece el indicador:**
-1. Al cargar la página (5 segundos)
-2. Al perder conexión (5 segundos)
-3. Al recuperar conexión (5 segundos)
+1. Al cargar la página (se oculta después de 5 segundos si está online)
+2. Al perder conexión (PERMANECE VISIBLE)
+3. Al recuperar conexión (se oculta después de 5 segundos)
 
 **Código implementado:**
 ```typescript
@@ -79,12 +80,20 @@ useEffect(() => {
   // Mostrar indicador cuando cambia el estado de red
   setIsVisible(true);
   
-  // Auto-ocultar después de 5 segundos
-  const timer = setTimeout(() => {
-    setIsVisible(false);
-  }, 5000);
+  // Auto-ocultar después de 5 segundos SOLO cuando está online
+  // Cuando está offline, mantener el indicador visible
+  let timer: NodeJS.Timeout | undefined;
+  if (isOnline) {
+    timer = setTimeout(() => {
+      setIsVisible(false);
+    }, 5000);
+  }
   
-  return () => clearTimeout(timer);
+  return () => {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  };
 }, [isOnline]);
 
 // No renderizar si no está visible
@@ -114,8 +123,8 @@ if (!isVisible) {
 2. ✅ Indicador "Online" aparece (5 segundos)
 3. ✅ Indicador desaparece
 4. Usuario pierde internet
-5. ✅ Indicador "Offline" aparece (5 segundos)
-6. ✅ Indicador desaparece
+5. ✅ Indicador "Offline" aparece
+6. ✅ Indicador PERMANECE VISIBLE (no desaparece mientras esté offline)
 7. Usuario recupera internet
 8. ✅ Indicador "Online" aparece (5 segundos)
 9. ✅ Indicador desaparece
@@ -124,8 +133,9 @@ if (!isVisible) {
 ## Beneficios
 
 ✅ **Mejor experiencia de usuario**: Los modales se cierran inmediatamente, no más espera infinita
-✅ **Menos invasivo**: El indicador de red solo aparece cuando hay cambios de estado
-✅ **Clara indicación**: Los usuarios saben cuando una operación se guardó offline
+✅ **Indicador offline persistente**: El indicador permanece visible cuando estás offline para recordarte constantemente el estado
+✅ **Indicador online no invasivo**: El indicador se oculta después de 5 segundos cuando estás online
+✅ **Clara indicación**: Los usuarios saben cuando una operación se guardó offline gracias al mensaje "(Saved locally - will sync when online)"
 ✅ **Consistente**: Mismo comportamiento en todos los modales (tareas, empleados, clientes)
 ✅ **Confiable**: Las operaciones se guardan localmente y se sincronizan automáticamente
 
@@ -171,11 +181,14 @@ Total: 10 archivos
 
 ### Probar Auto-Ocultamiento del Indicador:
 1. Abrir la aplicación
-2. Observar indicador en esquina superior derecha
-3. Esperar 5 segundos - debe desaparecer
+2. Observar indicador en esquina superior derecha (si está online)
+3. Esperar 5 segundos - debe desaparecer (cuando está online)
 4. Abrir DevTools (F12) → Network → Offline
 5. Observar indicador "Offline" aparece
-6. Esperar 5 segundos - debe desaparecer
+6. **Esperar cualquier cantidad de tiempo - el indicador debe PERMANECER VISIBLE**
+7. Deshabilitar modo offline en DevTools
+8. Observar indicador "Online" aparece
+9. Esperar 5 segundos - debe desaparecer
 
 ### Probar Cierre de Modales Offline:
 1. Ir a página de Tareas
