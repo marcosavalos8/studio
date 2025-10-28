@@ -2,10 +2,10 @@
 
 import * as React from "react"
 import { useActionState } from "react"
-import { format, parseISO, startOfWeek, endOfWeek, subWeeks } from "date-fns"
+import { format, parseISO } from "date-fns"
 import { Calendar as CalendarIcon, Loader2, Users, CalendarDays } from "lucide-react"
 
-import { cn, toLocalMidnight } from "@/lib/utils"
+import { cn, toLocalMidnight, getWeekRange } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -188,18 +188,6 @@ export function PayrollForm() {
     });
   }
 
-  // Helper function to select a week range
-  const selectWeek = (weeksAgo: number = 0) => {
-    const today = new Date();
-    const targetDate = weeksAgo > 0 ? subWeeks(today, weeksAgo) : today;
-    const weekStart = startOfWeek(targetDate, { weekStartsOn: 1 }); // Monday
-    const weekEnd = endOfWeek(targetDate, { weekStartsOn: 1 }); // Sunday
-    setDate({
-      from: toLocalMidnight(weekStart),
-      to: toLocalMidnight(weekEnd),
-    });
-  };
-
   const jsonData = getFilteredJsonData();
   const allEmployeesSelected = employeesInRange.length > 0 && selectedEmployeeIds.size === employeesInRange.length;
 
@@ -314,7 +302,7 @@ export function PayrollForm() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => selectWeek(0)}
+            onClick={() => setDate(getWeekRange(0))}
             className="text-xs"
           >
             Current Week
@@ -323,7 +311,7 @@ export function PayrollForm() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => selectWeek(1)}
+            onClick={() => setDate(getWeekRange(1))}
             className="text-xs"
           >
             Last Week
@@ -332,7 +320,7 @@ export function PayrollForm() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => selectWeek(2)}
+            onClick={() => setDate(getWeekRange(2))}
             className="text-xs"
           >
             2 Weeks Ago
@@ -341,7 +329,7 @@ export function PayrollForm() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => selectWeek(3)}
+            onClick={() => setDate(getWeekRange(3))}
             className="text-xs"
           >
             3 Weeks Ago
@@ -350,7 +338,7 @@ export function PayrollForm() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => selectWeek(4)}
+            onClick={() => setDate(getWeekRange(4))}
             className="text-xs"
           >
             4 Weeks Ago

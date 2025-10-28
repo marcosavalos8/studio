@@ -1,5 +1,7 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { startOfWeek, endOfWeek, subWeeks } from "date-fns"
+import type { DateRange } from "react-day-picker"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -56,3 +58,21 @@ export function parseLocalDateOrDateTime(dateString: string): Date {
     return parseLocalDate(dateString);
   }
 }
+
+/**
+ * Generates a week date range (Monday to Sunday) for a given number of weeks ago.
+ * Used for quick week selection in payroll and invoicing.
+ * @param weeksAgo - Number of weeks in the past (0 = current week, 1 = last week, etc.)
+ * @returns A DateRange object with from/to dates in local timezone
+ */
+export function getWeekRange(weeksAgo: number = 0): DateRange {
+  const today = new Date();
+  const targetDate = weeksAgo > 0 ? subWeeks(today, weeksAgo) : today;
+  const weekStart = startOfWeek(targetDate, { weekStartsOn: 1 }); // Monday
+  const weekEnd = endOfWeek(targetDate, { weekStartsOn: 1 }); // Sunday
+  return {
+    from: toLocalMidnight(weekStart),
+    to: toLocalMidnight(weekEnd),
+  };
+}
+
