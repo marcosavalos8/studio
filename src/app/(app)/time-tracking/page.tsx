@@ -87,6 +87,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { withAuth } from "@/components/withAuth";
+import { NetworkStatusIndicator } from "@/components/network-status-indicator";
+import { useNetworkStatus } from "@/hooks/use-network-status";
 
 const QrScanner = dynamic(
   () => import("./qr-scanner").then((mod) => mod.QrScannerComponent),
@@ -116,6 +118,7 @@ const CLEAR_SELECTION_VALUE = "none";
 function TimeTrackingPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const { isOnline } = useNetworkStatus();
 
   const [scanMode, setScanMode] = useState<ScanMode>("clock-in");
   const [isSharedPiece, setIsSharedPiece] = useState(false);
@@ -713,6 +716,9 @@ function TimeTrackingPage() {
         if (activeEntriesSnap.size > 0) {
           description += ` Previous task(s) automatically clocked out.`;
         }
+        if (!isOnline) {
+          description += ` (Saved locally - will sync when online)`;
+        }
 
         toast({
           title: "Clock In Successful",
@@ -727,7 +733,7 @@ function TimeTrackingPage() {
         errorEmitter.emit("permission-error", permissionError);
       }
     },
-    [firestore, toast, playSound, allTasks]
+    [firestore, toast, playSound, allTasks, isOnline]
   );
 
   const clockOutEmployee = useCallback(
@@ -846,6 +852,9 @@ function TimeTrackingPage() {
               2
             )} sick hrs. New balance: ${newSickBalance.toFixed(2)} hrs.`;
           }
+          if (!isOnline) {
+            description += ` (Saved locally - will sync when online)`;
+          }
 
           toast({
             title: "Clock Out Successful",
@@ -861,7 +870,7 @@ function TimeTrackingPage() {
         errorEmitter.emit("permission-error", permissionError);
       }
     },
-    [firestore, toast, playSound]
+    [firestore, toast, playSound, isOnline]
   );
 
   const recordPiecework = useCallback(
@@ -889,9 +898,15 @@ function TimeTrackingPage() {
               activeEmployees?.find((e) => e.qrCode === id)?.name || "Unknown"
           )
           .join(", ");
+        
+        let description = `1 piece recorded for ${employeeNames}.`;
+        if (!isOnline) {
+          description += ` (Saved locally - will sync when online)`;
+        }
+        
         toast({
           title: "Piecework Recorded",
-          description: `1 piece recorded for ${employeeNames}.`,
+          description: description,
         });
       } catch (serverError) {
         const permissionError = new FirestorePermissionError({
@@ -902,7 +917,7 @@ function TimeTrackingPage() {
         errorEmitter.emit("permission-error", permissionError);
       }
     },
-    [firestore, toast, activeEmployees, playSound]
+    [firestore, toast, activeEmployees, playSound, isOnline]
   );
 
   const createPastRecord = useCallback(
@@ -990,6 +1005,9 @@ function TimeTrackingPage() {
         if (piecesCount && piecesCount > 0) {
           description += ` Pieces worked: ${piecesCount}.`;
         }
+        if (!isOnline) {
+          description += ` (Saved locally - will sync when online)`;
+        }
 
         toast({
           title: "Past Record Created",
@@ -1004,7 +1022,7 @@ function TimeTrackingPage() {
         errorEmitter.emit("permission-error", permissionError);
       }
     },
-    [firestore, toast, playSound]
+    [firestore, toast, playSound, isOnline]
   );
 
   const handleScanResult = useCallback(
@@ -2009,6 +2027,7 @@ function TimeTrackingPage() {
 
   return (
     <div className="max-w-4xl mx-auto">
+      <NetworkStatusIndicator />
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="qr-scanner" className="text-xs sm:text-sm">
