@@ -87,7 +87,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { withAuth } from "@/components/withAuth";
-import { NetworkStatusIndicator } from "@/components/network-status-indicator";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 
 const QrScanner = dynamic(
@@ -1428,9 +1427,15 @@ function TimeTrackingPage() {
       });
 
       await batch.commit();
+      
+      let description = `Successfully clocked out ${querySnapshot.size} employee(s) from the task.`;
+      if (!isOnline) {
+        description += ` (Saved locally - will sync when online)`;
+      }
+      
       toast({
         title: "Bulk Clock Out Successful",
-        description: `Successfully clocked out ${querySnapshot.size} employee(s) from the task.`,
+        description: description,
       });
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
@@ -1508,9 +1513,15 @@ function TimeTrackingPage() {
       });
 
       await batch.commit();
+      
+      let description = `Successfully clocked in ${selectedBulkInEmployees.size} employee(s).`;
+      if (!isOnline) {
+        description += ` (Saved locally - will sync when online)`;
+      }
+      
       toast({
         title: "Bulk Clock In Successful",
-        description: `Successfully clocked in ${selectedBulkInEmployees.size} employee(s).`,
+        description: description,
       });
       setSelectedBulkInEmployees(new Set()); // Clear selection after success
     } catch (serverError) {
@@ -1532,9 +1543,15 @@ function TimeTrackingPage() {
 
     try {
       await deleteDoc(doc(firestore, "time_entries", entryId));
+      
+      let description = "Time entry has been successfully deleted.";
+      if (!isOnline) {
+        description += " (Saved locally - will sync when online)";
+      }
+      
       toast({
         title: "Entry Deleted",
-        description: "Time entry has been successfully deleted.",
+        description: description,
       });
       setDeleteConfirmOpen(false);
       setDeleteTarget(null);
@@ -1558,9 +1575,15 @@ function TimeTrackingPage() {
 
     try {
       await deleteDoc(doc(firestore, "piecework", pieceworkId));
+      
+      let description = "Piecework record has been successfully deleted.";
+      if (!isOnline) {
+        description += " (Saved locally - will sync when online)";
+      }
+      
       toast({
         title: "Piecework Deleted",
-        description: "Piecework record has been successfully deleted.",
+        description: description,
       });
       setDeleteConfirmOpen(false);
       setDeleteTarget(null);
@@ -1645,10 +1668,14 @@ function TimeTrackingPage() {
         });
       }
 
+      let description = "Time entry and all pieces have been successfully updated.";
+      if (!isOnline) {
+        description += " (Saved locally - will sync when online)";
+      }
+
       toast({
         title: "Entry Updated",
-        description:
-          "Time entry and all pieces have been successfully updated.",
+        description: description,
       });
       setEditDialogOpen(false);
       setEditTarget(null);
@@ -1717,9 +1744,15 @@ function TimeTrackingPage() {
         pieceCount: pieceCount,
         taskId: editTaskId,
       });
+      
+      let description = "Piecework record has been successfully updated.";
+      if (!isOnline) {
+        description += " (Saved locally - will sync when online)";
+      }
+      
       toast({
         title: "Piecework Updated",
-        description: "Piecework record has been successfully updated.",
+        description: description,
       });
       setEditDialogOpen(false);
       setEditTarget(null);
@@ -1783,9 +1816,15 @@ function TimeTrackingPage() {
 
       if (deleteCount > 0) {
         await batch.commit();
+        
+        let description = `Successfully deleted ${deleteCount} record(s).`;
+        if (!isOnline) {
+          description += " (Saved locally - will sync when online)";
+        }
+        
         toast({
           title: "All Movements Deleted",
-          description: `Successfully deleted ${deleteCount} record(s).`,
+          description: description,
         });
       } else {
         toast({
@@ -1903,7 +1942,7 @@ function TimeTrackingPage() {
         title: "Sick Leave Logged",
         description: `${hours} sick hours logged for ${
           manualSelectedEmployee.name
-        }. New balance: ${newBalance.toFixed(2)} hrs`,
+        }. New balance: ${newBalance.toFixed(2)} hrs${!isOnline ? " (Saved locally - will sync when online)" : ""}`,
       });
 
       // Reset form
@@ -2027,7 +2066,6 @@ function TimeTrackingPage() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <NetworkStatusIndicator />
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="qr-scanner" className="text-xs sm:text-sm">
@@ -3423,9 +3461,15 @@ function TimeTrackingPage() {
                             }
 
                             playSound("piece");
+                            
+                            let description = `${pieceCount} piece(s) recorded for ${manualSelectedEmployee.name}.`;
+                            if (!isOnline) {
+                              description += " (Saved locally - will sync when online)";
+                            }
+                            
                             toast({
                               title: "Piecework Recorded",
-                              description: `${pieceCount} piece(s) recorded for ${manualSelectedEmployee.name}.`,
+                              description: description,
                             });
                             setManualSelectedEmployee(null);
                             setManualEmployeeSearch("");
