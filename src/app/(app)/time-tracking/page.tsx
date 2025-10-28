@@ -114,6 +114,11 @@ type SoundType = "clock-in" | "clock-out" | "piece";
 // Constant for clear selection value in dropdowns
 const CLEAR_SELECTION_VALUE = "none";
 
+// Helper function to add offline indicator to toast messages
+const addOfflineIndicator = (baseMessage: string, isOnline: boolean): string => {
+  return isOnline ? baseMessage : `${baseMessage} (Saved locally - will sync when online)`;
+};
+
 function TimeTrackingPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -715,13 +720,10 @@ function TimeTrackingPage() {
         if (activeEntriesSnap.size > 0) {
           description += ` Previous task(s) automatically clocked out.`;
         }
-        if (!isOnline) {
-          description += ` (Saved locally - will sync when online)`;
-        }
 
         toast({
           title: "Clock In Successful",
-          description: description,
+          description: addOfflineIndicator(description, isOnline),
         });
       } catch (serverError) {
         const permissionError = new FirestorePermissionError({
@@ -851,13 +853,10 @@ function TimeTrackingPage() {
               2
             )} sick hrs. New balance: ${newSickBalance.toFixed(2)} hrs.`;
           }
-          if (!isOnline) {
-            description += ` (Saved locally - will sync when online)`;
-          }
 
           toast({
             title: "Clock Out Successful",
-            description: description,
+            description: addOfflineIndicator(description, isOnline),
           });
         }
       } catch (serverError) {
@@ -898,14 +897,9 @@ function TimeTrackingPage() {
           )
           .join(", ");
         
-        let description = `1 piece recorded for ${employeeNames}.`;
-        if (!isOnline) {
-          description += ` (Saved locally - will sync when online)`;
-        }
-        
         toast({
           title: "Piecework Recorded",
-          description: description,
+          description: addOfflineIndicator(`1 piece recorded for ${employeeNames}.`, isOnline),
         });
       } catch (serverError) {
         const permissionError = new FirestorePermissionError({
@@ -1004,13 +998,10 @@ function TimeTrackingPage() {
         if (piecesCount && piecesCount > 0) {
           description += ` Pieces worked: ${piecesCount}.`;
         }
-        if (!isOnline) {
-          description += ` (Saved locally - will sync when online)`;
-        }
 
         toast({
           title: "Past Record Created",
-          description: description,
+          description: addOfflineIndicator(description, isOnline),
         });
       } catch (serverError) {
         const permissionError = new FirestorePermissionError({
@@ -1428,14 +1419,10 @@ function TimeTrackingPage() {
 
       await batch.commit();
       
-      let description = `Successfully clocked out ${querySnapshot.size} employee(s) from the task.`;
-      if (!isOnline) {
-        description += ` (Saved locally - will sync when online)`;
-      }
       
       toast({
         title: "Bulk Clock Out Successful",
-        description: description,
+        description: addOfflineIndicator(`Successfully clocked out ${querySnapshot.size} employee(s) from the task.`, isOnline),
       });
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
@@ -1514,14 +1501,9 @@ function TimeTrackingPage() {
 
       await batch.commit();
       
-      let description = `Successfully clocked in ${selectedBulkInEmployees.size} employee(s).`;
-      if (!isOnline) {
-        description += ` (Saved locally - will sync when online)`;
-      }
-      
       toast({
         title: "Bulk Clock In Successful",
-        description: description,
+        description: addOfflineIndicator(`Successfully clocked in ${selectedBulkInEmployees.size} employee(s).`, isOnline),
       });
       setSelectedBulkInEmployees(new Set()); // Clear selection after success
     } catch (serverError) {
@@ -1544,14 +1526,9 @@ function TimeTrackingPage() {
     try {
       await deleteDoc(doc(firestore, "time_entries", entryId));
       
-      let description = "Time entry has been successfully deleted.";
-      if (!isOnline) {
-        description += " (Saved locally - will sync when online)";
-      }
-      
       toast({
         title: "Entry Deleted",
-        description: description,
+        description: addOfflineIndicator("Time entry has been successfully deleted.", isOnline),
       });
       setDeleteConfirmOpen(false);
       setDeleteTarget(null);
@@ -1576,14 +1553,9 @@ function TimeTrackingPage() {
     try {
       await deleteDoc(doc(firestore, "piecework", pieceworkId));
       
-      let description = "Piecework record has been successfully deleted.";
-      if (!isOnline) {
-        description += " (Saved locally - will sync when online)";
-      }
-      
       toast({
         title: "Piecework Deleted",
-        description: description,
+        description: addOfflineIndicator("Piecework record has been successfully deleted.", isOnline),
       });
       setDeleteConfirmOpen(false);
       setDeleteTarget(null);
@@ -1668,14 +1640,9 @@ function TimeTrackingPage() {
         });
       }
 
-      let description = "Time entry and all pieces have been successfully updated.";
-      if (!isOnline) {
-        description += " (Saved locally - will sync when online)";
-      }
-
       toast({
         title: "Entry Updated",
-        description: description,
+        description: addOfflineIndicator("Time entry and all pieces have been successfully updated.", isOnline),
       });
       setEditDialogOpen(false);
       setEditTarget(null);
@@ -1745,14 +1712,10 @@ function TimeTrackingPage() {
         taskId: editTaskId,
       });
       
-      let description = "Piecework record has been successfully updated.";
-      if (!isOnline) {
-        description += " (Saved locally - will sync when online)";
-      }
       
       toast({
         title: "Piecework Updated",
-        description: description,
+        description: addOfflineIndicator("Piecework record has been successfully updated.", isOnline),
       });
       setEditDialogOpen(false);
       setEditTarget(null);
@@ -1817,14 +1780,9 @@ function TimeTrackingPage() {
       if (deleteCount > 0) {
         await batch.commit();
         
-        let description = `Successfully deleted ${deleteCount} record(s).`;
-        if (!isOnline) {
-          description += " (Saved locally - will sync when online)";
-        }
-        
         toast({
           title: "All Movements Deleted",
-          description: description,
+          description: addOfflineIndicator(`Successfully deleted ${deleteCount} record(s).`, isOnline),
         });
       } else {
         toast({
@@ -1940,9 +1898,10 @@ function TimeTrackingPage() {
 
       toast({
         title: "Sick Leave Logged",
-        description: `${hours} sick hours logged for ${
-          manualSelectedEmployee.name
-        }. New balance: ${newBalance.toFixed(2)} hrs${!isOnline ? " (Saved locally - will sync when online)" : ""}`,
+        description: addOfflineIndicator(
+          `${hours} sick hours logged for ${manualSelectedEmployee.name}. New balance: ${newBalance.toFixed(2)} hrs`,
+          isOnline
+        ),
       });
 
       // Reset form
@@ -3462,14 +3421,12 @@ function TimeTrackingPage() {
 
                             playSound("piece");
                             
-                            let description = `${pieceCount} piece(s) recorded for ${manualSelectedEmployee.name}.`;
-                            if (!isOnline) {
-                              description += " (Saved locally - will sync when online)";
-                            }
-                            
                             toast({
                               title: "Piecework Recorded",
-                              description: description,
+                              description: addOfflineIndicator(
+                                `${pieceCount} piece(s) recorded for ${manualSelectedEmployee.name}.`,
+                                isOnline
+                              ),
                             });
                             setManualSelectedEmployee(null);
                             setManualEmployeeSearch("");
