@@ -10,12 +10,31 @@ Este PR soluciona los tres problemas críticos del modo offline reportados:
 **Solución Implementada**:
 - Se creó una página de respaldo offline (`/src/app/offline/page.tsx`)
 - Se mejoró la configuración de PWA con estrategias de caché en tiempo de ejecución
+- **NUEVO**: Se agregó pre-carga automática de todas las páginas importantes al iniciar sesión
 - Ahora cuando navegas a una ruta no visitada mientras estás offline, en lugar del dinosaurio de Chrome, verás una página útil que:
   - Te informa que estás offline
   - Te da instrucciones sobre qué hacer
   - Se redirige automáticamente cuando recuperas la conexión
 
-**Archivos Modificados**: `next.config.ts`, `src/app/offline/page.tsx`
+**Archivos Modificados**: `next.config.ts`, `src/app/offline/page.tsx`, `src/components/page-precacher.tsx`, `src/app/(app)/layout.tsx`
+
+### ✨ NUEVA FUNCIÓN: Pre-Carga Automática de Páginas
+
+**¿Qué hace?**
+- Al iniciar sesión por primera vez, la app automáticamente carga todas las páginas importantes en segundo plano
+- Las páginas se guardan en caché para uso offline
+- Ya NO es necesario visitar cada página manualmente mientras tienes Internet
+
+**¿Cómo funciona?**
+1. Inicias sesión en la app
+2. Esperas 1-2 segundos (la app carga las páginas en segundo plano)
+3. Todas las páginas ya están disponibles offline (dashboard, clientes, empleados, tareas, time-tracking, payroll, invoicing)
+4. Puedes desconectarte y navegar libremente sin errores
+
+**Verificación en consola del navegador:**
+- Abre DevTools (F12) > Console
+- Deberías ver mensajes: "Pre-cached: /dashboard", "Pre-cached: /clients", etc.
+- Cuando veas "All pages pre-cached successfully", todas las páginas están listas para uso offline
 
 ### Problema #2: Mensajes de Error con QR
 **Descripción Original**: "El clock in/out manual funciona perfectamente. Si lo hago con código QR lo hace, pero aparece un mensaje de error como si no lo estuviera haciendo, pudiendo confundir al usuario."
@@ -109,7 +128,18 @@ runtimeCaching: [
 
 ## Cómo Probar los Cambios
 
-### Probar Problema #1 (Dinosaurio de Chrome)
+### ✨ Probar Pre-Carga Automática (NUEVO)
+1. Borra el caché del navegador y datos de la app
+2. Abre la app e inicia sesión
+3. Espera 2-3 segundos
+4. Abre DevTools (F12) > Console
+5. ✅ Deberías ver mensajes "Pre-cached: /dashboard", "Pre-cached: /clients", etc.
+6. Desconecta Internet (DevTools > Red > Sin conexión)
+7. Navega a cualquier página (empleados, tareas, etc.) SIN haberla visitado antes
+8. ✅ La página debería cargar exitosamente desde el caché
+9. ✅ NO deberías ver la página de offline ni el dinosaurio de Chrome
+
+### Probar Problema #1 (Dinosaurio de Chrome - Solo para páginas no pre-cargadas)
 1. Abre la app con Internet
 2. Visita solo el dashboard
 3. Desconecta Internet (DevTools > Red > Sin conexión)
@@ -141,6 +171,11 @@ Repite la misma prueba para empleados y tareas.
 
 ## Experiencia del Usuario
 
+### Al Iniciar Sesión (NUEVO)
+- La app automáticamente pre-carga todas las páginas importantes en segundo plano
+- No necesitas hacer nada, simplemente espera unos segundos
+- Todas las páginas estarán disponibles para uso offline
+
 ### Cuando Estás Online
 - Operación normal, todas las funciones funcionan como se espera
 - Los datos se guardan en caché para uso offline
@@ -151,10 +186,11 @@ Repite la misma prueba para empleados y tareas.
 
 ### Mientras Estás Offline
 - Las páginas visitadas previamente funcionan normalmente
+- **NUEVO**: Todas las páginas pre-cargadas funcionan normalmente (sin necesidad de haberlas visitado antes)
 - Puedes agregar nuevos clientes, empleados, tareas
 - Puedes hacer clock-in/out con códigos QR
 - Todos los mensajes de éxito incluyen "(Guardado localmente - se sincronizará cuando esté online)"
-- Las rutas no visitadas muestran una página de offline útil
+- Las rutas no visitadas Y no pre-cargadas muestran una página de offline útil (caso raro)
 
 ### Al Recuperar Conexión
 - Notificación toast: "De Vuelta Online - Sincronizando tus cambios..."
