@@ -98,13 +98,24 @@ export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) 
       form.reset()
       onOpenChange(false)
     } catch (serverError) {
-      const permissionError = new FirestorePermissionError({
-        path: 'clients',
-        operation: 'create',
-        requestResourceData: values,
-      });
-
-      errorEmitter.emit('permission-error', permissionError);
+      // When offline, Firestore operations are queued for sync
+      // Only emit errors if we're online (actual permission/validation errors)
+      if (isOnline) {
+        const permissionError = new FirestorePermissionError({
+          path: 'clients',
+          operation: 'create',
+          requestResourceData: values,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      } else {
+        // When offline, show a user-friendly message instead of throwing
+        console.warn("Add client operation failed offline:", serverError);
+        toast({
+          variant: 'destructive',
+          title: 'Error Adding Client',
+          description: 'Unable to add client. Please try again or check your data when back online.',
+        });
+      }
     }
   }
 

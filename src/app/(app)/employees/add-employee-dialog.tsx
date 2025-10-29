@@ -114,14 +114,25 @@ export function AddEmployeeDialog({ isOpen, onOpenChange }: AddEmployeeDialogPro
       form.reset()
       onOpenChange(false)
     } catch (serverError) {
-      const newDocRef = doc(collection(firestore, 'employees'))
-      const permissionError = new FirestorePermissionError({
-        path: newDocRef.path,
-        operation: 'create',
-        requestResourceData: values,
-      });
-
-      errorEmitter.emit('permission-error', permissionError);
+      // When offline, Firestore operations are queued for sync
+      // Only emit errors if we're online (actual permission/validation errors)
+      if (isOnline) {
+        const newDocRef = doc(collection(firestore, 'employees'))
+        const permissionError = new FirestorePermissionError({
+          path: newDocRef.path,
+          operation: 'create',
+          requestResourceData: values,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      } else {
+        // When offline, show a user-friendly message instead of throwing
+        console.warn("Add employee operation failed offline:", serverError);
+        toast({
+          variant: 'destructive',
+          title: 'Error Adding Employee',
+          description: 'Unable to add employee. Please try again or check your data when back online.',
+        });
+      }
     }
   }
 
