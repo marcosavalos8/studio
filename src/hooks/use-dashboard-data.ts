@@ -44,16 +44,21 @@ export function useDashboardData() {
   const { data: tasks, isLoading: loadingTasks } = useCollection<Task>(tasksQuery)
 
   useEffect(() => {
-    // If any query is loading, keep stats in loading state
+    // Check if any query is still loading
     const anyLoading = loadingEmployees || loadingClients || loadingTasks
     
     if (anyLoading) {
-      setStats(prev => ({ ...prev, isLoading: true }))
+      // Only update if we're not already in loading state
+      setStats(prev => {
+        if (!prev.isLoading) {
+          return { ...prev, isLoading: true }
+        }
+        return prev
+      })
       return
     }
 
     // All queries have completed - calculate stats
-    // Use optional chaining and nullish coalescing to handle null data safely
     const activeEmployees = (employees || []).filter(emp => emp.status === 'Active')
     const totalEmployees = activeEmployees.length
 
