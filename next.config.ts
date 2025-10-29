@@ -32,8 +32,8 @@ export default withPWA({
     runtimeCaching: [
       {
         // Cache pages with NetworkFirst strategy
-        urlPattern: ({ request }: { request: Request }) => request.destination === 'document',
-        handler: 'NetworkFirst',
+        urlPattern: ({ request }: any) => request.destination === 'document',
+        handler: 'NetworkFirst' as const,
         options: {
           cacheName: 'pages-cache',
           expiration: {
@@ -45,8 +45,8 @@ export default withPWA({
       },
       {
         // Cache API requests (Firestore, etc.)
-        urlPattern: /^https:\/\/.*\.googleapis\.com\/.*/i,
-        handler: 'NetworkFirst',
+        urlPattern: /^https:\/\/[a-z0-9-]+\.googleapis\.com\//i,
+        handler: 'NetworkFirst' as const,
         options: {
           cacheName: 'api-cache',
           expiration: {
