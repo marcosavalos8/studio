@@ -44,20 +44,35 @@ export function useDashboardData() {
   const { data: tasks, isLoading: loadingTasks } = useCollection<Task>(tasksQuery)
 
   useEffect(() => {
-    if (loadingEmployees || loadingClients || loadingTasks) {
+    // Check if any query is still loading
+    const anyLoading = loadingEmployees || loadingClients || loadingTasks
+    
+    // If we don't have firestore yet, keep loading
+    if (!firestore) {
+      return
+    }
+    
+    if (anyLoading) {
+      // Only update if we're not already in loading state
+      setStats(prev => {
+        if (!prev.isLoading) {
+          return { ...prev, isLoading: true }
+        }
+        return prev
+      })
       return
     }
 
-    // Calculate total employees (only active ones)
-    const activeEmployees = employees?.filter(emp => emp.status === 'Active') || []
+    // All queries have completed - calculate stats
+    // Only calculate if we have at least attempted to load (employees/clients/tasks would be [] not null)
+    const activeEmployees = (employees || []).filter(emp => emp.status === 'Active')
     const totalEmployees = activeEmployees.length
 
     // Calculate employee growth - for now set to 0 since we don't have historical data
-    // In a real scenario, you'd query employees created in the last month
     const employeeGrowth = 0
 
     // Calculate active clients (those with active tasks)
-    const activeTasksList = tasks?.filter(task => task.status === 'Active') || []
+    const activeTasksList = (tasks || []).filter(task => task.status === 'Active')
     const clientIdsWithActiveTasks = new Set(activeTasksList.map(task => task.clientId))
     const activeClients = clientIdsWithActiveTasks.size
 
@@ -71,7 +86,7 @@ export function useDashboardData() {
       activeTasks,
       isLoading: false,
     })
-  }, [employees, clients, tasks, loadingEmployees, loadingClients, loadingTasks])
+  }, [firestore, employees, clients, tasks, loadingEmployees, loadingClients, loadingTasks])
 
   return stats
 }
@@ -80,6 +95,7 @@ interface MonthlyData {
   month: string
   hours: number
   pieces: number
+  employees: number
 }
 
 export function useWorkActivityData() {
@@ -117,7 +133,7 @@ export function useWorkActivityData() {
     setIsLoading(true)
 
     // Group data by month
-    const monthlyStats: Record<string, { hours: number; pieces: number }> = {}
+    const monthlyStats: Record<string, { hours: number; pieces: number; employees: Set<string> }> = {}
 
     // Initialize last 6 months
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -126,18 +142,22 @@ export function useWorkActivityData() {
       const monthDate = subMonths(now, i)
       const monthKey = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`
       const monthName = monthNames[monthDate.getMonth()]
-      monthlyStats[monthKey] = { hours: 0, pieces: 0 }
+      monthlyStats[monthKey] = { hours: 0, pieces: 0, employees: new Set<string>() }
     }
 
-    // Calculate hours from time entries
+    // Calculate hours from time entries and track active employees
     if (timeEntries) {
       timeEntries.forEach(entry => {
-        if (entry.endTime && !entry.isBreak) {
-          const timestamp = (entry.timestamp as unknown as Timestamp).toDate()
-          const endTime = (entry.endTime as unknown as Timestamp).toDate()
-          const monthKey = `${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}`
+        const timestamp = (entry.timestamp as unknown as Timestamp).toDate()
+        const monthKey = `${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}`
+        
+        if (monthlyStats[monthKey]) {
+          // Track unique employees who worked this month
+          monthlyStats[monthKey].employees.add(entry.employeeId)
           
-          if (monthlyStats[monthKey]) {
+          // Only count hours for completed work periods (not breaks)
+          if (entry.endTime && !entry.isBreak) {
+            const endTime = (entry.endTime as unknown as Timestamp).toDate()
             const hours = (endTime.getTime() - timestamp.getTime()) / (1000 * 60 * 60)
             monthlyStats[monthKey].hours += hours
           }
@@ -153,6 +173,8 @@ export function useWorkActivityData() {
         
         if (monthlyStats[monthKey]) {
           monthlyStats[monthKey].pieces += piece.pieceCount
+          // Track employee from piecework too
+          monthlyStats[monthKey].employees.add(piece.employeeId)
         }
       })
     }
@@ -182,6 +204,7 @@ export function useWorkActivityData() {
         month: monthName,
         hours: Math.round(monthlyStats[monthKey].hours),
         pieces: monthlyStats[monthKey].pieces,
+        employees: monthlyStats[monthKey].employees.size,
       })
     }
 

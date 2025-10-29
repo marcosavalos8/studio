@@ -152,10 +152,72 @@ function TimeTrackingPage() {
     undefined
   );
 
-  const [selectedClient, setSelectedClient] = useState<string>("");
-  const [selectedRanch, setSelectedRanch] = useState<string>("");
-  const [selectedBlock, setSelectedBlock] = useState<string>("");
-  const [selectedTask, setSelectedTask] = useState<string>("");
+  // Load persisted selections from sessionStorage on mount
+  const [selectedClient, setSelectedClient] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem("time_tracking_selected_client") || "";
+    }
+    return "";
+  });
+  const [selectedRanch, setSelectedRanch] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem("time_tracking_selected_ranch") || "";
+    }
+    return "";
+  });
+  const [selectedBlock, setSelectedBlock] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem("time_tracking_selected_block") || "";
+    }
+    return "";
+  });
+  const [selectedTask, setSelectedTask] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem("time_tracking_selected_task") || "";
+    }
+    return "";
+  });
+
+  // Persist selections to sessionStorage whenever they change
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (selectedClient) {
+        sessionStorage.setItem("time_tracking_selected_client", selectedClient);
+      } else {
+        sessionStorage.removeItem("time_tracking_selected_client");
+      }
+    }
+  }, [selectedClient]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (selectedRanch) {
+        sessionStorage.setItem("time_tracking_selected_ranch", selectedRanch);
+      } else {
+        sessionStorage.removeItem("time_tracking_selected_ranch");
+      }
+    }
+  }, [selectedRanch]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (selectedBlock) {
+        sessionStorage.setItem("time_tracking_selected_block", selectedBlock);
+      } else {
+        sessionStorage.removeItem("time_tracking_selected_block");
+      }
+    }
+  }, [selectedBlock]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (selectedTask) {
+        sessionStorage.setItem("time_tracking_selected_task", selectedTask);
+      } else {
+        sessionStorage.removeItem("time_tracking_selected_task");
+      }
+    }
+  }, [selectedTask]);
 
   // Manual Entry State
   const [manualLogType, setManualLogType] = useState<ManualLogType>("clock-in");
