@@ -10,6 +10,7 @@ import { signInAnonymously } from 'firebase/auth'
 import { Loader2 } from 'lucide-react'
 import { auth } from '@/firebase'
 import { NetworkStatusIndicator } from '@/components/network-status-indicator'
+import { PagePrecacher } from '@/components/page-precacher'
 
 function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { user, loading } = useUser()
@@ -36,6 +37,7 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
       <SidebarInset>
         <AppHeader />
         <NetworkStatusIndicator />
+        <PagePrecacher />
         <div className="p-3 sm:p-4 md:p-6 lg:p-8">{children}</div>
       </SidebarInset>
     </SidebarProvider>
