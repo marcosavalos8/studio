@@ -784,12 +784,24 @@ function TimeTrackingPage() {
           description: addOfflineIndicator(description, isOnline),
         });
       } catch (serverError) {
-        const permissionError = new FirestorePermissionError({
-          path: "time_entries",
-          operation: "write",
-          requestResourceData: { message: `Clock-in for ${employee.name}` },
-        });
-        errorEmitter.emit("permission-error", permissionError);
+        // When offline, Firestore operations are queued for sync
+        // Only emit errors if we're online (actual permission/validation errors)
+        if (isOnline) {
+          const permissionError = new FirestorePermissionError({
+            path: "time_entries",
+            operation: "write",
+            requestResourceData: { message: `Clock-in for ${employee.name}` },
+          });
+          errorEmitter.emit("permission-error", permissionError);
+        } else {
+          // When offline, show a user-friendly message instead of throwing
+          console.warn("Clock-in operation failed offline:", serverError);
+          toast({
+            variant: "destructive",
+            title: "Clock In Error",
+            description: "Unable to complete clock-in. Please try again or check your data when back online.",
+          });
+        }
       }
     },
     [firestore, toast, playSound, allTasks, isOnline]
@@ -918,12 +930,24 @@ function TimeTrackingPage() {
           });
         }
       } catch (serverError) {
-        const permissionError = new FirestorePermissionError({
-          path: "time_entries",
-          operation: "update",
-          requestResourceData: { endTime: customTimestamp || new Date() },
-        });
-        errorEmitter.emit("permission-error", permissionError);
+        // When offline, Firestore operations are queued for sync
+        // Only emit errors if we're online (actual permission/validation errors)
+        if (isOnline) {
+          const permissionError = new FirestorePermissionError({
+            path: "time_entries",
+            operation: "update",
+            requestResourceData: { endTime: customTimestamp || new Date() },
+          });
+          errorEmitter.emit("permission-error", permissionError);
+        } else {
+          // When offline, show a user-friendly message instead of throwing
+          console.warn("Clock-out operation failed offline:", serverError);
+          toast({
+            variant: "destructive",
+            title: "Clock Out Error",
+            description: "Unable to complete clock-out. Please try again or check your data when back online.",
+          });
+        }
       }
     },
     [firestore, toast, playSound, isOnline]

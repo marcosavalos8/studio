@@ -85,36 +85,37 @@ export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) 
       const newClient = { ...values, email: values.email || '' }
       const clientsCollection = collection(firestore, 'clients');
 
-      // Close the dialog immediately when offline to simulate success
-      if (!isOnline) {
-        toast({
-          title: 'Client Added',
-          description: addOfflineIndicator(
-            `${values.name} has been added successfully.`,
-            isOnline
-          ),
-        })
-        form.reset()
-        onOpenChange(false)
-        return
-      }
-
+      // Firestore offline persistence handles offline operations automatically
       await addDoc(clientsCollection, newClient)
       
       toast({
         title: 'Client Added',
-        description: `${values.name} has been added successfully.`,
+        description: addOfflineIndicator(
+          `${values.name} has been added successfully.`,
+          isOnline
+        ),
       })
       form.reset()
       onOpenChange(false)
     } catch (serverError) {
-      const permissionError = new FirestorePermissionError({
-        path: 'clients',
-        operation: 'create',
-        requestResourceData: values,
-      });
-
-      errorEmitter.emit('permission-error', permissionError);
+      // When offline, Firestore operations are queued for sync
+      // Only emit errors if we're online (actual permission/validation errors)
+      if (isOnline) {
+        const permissionError = new FirestorePermissionError({
+          path: 'clients',
+          operation: 'create',
+          requestResourceData: values,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      } else {
+        // When offline, show a user-friendly message instead of throwing
+        console.warn("Add client operation failed offline:", serverError);
+        toast({
+          variant: 'destructive',
+          title: 'Error Adding Client',
+          description: 'Unable to add client. Please try again or check your data when back online.',
+        });
+      }
     }
   }
 
