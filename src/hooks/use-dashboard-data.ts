@@ -44,20 +44,24 @@ export function useDashboardData() {
   const { data: tasks, isLoading: loadingTasks } = useCollection<Task>(tasksQuery)
 
   useEffect(() => {
-    if (loadingEmployees || loadingClients || loadingTasks) {
+    // If any query is loading, keep stats in loading state
+    const anyLoading = loadingEmployees || loadingClients || loadingTasks
+    
+    if (anyLoading) {
+      setStats(prev => ({ ...prev, isLoading: true }))
       return
     }
 
-    // Calculate total employees (only active ones)
-    const activeEmployees = employees?.filter(emp => emp.status === 'Active') || []
+    // All queries have completed - calculate stats
+    // Use optional chaining and nullish coalescing to handle null data safely
+    const activeEmployees = (employees || []).filter(emp => emp.status === 'Active')
     const totalEmployees = activeEmployees.length
 
     // Calculate employee growth - for now set to 0 since we don't have historical data
-    // In a real scenario, you'd query employees created in the last month
     const employeeGrowth = 0
 
     // Calculate active clients (those with active tasks)
-    const activeTasksList = tasks?.filter(task => task.status === 'Active') || []
+    const activeTasksList = (tasks || []).filter(task => task.status === 'Active')
     const clientIdsWithActiveTasks = new Set(activeTasksList.map(task => task.clientId))
     const activeClients = clientIdsWithActiveTasks.size
 
