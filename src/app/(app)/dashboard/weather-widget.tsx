@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Sun, Cloud, CloudRain, CloudSnow, Loader2 } from "lucide-react"
+import { Sun, Cloud, CloudRain, CloudSnow, Loader2, WifiOff } from "lucide-react"
 
 interface WeatherData {
   temperature: number
@@ -20,6 +20,21 @@ export function WeatherWidget() {
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isOffline, setIsOffline] = useState(!navigator.onLine)
+
+  // Track online/offline status
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false)
+    const handleOffline = () => setIsOffline(true)
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
 
   // Get user's location
   useEffect(() => {
@@ -55,6 +70,13 @@ export function WeatherWidget() {
     if (!location) return
 
     const fetchWeather = async () => {
+      // If offline, don't try to fetch
+      if (!navigator.onLine) {
+        setIsLoading(false)
+        setError('No internet connection')
+        return
+      }
+
       setIsLoading(true)
       try {
         // Using Open-Meteo API (free, no API key required)
@@ -91,12 +113,6 @@ export function WeatherWidget() {
       } catch (err) {
         console.error('Error fetching weather:', err)
         setError('Unable to fetch weather')
-        // Fallback data
-        setWeather({
-          temperature: 75,
-          weatherCode: 0,
-          description: 'Clear',
-        })
       } finally {
         setIsLoading(false)
       }
@@ -105,8 +121,12 @@ export function WeatherWidget() {
     fetchWeather()
   }, [location])
 
-  // Choose icon based on weather code
+  // Choose icon based on weather code or status
   const getWeatherIcon = () => {
+    if (isOffline || error === 'No internet connection') {
+      return <WifiOff className="h-4 w-4 text-muted-foreground" />
+    }
+    
     if (!weather) return <Sun className="h-4 w-4 text-muted-foreground" />
     
     const code = weather.weatherCode
@@ -121,7 +141,7 @@ export function WeatherWidget() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">Weather</CardTitle>
-        {isLoading ? (
+        {isLoading && !isOffline ? (
           <Loader2 className="h-4 w-4 text-muted-foreground animate-spin" />
         ) : (
           getWeatherIcon()
@@ -129,10 +149,16 @@ export function WeatherWidget() {
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">
-          {isLoading ? '...' : weather ? `${weather.temperature}°F` : '75°F'}
+          {isOffline || error === 'No internet connection' ? '--' : isLoading ? '...' : weather ? `${weather.temperature}°F` : '--'}
         </div>
         <p className="text-xs text-muted-foreground">
-          {isLoading ? 'Loading weather...' : weather ? `${weather.description} at your location` : error || 'Weather unavailable'}
+          {isOffline || error === 'No internet connection' 
+            ? 'No internet - weather unavailable' 
+            : isLoading 
+              ? 'Loading weather...' 
+              : weather 
+                ? `${weather.description} at your location` 
+                : error || 'Weather unavailable'}
         </p>
       </CardContent>
     </Card>

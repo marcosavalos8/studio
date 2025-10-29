@@ -18,12 +18,16 @@ import { useWorkActivityData } from "@/hooks/use-dashboard-data"
 
 const chartConfig = {
   hours: {
-    label: "Hours Logged",
+    label: "Hours Worked",
     color: "hsl(var(--primary))",
   },
   pieces: {
-    label: "Pieces Recorded",
+    label: "Pieces Collected",
     color: "hsl(var(--accent))",
+  },
+  employees: {
+    label: "Active Workers",
+    color: "hsl(var(--chart-3))",
   },
 } satisfies ChartConfig
 
@@ -35,7 +39,7 @@ export function Chart() {
         <CardHeader>
           <CardTitle>Work Activity Overview</CardTitle>
           <CardDescription>
-            Comparison of hours logged vs. pieces recorded over the last 6 months.
+            Total hours worked, pieces collected, and number of active workers over the last 6 months.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex-1">
@@ -70,6 +74,7 @@ export function Chart() {
                 <Legend />
                 <Bar dataKey="hours" fill="var(--color-hours)" radius={4} />
                 <Bar dataKey="pieces" fill="var(--color-pieces)" radius={4} />
+                <Bar dataKey="employees" fill="var(--color-employees)" radius={4} />
               </BarChart>
             </ChartContainer>
           )}
