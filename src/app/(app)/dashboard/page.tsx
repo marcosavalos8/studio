@@ -1,3 +1,4 @@
+'use client'
 
 import {
   Card,
@@ -14,9 +15,12 @@ import {
 import { OverviewChart } from "./overview-chart"
 import { WeatherWidget } from "./weather-widget"
 import { LiveActivity } from "./live-activity"
+import { useDashboardData } from "@/hooks/use-dashboard-data"
 
 
 export default function DashboardPage() {
+  const { totalEmployees, employeeGrowth, activeClients, activeTasks, isLoading } = useDashboardData()
+
   return (
     <div className="grid gap-3 md:gap-6 lg:gap-8">
       <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -26,9 +30,9 @@ export default function DashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">6</div>
+            <div className="text-2xl font-bold">{isLoading ? '...' : totalEmployees}</div>
             <p className="text-xs text-muted-foreground">
-              +2 since last month
+              {employeeGrowth > 0 ? `+${employeeGrowth}` : employeeGrowth === 0 ? 'No change' : employeeGrowth} since last month
             </p>
           </CardContent>
         </Card>
@@ -38,9 +42,9 @@ export default function DashboardPage() {
             <Briefcase className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">3</div>
+            <div className="text-2xl font-bold">{isLoading ? '...' : activeClients}</div>
             <p className="text-xs text-muted-foreground">
-              All clients have active tasks
+              {activeClients === 0 ? 'No active clients' : activeClients === 1 ? 'Client has active tasks' : 'All clients have active tasks'}
             </p>
           </CardContent>
         </Card>
@@ -50,9 +54,9 @@ export default function DashboardPage() {
             <ClipboardList className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">3</div>
+            <div className="text-2xl font-bold">{isLoading ? '...' : activeTasks}</div>
             <p className="text-xs text-muted-foreground">
-              Across all clients
+              {activeTasks === 0 ? 'No active tasks' : activeClients > 1 ? 'Across all clients' : 'For current client'}
             </p>
           </CardContent>
         </Card>
