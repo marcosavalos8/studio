@@ -47,6 +47,11 @@ export function useDashboardData() {
     // Check if any query is still loading
     const anyLoading = loadingEmployees || loadingClients || loadingTasks
     
+    // If we don't have firestore yet, keep loading
+    if (!firestore) {
+      return
+    }
+    
     if (anyLoading) {
       // Only update if we're not already in loading state
       setStats(prev => {
@@ -59,6 +64,7 @@ export function useDashboardData() {
     }
 
     // All queries have completed - calculate stats
+    // Only calculate if we have at least attempted to load (employees/clients/tasks would be [] not null)
     const activeEmployees = (employees || []).filter(emp => emp.status === 'Active')
     const totalEmployees = activeEmployees.length
 
@@ -80,7 +86,7 @@ export function useDashboardData() {
       activeTasks,
       isLoading: false,
     })
-  }, [employees, clients, tasks, loadingEmployees, loadingClients, loadingTasks])
+  }, [firestore, employees, clients, tasks, loadingEmployees, loadingClients, loadingTasks])
 
   return stats
 }
