@@ -255,8 +255,11 @@ export async function generatePayrollReport({
         const dailyBreakdownsForWeek: DailyBreakdown[] = [];
         let weeklyTotalHours = 0;
 
-        // Acumuladores SEMANALES para la comparación final
-        let weeklyTotalRawEarnings = 0; // Total earnings from all tasks (hourly + piecework)
+        // Acumuladores SEMANALES separados por tipo de trabajo
+        let weeklyHourlyEarnings = 0; // Earnings from hourly tasks
+        let weeklyHourlyHours = 0; // Hours worked on hourly tasks
+        let weeklyPieceworkEarnings = 0; // Earnings from piecework tasks
+        let weeklyPieceworkHours = 0; // Hours worked on piecework tasks
 
         const sortedDays = Object.keys(dailyWork).sort(
           (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime()
@@ -279,6 +282,7 @@ export async function generatePayrollReport({
 
             const { hours, pieces } = dailyWork[dayKey].tasks[taskId];
             let earningsForTask = 0;
+            let isHourlyTask = false;
 
             // Enhanced logging to diagnose all earnings calculation issues
             console.log("Processing task earnings:", {
@@ -300,6 +304,7 @@ export async function generatePayrollReport({
             ) {
               // Piecework task: calculate based on pieces
               earningsForTask = pieces * task.piecePrice;
+              isHourlyTask = false;
               console.log("Calculated piecework earnings:", {
                 taskName: task.name,
                 pieces,
@@ -309,6 +314,7 @@ export async function generatePayrollReport({
             } else if (task.clientRateType === "hourly" && hours > 0) {
               // Hourly task: calculate based on hours and clientRate
               earningsForTask = hours * (task.clientRate || 0);
+              isHourlyTask = true;
               console.log("Calculated hourly earnings:", {
                 taskName: task.name,
                 hours,
@@ -320,15 +326,18 @@ export async function generatePayrollReport({
               // Check if it has piecePrice and pieces, otherwise treat as hourly
               if (pieces > 0 && task.piecePrice && task.piecePrice > 0) {
                 earningsForTask = pieces * task.piecePrice;
+                isHourlyTask = false;
               } else {
                 // Treat as hourly work
                 earningsForTask = hours * (task.clientRate || 0);
+                isHourlyTask = true;
               }
               console.log("Calculated earnings (fallback):", {
                 taskName: task.name,
                 hours,
                 pieces,
                 earnings: earningsForTask,
+                isHourly: isHourlyTask,
               });
             } else {
               console.warn("⚠️ Task has neither hours nor pieces:", {
@@ -341,6 +350,15 @@ export async function generatePayrollReport({
 
             dailyTotalHours += hours;
             dailyTotalRawEarnings += earningsForTask;
+
+            // Track separately by task type for weekly calculation
+            if (isHourlyTask) {
+              weeklyHourlyEarnings += earningsForTask;
+              weeklyHourlyHours += hours;
+            } else {
+              weeklyPieceworkEarnings += earningsForTask;
+              weeklyPieceworkHours += hours;
+            }
 
             // Determine task type label and rate for display
             const taskTypeLabel =
@@ -371,8 +389,6 @@ export async function generatePayrollReport({
           }
 
           weeklyTotalHours += dailyTotalHours;
-          // Acumula la ganancia bruta sin ajustes para la comparación semanal
-          weeklyTotalRawEarnings += dailyTotalRawEarnings;
 
           dailyBreakdownsForWeek.push({
             date: dayKey,
@@ -382,41 +398,78 @@ export async function generatePayrollReport({
           });
         }
 
-        if (weeklyTotalHours <= 0 && weeklyTotalRawEarnings <= 0) {
+        if (weeklyTotalHours <= 0 && (weeklyHourlyEarnings + weeklyPieceworkEarnings) <= 0) {
           continue; // Skip weeks with no work
         }
 
-        // PASO 1: CALCULAR PAGO DE DESCANSOS (REST BREAKS) basado en la tasa RAW
-        // Los descansos se calculan PRIMERO, antes de cualquier ajuste de salario mínimo
-        // La tasa para descansos se basa en las ganancias reales por piezas/horas, no en el salario mínimo
-        const regularRateOfPay =
-          weeklyTotalHours > 0 ? weeklyTotalRawEarnings / weeklyTotalHours : 0;
-
-        // 10 minutos por cada 4 horas trabajadas
-        const paidRestBreakHours = Math.floor(weeklyTotalHours / 4) * (10 / 60);
-        const paidRestBreaksPay = paidRestBreakHours * regularRateOfPay;
-
-        // PASO 2: SUMAR GANANCIAS RAW + DESCANSOS
-        const totalEarningsWithBreaks =
-          weeklyTotalRawEarnings + paidRestBreaksPay;
-
-        // PASO 3: COMPARACIÓN SEMANAL FINAL (WAC 296-126-021)
-        // Calcular el requisito de salario mínimo para toda la semana
-        const weeklyMinimumWageRequirement =
-          weeklyTotalHours * applicableMinWage;
-
-        // El ajuste (top-up) se calcula comparando el total CON DESCANSOS contra el mínimo
-        const minimumWageTopUp = Math.max(
+        // NUEVA LÓGICA: Calcular hourly y piecework por separado según requerimientos del cliente
+        
+        // PASO 1: CALCULAR PAGO POR TRABAJO POR HORAS (HOURLY)
+        // Para trabajo por horas, NO se agregan descansos pagados adicionales
+        // porque los descansos ya están incluidos en la tarifa por hora.
+        // Tampoco se aplica ajuste de salario mínimo porque ya se paga la tarifa por hora.
+        const hourlyFinalPay = weeklyHourlyEarnings; // Sin ajustes adicionales
+        
+        // PASO 2: CALCULAR PAGO POR TRABAJO A DESTAJO (PIECEWORK)
+        // Solo para piecework se calculan descansos pagados y ajustes de salario mínimo
+        
+        // 2.1: Calcular tasa regular basada SOLO en earnings de piecework
+        const pieceworkRegularRate = 
+          weeklyPieceworkHours > 0 ? weeklyPieceworkEarnings / weeklyPieceworkHours : 0;
+        
+        // 2.2: Calcular descansos pagados SOLO para horas de piecework
+        // 10 minutos por cada 4 horas trabajadas en piecework
+        const pieceworkRestBreakHours = Math.floor(weeklyPieceworkHours / 4) * (10 / 60);
+        const pieceworkRestBreaksPay = pieceworkRestBreakHours * pieceworkRegularRate;
+        
+        // 2.3: Sumar ganancias de piecework + descansos
+        const pieceworkEarningsWithBreaks = weeklyPieceworkEarnings + pieceworkRestBreaksPay;
+        
+        // 2.4: Comparación con salario mínimo SOLO para horas de piecework
+        const pieceworkMinimumWageRequirement = weeklyPieceworkHours * applicableMinWage;
+        
+        // 2.5: Calcular ajuste (top-up) SOLO para piecework
+        const pieceworkMinimumWageTopUp = Math.max(
           0,
-          weeklyMinimumWageRequirement - totalEarningsWithBreaks
+          pieceworkMinimumWageRequirement - pieceworkEarningsWithBreaks
         );
+        
+        // 2.6: Pago final de piecework
+        const pieceworkFinalPay = pieceworkEarningsWithBreaks + pieceworkMinimumWageTopUp;
+        
+        // PASO 3: COMBINAR HOURLY Y PIECEWORK PARA EL TOTAL SEMANAL
+        const weeklyTotalRawEarnings = weeklyHourlyEarnings + weeklyPieceworkEarnings;
+        const finalWeeklyPay = hourlyFinalPay + pieceworkFinalPay;
+        
+        // Para reporte: mostrar solo los descansos y ajustes de piecework
+        const totalRestBreaksPay = pieceworkRestBreaksPay;
+        const totalMinimumWageTopUp = pieceworkMinimumWageTopUp;
 
-        // PASO 4: CALCULAR PAGO FINAL
-        const finalWeeklyPay = totalEarningsWithBreaks + minimumWageTopUp;
-
-        // PASO 5: CALCULAR HORAS DE ENFERMEDAD (SICK HOURS)
-        // 1 hora de enfermedad por cada 40 horas trabajadas
+        // PASO 4: CALCULAR HORAS DE ENFERMEDAD (SICK HOURS)
+        // 1 hora de enfermedad por cada 40 horas trabajadas (total de hourly + piecework)
         const sickHoursAccrued = weeklyTotalHours / 40;
+
+        console.log("Weekly calculation breakdown:", {
+          weekNumber,
+          year,
+          hourly: {
+            hours: weeklyHourlyHours,
+            earnings: weeklyHourlyEarnings,
+            finalPay: hourlyFinalPay,
+          },
+          piecework: {
+            hours: weeklyPieceworkHours,
+            earnings: weeklyPieceworkEarnings,
+            restBreaks: pieceworkRestBreaksPay,
+            minimumWageTopUp: pieceworkMinimumWageTopUp,
+            finalPay: pieceworkFinalPay,
+          },
+          total: {
+            hours: weeklyTotalHours,
+            rawEarnings: weeklyTotalRawEarnings,
+            finalPay: finalWeeklyPay,
+          },
+        });
 
         weeklySummaries.push({
           weekNumber,
@@ -424,8 +477,8 @@ export async function generatePayrollReport({
           totalHours: parseFloat(weeklyTotalHours.toFixed(2)),
           // totalEarnings es la ganancia RAW (sin ajustes de salario mínimo ni descansos)
           totalEarnings: parseFloat(weeklyTotalRawEarnings.toFixed(2)),
-          minimumWageTopUp: parseFloat(minimumWageTopUp.toFixed(2)),
-          paidRestBreaks: parseFloat(paidRestBreaksPay.toFixed(2)),
+          minimumWageTopUp: parseFloat(totalMinimumWageTopUp.toFixed(2)),
+          paidRestBreaks: parseFloat(totalRestBreaksPay.toFixed(2)),
           finalPay: parseFloat(finalWeeklyPay.toFixed(2)),
           dailyBreakdown: dailyBreakdownsForWeek,
           sickHoursAccrued: parseFloat(sickHoursAccrued.toFixed(2)),
