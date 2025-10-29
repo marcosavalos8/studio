@@ -1288,7 +1288,7 @@ function TimeTrackingPage() {
         return;
       }
 
-      // Simulate success when offline - close immediately and show offline indicator
+      // Reset form immediately when offline to allow user to continue working
       if (!isOnline) {
         toast({
           title: "Past Record Created",
@@ -1307,7 +1307,6 @@ function TimeTrackingPage() {
         setPastRecordClockOutTime("");
         setPastRecordPiecesCount("");
         setIsManualSubmitting(false);
-        return;
       }
 
       const task = allTasks?.find((t) => t.id === selectedTask);
@@ -1325,8 +1324,22 @@ function TimeTrackingPage() {
         pastRecordClockOutDate,
         piecesCount > 0 ? piecesCount : undefined
       );
+
+      // Only reset form and show toast when online (offline already handled above)
+      if (isOnline) {
+        setManualSelectedEmployee(null);
+        setManualEmployeeSearch("");
+        setUseSickHoursForPayment(false);
+        setPastRecordClockInDate(undefined);
+        setPastRecordClockOutDate(undefined);
+        setPastRecordDate(undefined);
+        setPastRecordClockInTime("");
+        setPastRecordClockOutTime("");
+        setPastRecordPiecesCount("");
+        setIsManualSubmitting(false);
+      }
     } else if (manualLogType === "clock-in") {
-      // Simulate success when offline - close immediately and show offline indicator
+      // Reset form immediately when offline to allow user to continue working
       if (!isOnline) {
         toast({
           title: "Clock In Successful",
@@ -1341,7 +1354,6 @@ function TimeTrackingPage() {
         setManualEmployeeSearch("");
         setUseSickHoursForPayment(false);
         setIsManualSubmitting(false);
-        return;
       }
 
       const timestamp = useManualDateTime ? manualClockInDate : undefined;
@@ -1351,8 +1363,16 @@ function TimeTrackingPage() {
         timestamp,
         useSickHoursForPayment
       );
+
+      // Only reset form when online (offline already handled above)
+      if (isOnline) {
+        setManualSelectedEmployee(null);
+        setManualEmployeeSearch("");
+        setUseSickHoursForPayment(false);
+        setIsManualSubmitting(false);
+      }
     } else if (manualLogType === "clock-out") {
-      // Simulate success when offline - close immediately and show offline indicator
+      // Reset form immediately when offline to allow user to continue working
       if (!isOnline) {
         toast({
           title: "Clock Out Successful",
@@ -1365,17 +1385,19 @@ function TimeTrackingPage() {
         setManualEmployeeSearch("");
         setUseSickHoursForPayment(false);
         setIsManualSubmitting(false);
-        return;
       }
 
       const timestamp = useManualDateTime ? manualClockOutDate : undefined;
       await clockOutEmployee(manualSelectedEmployee, selectedTask, timestamp);
-    }
 
-    setManualSelectedEmployee(null);
-    setManualEmployeeSearch("");
-    setUseSickHoursForPayment(false);
-    setIsManualSubmitting(false);
+      // Only reset form when online (offline already handled above)
+      if (isOnline) {
+        setManualSelectedEmployee(null);
+        setManualEmployeeSearch("");
+        setUseSickHoursForPayment(false);
+        setIsManualSubmitting(false);
+      }
+    }
   };
 
   const handleManualPieceSubmit = async () => {
