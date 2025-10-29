@@ -1288,6 +1288,18 @@ function TimeTrackingPage() {
         return;
       }
 
+      // Show toast and stop loading immediately when offline to allow user to continue working
+      if (!isOnline) {
+        toast({
+          title: "Past Record Created",
+          description: addOfflineIndicator(
+            `Created past record for ${manualSelectedEmployee.name}.`,
+            isOnline
+          ),
+        });
+        setIsManualSubmitting(false);
+      }
+
       const task = allTasks?.find((t) => t.id === selectedTask);
       const piecesCount =
         task?.clientRateType === "piece"
@@ -1303,7 +1315,37 @@ function TimeTrackingPage() {
         pastRecordClockOutDate,
         piecesCount > 0 ? piecesCount : undefined
       );
+
+      // Reset form after Firestore operation
+      setManualSelectedEmployee(null);
+      setManualEmployeeSearch("");
+      setUseSickHoursForPayment(false);
+      setPastRecordClockInDate(undefined);
+      setPastRecordClockOutDate(undefined);
+      setPastRecordDate(undefined);
+      setPastRecordClockInTime("");
+      setPastRecordClockOutTime("");
+      setPastRecordPiecesCount("");
+      
+      // Only update loading state if online (offline already set to false)
+      if (isOnline) {
+        setIsManualSubmitting(false);
+      }
     } else if (manualLogType === "clock-in") {
+      // Show toast and stop loading immediately when offline to allow user to continue working
+      if (!isOnline) {
+        toast({
+          title: "Clock In Successful",
+          description: addOfflineIndicator(
+            `Clocked in ${manualSelectedEmployee.name}.${
+              useSickHoursForPayment ? " (Using sick hours for payment)" : ""
+            }`,
+            isOnline
+          ),
+        });
+        setIsManualSubmitting(false);
+      }
+
       const timestamp = useManualDateTime ? manualClockInDate : undefined;
       await clockInEmployee(
         manualSelectedEmployee,
@@ -1311,15 +1353,42 @@ function TimeTrackingPage() {
         timestamp,
         useSickHoursForPayment
       );
+
+      // Reset form after Firestore operation
+      setManualSelectedEmployee(null);
+      setManualEmployeeSearch("");
+      setUseSickHoursForPayment(false);
+      
+      // Only update loading state if online (offline already set to false)
+      if (isOnline) {
+        setIsManualSubmitting(false);
+      }
     } else if (manualLogType === "clock-out") {
+      // Show toast and stop loading immediately when offline to allow user to continue working
+      if (!isOnline) {
+        toast({
+          title: "Clock Out Successful",
+          description: addOfflineIndicator(
+            `Clocked out ${manualSelectedEmployee.name}.`,
+            isOnline
+          ),
+        });
+        setIsManualSubmitting(false);
+      }
+
       const timestamp = useManualDateTime ? manualClockOutDate : undefined;
       await clockOutEmployee(manualSelectedEmployee, selectedTask, timestamp);
-    }
 
-    setManualSelectedEmployee(null);
-    setManualEmployeeSearch("");
-    setUseSickHoursForPayment(false);
-    setIsManualSubmitting(false);
+      // Reset form after Firestore operation
+      setManualSelectedEmployee(null);
+      setManualEmployeeSearch("");
+      setUseSickHoursForPayment(false);
+      
+      // Only update loading state if online (offline already set to false)
+      if (isOnline) {
+        setIsManualSubmitting(false);
+      }
+    }
   };
 
   const handleManualPieceSubmit = async () => {
