@@ -3,9 +3,9 @@
 import * as React from "react"
 import { useActionState } from "react"
 import { format, parseISO } from "date-fns"
-import { Calendar as CalendarIcon, Loader2, Users, CalendarDays } from "lucide-react"
+import { Calendar as CalendarIcon, Loader2, Users } from "lucide-react"
 
-import { cn, toLocalMidnight, getWeekRange } from "@/lib/utils"
+import { cn, toLocalMidnight } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -188,6 +188,7 @@ export function PayrollForm() {
     });
   }
 
+
   const jsonData = getFilteredJsonData();
   const allEmployeesSelected = employeesInRange.length > 0 && selectedEmployeeIds.size === employeesInRange.length;
 
@@ -288,61 +289,6 @@ export function PayrollForm() {
            {isFetchingData && <p className="text-xs text-muted-foreground mt-2 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin"/>Fetching data for selected range...</p>}
            {!isFetchingData && date?.from && employeesInRange.length > 0 && <p className="text-xs text-muted-foreground mt-2">{selectedEmployeeIds.size} of {employeesInRange.length} employees selected.</p>}
            {!isFetchingData && date?.from && employeesInRange.length === 0 && <p className="text-xs text-amber-600 mt-2">No employee activity found for this date range.</p>}
-        </div>
-      </div>
-      
-      {/* Quick Week Selection */}
-      <div className="mt-4 p-4 border rounded-lg bg-muted/50">
-        <div className="flex items-center gap-2 mb-2">
-          <CalendarDays className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium text-muted-foreground">Quick Select Week (Monday - Sunday):</span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setDate(getWeekRange(0))}
-            className="text-xs"
-          >
-            Current Week
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setDate(getWeekRange(1))}
-            className="text-xs"
-          >
-            Last Week
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setDate(getWeekRange(2))}
-            className="text-xs"
-          >
-            2 Weeks Ago
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setDate(getWeekRange(3))}
-            className="text-xs"
-          >
-            3 Weeks Ago
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setDate(getWeekRange(4))}
-            className="text-xs"
-          >
-            4 Weeks Ago
-          </Button>
         </div>
       </div>
       

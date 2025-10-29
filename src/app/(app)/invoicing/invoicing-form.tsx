@@ -2,9 +2,9 @@
 
 import * as React from "react";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon, Loader2, CalendarDays } from "lucide-react";
+import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
 
-import { cn, toLocalMidnight, parseLocalDate, getWeekRange } from "@/lib/utils";
+import { cn, toLocalMidnight, parseLocalDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -461,56 +461,6 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Generate Invoice
         </Button>
-      </div>
-
-      {/* Quick Week Selection */}
-      <div className="mt-4 p-4 border rounded-lg bg-muted/50">
-        <div className="flex items-center gap-2 mb-2">
-          <CalendarDays className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium text-muted-foreground">Quick Select Week (Monday - Sunday):</span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setDate(getWeekRange(0))}
-            className="text-xs"
-          >
-            Current Week
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setDate(getWeekRange(1))}
-            className="text-xs"
-          >
-            Last Week
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setDate(getWeekRange(2))}
-            className="text-xs"
-          >
-            2 Weeks Ago
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setDate(getWeekRange(3))}
-            className="text-xs"
-          >
-            3 Weeks Ago
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setDate(getWeekRange(4))}
-            className="text-xs"
-          >
-            4 Weeks Ago
-          </Button>
-        </div>
       </div>
 
       {isGenerating && (
