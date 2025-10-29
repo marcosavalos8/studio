@@ -85,25 +85,15 @@ export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) 
       const newClient = { ...values, email: values.email || '' }
       const clientsCollection = collection(firestore, 'clients');
 
-      // Close the dialog immediately when offline to simulate success
-      if (!isOnline) {
-        toast({
-          title: 'Client Added',
-          description: addOfflineIndicator(
-            `${values.name} has been added successfully.`,
-            isOnline
-          ),
-        })
-        form.reset()
-        onOpenChange(false)
-        return
-      }
-
+      // Firestore offline persistence handles offline operations automatically
       await addDoc(clientsCollection, newClient)
       
       toast({
         title: 'Client Added',
-        description: `${values.name} has been added successfully.`,
+        description: addOfflineIndicator(
+          `${values.name} has been added successfully.`,
+          isOnline
+        ),
       })
       form.reset()
       onOpenChange(false)

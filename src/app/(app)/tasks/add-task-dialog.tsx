@@ -98,31 +98,18 @@ export function AddTaskDialog({
         piecePrice: parseFloat(piecePrice) || 0, // <- Siempre envía 0, nunca undefined
       };
 
-      // Close the dialog immediately when offline to simulate success
-      if (!isOnline) {
-        toast({
-          title: "Task Added",
-          description: addOfflineIndicator(
-            `${newTask.name} has been added successfully.`,
-            isOnline
-          ),
-        });
-        resetForm();
-        onOpenChange(false);
-        setIsSubmitting(false);
-      }
-
+      // Firestore offline persistence handles offline operations automatically
       await addDoc(collection(firestore, "tasks"), newTask);
 
-      // Only show toast and close dialog if online (offline already handled above)
-      if (isOnline) {
-        toast({
-          title: "Task Added",
-          description: `${newTask.name} has been added successfully.`,
-        });
-        resetForm();
-        onOpenChange(false);
-      }
+      toast({
+        title: "Task Added",
+        description: addOfflineIndicator(
+          `${newTask.name} has been added successfully.`,
+          isOnline
+        ),
+      });
+      resetForm();
+      onOpenChange(false);
     } catch (error) {
       console.error("Error adding task:", error);
       toast({
