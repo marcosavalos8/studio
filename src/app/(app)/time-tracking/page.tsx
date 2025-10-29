@@ -1288,7 +1288,7 @@ function TimeTrackingPage() {
         return;
       }
 
-      // Reset form immediately when offline to allow user to continue working
+      // Show toast and stop loading immediately when offline to allow user to continue working
       if (!isOnline) {
         toast({
           title: "Past Record Created",
@@ -1297,15 +1297,6 @@ function TimeTrackingPage() {
             isOnline
           ),
         });
-        setManualSelectedEmployee(null);
-        setManualEmployeeSearch("");
-        setUseSickHoursForPayment(false);
-        setPastRecordClockInDate(undefined);
-        setPastRecordClockOutDate(undefined);
-        setPastRecordDate(undefined);
-        setPastRecordClockInTime("");
-        setPastRecordClockOutTime("");
-        setPastRecordPiecesCount("");
         setIsManualSubmitting(false);
       }
 
@@ -1325,21 +1316,23 @@ function TimeTrackingPage() {
         piecesCount > 0 ? piecesCount : undefined
       );
 
-      // Only reset form and show toast when online (offline already handled above)
+      // Reset form after Firestore operation
+      setManualSelectedEmployee(null);
+      setManualEmployeeSearch("");
+      setUseSickHoursForPayment(false);
+      setPastRecordClockInDate(undefined);
+      setPastRecordClockOutDate(undefined);
+      setPastRecordDate(undefined);
+      setPastRecordClockInTime("");
+      setPastRecordClockOutTime("");
+      setPastRecordPiecesCount("");
+      
+      // Only update loading state if online (offline already set to false)
       if (isOnline) {
-        setManualSelectedEmployee(null);
-        setManualEmployeeSearch("");
-        setUseSickHoursForPayment(false);
-        setPastRecordClockInDate(undefined);
-        setPastRecordClockOutDate(undefined);
-        setPastRecordDate(undefined);
-        setPastRecordClockInTime("");
-        setPastRecordClockOutTime("");
-        setPastRecordPiecesCount("");
         setIsManualSubmitting(false);
       }
     } else if (manualLogType === "clock-in") {
-      // Reset form immediately when offline to allow user to continue working
+      // Show toast and stop loading immediately when offline to allow user to continue working
       if (!isOnline) {
         toast({
           title: "Clock In Successful",
@@ -1350,9 +1343,6 @@ function TimeTrackingPage() {
             isOnline
           ),
         });
-        setManualSelectedEmployee(null);
-        setManualEmployeeSearch("");
-        setUseSickHoursForPayment(false);
         setIsManualSubmitting(false);
       }
 
@@ -1364,15 +1354,17 @@ function TimeTrackingPage() {
         useSickHoursForPayment
       );
 
-      // Only reset form when online (offline already handled above)
+      // Reset form after Firestore operation
+      setManualSelectedEmployee(null);
+      setManualEmployeeSearch("");
+      setUseSickHoursForPayment(false);
+      
+      // Only update loading state if online (offline already set to false)
       if (isOnline) {
-        setManualSelectedEmployee(null);
-        setManualEmployeeSearch("");
-        setUseSickHoursForPayment(false);
         setIsManualSubmitting(false);
       }
     } else if (manualLogType === "clock-out") {
-      // Reset form immediately when offline to allow user to continue working
+      // Show toast and stop loading immediately when offline to allow user to continue working
       if (!isOnline) {
         toast({
           title: "Clock Out Successful",
@@ -1381,20 +1373,19 @@ function TimeTrackingPage() {
             isOnline
           ),
         });
-        setManualSelectedEmployee(null);
-        setManualEmployeeSearch("");
-        setUseSickHoursForPayment(false);
         setIsManualSubmitting(false);
       }
 
       const timestamp = useManualDateTime ? manualClockOutDate : undefined;
       await clockOutEmployee(manualSelectedEmployee, selectedTask, timestamp);
 
-      // Only reset form when online (offline already handled above)
+      // Reset form after Firestore operation
+      setManualSelectedEmployee(null);
+      setManualEmployeeSearch("");
+      setUseSickHoursForPayment(false);
+      
+      // Only update loading state if online (offline already set to false)
       if (isOnline) {
-        setManualSelectedEmployee(null);
-        setManualEmployeeSearch("");
-        setUseSickHoursForPayment(false);
         setIsManualSubmitting(false);
       }
     }
