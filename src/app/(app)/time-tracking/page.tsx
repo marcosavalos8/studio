@@ -1288,6 +1288,28 @@ function TimeTrackingPage() {
         return;
       }
 
+      // Simulate success when offline - close immediately and show offline indicator
+      if (!isOnline) {
+        toast({
+          title: "Past Record Created",
+          description: addOfflineIndicator(
+            `Created past record for ${manualSelectedEmployee.name}.`,
+            isOnline
+          ),
+        });
+        setManualSelectedEmployee(null);
+        setManualEmployeeSearch("");
+        setUseSickHoursForPayment(false);
+        setPastRecordClockInDate(undefined);
+        setPastRecordClockOutDate(undefined);
+        setPastRecordDate(undefined);
+        setPastRecordClockInTime("");
+        setPastRecordClockOutTime("");
+        setPastRecordPiecesCount("");
+        setIsManualSubmitting(false);
+        return;
+      }
+
       const task = allTasks?.find((t) => t.id === selectedTask);
       const piecesCount =
         task?.clientRateType === "piece"
@@ -1304,6 +1326,24 @@ function TimeTrackingPage() {
         piecesCount > 0 ? piecesCount : undefined
       );
     } else if (manualLogType === "clock-in") {
+      // Simulate success when offline - close immediately and show offline indicator
+      if (!isOnline) {
+        toast({
+          title: "Clock In Successful",
+          description: addOfflineIndicator(
+            `Clocked in ${manualSelectedEmployee.name}.${
+              useSickHoursForPayment ? " (Using sick hours for payment)" : ""
+            }`,
+            isOnline
+          ),
+        });
+        setManualSelectedEmployee(null);
+        setManualEmployeeSearch("");
+        setUseSickHoursForPayment(false);
+        setIsManualSubmitting(false);
+        return;
+      }
+
       const timestamp = useManualDateTime ? manualClockInDate : undefined;
       await clockInEmployee(
         manualSelectedEmployee,
@@ -1312,6 +1352,22 @@ function TimeTrackingPage() {
         useSickHoursForPayment
       );
     } else if (manualLogType === "clock-out") {
+      // Simulate success when offline - close immediately and show offline indicator
+      if (!isOnline) {
+        toast({
+          title: "Clock Out Successful",
+          description: addOfflineIndicator(
+            `Clocked out ${manualSelectedEmployee.name}.`,
+            isOnline
+          ),
+        });
+        setManualSelectedEmployee(null);
+        setManualEmployeeSearch("");
+        setUseSickHoursForPayment(false);
+        setIsManualSubmitting(false);
+        return;
+      }
+
       const timestamp = useManualDateTime ? manualClockOutDate : undefined;
       await clockOutEmployee(manualSelectedEmployee, selectedTask, timestamp);
     }
