@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Query,
   onSnapshot,
@@ -25,6 +25,11 @@ export interface UseCollectionResult<T> {
   error: FirestoreError | Error | null; // Error object, or null.
 }
 
+interface CacheEntry<T> {
+  data: WithId<T>[];
+  timestamp: number;
+}
+
 /* Internal implementation of Query:
   https://github.com/firebase/firebase-js-sdk/blob/c5f08a9bc5da0d2b0207802c972d53724ccef055/packages/firestore/src/lite-api/reference.ts#L143
 */
@@ -39,11 +44,10 @@ export interface InternalQuery extends Query<DocumentData> {
 
 /**
  * React hook to subscribe to a Firestore collection or query in real-time.
- * Handles nullable references/queries.
- *
+ * Handles nullable references/queries and implements offline caching.
  *
  * IMPORTANT! YOU MUST MEMOIZE the inputted targetRefOrQuery or BAD THINGS WILL HAPPEN
- * use useMemo to memoize it per React guidence.  Also make sure that it's dependencies are stable
+ * use useMemo to memoize it per React guidance. Also make sure that its dependencies are stable
  * references
  *
  * @template T Optional type for document data. Defaults to any.
@@ -64,6 +68,68 @@ export function useCollection<T = any>(
   const [data, setData] = useState<StateDataType>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
+  const isOnlineRef = useRef(typeof window !== "undefined" ? navigator.onLine : true);
+  const cacheKeyRef = useRef<string | null>(null);
+
+  // Generate cache key from query path
+  useEffect(() => {
+    if (!targetRefOrQuery) {
+      cacheKeyRef.current = null;
+      return;
+    }
+
+    try {
+      const path: string =
+        targetRefOrQuery.type === "collection"
+          ? (targetRefOrQuery as CollectionReference).path
+          : (targetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString();
+      cacheKeyRef.current = path;
+    } catch (e) {
+      cacheKeyRef.current = null;
+    }
+  }, [targetRefOrQuery]);
+
+  // Load from cache on mount if available
+  useEffect(() => {
+    if (typeof window === "undefined" || !cacheKeyRef.current) return;
+
+    const cached = sessionStorage.getItem(`firestore_cache_${cacheKeyRef.current}`);
+    if (cached) {
+      try {
+        const cacheEntry: CacheEntry<T> = JSON.parse(cached);
+        // Only set cached data if we don't already have data
+        setData((prevData) => {
+          if (prevData === null) {
+            return cacheEntry.data;
+          }
+          return prevData;
+        });
+      } catch (e) {
+        console.warn(`Failed to parse cache for ${cacheKeyRef.current}:`, e);
+      }
+    }
+  }, []);
+
+  // Track online/offline status
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleOnline = () => {
+      isOnlineRef.current = true;
+    };
+
+    const handleOffline = () => {
+      isOnlineRef.current = false;
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     if (!targetRefOrQuery) {
@@ -87,6 +153,22 @@ export function useCollection<T = any>(
         setData(results);
         setError(null);
         setIsLoading(false);
+
+        // Save to cache
+        if (typeof window !== "undefined" && cacheKeyRef.current) {
+          const cacheEntry: CacheEntry<T> = {
+            data: results,
+            timestamp: Date.now(),
+          };
+          try {
+            sessionStorage.setItem(
+              `firestore_cache_${cacheKeyRef.current}`,
+              JSON.stringify(cacheEntry)
+            );
+          } catch (e) {
+            console.warn(`Failed to cache data for ${cacheKeyRef.current}:`, e);
+          }
+        }
       },
       (error: FirestoreError) => {
         // This logic extracts the path from either a ref or a query
@@ -102,12 +184,21 @@ export function useCollection<T = any>(
           path,
         });
 
-        setError(contextualError);
-        setData(null);
+        // Only clear data and show error if we don't have cached data
+        if (!data || data.length === 0) {
+          setError(contextualError);
+          setData(null);
+        } else {
+          // We have cached data (either from previous fetch or from cache),
+          // so keep it and just stop loading
+          setError(null);
+        }
         setIsLoading(false);
 
-        // trigger global error propagation
-        errorEmitter.emit("permission-error", contextualError);
+        // trigger global error propagation only if offline and no cached data
+        if (!data || data.length === 0) {
+          errorEmitter.emit("permission-error", contextualError);
+        }
       }
     );
 

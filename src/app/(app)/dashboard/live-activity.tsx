@@ -59,7 +59,10 @@ export function LiveActivity() {
     const fetchRelatedData = async () => {
       if (loadingEntries || !firestore) return;
       if (!activeTimeEntries) {
-        setActivityData([]);
+        // Don't clear existing data when offline, only when truly no data
+        if (navigator.onLine) {
+          setActivityData([]);
+        }
         setIsLoading(false);
         return;
       }
@@ -70,24 +73,59 @@ export function LiveActivity() {
       const taskMap = new Map<string, Task>();
       const clientMap = new Map<string, Client>();
 
+      // Try to load from cache first
+      if (typeof window !== "undefined") {
+        try {
+          const cachedEmployees = sessionStorage.getItem("firestore_cache_employees");
+          const cachedTasks = sessionStorage.getItem("firestore_cache_tasks");
+          const cachedClients = sessionStorage.getItem("firestore_cache_clients");
+
+          if (cachedEmployees) {
+            const { data: employees } = JSON.parse(cachedEmployees);
+            employees.forEach((emp: Employee) => employeeMap.set(emp.id, emp));
+          }
+
+          if (cachedTasks) {
+            const { data: tasks } = JSON.parse(cachedTasks);
+            tasks.forEach((task: Task) => taskMap.set(task.id, task));
+          }
+
+          if (cachedClients) {
+            const { data: clients } = JSON.parse(cachedClients);
+            clients.forEach((client: Client) => clientMap.set(client.id, client));
+          }
+        } catch (e) {
+          console.warn("Failed to load cache:", e);
+        }
+      }
+
       const promises = activeTimeEntries.map(async (entry) => {
         let employee = employeeMap.get(entry.employeeId);
         if (!employee) {
-          const empDoc = await getDoc(
-            doc(firestore, "employees", entry.employeeId)
-          );
-          if (empDoc.exists()) {
-            employee = { id: empDoc.id, ...empDoc.data() } as Employee;
-            employeeMap.set(entry.employeeId, employee);
+          try {
+            const empDoc = await getDoc(
+              doc(firestore, "employees", entry.employeeId)
+            );
+            if (empDoc.exists()) {
+              employee = { id: empDoc.id, ...empDoc.data() } as Employee;
+              employeeMap.set(entry.employeeId, employee);
+            }
+          } catch (e) {
+            // If offline and can't fetch, employee stays undefined
+            console.warn("Failed to fetch employee:", e);
           }
         }
 
         let task = taskMap.get(entry.taskId);
         if (!task) {
-          const taskDoc = await getDoc(doc(firestore, "tasks", entry.taskId));
-          if (taskDoc.exists()) {
-            task = { id: taskDoc.id, ...taskDoc.data() } as Task;
-            taskMap.set(entry.taskId, task);
+          try {
+            const taskDoc = await getDoc(doc(firestore, "tasks", entry.taskId));
+            if (taskDoc.exists()) {
+              task = { id: taskDoc.id, ...taskDoc.data() } as Task;
+              taskMap.set(entry.taskId, task);
+            }
+          } catch (e) {
+            console.warn("Failed to fetch task:", e);
           }
         }
 
@@ -95,12 +133,16 @@ export function LiveActivity() {
         if (task) {
           client = clientMap.get(task.clientId);
           if (!client) {
-            const clientDoc = await getDoc(
-              doc(firestore, "clients", task.clientId)
-            );
-            if (clientDoc.exists()) {
-              client = { id: clientDoc.id, ...clientDoc.data() } as Client;
-              clientMap.set(task.clientId, client);
+            try {
+              const clientDoc = await getDoc(
+                doc(firestore, "clients", task.clientId)
+              );
+              if (clientDoc.exists()) {
+                client = { id: clientDoc.id, ...clientDoc.data() } as Client;
+                clientMap.set(task.clientId, client);
+              }
+            } catch (e) {
+              console.warn("Failed to fetch client:", e);
             }
           }
         }
