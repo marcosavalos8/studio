@@ -32,7 +32,7 @@ export default withPWA({
     runtimeCaching: [
       {
         // Cache pages with NetworkFirst strategy
-        urlPattern: ({ request }) => request.destination === 'document',
+        urlPattern: ({ request }: { request: Request }) => request.destination === 'document',
         handler: 'NetworkFirst',
         options: {
           cacheName: 'pages-cache',
