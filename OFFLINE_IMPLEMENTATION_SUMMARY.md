@@ -18,7 +18,9 @@
 ### 2. Created DataPrecacher Component (src/components/data-precacher.tsx)
 - Pre-fetches all important collections on app startup
 - Collections: clients, tasks, employees, time_entries, piecework, payroll
-- Runs after 2-second delay to avoid blocking UI
+- **NEW: Auto-refresh every 5 minutes** to keep data current
+- Properly serializes Firestore Timestamps to ISO strings to prevent errors
+- Runs in background after 2-second delay
 - Stores data in sessionStorage for instant offline access
 - Provides console logs for debugging
 
@@ -54,12 +56,14 @@
 
 The implementation:
 ✅ Loads all data on first visit (online)
+✅ **Auto-refreshes data every 5 minutes** to stay current
 ✅ Preserves data when navigating offline
 ✅ Shows cached data instantly on page load
 ✅ Syncs automatically when back online
 ✅ Works transparently without component changes
 ✅ Supports multiple browser tabs
 ✅ Provides debugging logs
+✅ **Properly handles Firestore Timestamps** to prevent serialization errors
 
 ## Testing Recommendations
 
@@ -71,10 +75,12 @@ The implementation:
 ## Benefits
 
 - **Offline-first PWA**: App works completely without internet
-- **Zero code changes**: Existing components work without modification
+- **Auto-refresh**: Data updates every 5 minutes to stay current
+- **Zero breaking changes**: Existing components work without modification
 - **Instant navigation**: Data loads immediately from cache
 - **Automatic sync**: Firebase handles data synchronization
 - **Developer-friendly**: Console logs for easy debugging
+- **Timestamp safe**: Proper serialization of Firestore date objects
 
 ## Limitations
 

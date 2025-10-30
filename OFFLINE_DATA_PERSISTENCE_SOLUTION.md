@@ -64,7 +64,7 @@ setData((currentData) => {
 
 **Archivo**: `/src/components/data-precacher.tsx` (nuevo)
 
-**Propósito**: Pre-cargar TODAS las colecciones importantes al iniciar la app
+**Propósito**: Pre-cargar TODAS las colecciones importantes al iniciar la app y mantenerlas actualizadas
 
 **Colecciones pre-cargadas**:
 - clients
@@ -74,28 +74,43 @@ setData((currentData) => {
 - piecework
 - payroll
 
+**Características nuevas**:
+1. Descarga inicial: 2 segundos después de abrir la app
+2. **Actualización automática cada 5 minutos** - mantiene datos frescos
+3. Serialización segura de Firestore Timestamps a ISO strings
+4. No importa el gasto de datos - descarga todo sin restricciones
+
 **Comportamiento**:
 1. Se ejecuta 2 segundos después de cargar la app (no bloquea UI)
 2. Carga todas las colecciones en paralelo usando `getDocs`
-3. Guarda cada colección en sessionStorage
-4. Registra logs en consola para debugging
+3. Convierte Timestamps de Firestore a strings ISO para evitar errores
+4. Guarda cada colección en sessionStorage
+5. **NUEVO**: Se ejecuta automáticamente cada 5 minutos para mantener datos actualizados
+6. Registra logs en consola para debugging
 
 **Código principal**:
 ```typescript
-const fetchPromises = collections.map(async (collectionName) => {
-  const collectionRef = collection(firestore, collectionName);
-  const snapshot = await getDocs(collectionRef);
+// Serialización segura de Timestamps
+function serializeFirestoreDoc(doc: any) {
+  const docData = doc.data();
+  const serializedData: any = { id: doc.id };
   
-  const cacheKey = `firestore_cache_${collectionName}`;
-  const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-  
-  sessionStorage.setItem(cacheKey, JSON.stringify({
-    data,
-    timestamp: Date.now(),
-  }));
-});
+  for (const [key, value] of Object.entries(docData)) {
+    if (value && typeof value === 'object' && 'toDate' in value) {
+      // Firestore Timestamp - convertir a ISO string
+      serializedData[key] = value.toDate().toISOString();
+    } else {
+      serializedData[key] = value;
+    }
+  }
+  return serializedData;
+}
 
-await Promise.all(fetchPromises);
+// Actualización cada 5 minutos
+const refreshInterval = setInterval(() => {
+  console.log('Refreshing cached data (5-minute interval)...');
+  prefetchCollections();
+}, 5 * 60 * 1000); // 5 minutos
 ```
 
 **Logs de consola esperados**:
@@ -302,12 +317,14 @@ All data pre-fetched successfully - app is ready for offline use
 ## Beneficios de la Solución
 
 ✅ **Carga inicial rápida**: Datos se pre-cargan en background
+✅ **Actualización automática**: Datos se refrescan cada 5 minutos
 ✅ **Navegación instantánea**: Datos disponibles desde cache inmediatamente
 ✅ **Offline-first**: App funciona completamente sin conexión
 ✅ **Sincronización automática**: Firebase maneja la sincronización
 ✅ **Sin cambios en componentes**: Todo funciona transparentemente
 ✅ **Multi-tab support**: Varias tabs pueden estar abiertas
 ✅ **Logs informativos**: Fácil debugging con console logs
+✅ **Timestamps seguros**: Manejo correcto de fechas de Firestore
 
 ## Limitaciones
 
@@ -317,9 +334,9 @@ All data pre-fetched successfully - app is ready for offline use
 
 ## Mejoras Futuras Posibles
 
-1. **Service Worker adicional**: Para cache de red más agresivo
+1. ~~**Service Worker adicional**: Para cache de red más agresivo~~ (Ya implementado con PWA)
 2. **Indicador visual de pre-carga**: Mostrar progreso de carga inicial
-3. **TTL en cache**: Expiración automática de datos viejos
+3. **TTL en cache**: Expiración automática de datos viejos (actualmente se usa refresh cada 5 minutos)
 4. **Cache selectivo**: Permitir usuario elegir qué pre-cargar
 5. **Compresión de cache**: Reducir tamaño en sessionStorage
 
@@ -328,7 +345,9 @@ All data pre-fetched successfully - app is ready for offline use
 La implementación resuelve completamente el problema reportado:
 
 ✅ **Primera carga**: Todos los datos se cargan automáticamente
+✅ **Actualización continua**: Datos se refrescan cada 5 minutos
 ✅ **Navegación offline**: Datos persisten y se muestran correctamente
 ✅ **Disponibilidad de datos offline**: sessionStorage + IndexedDB garantizan disponibilidad
+✅ **Sin errores de Timestamp**: Manejo correcto de fechas en todos los componentes
 
-La app ahora es una verdadera PWA offline-first, lista para usar en campo sin conexión.
+La app ahora es una verdadera PWA offline-first con actualización automática, lista para usar en campo sin conexión confiable.
