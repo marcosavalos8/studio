@@ -127,7 +127,7 @@ export function LiveActivity() {
             };
           } catch (error) {
             // If fetching related data fails (e.g., offline), skip this entry
-            console.warn("Failed to fetch related data for time entry:", error);
+            console.warn(`Failed to fetch related data for time entry ${entry.id}:`, error);
             return null;
           }
         });
