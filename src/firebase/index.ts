@@ -3,7 +3,11 @@
 import { firebaseConfig } from "@/firebase/config";
 import { initializeApp, getApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore, enableIndexedDbPersistence } from "firebase/firestore";
+import { 
+  getFirestore, 
+  type Firestore, 
+  enableMultiTabIndexedDbPersistence 
+} from "firebase/firestore";
 
 // This function ensures we initialize firebase only once.
 const getFirebaseApp = (): FirebaseApp => {
@@ -14,16 +18,19 @@ const app = getFirebaseApp();
 const auth = getAuth(app);
 const firestore = getFirestore(app);
 
-// Enable offline persistence for Firestore
+// Enable offline persistence for Firestore with multi-tab support
 // This allows the app to work offline and sync when connection returns
+// Multi-tab persistence is better for PWAs as users may have multiple tabs open
 if (typeof window !== "undefined") {
-  enableIndexedDbPersistence(firestore).catch((err) => {
+  enableMultiTabIndexedDbPersistence(firestore).catch((err) => {
     if (err.code === "failed-precondition") {
       // Multiple tabs open, persistence can only be enabled in one tab at a time
       console.warn("Firestore persistence failed: Multiple tabs open");
     } else if (err.code === "unimplemented") {
       // The current browser doesn't support persistence
       console.warn("Firestore persistence not supported in this browser");
+    } else {
+      console.error("Failed to enable Firestore persistence:", err);
     }
   });
 }
