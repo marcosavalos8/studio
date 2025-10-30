@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 /**
  * Component that pre-caches important app pages on mount.
  * This ensures all pages are available offline even if not visited yet.
  */
 export function PagePrecacher() {
+  const router = useRouter();
   const [status, setStatus] = useState<'idle' | 'loading' | 'loaded'>('idle');
 
   useEffect(() => {
@@ -28,17 +30,33 @@ export function PagePrecacher() {
       setStatus('loading');
       
       try {
-        // Use fetch with cache: 'reload' to ensure pages are cached by the service worker
+        // Use Next.js router prefetch to preload pages
+        // This is more reliable than fetch for Next.js pages
+        pagesToCache.forEach((path) => {
+          try {
+            router.prefetch(path);
+            console.log(`Prefetching: ${path}`);
+          } catch (error) {
+            console.warn(`Failed to prefetch ${path}:`, error);
+          }
+        });
+
+        // Also try to fetch pages for service worker caching
         const fetchPromises = pagesToCache.map(async (path) => {
           try {
             // Fetch the page - this will trigger the service worker to cache it
-            await fetch(path, {
+            const response = await fetch(path, {
               method: 'GET',
-              cache: 'reload', // Force network request to populate cache
+              credentials: 'same-origin',
             });
-            console.log(`Pre-cached: ${path}`);
+            
+            if (response.ok) {
+              console.log(`Cached: ${path}`);
+            } else {
+              console.warn(`Failed to cache ${path}: ${response.status}`);
+            }
           } catch (error) {
-            console.warn(`Failed to pre-cache ${path}:`, error);
+            console.warn(`Failed to cache ${path}:`, error);
           }
         });
 
@@ -59,7 +77,7 @@ export function PagePrecacher() {
     }, 1000);
 
     return () => clearTimeout(timeoutId);
-  }, [status]);
+  }, [status, router]);
 
   // This component doesn't render anything
   return null;

@@ -81,11 +81,31 @@ export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) 
       return
     }
 
-    try {
-      const newClient = { ...values, email: values.email || '' }
-      const clientsCollection = collection(firestore, 'clients');
+    const newClient = { ...values, email: values.email || '' }
+    const clientsCollection = collection(firestore, 'clients');
 
-      // Firestore offline persistence handles offline operations automatically
+    // When offline, close dialog immediately to simulate normal flow
+    // Firestore persistence will queue the operation for sync
+    if (!isOnline) {
+      // Queue the operation with Firestore (don't await to avoid delays)
+      addDoc(clientsCollection, newClient).catch((error) => {
+        console.warn("Offline operation queued with error:", error);
+      });
+      
+      toast({
+        title: 'Client Added',
+        description: addOfflineIndicator(
+          `${values.name} has been added successfully.`,
+          isOnline
+        ),
+      })
+      form.reset()
+      onOpenChange(false)
+      return
+    }
+
+    // Online flow - wait for operation to complete
+    try {
       await addDoc(clientsCollection, newClient)
       
       toast({
@@ -98,24 +118,12 @@ export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) 
       form.reset()
       onOpenChange(false)
     } catch (serverError) {
-      // When offline, Firestore operations are queued for sync
-      // Only emit errors if we're online (actual permission/validation errors)
-      if (isOnline) {
-        const permissionError = new FirestorePermissionError({
-          path: 'clients',
-          operation: 'create',
-          requestResourceData: values,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      } else {
-        // When offline, show a user-friendly message instead of throwing
-        console.warn("Add client operation failed offline:", serverError);
-        toast({
-          variant: 'destructive',
-          title: 'Error Adding Client',
-          description: 'Unable to add client. Please try again or check your data when back online.',
-        });
-      }
+      const permissionError = new FirestorePermissionError({
+        path: 'clients',
+        operation: 'create',
+        requestResourceData: values,
+      });
+      errorEmitter.emit('permission-error', permissionError);
     }
   }
 
