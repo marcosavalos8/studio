@@ -55,11 +55,11 @@ function serializeForCache(data: any[]): string {
       // Handle Firestore Timestamp objects
       if (value && typeof value === 'object') {
         if ('toDate' in value && typeof value.toDate === 'function') {
-          return value.toDate().toISOString();
+          return { __type: 'Timestamp', value: value.toDate().toISOString() };
         }
         if ('seconds' in value && 'nanoseconds' in value) {
           const date = new Date(value.seconds * 1000 + value.nanoseconds / 1000000);
-          return date.toISOString();
+          return { __type: 'Timestamp', value: date.toISOString() };
         }
       }
       return value;
@@ -67,6 +67,24 @@ function serializeForCache(data: any[]): string {
   } catch (err) {
     console.warn("Failed to serialize data:", err);
     return JSON.stringify({ data: [], timestamp: Date.now() });
+  }
+}
+
+/**
+ * Deserializes cached data, converting ISO strings back to Date objects
+ */
+function deserializeFromCache(jsonString: string): any {
+  try {
+    return JSON.parse(jsonString, (key, value) => {
+      // Check if value is our custom Timestamp object
+      if (value && typeof value === 'object' && value.__type === 'Timestamp' && value.value) {
+        return new Date(value.value);
+      }
+      return value;
+    });
+  } catch (err) {
+    console.warn("Failed to deserialize cache:", err);
+    return null;
   }
 }
 
@@ -118,8 +136,10 @@ export function useCollection<T = any>(
       try {
         const cachedData = sessionStorage.getItem(cacheKey);
         if (cachedData) {
-          const cacheEntry: CacheEntry<T> = JSON.parse(cachedData);
-          setData(cacheEntry.data);
+          const cacheEntry: CacheEntry<T> = deserializeFromCache(cachedData);
+          if (cacheEntry && cacheEntry.data) {
+            setData(cacheEntry.data);
+          }
         }
       } catch (err) {
         console.warn("Failed to load cache:", err);

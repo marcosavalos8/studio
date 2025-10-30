@@ -13,12 +13,12 @@ function serializeFirestoreDoc(doc: any) {
   
   for (const [key, value] of Object.entries(docData)) {
     if (value && typeof value === 'object' && 'toDate' in value && typeof value.toDate === 'function') {
-      // Firestore Timestamp - convert to ISO string
-      serializedData[key] = value.toDate().toISOString();
+      // Firestore Timestamp - convert to our custom format for deserialization
+      serializedData[key] = { __type: 'Timestamp', value: value.toDate().toISOString() };
     } else if (value && typeof value === 'object' && 'seconds' in value && 'nanoseconds' in value) {
       // Alternative Timestamp format
       const date = new Date(value.seconds * 1000 + value.nanoseconds / 1000000);
-      serializedData[key] = date.toISOString();
+      serializedData[key] = { __type: 'Timestamp', value: date.toISOString() };
     } else {
       serializedData[key] = value;
     }

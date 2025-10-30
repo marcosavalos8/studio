@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore'
 import type { Employee, Client, Task, TimeEntry, Piecework } from '@/lib/types'
 import { startOfMonth, subMonths, endOfMonth, startOfDay, endOfDay } from 'date-fns'
+import { toDate } from '@/lib/timestamp-utils'
 
 export function useDashboardData() {
   const firestore = useFirestore()
@@ -148,7 +149,7 @@ export function useWorkActivityData() {
     // Calculate hours from time entries and track active employees
     if (timeEntries) {
       timeEntries.forEach(entry => {
-        const timestamp = (entry.timestamp as unknown as Timestamp).toDate()
+        const timestamp = toDate(entry.timestamp)
         const monthKey = `${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}`
         
         if (monthlyStats[monthKey]) {
@@ -157,7 +158,7 @@ export function useWorkActivityData() {
           
           // Only count hours for completed work periods (not breaks)
           if (entry.endTime && !entry.isBreak) {
-            const endTime = (entry.endTime as unknown as Timestamp).toDate()
+            const endTime = toDate(entry.endTime)
             const hours = (endTime.getTime() - timestamp.getTime()) / (1000 * 60 * 60)
             monthlyStats[monthKey].hours += hours
           }
@@ -168,7 +169,7 @@ export function useWorkActivityData() {
     // Calculate pieces from piecework
     if (piecework) {
       piecework.forEach(piece => {
-        const timestamp = (piece.timestamp as unknown as Timestamp).toDate()
+        const timestamp = toDate(piece.timestamp)
         const monthKey = `${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}`
         
         if (monthlyStats[monthKey]) {
@@ -183,7 +184,7 @@ export function useWorkActivityData() {
     if (timeEntries) {
       timeEntries.forEach(entry => {
         if (entry.piecesWorked && entry.piecesWorked > 0) {
-          const timestamp = (entry.timestamp as unknown as Timestamp).toDate()
+          const timestamp = toDate(entry.timestamp)
           const monthKey = `${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}`
           
           if (monthlyStats[monthKey]) {
