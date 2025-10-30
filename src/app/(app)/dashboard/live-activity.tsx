@@ -66,71 +66,83 @@ export function LiveActivity() {
 
       setIsLoading(true);
 
-      const employeeMap = new Map<string, Employee>();
-      const taskMap = new Map<string, Task>();
-      const clientMap = new Map<string, Client>();
+      try {
+        const employeeMap = new Map<string, Employee>();
+        const taskMap = new Map<string, Task>();
+        const clientMap = new Map<string, Client>();
 
-      const promises = activeTimeEntries.map(async (entry) => {
-        let employee = employeeMap.get(entry.employeeId);
-        if (!employee) {
-          const empDoc = await getDoc(
-            doc(firestore, "employees", entry.employeeId)
-          );
-          if (empDoc.exists()) {
-            employee = { id: empDoc.id, ...empDoc.data() } as Employee;
-            employeeMap.set(entry.employeeId, employee);
-          }
-        }
-
-        let task = taskMap.get(entry.taskId);
-        if (!task) {
-          const taskDoc = await getDoc(doc(firestore, "tasks", entry.taskId));
-          if (taskDoc.exists()) {
-            task = { id: taskDoc.id, ...taskDoc.data() } as Task;
-            taskMap.set(entry.taskId, task);
-          }
-        }
-
-        let client: Client | undefined;
-        if (task) {
-          client = clientMap.get(task.clientId);
-          if (!client) {
-            const clientDoc = await getDoc(
-              doc(firestore, "clients", task.clientId)
-            );
-            if (clientDoc.exists()) {
-              client = { id: clientDoc.id, ...clientDoc.data() } as Client;
-              clientMap.set(task.clientId, client);
+        const promises = activeTimeEntries.map(async (entry) => {
+          try {
+            let employee = employeeMap.get(entry.employeeId);
+            if (!employee) {
+              const empDoc = await getDoc(
+                doc(firestore, "employees", entry.employeeId)
+              );
+              if (empDoc.exists()) {
+                employee = { id: empDoc.id, ...empDoc.data() } as Employee;
+                employeeMap.set(entry.employeeId, employee);
+              }
             }
+
+            let task = taskMap.get(entry.taskId);
+            if (!task) {
+              const taskDoc = await getDoc(doc(firestore, "tasks", entry.taskId));
+              if (taskDoc.exists()) {
+                task = { id: taskDoc.id, ...taskDoc.data() } as Task;
+                taskMap.set(entry.taskId, task);
+              }
+            }
+
+            let client: Client | undefined;
+            if (task) {
+              client = clientMap.get(task.clientId);
+              if (!client) {
+                const clientDoc = await getDoc(
+                  doc(firestore, "clients", task.clientId)
+                );
+                if (clientDoc.exists()) {
+                  client = { id: clientDoc.id, ...clientDoc.data() } as Client;
+                  clientMap.set(task.clientId, client);
+                }
+              }
+            }
+
+            if (!employee || !task || !client) {
+              return null;
+            }
+
+            const clockInTime = (entry.timestamp as unknown as Timestamp).toDate();
+
+            return {
+              id: entry.id,
+              employeeName: employee.name,
+              employeeInitials:
+                employee.name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("") || "??",
+              taskName: task.name,
+              clientName: client.name,
+              clockInTime: clockInTime,
+            };
+          } catch (error) {
+            // If fetching related data fails (e.g., offline), skip this entry
+            console.warn(`Failed to fetch related data for time entry ${entry.id}:`, error);
+            return null;
           }
-        }
+        });
 
-        if (!employee || !task || !client) {
-          return null;
-        }
-
-        const clockInTime = (entry.timestamp as unknown as Timestamp).toDate();
-
-        return {
-          id: entry.id,
-          employeeName: employee.name,
-          employeeInitials:
-            employee.name
-              .split(" ")
-              .map((n) => n[0])
-              .join("") || "??",
-          taskName: task.name,
-          clientName: client.name,
-          clockInTime: clockInTime,
-        };
-      });
-
-      const results = (await Promise.all(promises)).filter(
-        (item): item is ActivityItem => item !== null
-      );
-      results.sort((a, b) => b.clockInTime.getTime() - a.clockInTime.getTime());
-      setActivityData(results);
-      setIsLoading(false);
+        const results = (await Promise.all(promises)).filter(
+          (item): item is ActivityItem => item !== null
+        );
+        results.sort((a, b) => b.clockInTime.getTime() - a.clockInTime.getTime());
+        setActivityData(results);
+        setIsLoading(false);
+      } catch (error) {
+        console.error("Error fetching live activity data:", error);
+        setActivityData([]);
+        setIsLoading(false);
+      }
     };
 
     fetchRelatedData();

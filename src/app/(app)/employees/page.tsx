@@ -78,13 +78,14 @@ export default function EmployeesPage() {
       try {
         const employeesWithCalculated: EmployeeWithCalculatedHours[] = await Promise.all(
           employees.map(async (employee) => {
-            // Fetch all completed time entries for this employee
-            const timeEntriesQuery = query(
-              collection(firestore, "time_entries"),
-              where("employeeId", "==", employee.id)
-            );
-            
-            const timeEntriesSnapshot = await getDocs(timeEntriesQuery);
+            try {
+              // Fetch all completed time entries for this employee
+              const timeEntriesQuery = query(
+                collection(firestore, "time_entries"),
+                where("employeeId", "==", employee.id)
+              );
+              
+              const timeEntriesSnapshot = await getDocs(timeEntriesQuery);
             
             let totalHoursWorked = 0;
             let totalHoursUsedSickHours = 0;
@@ -124,15 +125,20 @@ export default function EmployeesPage() {
               }
             });
 
-            // Calculate sick hours balance
-            const sickHoursAccrued = totalHoursWorked / 40;
-            const calculatedSickHours = sickHoursAccrued - totalHoursUsedSickHours;
+              // Calculate sick hours balance
+              const sickHoursAccrued = totalHoursWorked / 40;
+              const calculatedSickHours = sickHoursAccrued - totalHoursUsedSickHours;
 
-            return {
-              ...employee,
-              calculatedSickHours,
-              calculatedTotalHours: totalHoursWorked,
-            };
+              return {
+                ...employee,
+                calculatedSickHours,
+                calculatedTotalHours: totalHoursWorked,
+              };
+            } catch (error) {
+              // If fetching time entries fails (e.g., offline), return employee without calculations
+              console.warn(`Failed to calculate hours for employee ${employee.name}:`, error);
+              return { ...employee };
+            }
           })
         );
 

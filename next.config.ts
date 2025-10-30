@@ -40,7 +40,7 @@ export default withPWA({
             maxEntries: 50,
             maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
           },
-          networkTimeoutSeconds: 3, // Reduced timeout for faster offline fallback
+          networkTimeoutSeconds: 1, // Reduced timeout for faster offline fallback
         },
       },
       {
@@ -53,7 +53,7 @@ export default withPWA({
             maxEntries: 100,
             maxAgeSeconds: 24 * 60 * 60, // 1 day
           },
-          networkTimeoutSeconds: 5, // Reduced timeout for faster offline fallback
+          networkTimeoutSeconds: 2, // Reduced timeout for faster offline fallback
         },
       },
       {
