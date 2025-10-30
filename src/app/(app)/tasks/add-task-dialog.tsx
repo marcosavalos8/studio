@@ -82,23 +82,44 @@ export function AddTaskDialog({
 
     setIsSubmitting(true);
 
-    try {
-      const newTask: Omit<Task, "id"> = {
-        name: name || "Untitled Task",
-        variety: variety || "",
-        ranch: ranch || "",
-        block: block || "",
-        clientId: clientId || "",
-        clientRateType,
-        status,
-        clientRate:
-          clientRateType === "hourly"
-            ? parseFloat(clientRate) || 0
-            : parseFloat(piecePrice) || 0,
-        piecePrice: parseFloat(piecePrice) || 0, // <- Siempre envía 0, nunca undefined
-      };
+    const newTask: Omit<Task, "id"> = {
+      name: name || "Untitled Task",
+      variety: variety || "",
+      ranch: ranch || "",
+      block: block || "",
+      clientId: clientId || "",
+      clientRateType,
+      status,
+      clientRate:
+        clientRateType === "hourly"
+          ? parseFloat(clientRate) || 0
+          : parseFloat(piecePrice) || 0,
+      piecePrice: parseFloat(piecePrice) || 0,
+    };
 
-      // Firestore offline persistence handles offline operations automatically
+    // When offline, close dialog immediately to simulate normal flow
+    // Firestore persistence will queue the operation for sync
+    if (!isOnline) {
+      // Queue the operation with Firestore (don't await to avoid delays)
+      addDoc(collection(firestore, "tasks"), newTask).catch((error) => {
+        console.error("Failed to queue offline operation:", error);
+      });
+
+      toast({
+        title: "Task Added",
+        description: addOfflineIndicator(
+          `${newTask.name} has been added successfully.`,
+          isOnline
+        ),
+      });
+      resetForm();
+      onOpenChange(false);
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Online flow - wait for operation to complete
+    try {
       await addDoc(collection(firestore, "tasks"), newTask);
 
       toast({

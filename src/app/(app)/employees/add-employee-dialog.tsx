@@ -74,34 +74,51 @@ export function AddEmployeeDialog({ isOpen, onOpenChange }: AddEmployeeDialogPro
       return
     }
 
+    const newDocRef = doc(collection(firestore, 'employees'))
+    const newEmployee: Omit<Employee, 'id'> = {
+      ...values,
+      qrCode: newDocRef.id,
+    }
+
+    // When offline, close dialog immediately to simulate normal flow
+    // Firestore persistence will queue the operation for sync
+    if (!isOnline) {
+      // Queue the operation with Firestore (don't await to avoid delays)
+      setDoc(newDocRef, newEmployee).catch((error) => {
+        console.error("Failed to queue offline operation:", error);
+      });
+      
+      toast({
+        title: 'Employee Added',
+        description: addOfflineIndicator(
+          `${values.name} has been added successfully.`,
+          isOnline
+        ),
+      })
+      form.reset()
+      onOpenChange(false)
+      return
+    }
+
+    // Online flow - check for duplicates and wait for operation to complete
     try {
-      // Skip duplicate check when offline (will be validated when synced)
-      if (isOnline) {
-        // Check for duplicate name
-        const employeesRef = collection(firestore, 'employees');
-        const duplicateQuery = query(
-          employeesRef,
-          where('name', '==', values.name)
-        );
-        const duplicateSnapshot = await getDocs(duplicateQuery);
-        
-        if (!duplicateSnapshot.empty) {
-          toast({
-            variant: 'destructive',
-            title: 'Duplicate Employee',
-            description: `An employee with the name "${values.name}" already exists.`,
-          });
-          return;
-        }
+      // Check for duplicate name
+      const employeesRef = collection(firestore, 'employees');
+      const duplicateQuery = query(
+        employeesRef,
+        where('name', '==', values.name)
+      );
+      const duplicateSnapshot = await getDocs(duplicateQuery);
+      
+      if (!duplicateSnapshot.empty) {
+        toast({
+          variant: 'destructive',
+          title: 'Duplicate Employee',
+          description: `An employee with the name "${values.name}" already exists.`,
+        });
+        return;
       }
 
-      const newDocRef = doc(collection(firestore, 'employees'))
-      const newEmployee: Omit<Employee, 'id'> = {
-        ...values,
-        qrCode: newDocRef.id,
-      }
-
-      // Firestore offline persistence handles offline operations automatically
       await setDoc(newDocRef, newEmployee);
       
       toast({
@@ -114,25 +131,12 @@ export function AddEmployeeDialog({ isOpen, onOpenChange }: AddEmployeeDialogPro
       form.reset()
       onOpenChange(false)
     } catch (serverError) {
-      // When offline, Firestore operations are queued for sync
-      // Only emit errors if we're online (actual permission/validation errors)
-      if (isOnline) {
-        const newDocRef = doc(collection(firestore, 'employees'))
-        const permissionError = new FirestorePermissionError({
-          path: newDocRef.path,
-          operation: 'create',
-          requestResourceData: values,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      } else {
-        // When offline, show a user-friendly message instead of throwing
-        console.warn("Add employee operation failed offline:", serverError);
-        toast({
-          variant: 'destructive',
-          title: 'Error Adding Employee',
-          description: 'Unable to add employee. Please try again or check your data when back online.',
-        });
-      }
+      const permissionError = new FirestorePermissionError({
+        path: newDocRef.path,
+        operation: 'create',
+        requestResourceData: values,
+      });
+      errorEmitter.emit('permission-error', permissionError);
     }
   }
 
