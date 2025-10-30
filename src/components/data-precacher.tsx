@@ -105,10 +105,25 @@ export function DataPrecacher() {
       }
     };
 
-    // Initial fetch after a short delay to not block initial render
-    const initialTimeout = setTimeout(() => {
-      prefetchCollections();
-    }, 2000); // 2 second delay to let the page load first
+    // Initial fetch immediately but asynchronously to not block initial render
+    // Use requestIdleCallback if available, otherwise use a minimal timeout
+    const scheduleInitialFetch = () => {
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        // Use requestIdleCallback to run during browser idle time
+        const idleCallbackId = window.requestIdleCallback(() => {
+          prefetchCollections();
+        });
+        return () => window.cancelIdleCallback(idleCallbackId);
+      } else {
+        // Fallback to a minimal timeout for browsers that don't support requestIdleCallback
+        const timeoutId = setTimeout(() => {
+          prefetchCollections();
+        }, 100); // Minimal 100ms delay
+        return () => clearTimeout(timeoutId);
+      }
+    };
+    
+    const cancelInitialFetch = scheduleInitialFetch();
 
     // Set up interval to refresh data every 5 minutes
     // This ensures data stays fresh even if connection is lost temporarily
@@ -118,7 +133,7 @@ export function DataPrecacher() {
     }, 5 * 60 * 1000); // 5 minutes in milliseconds
 
     return () => {
-      clearTimeout(initialTimeout);
+      cancelInitialFetch();
       clearInterval(refreshInterval);
     };
   }, [firestore]); // Removed status dependency to allow continuous refresh
