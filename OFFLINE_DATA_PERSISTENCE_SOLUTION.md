@@ -5,16 +5,16 @@
 El usuario reportaba que cuando navegaba a las secciones de clients, tasks, etc., no aparecían los datos. La aplicación debería:
 1. **Primera carga (online)**: Cargar TODOS los datos una sola vez
 2. **Navegación offline**: Mantener los datos cargados, permitir navegar sin recargar
-3. **Simular datos offline**: Mostrar los datos ya descargados aunque no haya conexión
+3. **Disponibilidad offline**: Mostrar los datos ya descargados aunque no haya conexión
 
 ## Cambios Implementados
 
-### 1. Hook `useCollection` con Caché Automático
+### 1. Hook `useCollection` con Cache Automático
 
 **Archivo**: `/src/firebase/firestore/use-collection.tsx`
 
 **Problema anterior**: 
-- El hook no tenía implementado el caché en sessionStorage
+- El hook no tenía implementado el cache en sessionStorage
 - Al perder conexión, los datos se borraban (setData(null))
 - Al navegar offline, las secciones quedaban vacías
 
@@ -26,17 +26,17 @@ interface CacheEntry<T> {
 }
 ```
 
-**Flujo del caché**:
+**Flujo del cache**:
 1. **Al montar el componente**: Carga datos desde sessionStorage si existen
-2. **Al recibir datos de Firestore**: Actualiza el caché en sessionStorage
-3. **Al fallar Firestore (offline)**: Mantiene los datos en caché, NO los borra
+2. **Al recibir datos de Firestore**: Actualiza el cache en sessionStorage
+3. **Al fallar Firestore (offline)**: Mantiene los datos en cache, NO los borra
 
-**Clave de caché**: `firestore_cache_{collection_path}` 
+**Clave de cache**: `firestore_cache_{collection_path}` 
 - Ejemplo: `firestore_cache_clients`, `firestore_cache_tasks`
 
 **Código clave**:
 ```typescript
-// Cargar del caché al montar
+// Cargar del cache al montar
 if (typeof window !== "undefined") {
   const cachedData = sessionStorage.getItem(cacheKey);
   if (cachedData) {
@@ -45,7 +45,7 @@ if (typeof window !== "undefined") {
   }
 }
 
-// Guardar en caché cuando hay éxito
+// Guardar en cache cuando hay éxito
 sessionStorage.setItem(cacheKey, JSON.stringify({
   data: results,
   timestamp: Date.now(),
@@ -54,7 +54,7 @@ sessionStorage.setItem(cacheKey, JSON.stringify({
 // NO borrar datos cuando hay error (offline)
 setData((currentData) => {
   if (currentData && currentData.length > 0) {
-    return currentData; // Mantener datos en caché
+    return currentData; // Mantener datos en cache
   }
   return null;
 });
@@ -154,7 +154,7 @@ enableMultiTabIndexedDbPersistence(firestore).catch((err) => {
 
 ## Arquitectura de Almacenamiento
 
-### Doble Capa de Caché
+### Doble Capa de Cache
 
 **1. IndexedDB (Firebase Firestore)**
 - Gestionado automáticamente por Firebase
@@ -163,7 +163,7 @@ enableMultiTabIndexedDbPersistence(firestore).catch((err) => {
 - Persiste entre sesiones (no se borra al cerrar tab)
 
 **2. SessionStorage (Nuestra implementación)**
-- Caché explícito para acceso rápido
+- Cache explícito para acceso rápido
 - Se borra al cerrar la tab
 - Backup cuando Firestore falla
 - Formato: JSON serializado
@@ -209,11 +209,11 @@ enableMultiTabIndexedDbPersistence(firestore).catch((err) => {
    ├─ setData(cachedData) → UI muestra clientes
    ├─ onSnapshot intenta conectar a Firestore
    ├─ onSnapshot falla (offline)
-   └─ Error handler MANTIENE los datos en caché (no borra)
-3. Usuario ve todos los clientes (del caché)
+   └─ Error handler MANTIENE los datos en cache (no borra)
+3. Usuario ve todos los clientes (del cache)
 4. Usuario navega a /tasks
    ├─ Mismo flujo que arriba
-   └─ Usuario ve todas las tareas (del caché)
+   └─ Usuario ve todas las tareas (del cache)
 ```
 
 **Resultado**: ✅ Navegación fluida como si estuviera online
@@ -225,7 +225,7 @@ enableMultiTabIndexedDbPersistence(firestore).catch((err) => {
 2. onSnapshot recibe actualizaciones de Firestore
 3. Datos se actualizan en:
    - Estado del componente (setData)
-   - SessionStorage (caché actualizado)
+   - SessionStorage (cache actualizado)
    - IndexedDB (automático por Firebase)
 4. Usuario ve datos más recientes
 ```
@@ -236,7 +236,7 @@ enableMultiTabIndexedDbPersistence(firestore).catch((err) => {
 
 ### Cómo probar en DevTools
 
-**1. Verificar caché en SessionStorage**:
+**1. Verificar cache en SessionStorage**:
 ```
 1. Abrir app en Chrome
 2. F12 → Application tab → Session Storage → [tu-dominio]
@@ -284,9 +284,9 @@ All data pre-fetched successfully - app is ready for offline use
 
 1. **`src/firebase/firestore/use-collection.tsx`**
    - ✅ Agregado interface CacheEntry
-   - ✅ Agregado carga de caché al montar
-   - ✅ Agregado guardado de caché en onSnapshot success
-   - ✅ Modificado error handler para mantener datos en caché
+   - ✅ Agregado carga de cache al montar
+   - ✅ Agregado guardado de cache en onSnapshot success
+   - ✅ Modificado error handler para mantener datos en cache
 
 2. **`src/firebase/index.ts`**
    - ✅ Cambiado a enableMultiTabIndexedDbPersistence
@@ -302,7 +302,7 @@ All data pre-fetched successfully - app is ready for offline use
 ## Beneficios de la Solución
 
 ✅ **Carga inicial rápida**: Datos se pre-cargan en background
-✅ **Navegación instantánea**: Datos disponibles desde caché inmediatamente
+✅ **Navegación instantánea**: Datos disponibles desde cache inmediatamente
 ✅ **Offline-first**: App funciona completamente sin conexión
 ✅ **Sincronización automática**: Firebase maneja la sincronización
 ✅ **Sin cambios en componentes**: Todo funciona transparentemente
@@ -311,17 +311,17 @@ All data pre-fetched successfully - app is ready for offline use
 
 ## Limitaciones
 
-⚠️ **Primera carga offline**: Si nunca se abrió la app online, no hay datos en caché
+⚠️ **Primera carga offline**: Si nunca se abrió la app online, no hay datos en cache
 ⚠️ **Tamaño de sessionStorage**: Limitado a ~5-10MB (suficiente para la mayoría de casos)
 ⚠️ **Cache por sesión**: Se pierde al cerrar la tab (pero IndexedDB persiste)
 
 ## Mejoras Futuras Posibles
 
-1. **Service Worker adicional**: Para caché de red más agresivo
+1. **Service Worker adicional**: Para cache de red más agresivo
 2. **Indicador visual de pre-carga**: Mostrar progreso de carga inicial
-3. **TTL en caché**: Expiración automática de datos viejos
-4. **Caché selectivo**: Permitir usuario elegir qué pre-cargar
-5. **Compresión de caché**: Reducir tamaño en sessionStorage
+3. **TTL en cache**: Expiración automática de datos viejos
+4. **Cache selectivo**: Permitir usuario elegir qué pre-cargar
+5. **Compresión de cache**: Reducir tamaño en sessionStorage
 
 ## Conclusión
 
@@ -329,6 +329,6 @@ La implementación resuelve completamente el problema reportado:
 
 ✅ **Primera carga**: Todos los datos se cargan automáticamente
 ✅ **Navegación offline**: Datos persisten y se muestran correctamente
-✅ **Simulación de datos**: sessionStorage + IndexedDB garantizan disponibilidad
+✅ **Disponibilidad de datos offline**: sessionStorage + IndexedDB garantizan disponibilidad
 
 La app ahora es una verdadera PWA offline-first, lista para usar en campo sin conexión.
