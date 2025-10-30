@@ -46,6 +46,31 @@ interface CacheEntry<T> {
 }
 
 /**
+ * Safely serializes data for caching, handling Firestore Timestamps and other special types
+ */
+function serializeForCache(data: any[]): string {
+  try {
+    // Use JSON.stringify with a replacer function to handle special types
+    return JSON.stringify(data, (key, value) => {
+      // Handle Firestore Timestamp objects
+      if (value && typeof value === 'object') {
+        if ('toDate' in value && typeof value.toDate === 'function') {
+          return value.toDate().toISOString();
+        }
+        if ('seconds' in value && 'nanoseconds' in value) {
+          const date = new Date(value.seconds * 1000 + value.nanoseconds / 1000000);
+          return date.toISOString();
+        }
+      }
+      return value;
+    });
+  } catch (err) {
+    console.warn("Failed to serialize data:", err);
+    return JSON.stringify({ data: [], timestamp: Date.now() });
+  }
+}
+
+/**
  * React hook to subscribe to a Firestore collection or query in real-time.
  * Handles nullable references/queries with automatic caching for offline support.
  *
@@ -124,7 +149,9 @@ export function useCollection<T = any>(
               data: results,
               timestamp: Date.now(),
             };
-            sessionStorage.setItem(cacheKey, JSON.stringify(cacheEntry));
+            const serialized = serializeForCache([cacheEntry]);
+            const parsed = JSON.parse(serialized);
+            sessionStorage.setItem(cacheKey, JSON.stringify(parsed[0]));
           } catch (err) {
             console.warn("Failed to update cache:", err);
           }
