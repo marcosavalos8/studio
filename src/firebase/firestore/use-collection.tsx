@@ -38,9 +38,16 @@ export interface InternalQuery extends Query<DocumentData> {
 }
 
 /**
+ * Cache entry structure for sessionStorage
+ */
+interface CacheEntry<T> {
+  data: WithId<T>[];
+  timestamp: number;
+}
+
+/**
  * React hook to subscribe to a Firestore collection or query in real-time.
- * Handles nullable references/queries.
- *
+ * Handles nullable references/queries with automatic caching for offline support.
  *
  * IMPORTANT! YOU MUST MEMOIZE the inputted targetRefOrQuery or BAD THINGS WILL HAPPEN
  * use useMemo to memoize it per React guidence.  Also make sure that it's dependencies are stable
@@ -73,10 +80,31 @@ export function useCollection<T = any>(
       return;
     }
 
+    // Extract the path for cache key
+    const path: string =
+      targetRefOrQuery.type === "collection"
+        ? (targetRefOrQuery as CollectionReference).path
+        : (targetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString();
+
+    const cacheKey = `firestore_cache_${path.replace(/\//g, "_")}`;
+
+    // Load from cache first if available
+    if (typeof window !== "undefined") {
+      try {
+        const cachedData = sessionStorage.getItem(cacheKey);
+        if (cachedData) {
+          const cacheEntry: CacheEntry<T> = JSON.parse(cachedData);
+          setData(cacheEntry.data);
+        }
+      } catch (err) {
+        console.warn("Failed to load cache:", err);
+      }
+    }
+
     setIsLoading(true);
     setError(null);
 
-    // Directly use targetRefOrQuery as it's assumed to be the final query
+    // Subscribe to Firestore updates
     const unsubscribe = onSnapshot(
       targetRefOrQuery,
       (snapshot: QuerySnapshot<DocumentData>) => {
@@ -84,26 +112,43 @@ export function useCollection<T = any>(
         for (const doc of snapshot.docs) {
           results.push({ ...(doc.data() as T), id: doc.id });
         }
+        
         setData(results);
         setError(null);
         setIsLoading(false);
+
+        // Update cache on successful fetch
+        if (typeof window !== "undefined") {
+          try {
+            const cacheEntry: CacheEntry<T> = {
+              data: results,
+              timestamp: Date.now(),
+            };
+            sessionStorage.setItem(cacheKey, JSON.stringify(cacheEntry));
+          } catch (err) {
+            console.warn("Failed to update cache:", err);
+          }
+        }
       },
       (error: FirestoreError) => {
-        // This logic extracts the path from either a ref or a query
-        const path: string =
-          targetRefOrQuery.type === "collection"
-            ? (targetRefOrQuery as CollectionReference).path
-            : (
-                targetRefOrQuery as unknown as InternalQuery
-              )._query.path.canonicalString();
-
         const contextualError = new FirestorePermissionError({
           operation: "list",
           path,
         });
 
         setError(contextualError);
-        setData(null);
+        
+        // Don't clear data if we have cached data - keep it for offline use
+        // Only set data to null if we truly have no data
+        setData((currentData) => {
+          // If we have current data (from cache or previous fetch), keep it
+          if (currentData && currentData.length > 0) {
+            return currentData;
+          }
+          // Otherwise, return null
+          return null;
+        });
+        
         setIsLoading(false);
 
         // trigger global error propagation
