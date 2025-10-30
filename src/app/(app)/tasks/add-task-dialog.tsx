@@ -102,7 +102,7 @@ export function AddTaskDialog({
     if (!isOnline) {
       // Queue the operation with Firestore (don't await to avoid delays)
       addDoc(collection(firestore, "tasks"), newTask).catch((error) => {
-        console.warn("Offline operation queued with error:", error);
+        console.error("Failed to queue offline operation:", error);
       });
 
       toast({

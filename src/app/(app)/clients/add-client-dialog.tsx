@@ -89,7 +89,7 @@ export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) 
     if (!isOnline) {
       // Queue the operation with Firestore (don't await to avoid delays)
       addDoc(clientsCollection, newClient).catch((error) => {
-        console.warn("Offline operation queued with error:", error);
+        console.error("Failed to queue offline operation:", error);
       });
       
       toast({
