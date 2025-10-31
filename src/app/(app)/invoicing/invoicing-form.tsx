@@ -378,14 +378,19 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           
           if (!originalTask) {
             console.warn("Task not found for summary:", taskSummary);
-            // Determine rate type based on which quantity is non-zero
-            const hasHours = taskSummary.hours > 0;
-            const hasPieces = taskSummary.pieces > 0;
+            // Determine rate type based on which quantity is greater
+            // If both exist, prioritize the larger value as the primary work type
+            const quantity = taskSummary.hours >= taskSummary.pieces 
+              ? taskSummary.hours 
+              : taskSummary.pieces;
+            const rateType = taskSummary.hours >= taskSummary.pieces 
+              ? "hourly" as const
+              : "piece" as const;
             return {
               taskName: taskSummary.taskName,
-              quantity: hasHours ? taskSummary.hours : taskSummary.pieces,
+              quantity,
               rate: 0,
-              rateType: (hasHours ? "hourly" : "piece") as const,
+              rateType,
               cost: 0,
             };
           }

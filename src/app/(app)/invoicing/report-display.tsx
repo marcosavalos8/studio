@@ -38,6 +38,8 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
   const sortedDates = Object.keys(report.dailyBreakdown).sort(
     (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime()
   );
+  
+  const hasEmployeeDetails = report.employeeDetails && report.employeeDetails.length > 0;
 
   return (
     <div>
@@ -188,7 +190,7 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
         ) : (
           // Grouped by employee view (new)
           <div className="space-y-6">
-            {report.employeeDetails && report.employeeDetails.length > 0 ? (
+            {hasEmployeeDetails ? (
               report.employeeDetails.map((employee) => {
                 const employeeLaborCost = employee.tasksSummary.reduce(
                   (sum, task) => sum + task.cost,
