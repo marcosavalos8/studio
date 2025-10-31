@@ -188,46 +188,47 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
         ) : (
           // Grouped by employee view (new)
           <div className="space-y-6">
-            {report.employeeDetails && report.employeeDetails.map((employee) => {
-              const employeeLaborCost = employee.tasksSummary.reduce(
-                (sum, task) => sum + task.cost,
-                0
-              );
-              const employeeSubtotal = employeeLaborCost + employee.paidRestBreaks + employee.minimumWageTopUp;
+            {report.employeeDetails && report.employeeDetails.length > 0 ? (
+              report.employeeDetails.map((employee) => {
+                const employeeLaborCost = employee.tasksSummary.reduce(
+                  (sum, task) => sum + task.cost,
+                  0
+                );
+                const employeeSubtotal = employeeLaborCost + employee.paidRestBreaks + employee.minimumWageTopUp;
 
-              return (
-                <div key={employee.employeeId} className="mb-6">
-                  <div className="bg-gray-50 p-3 rounded-md mb-2">
-                    <div className="grid grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <span className="font-semibold">{employee.employeeName}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-gray-600">Hours: </span>
-                        <span className="font-medium">{employee.totalHours.toFixed(2)}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-gray-600">Paid Rest Breaks: </span>
-                        <span className="font-medium">{formatCurrency(employee.paidRestBreaks)}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-gray-600">Min. Wage Adj.: </span>
-                        <span className="font-medium">{formatCurrency(employee.minimumWageTopUp)}</span>
+                return (
+                  <div key={employee.employeeId} className="mb-6">
+                    <div className="bg-gray-50 p-3 rounded-md mb-2">
+                      <div className="grid grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <span className="font-semibold">{employee.employeeName}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-gray-600">Hours: </span>
+                          <span className="font-medium">{employee.totalHours.toFixed(2)}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-gray-600">Paid Rest Breaks: </span>
+                          <span className="font-medium">{formatCurrency(employee.paidRestBreaks)}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-gray-600">Min. Wage Adj.: </span>
+                          <span className="font-medium">{formatCurrency(employee.minimumWageTopUp)}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  
-                  <Table className="text-sm">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="pl-8">Per/Task</TableHead>
-                        <TableHead className="text-right">Quantity</TableHead>
-                        <TableHead className="text-right">Rate</TableHead>
-                        <TableHead className="text-right">Cost</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {employee.tasksSummary.map((task, idx) => (
+                    
+                    <Table className="text-sm">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="pl-8">Task</TableHead>
+                          <TableHead className="text-right">Quantity</TableHead>
+                          <TableHead className="text-right">Rate</TableHead>
+                          <TableHead className="text-right">Cost</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {employee.tasksSummary.map((task, idx) => (
                         <TableRow key={idx}>
                           <TableCell className="pl-8">{task.taskName}</TableCell>
                           <TableCell className="text-right">
@@ -257,7 +258,12 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
                   </Table>
                 </div>
               );
-            })}
+            })
+            ) : (
+              <div className="text-center text-gray-500 py-8">
+                No employee details available for this date range.
+              </div>
+            )}
           </div>
         )}
 
