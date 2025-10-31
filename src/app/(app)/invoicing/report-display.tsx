@@ -19,6 +19,7 @@ import {
 interface ReportDisplayProps {
   report: DetailedInvoiceData;
   onBack: () => void;
+  isGrouped?: boolean;
 }
 
 const formatCurrency = (value: number | undefined | null): string => {
@@ -28,7 +29,7 @@ const formatCurrency = (value: number | undefined | null): string => {
   return `$${value.toFixed(2)}`;
 };
 
-export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
+export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: ReportDisplayProps) {
   const [showEmployeeDetails, setShowEmployeeDetails] = React.useState(false);
   const handlePrint = () => {
     window.print();
@@ -84,8 +85,18 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
               border: none;
               box-shadow: none;
               margin: 0;
-              padding: 2rem;
+              padding: 1.5rem;
               color: #000;
+              font-size: 11px;
+            }
+            .report-container table {
+              font-size: 10px;
+            }
+            .report-container h1 {
+              font-size: 24px;
+            }
+            .report-container h2 {
+              font-size: 14px;
             }
             .print\\:hidden {
               display: none;
@@ -93,7 +104,7 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
           }
           @page {
             size: auto;
-            margin: 0.5in;
+            margin: 0.4in;
           }
         `}</style>
         <div className="flex justify-between items-start mb-12">
@@ -121,56 +132,134 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
           </div>
         </div>
 
-        <div className="space-y-6">
-          {sortedDates.map((date) => (
-            <div key={date}>
-              <h2 className="font-semibold text-lg border-b-2 border-gray-200 pb-1 mb-2">
-                {format(parseLocalDate(date), "EEEE, LLL dd, yyyy")}
-              </h2>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Task</TableHead>
-                    <TableHead className="text-right">Quantity</TableHead>
-                    <TableHead className="text-right">Rate</TableHead>
-                    <TableHead className="text-right">Cost</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {Object.values(report.dailyBreakdown[date].tasks).map(
-                    (task) => (
-                      <TableRow key={task.taskName}>
-                        <TableCell>{task.taskName}</TableCell>
-                        <TableCell className="text-right">
-                          {task.clientRateType === "hourly"
-                            ? `${task.hours.toFixed(2)} hrs`
-                            : `${task.pieces.toFixed(2)} pieces`}
+        {/* Conditional rendering based on isGrouped */}
+        {!isGrouped ? (
+          // Daily breakdown view (original)
+          <div className="space-y-6">
+            {sortedDates.map((date) => (
+              <div key={date}>
+                <h2 className="font-semibold text-lg border-b-2 border-gray-200 pb-1 mb-2">
+                  {format(parseLocalDate(date), "EEEE, LLL dd, yyyy")}
+                </h2>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Task</TableHead>
+                      <TableHead className="text-right">Quantity</TableHead>
+                      <TableHead className="text-right">Rate</TableHead>
+                      <TableHead className="text-right">Cost</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Object.values(report.dailyBreakdown[date].tasks).map(
+                      (task) => (
+                        <TableRow key={task.taskName}>
+                          <TableCell>{task.taskName}</TableCell>
+                          <TableCell className="text-right">
+                            {task.clientRateType === "hourly"
+                              ? `${task.hours.toFixed(2)} hrs`
+                              : `${task.pieces.toFixed(2)} pieces`}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            ${task.clientRate.toFixed(2)} /{" "}
+                            {task.clientRateType === "hourly" ? "hr" : "piece"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            ${task.cost.toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    )}
+                  </TableBody>
+                  <TableFooter>
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-right font-medium">
+                        Daily Total
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        ${report.dailyBreakdown[date].total.toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+                  </TableFooter>
+                </Table>
+              </div>
+            ))}
+          </div>
+        ) : (
+          // Grouped by employee view (new)
+          <div className="space-y-6">
+            {report.employeeDetails && report.employeeDetails.map((employee) => {
+              const employeeLaborCost = employee.tasksSummary.reduce(
+                (sum, task) => sum + task.cost,
+                0
+              );
+              const employeeSubtotal = employeeLaborCost + employee.paidRestBreaks + employee.minimumWageTopUp;
+
+              return (
+                <div key={employee.employeeId} className="mb-6">
+                  <div className="bg-gray-50 p-3 rounded-md mb-2">
+                    <div className="grid grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <span className="font-semibold">{employee.employeeName}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-gray-600">Hours: </span>
+                        <span className="font-medium">{employee.totalHours.toFixed(2)}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-gray-600">Paid Rest Breaks: </span>
+                        <span className="font-medium">{formatCurrency(employee.paidRestBreaks)}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-gray-600">Min. Wage Adj.: </span>
+                        <span className="font-medium">{formatCurrency(employee.minimumWageTopUp)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <Table className="text-sm">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="pl-8">Per/Task</TableHead>
+                        <TableHead className="text-right">Quantity</TableHead>
+                        <TableHead className="text-right">Rate</TableHead>
+                        <TableHead className="text-right">Cost</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {employee.tasksSummary.map((task, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell className="pl-8">{task.taskName}</TableCell>
+                          <TableCell className="text-right">
+                            {task.rateType === "hourly"
+                              ? `${task.quantity.toFixed(2)} hours`
+                              : `${task.quantity.toFixed(2)} pieces`}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            ${task.rate.toFixed(2)} / {task.rateType === "hourly" ? "hour" : "piece"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            ${task.cost.toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                    <TableFooter>
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-right font-medium pl-8">
+                          Total
                         </TableCell>
-                        <TableCell className="text-right">
-                          ${task.clientRate.toFixed(2)} /{" "}
-                          {task.clientRateType === "hourly" ? "hr" : "piece"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          ${task.cost.toFixed(2)}
+                        <TableCell className="text-right font-semibold">
+                          ${employeeSubtotal.toFixed(2)}
                         </TableCell>
                       </TableRow>
-                    )
-                  )}
-                </TableBody>
-                <TableFooter>
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-right font-medium">
-                      Daily Total
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      ${report.dailyBreakdown[date].total.toFixed(2)}
-                    </TableCell>
-                  </TableRow>
-                </TableFooter>
-              </Table>
-            </div>
-          ))}
-        </div>
+                    </TableFooter>
+                  </Table>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         <div className="mt-8 flex justify-end">
           <div className="w-full max-w-md space-y-3">
