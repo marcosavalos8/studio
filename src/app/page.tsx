@@ -15,7 +15,7 @@ export default function RootPage() {
         router.push('/login')
       }
     } catch (error) {
-      // If localStorage is not available (e.g., in some offline scenarios),
+      // If localStorage is not accessible (e.g., in SSR context or disabled),
       // default to login page
       console.error('Error accessing localStorage:', error)
       router.push('/login')
