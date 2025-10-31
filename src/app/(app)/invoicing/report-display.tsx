@@ -65,36 +65,19 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
     }
   };
 
-  // Helper to abbreviate task names for compact display
+  // Helper to abbreviate task names for glossary
   const abbreviateTaskName = (taskName: string): string => {
-    // Example: "Apple Picking (Granny Smith) - Piecework" → "AP(GS)"
-    // Extract words and parentheses content
-    const words = taskName.split(/[\s-]+/).filter(w => w.length > 0);
-    let abbrev = '';
+    // Generate simple abbreviation using first letters of main words
+    const words = taskName
+      .replace(/[()]/g, ' ') // Remove parentheses
+      .split(/[\s-]+/)       // Split on spaces and hyphens
+      .filter(w => w.length > 2 && /[A-Za-z]/.test(w)); // Keep meaningful words
     
-    for (const word of words) {
-      // Check if word contains parentheses
-      const parenMatch = word.match(/\(([^)]+)\)/);
-      if (parenMatch) {
-        // Extract initials from content inside parentheses
-        const innerWords = parenMatch[1].split(/\s+/);
-        const innerAbbrev = innerWords.map(w => w[0].toUpperCase()).join('');
-        abbrev += `(${innerAbbrev})`;
-      } else if (word.length > 0 && /[A-Za-z]/.test(word[0])) {
-        // Take first letter of regular words (skip if starts with special char)
-        abbrev += word[0].toUpperCase();
-      }
-    }
+    if (words.length === 0) return taskName.substring(0, 3).toUpperCase();
+    if (words.length === 1) return words[0].substring(0, 3).toUpperCase();
     
-    return abbrev || taskName.substring(0, 6);
-  };
-
-  // Helper to shorten employee name (First + Last Initial)
-  const shortenEmployeeName = (fullName: string): string => {
-    const parts = fullName.trim().split(/\s+/);
-    if (parts.length === 1) return parts[0];
-    // Return first name + first letter of last name
-    return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+    // Take first 2 letters of each word, max 6 chars total
+    return words.slice(0, 3).map(w => w.substring(0, 2).toUpperCase()).join('');
   };
 
   return (
@@ -143,7 +126,7 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
               border: none;
               box-shadow: none;
               margin: 0;
-              padding: 1rem;
+              padding: 0.5rem;
               color: #000;
             }
             .print\\:hidden {
@@ -159,27 +142,20 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
             }
             .grouped-table th {
               font-size: 6px !important;
-              line-height: 1.2;
             }
-            .task-header-full {
-              font-size: 5px !important;
-              display: block;
-              line-height: 1;
-              margin-bottom: 1px;
-            }
-            .task-header-abbrev {
-              font-size: 7px !important;
-              font-weight: bold;
+            .glossary-section {
+              font-size: 6px !important;
+              margin-top: 0.5rem !important;
             }
           }
           @page {
             size: landscape;
-            margin: 0.25in;
+            margin: 0.2in;
           }
         `}</style>
-        <div className={`flex justify-between items-start ${isGrouped ? 'mb-6' : 'mb-12'}`}>
+        <div className={`flex justify-between items-start ${isGrouped ? 'mb-4' : 'mb-12'}`}>
           <div>
-            <h1 className={`font-bold text-primary ${isGrouped ? 'text-2xl' : 'text-3xl'}`}>INVOICE</h1>
+            <h1 className={`font-bold text-primary ${isGrouped ? 'text-xl' : 'text-3xl'}`}>INVOICE</h1>
             <div className={isGrouped ? 'mt-2' : 'mt-4'}>
               <div className="font-semibold text-gray-700">TO:</div>
               <div className="font-bold">{report.client.name}</div>
@@ -188,7 +164,7 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
             </div>
           </div>
           <div className="text-right">
-            <div className={`font-semibold ${isGrouped ? 'text-lg' : 'text-xl'}`}>FieldTack WA</div>
+            <div className={`font-semibold ${isGrouped ? 'text-base' : 'text-xl'}`}>FieldTack WA</div>
             <div className={`text-sm text-gray-600 ${isGrouped ? 'mt-2' : 'mt-4'}`}>
               <p>
                 <strong>Invoice Date:</strong> {format(new Date(), "LLL dd, y")}
@@ -204,64 +180,60 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
 
         {isGrouped && report.groupedData ? (
           // Grouped Report View
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div>
-              <h2 className="font-semibold text-lg border-b-2 border-gray-200 pb-1 mb-2">
+              <h2 className="font-semibold text-base border-b-2 border-gray-200 pb-1 mb-2">
                 {formatDateRange()}
               </h2>
               <div className="overflow-x-auto">
                 <Table className="grouped-table text-xs">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-left text-xs px-1">Worker</TableHead>
-                      <TableHead className="text-right text-xs px-1">Hrs</TableHead>
-                      {/* Dynamic task columns - all employees have the same tasks now 
-                          Note: Task normalization happens during data generation (invoicing-form.tsx)
-                          All employees are given the same set of tasks with 0 values if not worked */}
+                      <TableHead className="text-left px-1">Worker</TableHead>
+                      <TableHead className="text-right px-1">Hrs</TableHead>
+                      {/* Dynamic task columns with abbreviations for print */}
                       {report.groupedData.employees.length > 0 && report.groupedData.employees[0] &&
                         report.groupedData.employees[0].taskBreakdown.map((task, idx) => (
                           <React.Fragment key={idx}>
-                            <TableHead className="text-center text-xs px-1" title={task.taskName}>
-                              <span className="task-header-full">{task.taskName}</span>
-                              <span className="task-header-abbrev">{abbreviateTaskName(task.taskName)}</span>
+                            <TableHead className="text-right px-1" title={task.taskName}>
+                              <span className="hidden sm:inline">{task.taskName}</span>
+                              <span className="sm:hidden">{abbreviateTaskName(task.taskName)}</span>
                             </TableHead>
-                            <TableHead className="text-right text-xs px-1">Rate</TableHead>
-                            <TableHead className="text-right text-xs px-1">Pay</TableHead>
+                            <TableHead className="text-right px-1">Rate</TableHead>
+                            <TableHead className="text-right px-1">Pay</TableHead>
                           </React.Fragment>
                         ))}
-                      <TableHead className="text-right text-xs px-1">Total</TableHead>
-                      <TableHead className="text-right text-xs px-1">MinReq</TableHead>
-                      <TableHead className="text-right text-xs px-1">Diff</TableHead>
+                      <TableHead className="text-right px-1">Total</TableHead>
+                      <TableHead className="text-right px-1">MinReq</TableHead>
+                      <TableHead className="text-right px-1">Diff</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {report.groupedData.employees.map((employee) => (
                       <TableRow key={employee.employeeId}>
-                        <TableCell className="font-medium text-xs px-1" title={employee.employeeName}>
-                          {shortenEmployeeName(employee.employeeName)}
-                        </TableCell>
-                        <TableCell className="text-right text-xs px-1">{employee.totalHours.toFixed(2)}</TableCell>
+                        <TableCell className="font-medium px-1">{employee.employeeName}</TableCell>
+                        <TableCell className="text-right px-1">{employee.totalHours.toFixed(2)}</TableCell>
                         {/* Render task data in the same order as header */}
                         {employee.taskBreakdown.map((task, idx) => (
                           <React.Fragment key={idx}>
-                            <TableCell className="text-right text-xs px-1">
+                            <TableCell className="text-right px-1">
                               {task.pieces > 0 ? task.pieces.toFixed(2) : "0.00"}
                             </TableCell>
-                            <TableCell className="text-right text-xs px-1">
+                            <TableCell className="text-right px-1">
                               {task.rate > 0 ? `$${task.rate.toFixed(2)}` : "$0.00"}
                             </TableCell>
-                            <TableCell className="text-right text-xs px-1">
+                            <TableCell className="text-right px-1">
                               {task.piecePay > 0 ? `$${task.piecePay.toFixed(2)}` : "$0.00"}
                             </TableCell>
                           </React.Fragment>
                         ))}
-                        <TableCell className="text-right font-semibold text-xs px-1">
+                        <TableCell className="text-right font-semibold px-1">
                           ${employee.totalPiecesPay.toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-right text-xs px-1">
+                        <TableCell className="text-right px-1">
                           ${employee.minimumPayRequired.toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-right text-xs px-1">
+                        <TableCell className="text-right px-1">
                           ${employee.differenceOwed.toFixed(2)}
                         </TableCell>
                       </TableRow>
@@ -269,6 +241,21 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
                   </TableBody>
                 </Table>
               </div>
+              
+              {/* Task Abbreviations Glossary */}
+              {report.groupedData.employees.length > 0 && report.groupedData.employees[0] && (
+                <div className="glossary-section mt-4 p-2 bg-gray-50 rounded border text-xs">
+                  <h3 className="font-semibold mb-2">Task Abbreviations:</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                    {report.groupedData.employees[0].taskBreakdown.map((task, idx) => (
+                      <div key={idx} className="text-xs">
+                        <span className="font-semibold">{abbreviateTaskName(task.taskName)}:</span>{" "}
+                        <span>{task.taskName}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ) : (
