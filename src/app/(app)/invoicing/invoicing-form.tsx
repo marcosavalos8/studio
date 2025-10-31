@@ -242,24 +242,30 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
                   cost: 0,
                   clientRate: effectiveClientRate,
                   clientRateType: originalTask.clientRateType,
-                  employees: [],
+                  employees: includeDetailedReport ? [] : undefined,
                 };
               }
               const taskDetail = dailyBreakdown[day.date].tasks[task.taskName];
               taskDetail.hours += task.hours;
               taskDetail.pieces += task.pieceworkCount;
               
-              // Add employee breakdown
-              const employeeQuantity = originalTask.clientRateType === "hourly" ? task.hours : task.pieceworkCount;
-              const employeeCost = employeeQuantity * effectiveClientRate;
-              
-              taskDetail.employees!.push({
-                employeeName,
-                employeeId: emp.employeeId,
-                quantity: employeeQuantity,
-                rate: effectiveClientRate,
-                cost: employeeCost,
-              });
+              // Add employee breakdown only if detailed report is requested
+              if (includeDetailedReport) {
+                const employeeQuantity = originalTask.clientRateType === "hourly" ? task.hours : task.pieceworkCount;
+                const employeeCost = employeeQuantity * effectiveClientRate;
+                
+                if (!taskDetail.employees) {
+                  taskDetail.employees = [];
+                }
+                
+                taskDetail.employees.push({
+                  employeeName,
+                  employeeId: emp.employeeId,
+                  quantity: employeeQuantity,
+                  rate: effectiveClientRate,
+                  cost: employeeCost,
+                });
+              }
             });
           });
         });
