@@ -19,6 +19,7 @@ import {
 interface ReportDisplayProps {
   report: DetailedInvoiceData;
   onBack: () => void;
+  showDetailedReportByDefault?: boolean;
 }
 
 const formatCurrency = (value: number | undefined | null): string => {
@@ -28,8 +29,8 @@ const formatCurrency = (value: number | undefined | null): string => {
   return `$${value.toFixed(2)}`;
 };
 
-export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
-  const [showEmployeeDetails, setShowEmployeeDetails] = React.useState(false);
+export function InvoiceReportDisplay({ report, onBack, showDetailedReportByDefault = false }: ReportDisplayProps) {
+  const [showEmployeeDetails, setShowEmployeeDetails] = React.useState(showDetailedReportByDefault);
   const handlePrint = () => {
     window.print();
   };

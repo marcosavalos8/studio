@@ -33,6 +33,8 @@ import { useToast } from "@/hooks/use-toast";
 import { type DetailedInvoiceData } from "./page";
 import { InvoiceReportDisplay } from "./report-display";
 import { generatePayrollReport } from "@/ai/flows/generate-payroll-report";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 type InvoicingFormProps = {
   clients: Client[];
@@ -48,6 +50,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [invoiceData, setInvoiceData] =
     React.useState<DetailedInvoiceData | null>(null);
+  const [includeDetailedReport, setIncludeDetailedReport] = React.useState(false);
 
   const handleGenerate = async () => {
     if (!firestore || !selectedClient || !date?.from || !date?.to) {
@@ -383,6 +386,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
       <InvoiceReportDisplay
         report={invoiceData}
         onBack={() => setInvoiceData(null)}
+        showDetailedReportByDefault={includeDetailedReport}
       />
     );
   }
@@ -461,6 +465,20 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Generate Invoice
         </Button>
+      </div>
+
+      <div className="mt-4 flex items-center space-x-2">
+        <Checkbox
+          id="detailed-report"
+          checked={includeDetailedReport}
+          onCheckedChange={(checked) => setIncludeDetailedReport(checked === true)}
+        />
+        <Label
+          htmlFor="detailed-report"
+          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+        >
+          Incluir reporte detallado (mostrar desglose por empleado)
+        </Label>
       </div>
 
       {isGenerating && (
