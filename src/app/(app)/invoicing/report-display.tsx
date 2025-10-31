@@ -147,7 +147,7 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
               display: inline !important;
             }
             .grouped-table {
-              font-size: 6px !important;
+              font-size: 5px !important;
             }
             .grouped-table th,
             .grouped-table td {
@@ -155,6 +155,10 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
               white-space: nowrap;
             }
             .grouped-table th {
+              font-size: 7px !important;
+              font-weight: bold;
+            }
+            .grouped-table td {
               font-size: 5px !important;
             }
             .glossary-section {
