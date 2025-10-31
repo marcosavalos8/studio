@@ -65,6 +65,38 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
     }
   };
 
+  // Helper to abbreviate task names for compact display
+  const abbreviateTaskName = (taskName: string): string => {
+    // Example: "Apple Picking (Granny Smith) - Piecework" → "AP(GS)"
+    // Extract words and parentheses content
+    const words = taskName.split(/[\s-]+/).filter(w => w.length > 0);
+    let abbrev = '';
+    
+    for (const word of words) {
+      // Check if word contains parentheses
+      const parenMatch = word.match(/\(([^)]+)\)/);
+      if (parenMatch) {
+        // Extract initials from content inside parentheses
+        const innerWords = parenMatch[1].split(/\s+/);
+        const innerAbbrev = innerWords.map(w => w[0].toUpperCase()).join('');
+        abbrev += `(${innerAbbrev})`;
+      } else if (word.length > 0 && /[A-Za-z]/.test(word[0])) {
+        // Take first letter of regular words (skip if starts with special char)
+        abbrev += word[0].toUpperCase();
+      }
+    }
+    
+    return abbrev || taskName.substring(0, 6);
+  };
+
+  // Helper to shorten employee name (First + Last Initial)
+  const shortenEmployeeName = (fullName: string): string => {
+    const parts = fullName.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0];
+    // Return first name + first letter of last name
+    return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+  };
+
   return (
     <div>
       <div className="mb-4 flex justify-between items-center print:hidden">
@@ -118,20 +150,31 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
               display: none;
             }
             .grouped-table {
-              font-size: 9px !important;
+              font-size: 7px !important;
             }
             .grouped-table th,
             .grouped-table td {
-              padding: 2px 4px !important;
+              padding: 1px 2px !important;
               white-space: nowrap;
             }
             .grouped-table th {
-              font-size: 8px !important;
+              font-size: 6px !important;
+              line-height: 1.2;
+            }
+            .task-header-full {
+              font-size: 5px !important;
+              display: block;
+              line-height: 1;
+              margin-bottom: 1px;
+            }
+            .task-header-abbrev {
+              font-size: 7px !important;
+              font-weight: bold;
             }
           }
           @page {
             size: landscape;
-            margin: 0.3in;
+            margin: 0.25in;
           }
         `}</style>
         <div className={`flex justify-between items-start ${isGrouped ? 'mb-6' : 'mb-12'}`}>
@@ -170,7 +213,7 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
                 <Table className="grouped-table text-xs">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-left text-xs px-2">Worker</TableHead>
+                      <TableHead className="text-left text-xs px-1">Worker</TableHead>
                       <TableHead className="text-right text-xs px-1">Hrs</TableHead>
                       {/* Dynamic task columns - all employees have the same tasks now 
                           Note: Task normalization happens during data generation (invoicing-form.tsx)
@@ -178,22 +221,25 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
                       {report.groupedData.employees.length > 0 && report.groupedData.employees[0] &&
                         report.groupedData.employees[0].taskBreakdown.map((task, idx) => (
                           <React.Fragment key={idx}>
-                            <TableHead className="text-right text-xs px-1" title={task.taskName}>
-                              {task.taskName.length > 20 ? task.taskName.substring(0, 17) + '...' : task.taskName}
+                            <TableHead className="text-center text-xs px-1" title={task.taskName}>
+                              <span className="task-header-full">{task.taskName}</span>
+                              <span className="task-header-abbrev">{abbreviateTaskName(task.taskName)}</span>
                             </TableHead>
                             <TableHead className="text-right text-xs px-1">Rate</TableHead>
                             <TableHead className="text-right text-xs px-1">Pay</TableHead>
                           </React.Fragment>
                         ))}
-                      <TableHead className="text-right text-xs px-1">Total Pay</TableHead>
-                      <TableHead className="text-right text-xs px-1">Min Req</TableHead>
+                      <TableHead className="text-right text-xs px-1">Total</TableHead>
+                      <TableHead className="text-right text-xs px-1">MinReq</TableHead>
                       <TableHead className="text-right text-xs px-1">Diff</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {report.groupedData.employees.map((employee) => (
                       <TableRow key={employee.employeeId}>
-                        <TableCell className="font-medium text-xs px-2">{employee.employeeName}</TableCell>
+                        <TableCell className="font-medium text-xs px-1" title={employee.employeeName}>
+                          {shortenEmployeeName(employee.employeeName)}
+                        </TableCell>
                         <TableCell className="text-right text-xs px-1">{employee.totalHours.toFixed(2)}</TableCell>
                         {/* Render task data in the same order as header */}
                         {employee.taskBreakdown.map((task, idx) => (
