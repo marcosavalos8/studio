@@ -19,6 +19,7 @@ import {
 interface ReportDisplayProps {
   report: DetailedInvoiceData;
   onBack: () => void;
+  isGrouped?: boolean;
 }
 
 const formatCurrency = (value: number | undefined | null): string => {
@@ -28,7 +29,7 @@ const formatCurrency = (value: number | undefined | null): string => {
   return `$${value.toFixed(2)}`;
 };
 
-export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
+export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: ReportDisplayProps) {
   const [showEmployeeDetails, setShowEmployeeDetails] = React.useState(false);
   const handlePrint = () => {
     window.print();
@@ -37,6 +38,32 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
   const sortedDates = Object.keys(report.dailyBreakdown).sort(
     (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime()
   );
+
+  // Helper to format date range
+  const formatDateRange = () => {
+    if (sortedDates.length === 0) return "";
+    const firstDate = parseLocalDate(sortedDates[0]);
+    const lastDate = parseLocalDate(sortedDates[sortedDates.length - 1]);
+    
+    if (sortedDates.length === 1) {
+      return format(firstDate, "EEEE, LLL dd, yyyy");
+    }
+    
+    // Format as "Tuesday - Friday, Oct 21-24, 2025"
+    const startDay = format(firstDate, "EEEE");
+    const endDay = format(lastDate, "EEEE");
+    const startMonth = format(firstDate, "LLL");
+    const endMonth = format(lastDate, "LLL");
+    const startDayNum = format(firstDate, "dd");
+    const endDayNum = format(lastDate, "dd");
+    const year = format(lastDate, "yyyy");
+    
+    if (startMonth === endMonth) {
+      return `${startDay} - ${endDay}, ${startMonth} ${startDayNum}-${endDayNum}, ${year}`;
+    } else {
+      return `${startDay}, ${startMonth} ${startDayNum} - ${endDay}, ${endMonth} ${endDayNum}, ${year}`;
+    }
+  };
 
   return (
     <div>
@@ -121,56 +148,121 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
           </div>
         </div>
 
-        <div className="space-y-6">
-          {sortedDates.map((date) => (
-            <div key={date}>
+        {isGrouped && report.groupedData ? (
+          // Grouped Report View
+          <div className="space-y-6">
+            <div>
               <h2 className="font-semibold text-lg border-b-2 border-gray-200 pb-1 mb-2">
-                {format(parseLocalDate(date), "EEEE, LLL dd, yyyy")}
+                {formatDateRange()}
               </h2>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Task</TableHead>
-                    <TableHead className="text-right">Quantity</TableHead>
-                    <TableHead className="text-right">Rate</TableHead>
-                    <TableHead className="text-right">Cost</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {Object.values(report.dailyBreakdown[date].tasks).map(
-                    (task) => (
-                      <TableRow key={task.taskName}>
-                        <TableCell>{task.taskName}</TableCell>
-                        <TableCell className="text-right">
-                          {task.clientRateType === "hourly"
-                            ? `${task.hours.toFixed(2)} hrs`
-                            : `${task.pieces.toFixed(2)} pieces`}
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Worker Name</TableHead>
+                      <TableHead className="text-right">Hours</TableHead>
+                      {/* Dynamic task columns - all employees have the same tasks now */}
+                      {report.groupedData.employees.length > 0 &&
+                        report.groupedData.employees[0].taskBreakdown.map((task, idx) => (
+                          <React.Fragment key={idx}>
+                            <TableHead className="text-right">{task.taskName}</TableHead>
+                            <TableHead className="text-right">Rate</TableHead>
+                            <TableHead className="text-right">Pay</TableHead>
+                          </React.Fragment>
+                        ))}
+                      <TableHead className="text-right">Total Pieces Pay</TableHead>
+                      <TableHead className="text-right">MIN PAY REQ</TableHead>
+                      <TableHead className="text-right">Diff Owed</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {report.groupedData.employees.map((employee) => (
+                      <TableRow key={employee.employeeId}>
+                        <TableCell className="font-medium">{employee.employeeName}</TableCell>
+                        <TableCell className="text-right">{employee.totalHours.toFixed(2)}</TableCell>
+                        {/* Render task data in the same order as header */}
+                        {employee.taskBreakdown.map((task, idx) => (
+                          <React.Fragment key={idx}>
+                            <TableCell className="text-right">
+                              {task.pieces > 0 ? task.pieces.toFixed(2) : "0.00"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {task.rate > 0 ? `$${task.rate.toFixed(2)}` : "$0.00"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {task.piecePay > 0 ? `$${task.piecePay.toFixed(2)}` : "$0.00"}
+                            </TableCell>
+                          </React.Fragment>
+                        ))}
+                        <TableCell className="text-right font-semibold">
+                          ${employee.totalPiecesPay.toFixed(2)}
                         </TableCell>
                         <TableCell className="text-right">
-                          ${task.clientRate.toFixed(2)} /{" "}
-                          {task.clientRateType === "hourly" ? "hr" : "piece"}
+                          ${employee.minimumPayRequired.toFixed(2)}
                         </TableCell>
                         <TableCell className="text-right">
-                          ${task.cost.toFixed(2)}
+                          ${employee.differenceOwed.toFixed(2)}
                         </TableCell>
                       </TableRow>
-                    )
-                  )}
-                </TableBody>
-                <TableFooter>
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-right font-medium">
-                      Daily Total
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      ${report.dailyBreakdown[date].total.toFixed(2)}
-                    </TableCell>
-                  </TableRow>
-                </TableFooter>
-              </Table>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ) : (
+          // Daily Breakdown View (Original)
+          <div className="space-y-6">
+            {sortedDates.map((date) => (
+              <div key={date}>
+                <h2 className="font-semibold text-lg border-b-2 border-gray-200 pb-1 mb-2">
+                  {format(parseLocalDate(date), "EEEE, LLL dd, yyyy")}
+                </h2>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Task</TableHead>
+                      <TableHead className="text-right">Quantity</TableHead>
+                      <TableHead className="text-right">Rate</TableHead>
+                      <TableHead className="text-right">Cost</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Object.values(report.dailyBreakdown[date].tasks).map(
+                      (task) => (
+                        <TableRow key={task.taskName}>
+                          <TableCell>{task.taskName}</TableCell>
+                          <TableCell className="text-right">
+                            {task.clientRateType === "hourly"
+                              ? `${task.hours.toFixed(2)} hrs`
+                              : `${task.pieces.toFixed(2)} pieces`}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            ${task.clientRate.toFixed(2)} /{" "}
+                            {task.clientRateType === "hourly" ? "hr" : "piece"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            ${task.cost.toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    )}
+                  </TableBody>
+                  <TableFooter>
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-right font-medium">
+                        Daily Total
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        ${report.dailyBreakdown[date].total.toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+                  </TableFooter>
+                </Table>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="mt-8 flex justify-end">
           <div className="w-full max-w-md space-y-3">

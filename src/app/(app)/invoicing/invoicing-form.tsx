@@ -33,6 +33,8 @@ import { useToast } from "@/hooks/use-toast";
 import { type DetailedInvoiceData } from "./page";
 import { InvoiceReportDisplay } from "./report-display";
 import { generatePayrollReport } from "@/ai/flows/generate-payroll-report";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 type InvoicingFormProps = {
   clients: Client[];
@@ -48,6 +50,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [invoiceData, setInvoiceData] =
     React.useState<DetailedInvoiceData | null>(null);
+  const [includeGroupedReport, setIncludeGroupedReport] = React.useState(false);
 
   const handleGenerate = async () => {
     if (!firestore || !selectedClient || !date?.from || !date?.to) {
@@ -349,6 +352,121 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         };
       });
 
+      // Build grouped data if requested
+      let groupedData;
+      if (includeGroupedReport) {
+        // First, collect all unique tasks across all employees
+        const allTasksSet = new Set<string>();
+        filteredSummaries.forEach((emp) => {
+          emp.weeklySummaries.forEach((week) => {
+            week.dailyBreakdown.forEach((day) => {
+              day.tasks.forEach((task) => {
+                const originalTask = tasks.find((t) => t.id === task.taskId);
+                if (originalTask && originalTask.clientId === clientData.id) {
+                  allTasksSet.add(task.taskName);
+                }
+              });
+            });
+          });
+        });
+        
+        const allTaskNames = Array.from(allTasksSet).sort();
+
+        groupedData = {
+          employees: filteredSummaries.map((emp) => {
+            const employee = allEmployees.find((e) => e.id === emp.employeeId);
+            
+            // Calculate total hours across all weeks
+            let totalHours = 0;
+            emp.weeklySummaries.forEach((week) => {
+              week.dailyBreakdown.forEach((day) => {
+                totalHours += day.totalDailyHours;
+              });
+            });
+
+            // Aggregate tasks across all weeks
+            const taskMap: Map<string, { pieces: number; rate: number; piecePay: number }> = new Map();
+            
+            emp.weeklySummaries.forEach((week) => {
+              week.dailyBreakdown.forEach((day) => {
+                day.tasks.forEach((task) => {
+                  const originalTask = tasks.find((t) => t.id === task.taskId);
+                  if (!originalTask || originalTask.clientId !== clientData.id) {
+                    return;
+                  }
+
+                  let effectiveClientRate = originalTask.clientRate;
+                  if (
+                    originalTask.clientRateType === "piece" &&
+                    (!effectiveClientRate || effectiveClientRate === 0)
+                  ) {
+                    effectiveClientRate = originalTask.piecePrice || 0;
+                  }
+
+                  const existing = taskMap.get(task.taskName);
+                  if (existing) {
+                    existing.pieces += task.pieceworkCount;
+                    existing.piecePay += task.pieceworkCount * effectiveClientRate;
+                  } else {
+                    taskMap.set(task.taskName, {
+                      pieces: task.pieceworkCount,
+                      rate: effectiveClientRate,
+                      piecePay: task.pieceworkCount * effectiveClientRate,
+                    });
+                  }
+                });
+              });
+            });
+
+            // Build task breakdown ensuring all tasks are represented
+            const taskBreakdown = allTaskNames.map((taskName) => {
+              const taskData = taskMap.get(taskName);
+              if (taskData) {
+                return {
+                  taskName,
+                  pieces: taskData.pieces,
+                  rate: taskData.rate,
+                  piecePay: taskData.piecePay,
+                };
+              } else {
+                // Employee didn't work on this task, fill with zeros
+                return {
+                  taskName,
+                  pieces: 0,
+                  rate: 0,
+                  piecePay: 0,
+                };
+              }
+            });
+
+            const totalPiecesPay = taskBreakdown.reduce((sum, task) => sum + task.piecePay, 0);
+            
+            // Calculate minimum pay required (total hours * minimum wage)
+            // Using Washington state minimum wage assumption
+            const minimumWage = 16.28; // WA state minimum wage 2024
+            const minimumPayRequired = totalHours * minimumWage;
+            
+            // Calculate the total top-up for this employee
+            const employeeTopUp = emp.weeklySummaries.reduce(
+              (acc, week) => acc + week.minimumWageTopUp,
+              0
+            );
+            
+            const differenceOwed = employeeTopUp;
+
+            return {
+              employeeName: employee?.name || emp.employeeName,
+              employeeId: emp.employeeId,
+              totalHours,
+              taskBreakdown,
+              totalPiecesPay,
+              minimumPayRequired,
+              differenceOwed,
+            };
+          }),
+        };
+      }
+
       const finalInvoiceData: DetailedInvoiceData = {
         client: clientData,
         date: {
@@ -363,6 +481,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         commission,
         total,
         employeeDetails,
+        groupedData,
       };
       setInvoiceData(finalInvoiceData);
     } catch (err) {
@@ -383,6 +502,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
       <InvoiceReportDisplay
         report={invoiceData}
         onBack={() => setInvoiceData(null)}
+        isGrouped={includeGroupedReport}
       />
     );
   }
@@ -461,6 +581,20 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Generate Invoice
         </Button>
+      </div>
+
+      <div className="mt-4 flex items-center space-x-2">
+        <Checkbox
+          id="grouped-report"
+          checked={includeGroupedReport}
+          onCheckedChange={(checked) => setIncludeGroupedReport(checked === true)}
+        />
+        <Label
+          htmlFor="grouped-report"
+          className="text-sm font-normal cursor-pointer"
+        >
+          Incluir reporte agrupado
+        </Label>
       </div>
 
       {isGenerating && (

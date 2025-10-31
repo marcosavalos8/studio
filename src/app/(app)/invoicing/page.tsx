@@ -59,6 +59,22 @@ export type DetailedInvoiceData = {
       }>;
     }>;
   }>;
+  groupedData?: {
+    employees: Array<{
+      employeeName: string;
+      employeeId: string;
+      totalHours: number;
+      taskBreakdown: Array<{
+        taskName: string;
+        pieces: number;
+        rate: number;
+        piecePay: number;
+      }>;
+      totalPiecesPay: number;
+      minimumPayRequired: number;
+      differenceOwed: number;
+    }>;
+  };
 };
 
 function InvoicingPage() {
