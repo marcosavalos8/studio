@@ -7,13 +7,24 @@ export default function RootPage() {
   const router = useRouter()
   
   useEffect(() => {
-    const isAuthenticated = localStorage.getItem('isAuthenticated')
-    if (isAuthenticated === 'true') {
-      router.push('/dashboard')
-    } else {
+    try {
+      const isAuthenticated = localStorage.getItem('isAuthenticated')
+      if (isAuthenticated === 'true') {
+        router.push('/dashboard')
+      } else {
+        router.push('/login')
+      }
+    } catch (error) {
+      // If localStorage is not available (e.g., in some offline scenarios),
+      // default to login page
+      console.error('Error accessing localStorage:', error)
       router.push('/login')
     }
   }, [router])
   
-  return null
+  return (
+    <div className="flex h-screen w-full items-center justify-center bg-background">
+      <div className="text-muted-foreground">Loading...</div>
+    </div>
+  )
 }

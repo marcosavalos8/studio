@@ -17,6 +17,8 @@ export function PagePrecacher() {
 
     // List of all important pages to pre-cache
     const pagesToCache = [
+      '/',
+      '/login',
       '/dashboard',
       '/clients',
       '/employees',
@@ -24,6 +26,7 @@ export function PagePrecacher() {
       '/time-tracking',
       '/payroll',
       '/invoicing',
+      '/offline',
     ];
 
     const precachePages = async () => {

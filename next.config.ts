@@ -31,16 +31,16 @@ export default withPWA({
     // Configure runtime caching strategies
     runtimeCaching: [
       {
-        // Cache pages with NetworkFirst strategy, fallback to cache on offline
+        // Cache pages with StaleWhileRevalidate for better offline support
+        // This serves from cache immediately while updating in background
         urlPattern: ({ request }: any) => request.destination === 'document',
-        handler: 'NetworkFirst' as const,
+        handler: 'StaleWhileRevalidate' as const,
         options: {
           cacheName: 'pages-cache',
           expiration: {
             maxEntries: 50,
             maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
           },
-          networkTimeoutSeconds: 1, // Reduced timeout for faster offline fallback
         },
       },
       {
