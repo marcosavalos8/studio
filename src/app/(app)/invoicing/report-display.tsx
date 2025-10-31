@@ -132,6 +132,12 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
             .print\\:hidden {
               display: none;
             }
+            .screen-only {
+              display: none !important;
+            }
+            .print-only {
+              display: inline !important;
+            }
             .grouped-table {
               font-size: 7px !important;
             }
@@ -146,6 +152,14 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
             .glossary-section {
               font-size: 6px !important;
               margin-top: 0.5rem !important;
+            }
+          }
+          @media screen {
+            .print-only {
+              display: none;
+            }
+            .screen-only {
+              display: inline;
             }
           }
           @page {
@@ -196,8 +210,8 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
                         report.groupedData.employees[0].taskBreakdown.map((task, idx) => (
                           <React.Fragment key={idx}>
                             <TableHead className="text-right px-1" title={task.taskName}>
-                              <span className="hidden sm:inline">{task.taskName}</span>
-                              <span className="sm:hidden">{abbreviateTaskName(task.taskName)}</span>
+                              <span className="screen-only">{task.taskName}</span>
+                              <span className="print-only">{abbreviateTaskName(task.taskName)}</span>
                             </TableHead>
                             <TableHead className="text-right px-1">Rate</TableHead>
                             <TableHead className="text-right px-1">Pay</TableHead>
