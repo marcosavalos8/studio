@@ -164,8 +164,8 @@ export function InvoiceReportDisplay({ report, onBack, includeDetailedReport = f
                               <TableCell className="text-right font-medium text-sm text-gray-700">Rate</TableCell>
                               <TableCell className="text-right font-medium text-sm text-gray-700">Cost</TableCell>
                             </TableRow>
-                            {task.employees.map((employee, idx) => (
-                              <TableRow key={`${task.taskName}-${employee.employeeId}-${idx}`} className="bg-gray-50">
+                            {task.employees.map((employee) => (
+                              <TableRow key={`${task.taskName}-${employee.employeeId}`} className="bg-gray-50">
                                 <TableCell className="pl-12 text-sm">{employee.employeeName}</TableCell>
                                 <TableCell className="text-right text-sm">{employee.quantity.toFixed(2)}</TableCell>
                                 <TableCell className="text-right text-sm">${employee.rate.toFixed(2)}</TableCell>
