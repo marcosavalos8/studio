@@ -80,6 +80,14 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
     return words.slice(0, 3).map(w => w.substring(0, 2).toUpperCase()).join('');
   };
 
+  // Helper to shorten worker name to first 2 words for print
+  const shortenWorkerName = (fullName: string): string => {
+    const words = fullName.trim().split(/\s+/);
+    if (words.length <= 2) return fullName;
+    // Return first two words only
+    return `${words[0]} ${words[1]}`;
+  };
+
   return (
     <div>
       <div className="mb-4 flex justify-between items-center print:hidden">
@@ -139,7 +147,7 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
               display: inline !important;
             }
             .grouped-table {
-              font-size: 7px !important;
+              font-size: 6px !important;
             }
             .grouped-table th,
             .grouped-table td {
@@ -147,7 +155,7 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
               white-space: nowrap;
             }
             .grouped-table th {
-              font-size: 6px !important;
+              font-size: 5px !important;
             }
             .glossary-section {
               font-size: 6px !important;
@@ -225,7 +233,10 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
                   <TableBody>
                     {report.groupedData.employees.map((employee) => (
                       <TableRow key={employee.employeeId}>
-                        <TableCell className="font-medium px-1">{employee.employeeName}</TableCell>
+                        <TableCell className="font-medium px-1" title={employee.employeeName}>
+                          <span className="screen-only">{employee.employeeName}</span>
+                          <span className="print-only">{shortenWorkerName(employee.employeeName)}</span>
+                        </TableCell>
                         <TableCell className="text-right px-1">{employee.totalHours.toFixed(2)}</TableCell>
                         {/* Render task data in the same order as header */}
                         {employee.taskBreakdown.map((task, idx) => (
