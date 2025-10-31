@@ -26,6 +26,13 @@ export type DailyBreakdown = {
         cost: number;
         clientRate: number;
         clientRateType: "hourly" | "piece";
+        employees?: Array<{
+          employeeName: string;
+          employeeId: string;
+          quantity: number;
+          rate: number;
+          cost: number;
+        }>;
       };
     };
     total: number;

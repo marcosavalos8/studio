@@ -7,6 +7,8 @@ import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
 import { cn, toLocalMidnight, parseLocalDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Popover,
   PopoverContent,
@@ -48,6 +50,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [invoiceData, setInvoiceData] =
     React.useState<DetailedInvoiceData | null>(null);
+  const [includeDetailedReport, setIncludeDetailedReport] = React.useState(false);
 
   const handleGenerate = async () => {
     if (!firestore || !selectedClient || !date?.from || !date?.to) {
@@ -174,6 +177,9 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
       const dailyBreakdown: DetailedInvoiceData["dailyBreakdown"] = {};
 
       payrollResult.employeeSummaries.forEach((emp) => {
+        const employee = allEmployees.find((e) => e.id === emp.employeeId);
+        const employeeName = employee?.name || emp.employeeName;
+        
         emp.weeklySummaries.forEach((week) => {
           week.dailyBreakdown.forEach((day) => {
             if (!dailyBreakdown[day.date]) {
@@ -236,11 +242,24 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
                   cost: 0,
                   clientRate: effectiveClientRate,
                   clientRateType: originalTask.clientRateType,
+                  employees: [],
                 };
               }
               const taskDetail = dailyBreakdown[day.date].tasks[task.taskName];
               taskDetail.hours += task.hours;
               taskDetail.pieces += task.pieceworkCount;
+              
+              // Add employee breakdown
+              const employeeQuantity = originalTask.clientRateType === "hourly" ? task.hours : task.pieceworkCount;
+              const employeeCost = employeeQuantity * effectiveClientRate;
+              
+              taskDetail.employees!.push({
+                employeeName,
+                employeeId: emp.employeeId,
+                quantity: employeeQuantity,
+                rate: effectiveClientRate,
+                cost: employeeCost,
+              });
             });
           });
         });
@@ -383,6 +402,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
       <InvoiceReportDisplay
         report={invoiceData}
         onBack={() => setInvoiceData(null)}
+        includeDetailedReport={includeDetailedReport}
       />
     );
   }
@@ -461,6 +481,20 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Generate Invoice
         </Button>
+      </div>
+
+      <div className="flex items-center space-x-2 mt-4">
+        <Checkbox
+          id="detailed-report"
+          checked={includeDetailedReport}
+          onCheckedChange={(checked) => setIncludeDetailedReport(checked === true)}
+        />
+        <Label
+          htmlFor="detailed-report"
+          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+        >
+          Incluir reporte detallado
+        </Label>
       </div>
 
       {isGenerating && (

@@ -19,6 +19,7 @@ import {
 interface ReportDisplayProps {
   report: DetailedInvoiceData;
   onBack: () => void;
+  includeDetailedReport?: boolean;
 }
 
 const formatCurrency = (value: number | undefined | null): string => {
@@ -28,7 +29,7 @@ const formatCurrency = (value: number | undefined | null): string => {
   return `$${value.toFixed(2)}`;
 };
 
-export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
+export function InvoiceReportDisplay({ report, onBack, includeDetailedReport = false }: ReportDisplayProps) {
   const [showEmployeeDetails, setShowEmployeeDetails] = React.useState(false);
   const handlePrint = () => {
     window.print();
@@ -139,21 +140,41 @@ export function InvoiceReportDisplay({ report, onBack }: ReportDisplayProps) {
                 <TableBody>
                   {Object.values(report.dailyBreakdown[date].tasks).map(
                     (task) => (
-                      <TableRow key={task.taskName}>
-                        <TableCell>{task.taskName}</TableCell>
-                        <TableCell className="text-right">
-                          {task.clientRateType === "hourly"
-                            ? `${task.hours.toFixed(2)} hrs`
-                            : `${task.pieces.toFixed(2)} pieces`}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          ${task.clientRate.toFixed(2)} /{" "}
-                          {task.clientRateType === "hourly" ? "hr" : "piece"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          ${task.cost.toFixed(2)}
-                        </TableCell>
-                      </TableRow>
+                      <React.Fragment key={task.taskName}>
+                        <TableRow>
+                          <TableCell>{task.taskName}</TableCell>
+                          <TableCell className="text-right">
+                            {task.clientRateType === "hourly"
+                              ? `${task.hours.toFixed(2)} hrs`
+                              : `${task.pieces.toFixed(2)} pieces`}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            ${task.clientRate.toFixed(2)} /{" "}
+                            {task.clientRateType === "hourly" ? "hr" : "piece"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            ${task.cost.toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                        {includeDetailedReport && task.employees && task.employees.length > 0 && (
+                          <>
+                            <TableRow className="bg-gray-50">
+                              <TableCell className="pl-8 font-medium text-sm text-gray-700">Employee</TableCell>
+                              <TableCell className="text-right font-medium text-sm text-gray-700">Quantity</TableCell>
+                              <TableCell className="text-right font-medium text-sm text-gray-700">Rate</TableCell>
+                              <TableCell className="text-right font-medium text-sm text-gray-700">Cost</TableCell>
+                            </TableRow>
+                            {task.employees.map((employee, idx) => (
+                              <TableRow key={`${task.taskName}-${employee.employeeId}-${idx}`} className="bg-gray-50">
+                                <TableCell className="pl-12 text-sm">{employee.employeeName}</TableCell>
+                                <TableCell className="text-right text-sm">{employee.quantity.toFixed(2)}</TableCell>
+                                <TableCell className="text-right text-sm">${employee.rate.toFixed(2)}</TableCell>
+                                <TableCell className="text-right text-sm">${employee.cost.toFixed(2)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </>
+                        )}
+                      </React.Fragment>
                     )
                   )}
                 </TableBody>
