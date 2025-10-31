@@ -162,7 +162,7 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
                       <TableHead>Worker Name</TableHead>
                       <TableHead className="text-right">Hours</TableHead>
                       {/* Dynamic task columns - all employees have the same tasks now */}
-                      {report.groupedData.employees.length > 0 &&
+                      {report.groupedData.employees.length > 0 && report.groupedData.employees[0] &&
                         report.groupedData.employees[0].taskBreakdown.map((task, idx) => (
                           <React.Fragment key={idx}>
                             <TableHead className="text-right">{task.taskName}</TableHead>

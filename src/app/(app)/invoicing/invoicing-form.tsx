@@ -442,7 +442,9 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
             const totalPiecesPay = taskBreakdown.reduce((sum, task) => sum + task.piecePay, 0);
             
             // Calculate minimum pay required (total hours * minimum wage)
-            // Using Washington state minimum wage assumption
+            // Note: This is for display purposes only. The actual minimum wage adjustment
+            // is calculated by the payroll system and stored in employeeTopUp.
+            // Using a representative WA state minimum wage for display consistency.
             const minimumWage = 16.28; // WA state minimum wage 2024
             const minimumPayRequired = totalHours * minimumWage;
             
