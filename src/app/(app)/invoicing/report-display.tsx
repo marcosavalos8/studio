@@ -161,7 +161,9 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
                     <TableRow>
                       <TableHead>Worker Name</TableHead>
                       <TableHead className="text-right">Hours</TableHead>
-                      {/* Dynamic task columns - all employees have the same tasks now */}
+                      {/* Dynamic task columns - all employees have the same tasks now 
+                          Note: Task normalization happens during data generation (invoicing-form.tsx)
+                          All employees are given the same set of tasks with 0 values if not worked */}
                       {report.groupedData.employees.length > 0 && report.groupedData.employees[0] &&
                         report.groupedData.employees[0].taskBreakdown.map((task, idx) => (
                           <React.Fragment key={idx}>
