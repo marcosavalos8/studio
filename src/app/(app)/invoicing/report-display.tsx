@@ -111,22 +111,33 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
               border: none;
               box-shadow: none;
               margin: 0;
-              padding: 2rem;
+              padding: 1rem;
               color: #000;
             }
             .print\\:hidden {
               display: none;
             }
+            .grouped-table {
+              font-size: 9px !important;
+            }
+            .grouped-table th,
+            .grouped-table td {
+              padding: 2px 4px !important;
+              white-space: nowrap;
+            }
+            .grouped-table th {
+              font-size: 8px !important;
+            }
           }
           @page {
-            size: auto;
-            margin: 0.5in;
+            size: landscape;
+            margin: 0.3in;
           }
         `}</style>
-        <div className="flex justify-between items-start mb-12">
+        <div className={`flex justify-between items-start ${isGrouped ? 'mb-6' : 'mb-12'}`}>
           <div>
-            <h1 className="text-3xl font-bold text-primary">INVOICE</h1>
-            <div className="mt-4">
+            <h1 className={`font-bold text-primary ${isGrouped ? 'text-2xl' : 'text-3xl'}`}>INVOICE</h1>
+            <div className={isGrouped ? 'mt-2' : 'mt-4'}>
               <div className="font-semibold text-gray-700">TO:</div>
               <div className="font-bold">{report.client.name}</div>
               <div className="">{report.client.billingAddress}</div>
@@ -134,8 +145,8 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
             </div>
           </div>
           <div className="text-right">
-            <div className="text-xl font-semibold">FieldTack WA</div>
-            <div className="mt-4 text-sm text-gray-600">
+            <div className={`font-semibold ${isGrouped ? 'text-lg' : 'text-xl'}`}>FieldTack WA</div>
+            <div className={`text-sm text-gray-600 ${isGrouped ? 'mt-2' : 'mt-4'}`}>
               <p>
                 <strong>Invoice Date:</strong> {format(new Date(), "LLL dd, y")}
               </p>
@@ -156,53 +167,55 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
                 {formatDateRange()}
               </h2>
               <div className="overflow-x-auto">
-                <Table>
+                <Table className="grouped-table text-xs">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Worker Name</TableHead>
-                      <TableHead className="text-right">Hours</TableHead>
+                      <TableHead className="text-left text-xs px-2">Worker</TableHead>
+                      <TableHead className="text-right text-xs px-1">Hrs</TableHead>
                       {/* Dynamic task columns - all employees have the same tasks now 
                           Note: Task normalization happens during data generation (invoicing-form.tsx)
                           All employees are given the same set of tasks with 0 values if not worked */}
                       {report.groupedData.employees.length > 0 && report.groupedData.employees[0] &&
                         report.groupedData.employees[0].taskBreakdown.map((task, idx) => (
                           <React.Fragment key={idx}>
-                            <TableHead className="text-right">{task.taskName}</TableHead>
-                            <TableHead className="text-right">Rate</TableHead>
-                            <TableHead className="text-right">Pay</TableHead>
+                            <TableHead className="text-right text-xs px-1" title={task.taskName}>
+                              {task.taskName.length > 20 ? task.taskName.substring(0, 17) + '...' : task.taskName}
+                            </TableHead>
+                            <TableHead className="text-right text-xs px-1">Rate</TableHead>
+                            <TableHead className="text-right text-xs px-1">Pay</TableHead>
                           </React.Fragment>
                         ))}
-                      <TableHead className="text-right">Total Pieces Pay</TableHead>
-                      <TableHead className="text-right">MIN PAY REQ</TableHead>
-                      <TableHead className="text-right">Diff Owed</TableHead>
+                      <TableHead className="text-right text-xs px-1">Total Pay</TableHead>
+                      <TableHead className="text-right text-xs px-1">Min Req</TableHead>
+                      <TableHead className="text-right text-xs px-1">Diff</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {report.groupedData.employees.map((employee) => (
                       <TableRow key={employee.employeeId}>
-                        <TableCell className="font-medium">{employee.employeeName}</TableCell>
-                        <TableCell className="text-right">{employee.totalHours.toFixed(2)}</TableCell>
+                        <TableCell className="font-medium text-xs px-2">{employee.employeeName}</TableCell>
+                        <TableCell className="text-right text-xs px-1">{employee.totalHours.toFixed(2)}</TableCell>
                         {/* Render task data in the same order as header */}
                         {employee.taskBreakdown.map((task, idx) => (
                           <React.Fragment key={idx}>
-                            <TableCell className="text-right">
+                            <TableCell className="text-right text-xs px-1">
                               {task.pieces > 0 ? task.pieces.toFixed(2) : "0.00"}
                             </TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="text-right text-xs px-1">
                               {task.rate > 0 ? `$${task.rate.toFixed(2)}` : "$0.00"}
                             </TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="text-right text-xs px-1">
                               {task.piecePay > 0 ? `$${task.piecePay.toFixed(2)}` : "$0.00"}
                             </TableCell>
                           </React.Fragment>
                         ))}
-                        <TableCell className="text-right font-semibold">
+                        <TableCell className="text-right font-semibold text-xs px-1">
                           ${employee.totalPiecesPay.toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right text-xs px-1">
                           ${employee.minimumPayRequired.toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right text-xs px-1">
                           ${employee.differenceOwed.toFixed(2)}
                         </TableCell>
                       </TableRow>
