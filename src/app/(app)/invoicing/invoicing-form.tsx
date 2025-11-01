@@ -7,6 +7,7 @@ import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
 import { cn, toLocalMidnight, parseLocalDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Popover,
   PopoverContent,
@@ -48,6 +49,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [invoiceData, setInvoiceData] =
     React.useState<DetailedInvoiceData | null>(null);
+  const [includeGroupedReport, setIncludeGroupedReport] = React.useState(false);
 
   const handleGenerate = async () => {
     if (!firestore || !selectedClient || !date?.from || !date?.to) {
@@ -315,6 +317,24 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         let totalHours = 0;
         let totalPieces = 0;
 
+        // Calculate per-employee adjustments
+        const employeePaidRestBreaks = emp.weeklySummaries.reduce(
+          (acc, week) => acc + week.paidRestBreaks,
+          0
+        );
+        const employeeMinimumWageTopUp = emp.weeklySummaries.reduce(
+          (acc, week) => acc + week.minimumWageTopUp,
+          0
+        );
+
+        // Build task summary for this employee
+        const tasksSummaryMap = new Map<string, {
+          taskName: string;
+          hours: number;
+          pieces: number;
+          taskId?: string;
+        }>();
+
         emp.weeklySummaries.forEach((week) => {
           week.dailyBreakdown.forEach((day) => {
             const dayTasks = day.tasks.map((task) => ({
@@ -333,7 +353,63 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
               (sum, task) => sum + task.pieceworkCount,
               0
             );
+
+            // Aggregate tasks for summary
+            day.tasks.forEach((task) => {
+              const existing = tasksSummaryMap.get(task.taskName);
+              if (existing) {
+                existing.hours += task.hours;
+                existing.pieces += task.pieceworkCount;
+              } else {
+                tasksSummaryMap.set(task.taskName, {
+                  taskName: task.taskName,
+                  hours: task.hours,
+                  pieces: task.pieceworkCount,
+                  taskId: task.taskId,
+                });
+              }
+            });
           });
+        });
+
+        // Convert task summary to array with costs
+        const tasksSummary = Array.from(tasksSummaryMap.values()).map((taskSummary) => {
+          const originalTask = tasks.find((t) => t.id === taskSummary.taskId);
+          
+          if (!originalTask) {
+            console.warn("Task not found for summary:", taskSummary);
+            // Determine rate type based on which quantity is greater
+            // If both exist, prioritize the larger value as the primary work type
+            const quantity = taskSummary.hours >= taskSummary.pieces 
+              ? taskSummary.hours 
+              : taskSummary.pieces;
+            const rateType = taskSummary.hours >= taskSummary.pieces 
+              ? "hourly" as const
+              : "piece" as const;
+            return {
+              taskName: taskSummary.taskName,
+              quantity,
+              rate: 0,
+              rateType,
+              cost: 0,
+            };
+          }
+
+          const isHourly = originalTask.clientRateType === "hourly";
+          const quantity = isHourly ? taskSummary.hours : taskSummary.pieces;
+          let effectiveClientRate = originalTask.clientRate;
+          
+          if (!isHourly && (!effectiveClientRate || effectiveClientRate === 0)) {
+            effectiveClientRate = originalTask.piecePrice || 0;
+          }
+
+          return {
+            taskName: taskSummary.taskName,
+            quantity,
+            rate: effectiveClientRate,
+            rateType: originalTask.clientRateType,
+            cost: quantity * effectiveClientRate,
+          };
         });
 
         return {
@@ -341,11 +417,14 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           employeeId: emp.employeeId,
           totalHours,
           totalPieces,
+          paidRestBreaks: employeePaidRestBreaks,
+          minimumWageTopUp: employeeMinimumWageTopUp,
           dailyWork: dailyWork.sort(
             (a, b) =>
               parseLocalDate(a.date).getTime() -
               parseLocalDate(b.date).getTime()
           ),
+          tasksSummary,
         };
       });
 
@@ -383,6 +462,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
       <InvoiceReportDisplay
         report={invoiceData}
         onBack={() => setInvoiceData(null)}
+        isGrouped={includeGroupedReport}
       />
     );
   }
@@ -461,6 +541,20 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Generate Invoice
         </Button>
+      </div>
+
+      <div className="mt-4 flex items-center space-x-2">
+        <Checkbox
+          id="grouped-report"
+          checked={includeGroupedReport}
+          onCheckedChange={(checked) => setIncludeGroupedReport(checked === true)}
+        />
+        <label
+          htmlFor="grouped-report"
+          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+        >
+          Incluir reporte agrupado
+        </label>
       </div>
 
       {isGenerating && (

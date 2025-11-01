@@ -50,6 +50,8 @@ export type DetailedInvoiceData = {
     employeeId: string;
     totalHours: number;
     totalPieces: number;
+    paidRestBreaks: number;
+    minimumWageTopUp: number;
     dailyWork: Array<{
       date: string;
       tasks: Array<{
@@ -57,6 +59,13 @@ export type DetailedInvoiceData = {
         hours: number;
         pieces: number;
       }>;
+    }>;
+    tasksSummary: Array<{
+      taskName: string;
+      quantity: number;
+      rate: number;
+      rateType: "hourly" | "piece";
+      cost: number;
     }>;
   }>;
 };
