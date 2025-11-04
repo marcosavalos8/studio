@@ -15,7 +15,8 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table";
-
+import logo from "../../../components/images/logo.jpeg";
+import Image from "next/image";
 interface ReportDisplayProps {
   report: DetailedInvoiceData;
   onBack: () => void;
@@ -29,7 +30,11 @@ const formatCurrency = (value: number | undefined | null): string => {
   return `$${value.toFixed(2)}`;
 };
 
-export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: ReportDisplayProps) {
+export function InvoiceReportDisplay({
+  report,
+  onBack,
+  isGrouped = false,
+}: ReportDisplayProps) {
   const [showEmployeeDetails, setShowEmployeeDetails] = React.useState(false);
   const handlePrint = () => {
     window.print();
@@ -38,9 +43,33 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
   const sortedDates = Object.keys(report.dailyBreakdown).sort(
     (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime()
   );
-  
-  const hasEmployeeDetails = report.employeeDetails && report.employeeDetails.length > 0;
 
+  const hasEmployeeDetails =
+    report.employeeDetails && report.employeeDetails.length > 0;
+  const formatDateRange = () => {
+    if (sortedDates.length === 0) return "";
+    const firstDate = parseLocalDate(sortedDates[0]);
+    const lastDate = parseLocalDate(sortedDates[sortedDates.length - 1]);
+
+    if (sortedDates.length === 1) {
+      return format(firstDate, "EEEE, LLL dd, yyyy");
+    }
+
+    // Format as "Tuesday - Friday, Oct 21-24, 2025"
+    const startDay = format(firstDate, "EEEE");
+    const endDay = format(lastDate, "EEEE");
+    const startMonth = format(firstDate, "LLL");
+    const endMonth = format(lastDate, "LLL");
+    const startDayNum = format(firstDate, "dd");
+    const endDayNum = format(lastDate, "dd");
+    const year = format(lastDate, "yyyy");
+
+    if (startMonth === endMonth) {
+      return `${startDay} - ${endDay}, ${startMonth} ${startDayNum}-${endDayNum}, ${year}`;
+    } else {
+      return `${startDay}, ${startMonth} ${startDayNum} - ${endDay}, ${endMonth} ${endDayNum}, ${year}`;
+    }
+  };
   return (
     <div>
       <div className="mb-4 flex justify-between items-center print:hidden">
@@ -119,8 +148,18 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
               {report.client.email && <div>{report.client.email}</div>}
             </div>
           </div>
+          {/* Logo centrado */}
+          <div className="flex-1 flex justify-center items-center mx-8">
+            <Image
+              src={logo}
+              alt="JM AGRI Logo"
+              width={128}
+              height={128}
+              className="object-contain"
+            />
+          </div>
           <div className="text-right">
-            <div className="text-xl font-semibold">FieldTack WA</div>
+            <div className="font-bold">J&M AGRICULTURAL LABOR LLC</div>
             <div className="mt-4 text-sm text-gray-600">
               <p>
                 <strong>Invoice Date:</strong> {format(new Date(), "LLL dd, y")}
@@ -133,7 +172,9 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
             </div>
           </div>
         </div>
-
+        {/* <h2 className="font-semibold text-base border-b-2 border-gray-200 pb-1 mb-2">
+          {formatDateRange()}
+        </h2> */}
         {/* Conditional rendering based on isGrouped */}
         {!isGrouped ? (
           // Daily breakdown view (original)
@@ -196,30 +237,45 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
                   (sum, task) => sum + task.cost,
                   0
                 );
-                const employeeSubtotal = employeeLaborCost + employee.paidRestBreaks + employee.minimumWageTopUp;
+                const employeeSubtotal =
+                  employeeLaborCost +
+                  employee.paidRestBreaks +
+                  employee.minimumWageTopUp;
 
                 return (
                   <div key={employee.employeeId} className="mb-6">
                     <div className="bg-gray-50 p-3 rounded-md mb-2">
                       <div className="grid grid-cols-4 gap-4 text-sm">
                         <div>
-                          <span className="font-semibold">{employee.employeeName}</span>
+                          <span className="font-semibold">
+                            {employee.employeeName}
+                          </span>
                         </div>
                         <div className="text-right">
                           <span className="text-gray-600">Hours: </span>
-                          <span className="font-medium">{employee.totalHours.toFixed(2)}</span>
+                          <span className="font-medium">
+                            {employee.totalHours.toFixed(2)}
+                          </span>
                         </div>
                         <div className="text-right">
-                          <span className="text-gray-600">Paid Rest Breaks: </span>
-                          <span className="font-medium">{formatCurrency(employee.paidRestBreaks)}</span>
+                          <span className="text-gray-600">
+                            Paid Rest Breaks:{" "}
+                          </span>
+                          <span className="font-medium">
+                            {formatCurrency(employee.paidRestBreaks)}
+                          </span>
                         </div>
                         <div className="text-right">
-                          <span className="text-gray-600">Min. Wage Adj.: </span>
-                          <span className="font-medium">{formatCurrency(employee.minimumWageTopUp)}</span>
+                          <span className="text-gray-600">
+                            Min. Wage Adj.:{" "}
+                          </span>
+                          <span className="font-medium">
+                            {formatCurrency(employee.minimumWageTopUp)}
+                          </span>
                         </div>
                       </div>
                     </div>
-                    
+
                     <Table className="text-sm">
                       <TableHeader>
                         <TableRow>
@@ -231,36 +287,42 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
                       </TableHeader>
                       <TableBody>
                         {employee.tasksSummary.map((task, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell className="pl-8">{task.taskName}</TableCell>
-                          <TableCell className="text-right">
-                            {task.rateType === "hourly"
-                              ? `${task.quantity.toFixed(2)} hours`
-                              : `${task.quantity.toFixed(2)} pieces`}
+                          <TableRow key={idx}>
+                            <TableCell className="pl-8">
+                              {task.taskName}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {task.rateType === "hourly"
+                                ? `${task.quantity.toFixed(2)} hours`
+                                : `${task.quantity.toFixed(2)} pieces`}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              ${task.rate.toFixed(2)} /{" "}
+                              {task.rateType === "hourly" ? "hour" : "piece"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              ${task.cost.toFixed(2)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                      <TableFooter>
+                        <TableRow>
+                          <TableCell
+                            colSpan={3}
+                            className="text-right font-medium pl-8"
+                          >
+                            Total
                           </TableCell>
-                          <TableCell className="text-right">
-                            ${task.rate.toFixed(2)} / {task.rateType === "hourly" ? "hour" : "piece"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            ${task.cost.toFixed(2)}
+                          <TableCell className="text-right font-semibold">
+                            ${employeeSubtotal.toFixed(2)}
                           </TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                    <TableFooter>
-                      <TableRow>
-                        <TableCell colSpan={3} className="text-right font-medium pl-8">
-                          Total
-                        </TableCell>
-                        <TableCell className="text-right font-semibold">
-                          ${employeeSubtotal.toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                    </TableFooter>
-                  </Table>
-                </div>
-              );
-            })
+                      </TableFooter>
+                    </Table>
+                  </div>
+                );
+              })
             ) : (
               <div className="text-center text-gray-500 py-8">
                 No employee details available for this date range.
@@ -307,60 +369,70 @@ export function InvoiceReportDisplay({ report, onBack, isGrouped = false }: Repo
       </div>
 
       {/* Employee Details Section */}
-      {showEmployeeDetails && report.employeeDetails && report.employeeDetails.length > 0 && (
-        <div className="report-container bg-white text-black p-8 rounded-lg border shadow-sm mt-8">
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-primary mb-2">Employee Work Details</h1>
-            <p className="text-sm text-gray-600">
-              Period: {format(parseLocalDate(report.date.from), "LLL dd, y")} - {format(parseLocalDate(report.date.to), "LLL dd, y")}
-            </p>
-            <p className="text-sm text-gray-600">Client: {report.client.name}</p>
-          </div>
+      {showEmployeeDetails &&
+        report.employeeDetails &&
+        report.employeeDetails.length > 0 && (
+          <div className="report-container bg-white text-black p-8 rounded-lg border shadow-sm mt-8">
+            <div className="mb-8">
+              <h1 className="text-2xl font-bold text-primary mb-2">
+                Employee Work Details
+              </h1>
+              <p className="text-sm text-gray-600">
+                Period: {format(parseLocalDate(report.date.from), "LLL dd, y")}{" "}
+                - {format(parseLocalDate(report.date.to), "LLL dd, y")}
+              </p>
+              <p className="text-sm text-gray-600">
+                Client: {report.client.name}
+              </p>
+            </div>
 
-          {report.employeeDetails.map((employee) => (
-            <div key={employee.employeeId} className="mb-8 border-t pt-6">
-              <div className="mb-4">
-                <h2 className="text-xl font-semibold">{employee.employeeName}</h2>
-                <div className="text-sm text-gray-600 mt-1">
-                  Total Hours: {employee.totalHours.toFixed(2)} | Total Pieces: {employee.totalPieces}
+            {report.employeeDetails.map((employee) => (
+              <div key={employee.employeeId} className="mb-8 border-t pt-6">
+                <div className="mb-4">
+                  <h2 className="text-xl font-semibold">
+                    {employee.employeeName}
+                  </h2>
+                  <div className="text-sm text-gray-600 mt-1">
+                    Total Hours: {employee.totalHours.toFixed(2)} | Total
+                    Pieces: {employee.totalPieces}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {employee.dailyWork.map((day) => (
+                    <div key={day.date}>
+                      <h3 className="font-semibold text-md border-b border-gray-200 pb-1 mb-2">
+                        {format(parseLocalDate(day.date), "EEEE, LLL dd, yyyy")}
+                      </h3>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Task</TableHead>
+                            <TableHead className="text-right">Hours</TableHead>
+                            <TableHead className="text-right">Pieces</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {day.tasks.map((task, idx) => (
+                            <TableRow key={idx}>
+                              <TableCell>{task.taskName}</TableCell>
+                              <TableCell className="text-right">
+                                {task.hours > 0 ? task.hours.toFixed(2) : "-"}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {task.pieces > 0 ? task.pieces.toFixed(2) : "-"}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ))}
                 </div>
               </div>
-
-              <div className="space-y-4">
-                {employee.dailyWork.map((day) => (
-                  <div key={day.date}>
-                    <h3 className="font-semibold text-md border-b border-gray-200 pb-1 mb-2">
-                      {format(parseLocalDate(day.date), "EEEE, LLL dd, yyyy")}
-                    </h3>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Task</TableHead>
-                          <TableHead className="text-right">Hours</TableHead>
-                          <TableHead className="text-right">Pieces</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {day.tasks.map((task, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell>{task.taskName}</TableCell>
-                            <TableCell className="text-right">
-                              {task.hours > 0 ? task.hours.toFixed(2) : "-"}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {task.pieces > 0 ? task.pieces.toFixed(2) : "-"}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
     </div>
   );
 }
