@@ -1220,7 +1220,7 @@ function TimeTrackingPage() {
           );
           
           // Reset pieces completed after successful clock-in
-          if (success && piecesWorked) {
+          if (success) {
             setQrPiecesCompleted("");
           }
         } else if (scanMode === "clock-out") {
@@ -2546,7 +2546,8 @@ function TimeTrackingPage() {
                           setQrPiecesCompleted("");
                         } else {
                           const parsed = parseFloat(value);
-                          if (!isNaN(parsed)) {
+                          // Only accept valid non-negative numbers
+                          if (!isNaN(parsed) && parsed >= 0) {
                             setQrPiecesCompleted(parsed);
                           }
                         }
