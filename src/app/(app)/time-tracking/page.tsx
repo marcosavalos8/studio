@@ -741,8 +741,8 @@ function TimeTrackingPage() {
       customTimestamp?: Date,
       useSickHours?: boolean,
       piecesWorked?: number
-    ) => {
-      if (!firestore) return;
+    ): Promise<boolean> => {
+      if (!firestore) return false;
       const batch = writeBatch(firestore);
 
       const activeEntriesQuery = query(
@@ -765,7 +765,7 @@ function TimeTrackingPage() {
             title: "Already Clocked In",
             description: `${employee.name} is already clocked into this task. Please clock out first or select a different task.`,
           });
-          return;
+          return false;
         }
 
         // Check if we're switching from a piecework task to an hourly task
@@ -803,6 +803,7 @@ function TimeTrackingPage() {
           title: "Clock In Successful",
           description: addOfflineIndicator(description, isOnline),
         });
+        return true;
       } catch (serverError) {
         // When offline, Firestore operations are queued for sync
         // Only emit errors if we're online (actual permission/validation errors)
@@ -822,6 +823,7 @@ function TimeTrackingPage() {
             description: "Unable to complete clock-in. Please try again or check your data when back online.",
           });
         }
+        return false;
       }
     },
     [firestore, toast, playSound, allTasks, isOnline]
@@ -1179,7 +1181,9 @@ function TimeTrackingPage() {
             piecesCount > 0 ? piecesCount : undefined
           );
         } else if (scanMode === "clock-in") {
-          // Show toast and stop when offline to allow user to continue working
+          // When offline, show toast immediately to match Manual Entry behavior
+          // This provides instant feedback even though validation still occurs
+          // If validation fails, an error toast will also appear
           if (!isOnline) {
             toast({
               title: "Clock In Successful",
@@ -1196,14 +1200,18 @@ function TimeTrackingPage() {
           
           // For piecework tasks, include pieces completed
           const task = allTasks?.find((t) => t.id === selectedTask);
-          const piecesWorked = 
-            task?.clientRateType === "piece" && qrPiecesCompleted
-              ? typeof qrPiecesCompleted === "number"
-                ? qrPiecesCompleted
-                : parseFloat(String(qrPiecesCompleted))
-              : undefined;
+          let piecesWorked: number | undefined = undefined;
+          if (task?.clientRateType === "piece" && qrPiecesCompleted) {
+            const parsed = typeof qrPiecesCompleted === "number"
+              ? qrPiecesCompleted
+              : parseFloat(String(qrPiecesCompleted));
+            // Only set if it's a valid positive number
+            if (!isNaN(parsed) && parsed > 0) {
+              piecesWorked = parsed;
+            }
+          }
 
-          await clockInEmployee(
+          const success = await clockInEmployee(
             scannedEmployee,
             selectedTask,
             timestamp,
@@ -1212,11 +1220,11 @@ function TimeTrackingPage() {
           );
           
           // Reset pieces completed after successful clock-in
-          if (piecesWorked) {
+          if (success && piecesWorked) {
             setQrPiecesCompleted("");
           }
         } else if (scanMode === "clock-out") {
-          // Show toast and stop when offline to allow user to continue working
+          // When offline, show toast immediately to match Manual Entry behavior
           if (!isOnline) {
             toast({
               title: "Clock Out Successful",
@@ -2534,7 +2542,14 @@ function TimeTrackingPage() {
                       value={qrPiecesCompleted}
                       onChange={(e) => {
                         const value = e.target.value;
-                        setQrPiecesCompleted(value === "" ? "" : parseFloat(value));
+                        if (value === "") {
+                          setQrPiecesCompleted("");
+                        } else {
+                          const parsed = parseFloat(value);
+                          if (!isNaN(parsed)) {
+                            setQrPiecesCompleted(parsed);
+                          }
+                        }
                       }}
                     />
                     <p className="text-sm text-purple-700 dark:text-purple-300">
