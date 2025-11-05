@@ -1202,10 +1202,8 @@ function TimeTrackingPage() {
           const task = allTasks?.find((t) => t.id === selectedTask);
           let piecesWorked: number | undefined = undefined;
           if (task?.clientRateType === "piece" && qrPiecesCompleted) {
-            const parsed = typeof qrPiecesCompleted === "number"
-              ? qrPiecesCompleted
-              : parseFloat(String(qrPiecesCompleted));
-            // Only set if it's a valid positive number
+            const parsed = parseFloat(String(qrPiecesCompleted));
+            // Only set if it's a valid positive number (zero is accepted in input but not processed)
             if (!isNaN(parsed) && parsed > 0) {
               piecesWorked = parsed;
             }
@@ -2546,7 +2544,7 @@ function TimeTrackingPage() {
                           setQrPiecesCompleted("");
                         } else {
                           const parsed = parseFloat(value);
-                          // Only accept valid non-negative numbers
+                          // Accept valid non-negative numbers (zero allowed in UI, filtered during processing)
                           if (!isNaN(parsed) && parsed >= 0) {
                             setQrPiecesCompleted(parsed);
                           }
