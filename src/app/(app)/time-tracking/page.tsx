@@ -242,6 +242,9 @@ function TimeTrackingPage() {
     Date | undefined
   >(undefined);
 
+  // QR Scanner piecework state - for entering pieces completed when clocking in to piecework task
+  const [qrPiecesCompleted, setQrPiecesCompleted] = useState<number | string>("");
+
   // Past records state - for creating both clock-in and clock-out at once
   const [usePastRecords, setUsePastRecords] = useState(false);
   const [pastRecordClockInDate, setPastRecordClockInDate] = useState<
@@ -721,6 +724,7 @@ function TimeTrackingPage() {
   useEffect(() => {
     setScannedSharedEmployees([]);
     setUseSickHoursForPayment(false); // Reset sick hours checkbox when mode changes
+    setQrPiecesCompleted(""); // Reset pieces completed when mode or task changes
   }, [scanMode, isSharedPiece, selectedTask, pieceEntryMode]);
 
   // Reset manual employee selection when searching
@@ -735,7 +739,8 @@ function TimeTrackingPage() {
       employee: Employee,
       taskId: string,
       customTimestamp?: Date,
-      useSickHours?: boolean
+      useSickHours?: boolean,
+      piecesWorked?: number
     ) => {
       if (!firestore) return;
       const batch = writeBatch(firestore);
@@ -749,11 +754,25 @@ function TimeTrackingPage() {
       try {
         const activeEntriesSnap = await getDocs(activeEntriesQuery);
 
+        // Check if employee is already clocked into the same task
+        const alreadyInSameTask = activeEntriesSnap.docs.some(
+          (docSnap) => (docSnap.data() as TimeEntry).taskId === taskId
+        );
+
+        if (alreadyInSameTask) {
+          toast({
+            variant: "destructive",
+            title: "Already Clocked In",
+            description: `${employee.name} is already clocked into this task. Please clock out first or select a different task.`,
+          });
+          return;
+        }
+
         // Check if we're switching from a piecework task to an hourly task
         const newTask = allTasks?.find((t) => t.id === taskId);
         const isNewTaskHourly = newTask?.clientRateType === "hourly";
 
-        // Auto-close any active entries when switching tasks
+        // Auto-close any active entries when switching tasks (different task)
         activeEntriesSnap.forEach((docSnap) => {
           batch.update(docSnap.ref, { endTime: customTimestamp || new Date() });
         });
@@ -766,6 +785,7 @@ function TimeTrackingPage() {
           endTime: null,
           isBreak: false,
           useSickHoursForPayment: useSickHours || false,
+          ...(piecesWorked && piecesWorked > 0 ? { piecesWorked } : {}),
         };
         batch.set(newTimeEntryRef, newTimeEntry);
 
@@ -1159,14 +1179,54 @@ function TimeTrackingPage() {
             piecesCount > 0 ? piecesCount : undefined
           );
         } else if (scanMode === "clock-in") {
+          // Show toast and stop when offline to allow user to continue working
+          if (!isOnline) {
+            toast({
+              title: "Clock In Successful",
+              description: addOfflineIndicator(
+                `Clocked in ${scannedEmployee.name}.${
+                  useSickHoursForPayment ? " (Using sick hours for payment)" : ""
+                }`,
+                isOnline
+              ),
+            });
+          }
+
           const timestamp = useManualDateTime ? manualClockInDate : undefined;
+          
+          // For piecework tasks, include pieces completed
+          const task = allTasks?.find((t) => t.id === selectedTask);
+          const piecesWorked = 
+            task?.clientRateType === "piece" && qrPiecesCompleted
+              ? typeof qrPiecesCompleted === "number"
+                ? qrPiecesCompleted
+                : parseFloat(String(qrPiecesCompleted))
+              : undefined;
+
           await clockInEmployee(
             scannedEmployee,
             selectedTask,
             timestamp,
-            useSickHoursForPayment
+            useSickHoursForPayment,
+            piecesWorked
           );
+          
+          // Reset pieces completed after successful clock-in
+          if (piecesWorked) {
+            setQrPiecesCompleted("");
+          }
         } else if (scanMode === "clock-out") {
+          // Show toast and stop when offline to allow user to continue working
+          if (!isOnline) {
+            toast({
+              title: "Clock Out Successful",
+              description: addOfflineIndicator(
+                `Clocked out ${scannedEmployee.name}.`,
+                isOnline
+              ),
+            });
+          }
+
           const timestamp = useManualDateTime ? manualClockOutDate : undefined;
           await clockOutEmployee(scannedEmployee, selectedTask, timestamp);
         } else if (scanMode === "piece") {
@@ -2451,6 +2511,39 @@ function TimeTrackingPage() {
                   )}
                 </>
               )}
+
+              {/* Pieces Completed input for piecework tasks in clock-in mode */}
+              {!usePastRecords &&
+                scanMode === "clock-in" &&
+                selectedTask &&
+                allTasks?.find((t) => t.id === selectedTask)?.clientRateType ===
+                  "piece" && (
+                  <div className="p-4 border rounded-lg space-y-2 bg-purple-50 dark:bg-purple-950/20">
+                    <Label
+                      htmlFor="qr-pieces-completed"
+                      className="font-semibold text-purple-900 dark:text-purple-100"
+                    >
+                      Pieces Completed (Optional)
+                    </Label>
+                    <Input
+                      id="qr-pieces-completed"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="Enter number of pieces completed"
+                      value={qrPiecesCompleted}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setQrPiecesCompleted(value === "" ? "" : parseFloat(value));
+                      }}
+                    />
+                    <p className="text-sm text-purple-700 dark:text-purple-300">
+                      💡 Enter the number of pieces this employee completed for this
+                      task (e.g., bins harvested). This will be recorded when you
+                      scan their QR code to clock in.
+                    </p>
+                  </div>
+                )}
 
               <QrScanner onScanResult={handleScanResult} />
             </CardContent>
