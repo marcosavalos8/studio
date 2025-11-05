@@ -275,7 +275,7 @@ export function InvoiceReportDisplay({
                           </span>
                         </div>
                       </div>
-                      {employee.overtimePremium && employee.overtimePremium > 0 && (
+                      {employee.overtimePremium !== undefined && employee.overtimePremium > 0 && (
                         <div className="grid grid-cols-4 gap-4 text-sm mt-2 pt-2 border-t border-gray-200">
                           <div></div>
                           <div></div>
@@ -359,7 +359,7 @@ export function InvoiceReportDisplay({
               <span className="text-gray-600">Minimum Wage Adjustments</span>
               <span>${report.minimumWageTopUp.toFixed(2)}</span>
             </div>
-            {report.overtimePremium && report.overtimePremium > 0 && (
+            {report.overtimePremium !== undefined && report.overtimePremium > 0 && (
               <div className="flex justify-between border-b pb-2">
                 <span className="text-gray-600">Overtime Premium</span>
                 <span>${report.overtimePremium.toFixed(2)}</span>
