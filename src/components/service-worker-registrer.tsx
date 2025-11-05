@@ -34,7 +34,7 @@ export default function ServiceWorkerRegister() {
           });
 
           // Manejar actualizaciones
-          registration.addEventListener("updatefound", () => {
+          /*  registration.addEventListener("updatefound", () => {
             const newWorker = registration.installing;
             if (newWorker) {
               newWorker.addEventListener("statechange", () => {
@@ -61,13 +61,12 @@ export default function ServiceWorkerRegister() {
                 }
               });
             }
-          });
+          }); */
 
           // Verificar actualizaciones cada 5 minutos
           setInterval(() => {
             registration.update();
           }, 5 * 60 * 1000);
-
         } catch (error) {
           console.error("❌ SW registration failed:", error);
         }
