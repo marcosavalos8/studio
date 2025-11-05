@@ -10,7 +10,7 @@ export function calculateHoursWorked(
 export function calculateMinimumWageTopUp(
   totalEarnings: number,
   hoursWorked: number,
-  minimumWage: number = 16.28
+  minimumWage: number = 19.82
 ): number {
   const minimumDue = hoursWorked * minimumWage;
   return Math.max(0, minimumDue - totalEarnings);
