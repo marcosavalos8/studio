@@ -1181,9 +1181,10 @@ function TimeTrackingPage() {
             piecesCount > 0 ? piecesCount : undefined
           );
         } else if (scanMode === "clock-in") {
-          // When offline, show toast immediately to match Manual Entry behavior
-          // This provides instant feedback even though validation still occurs
-          // If validation fails, an error toast will also appear
+          // When offline, show toast immediately to match Manual Entry UX pattern
+          // This provides instant feedback and prevents UI from appearing frozen
+          // Note: Validation (same-task check) still occurs - if it fails, error toast will also appear
+          // This trade-off prioritizes responsive UX over avoiding potential dual toasts
           if (!isOnline) {
             toast({
               title: "Clock In Successful",
@@ -1202,8 +1203,9 @@ function TimeTrackingPage() {
           const task = allTasks?.find((t) => t.id === selectedTask);
           let piecesWorked: number | undefined = undefined;
           if (task?.clientRateType === "piece" && qrPiecesCompleted) {
-            const parsed = parseFloat(String(qrPiecesCompleted));
-            // Only set if it's a valid positive number (zero is accepted in input but not processed)
+            // qrPiecesCompleted is number | string, convert to number for validation
+            const parsed = Number(qrPiecesCompleted);
+            // Only set if it's a valid positive number (zero excluded)
             if (!isNaN(parsed) && parsed > 0) {
               piecesWorked = parsed;
             }
@@ -2544,7 +2546,7 @@ function TimeTrackingPage() {
                           setQrPiecesCompleted("");
                         } else {
                           const parsed = parseFloat(value);
-                          // Accept valid non-negative numbers (zero allowed in UI, filtered during processing)
+                          // Accept non-negative numbers in UI (zero accepted but filtered out during processing if > 0 check applies)
                           if (!isNaN(parsed) && parsed >= 0) {
                             setQrPiecesCompleted(parsed);
                           }
