@@ -16,6 +16,7 @@ import {
   startOfWeek,
 } from "date-fns";
 import { parseLocalDate, parseLocalDateOrDateTime } from "@/lib/utils";
+import { calculateOvertimePay } from "@/lib/calculations";
 import type {
   Client,
   Task,
@@ -439,13 +440,40 @@ export async function generatePayrollReport({
         
         // PASO 3: COMBINAR HOURLY Y PIECEWORK PARA EL TOTAL SEMANAL
         const weeklyTotalRawEarnings = weeklyHourlyEarnings + weeklyPieceworkEarnings;
-        const finalWeeklyPay = hourlyFinalPay + pieceworkFinalPay;
+        const finalWeeklyPayBeforeOvertime = hourlyFinalPay + pieceworkFinalPay;
         
         // Para reporte: mostrar solo los descansos y ajustes de piecework
         const totalRestBreaksPay = pieceworkRestBreaksPay;
         const totalMinimumWageTopUp = pieceworkMinimumWageTopUp;
 
-        // PASO 4: CALCULAR HORAS DE ENFERMEDAD (SICK HOURS)
+        // PASO 3.5: CALCULAR OVERTIME (HORAS EXTRAS)
+        // El overtime se calcula sobre la COMBINACIÓN de hourly + piecework
+        // usando el total de ganancias (incluyendo ajustes) y el total de horas
+        let overtimeHours = 0;
+        let overtimePremium = 0;
+        let regularRate = 0;
+
+        if (weeklyTotalHours > 40) {
+          // Calculate total earnings for overtime calculation
+          // This includes raw earnings + rest breaks + minimum wage adjustments
+          const totalEarningsForOvertimeCalc = weeklyTotalRawEarnings + totalRestBreaksPay + totalMinimumWageTopUp;
+          
+          // Use the overtime calculation function
+          const overtimeResult = calculateOvertimePay(
+            weeklyTotalHours,
+            totalEarningsForOvertimeCalc,
+            applicableMinWage
+          );
+          
+          overtimeHours = overtimeResult.overtimeHours;
+          overtimePremium = overtimeResult.overtimePremium;
+          regularRate = overtimeResult.regularRate;
+        }
+
+        // PASO 4: PAGO FINAL INCLUYENDO OVERTIME
+        const finalWeeklyPay = finalWeeklyPayBeforeOvertime + overtimePremium;
+
+        // PASO 5: CALCULAR HORAS DE ENFERMEDAD (SICK HOURS)
         // 1 hora de enfermedad por cada 40 horas trabajadas (total de hourly + piecework)
         const sickHoursAccrued = weeklyTotalHours / 40;
 
@@ -464,6 +492,11 @@ export async function generatePayrollReport({
             minimumWageTopUp: pieceworkMinimumWageTopUp,
             finalPay: pieceworkFinalPay,
           },
+          overtime: {
+            hours: overtimeHours,
+            premium: overtimePremium,
+            regularRate: regularRate,
+          },
           total: {
             hours: weeklyTotalHours,
             rawEarnings: weeklyTotalRawEarnings,
@@ -479,6 +512,9 @@ export async function generatePayrollReport({
           totalEarnings: parseFloat(weeklyTotalRawEarnings.toFixed(2)),
           minimumWageTopUp: parseFloat(totalMinimumWageTopUp.toFixed(2)),
           paidRestBreaks: parseFloat(totalRestBreaksPay.toFixed(2)),
+          overtimeHours: overtimeHours > 0 ? parseFloat(overtimeHours.toFixed(2)) : undefined,
+          overtimePremium: overtimePremium > 0 ? parseFloat(overtimePremium.toFixed(2)) : undefined,
+          regularRate: regularRate > 0 ? parseFloat(regularRate.toFixed(2)) : undefined,
           finalPay: parseFloat(finalWeeklyPay.toFixed(2)),
           dailyBreakdown: dailyBreakdownsForWeek,
           sickHoursAccrued: parseFloat(sickHoursAccrued.toFixed(2)),

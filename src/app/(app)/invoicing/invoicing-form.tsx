@@ -296,7 +296,18 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         );
       }, 0);
 
-      const subtotal = laborCost + totalTopUp + totalRestBreaks;
+      // Sum up overtime premium
+      const totalOvertimePremium = filteredSummaries.reduce((acc, emp) => {
+        return (
+          acc +
+          emp.weeklySummaries.reduce(
+            (weekAcc, week) => weekAcc + (week.overtimePremium || 0),
+            0
+          )
+        );
+      }, 0);
+
+      const subtotal = laborCost + totalTopUp + totalRestBreaks + totalOvertimePremium;
       const commission = clientData.commissionRate
         ? subtotal * (clientData.commissionRate / 100)
         : 0;
@@ -438,6 +449,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         laborCost,
         minimumWageTopUp: totalTopUp,
         paidRestBreaks: totalRestBreaks,
+        overtimePremium: totalOvertimePremium,
         subtotal,
         commission,
         total,

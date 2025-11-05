@@ -345,6 +345,12 @@ export function InvoiceReportDisplay({
               <span className="text-gray-600">Minimum Wage Adjustments</span>
               <span>${report.minimumWageTopUp.toFixed(2)}</span>
             </div>
+            {report.overtimePremium && report.overtimePremium > 0 && (
+              <div className="flex justify-between border-b pb-2">
+                <span className="text-gray-600">Overtime Premium</span>
+                <span>${report.overtimePremium.toFixed(2)}</span>
+              </div>
+            )}
             <div className="flex justify-between font-semibold pt-2">
               <span>Subtotal</span>
               <span>{formatCurrency(report.subtotal)}</span>

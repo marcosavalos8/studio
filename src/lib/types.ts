@@ -94,7 +94,10 @@ export type WeeklySummary = {
   totalEarnings: number; // Raw earnings from tasks
   minimumWageTopUp: number;
   paidRestBreaks: number;
-  finalPay: number; // totalEarnings + topUp + restBreaks
+  overtimeHours?: number; // Hours worked over 40 in the week
+  overtimePremium?: number; // Additional pay for overtime (0.5x regular rate)
+  regularRate?: number; // Calculated regular rate for the week
+  finalPay: number; // totalEarnings + topUp + restBreaks + overtimePremium
   dailyBreakdown: DailyBreakdown[];
   sickHoursAccrued?: number; // Sick hours earned this week
 };
@@ -125,6 +128,7 @@ export interface InvoiceData {
   laborCost: number;
   minimumWageTopUp: number;
   paidRestBreaks: number;
+  overtimePremium?: number; // Additional overtime pay
   subtotal: number;
   commission: number;
   total: number;
