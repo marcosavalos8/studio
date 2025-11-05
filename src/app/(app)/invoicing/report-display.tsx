@@ -240,7 +240,8 @@ export function InvoiceReportDisplay({
                 const employeeSubtotal =
                   employeeLaborCost +
                   employee.paidRestBreaks +
-                  employee.minimumWageTopUp;
+                  employee.minimumWageTopUp +
+                  (employee.overtimePremium || 0);
 
                 return (
                   <div key={employee.employeeId} className="mb-6">
@@ -259,7 +260,7 @@ export function InvoiceReportDisplay({
                         </div>
                         <div className="text-right">
                           <span className="text-gray-600">
-                            Paid Rest Breaks:{" "}
+                            Rest Breaks:{" "}
                           </span>
                           <span className="font-medium">
                             {formatCurrency(employee.paidRestBreaks)}
@@ -267,13 +268,26 @@ export function InvoiceReportDisplay({
                         </div>
                         <div className="text-right">
                           <span className="text-gray-600">
-                            Min. Wage Adj.:{" "}
+                            Min. Wage:{" "}
                           </span>
                           <span className="font-medium">
                             {formatCurrency(employee.minimumWageTopUp)}
                           </span>
                         </div>
                       </div>
+                      {employee.overtimePremium !== undefined && employee.overtimePremium > 0 && (
+                        <div className="grid grid-cols-4 gap-4 text-sm mt-2 pt-2 border-t border-gray-200">
+                          <div></div>
+                          <div></div>
+                          <div></div>
+                          <div className="text-right">
+                            <span className="text-gray-600">Overtime: </span>
+                            <span className="font-medium text-purple-600">
+                              {formatCurrency(employee.overtimePremium)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <Table className="text-sm">
@@ -345,6 +359,12 @@ export function InvoiceReportDisplay({
               <span className="text-gray-600">Minimum Wage Adjustments</span>
               <span>${report.minimumWageTopUp.toFixed(2)}</span>
             </div>
+            {report.overtimePremium !== undefined && report.overtimePremium > 0 && (
+              <div className="flex justify-between border-b pb-2">
+                <span className="text-gray-600">Overtime Premium</span>
+                <span>${report.overtimePremium.toFixed(2)}</span>
+              </div>
+            )}
             <div className="flex justify-between font-semibold pt-2">
               <span>Subtotal</span>
               <span>{formatCurrency(report.subtotal)}</span>

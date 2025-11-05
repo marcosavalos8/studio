@@ -296,7 +296,18 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         );
       }, 0);
 
-      const subtotal = laborCost + totalTopUp + totalRestBreaks;
+      // Sum up overtime premium
+      const totalOvertimePremium = filteredSummaries.reduce((acc, emp) => {
+        return (
+          acc +
+          emp.weeklySummaries.reduce(
+            (weekAcc, week) => weekAcc + (week.overtimePremium || 0),
+            0
+          )
+        );
+      }, 0);
+
+      const subtotal = laborCost + totalTopUp + totalRestBreaks + totalOvertimePremium;
       const commission = clientData.commissionRate
         ? subtotal * (clientData.commissionRate / 100)
         : 0;
@@ -324,6 +335,10 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         );
         const employeeMinimumWageTopUp = emp.weeklySummaries.reduce(
           (acc, week) => acc + week.minimumWageTopUp,
+          0
+        );
+        const employeeOvertimePremium = emp.weeklySummaries.reduce(
+          (acc, week) => acc + (week.overtimePremium || 0),
           0
         );
 
@@ -419,6 +434,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           totalPieces,
           paidRestBreaks: employeePaidRestBreaks,
           minimumWageTopUp: employeeMinimumWageTopUp,
+          overtimePremium: employeeOvertimePremium,
           dailyWork: dailyWork.sort(
             (a, b) =>
               parseLocalDate(a.date).getTime() -
@@ -438,6 +454,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         laborCost,
         minimumWageTopUp: totalTopUp,
         paidRestBreaks: totalRestBreaks,
+        overtimePremium: totalOvertimePremium,
         subtotal,
         commission,
         total,

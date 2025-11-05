@@ -181,6 +181,18 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                                                             <TableRow><TableCell>Raw Task Earnings</TableCell><TableCell className="text-right">${week.totalEarnings.toFixed(2)}</TableCell></TableRow>
                                                             <TableRow><TableCell>Minimum Wage Top-Up</TableCell><TableCell className="text-right text-amber-600">+ ${week.minimumWageTopUp.toFixed(2)}</TableCell></TableRow>
                                                             <TableRow><TableCell>Paid Rest Breaks (10min / 4hr)</TableCell><TableCell className="text-right text-blue-600">+ ${week.paidRestBreaks.toFixed(2)}</TableCell></TableRow>
+                                                            <TableRow className={week.overtimeHours && week.overtimeHours > 0 ? "bg-purple-50 dark:bg-purple-900/20" : ""}>
+                                                              <TableCell className={week.overtimeHours && week.overtimeHours > 0 ? "font-medium" : ""}>Overtime Hours (over 40/week)</TableCell>
+                                                              <TableCell className={`text-right ${week.overtimeHours && week.overtimeHours > 0 ? "text-purple-600 font-medium" : ""}`}>{week.overtimeHours?.toFixed(2) || '0.00'} hrs</TableCell>
+                                                            </TableRow>
+                                                            <TableRow className={week.overtimeHours && week.overtimeHours > 0 ? "bg-purple-50 dark:bg-purple-900/20" : ""}>
+                                                              <TableCell className={week.overtimeHours && week.overtimeHours > 0 ? "font-medium" : ""}>Regular Rate for OT Calculation</TableCell>
+                                                              <TableCell className={`text-right ${week.overtimeHours && week.overtimeHours > 0 ? "text-purple-600 font-medium" : ""}`}>${week.regularRate?.toFixed(2) || '0.00'}/hr</TableCell>
+                                                            </TableRow>
+                                                            <TableRow className={week.overtimeHours && week.overtimeHours > 0 ? "bg-purple-50 dark:bg-purple-900/20" : ""}>
+                                                              <TableCell className={week.overtimeHours && week.overtimeHours > 0 ? "font-medium" : ""}>Overtime Premium (0.5x rate)</TableCell>
+                                                              <TableCell className={`text-right ${week.overtimeHours && week.overtimeHours > 0 ? "text-purple-600 font-medium" : ""}`}>+ ${week.overtimePremium?.toFixed(2) || '0.00'}</TableCell>
+                                                            </TableRow>
                                                             {week.sickHoursAccrued !== undefined && week.sickHoursAccrued > 0 && (
                                                               <TableRow className="bg-green-50 dark:bg-green-900/20"><TableCell className="font-medium">Sick Hours Accrued (1hr / 40hrs)</TableCell><TableCell className="text-right text-green-600 font-medium">+ {week.sickHoursAccrued.toFixed(2)} hrs</TableCell></TableRow>
                                                             )}

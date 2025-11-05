@@ -42,6 +42,7 @@ export type DetailedInvoiceData = {
   laborCost: number;
   minimumWageTopUp: number;
   paidRestBreaks: number;
+  overtimePremium?: number;
   subtotal: number;
   commission: number;
   total: number;
@@ -52,6 +53,7 @@ export type DetailedInvoiceData = {
     totalPieces: number;
     paidRestBreaks: number;
     minimumWageTopUp: number;
+    overtimePremium?: number;
     dailyWork: Array<{
       date: string;
       tasks: Array<{
