@@ -454,8 +454,17 @@ export async function generatePayrollReport({
         let regularRate = 0;
 
         if (weeklyTotalHours > 40) {
-          // Calculate total earnings for overtime calculation
-          // This includes raw earnings + rest breaks + minimum wage adjustments
+          // IMPORTANT: Per WA state law and client requirements, overtime is calculated AFTER
+          // minimum wage adjustments are applied. This ensures that:
+          // 1. Workers receive at least minimum wage for all hours worked
+          // 2. Overtime premium is calculated based on the adjusted (higher) rate
+          // 
+          // Example: 50 hrs, $800 raw earnings:
+          //   - Raw rate: $800/50 = $16/hr (< $19.82 min wage)
+          //   - Adjusted earnings: 50 × $19.82 = $991
+          //   - Top-up: $991 - $800 = $191
+          //   - Regular rate for OT: $991/50 = $19.82/hr
+          //   - OT premium: ($19.82 × 0.5) × 10 = $99.10
           const totalEarningsForOvertimeCalc = weeklyTotalRawEarnings + totalRestBreaksPay + totalMinimumWageTopUp;
           
           // Use the overtime calculation function

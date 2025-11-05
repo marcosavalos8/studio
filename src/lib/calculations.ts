@@ -27,10 +27,26 @@ export function calculateBreakPay(
 
 /**
  * Calculate overtime hours and premium for a given week
+ * 
+ * IMPORTANT: According to WA state labor law, totalEarnings should include any
+ * minimum wage adjustments that have already been applied. This function
+ * calculates the regular rate from the adjusted earnings and ensures it meets
+ * the minimum wage floor.
+ * 
  * @param totalHours Total hours worked in the week
- * @param totalEarnings Total earnings from work (before overtime)
- * @param minimumWage Applicable minimum wage (default WA state minimum)
- * @returns Object containing overtime hours and overtime premium pay
+ * @param totalEarnings Total earnings including minimum wage adjustments (before overtime)
+ * @param minimumWage Applicable minimum wage (default WA state minimum of $19.82)
+ * @returns Object containing overtime hours, overtime premium pay, and regular rate used
+ * 
+ * @example
+ * // Scenario: 50 hours, $1200 earnings (above min wage)
+ * calculateOvertimePay(50, 1200, 19.82)
+ * // Returns: { overtimeHours: 10, overtimePremium: 120, regularRate: 24 }
+ * 
+ * @example
+ * // Scenario: 50 hours, $991 earnings (already adjusted to min wage)
+ * calculateOvertimePay(50, 991, 19.82)
+ * // Returns: { overtimeHours: 10, overtimePremium: 99.10, regularRate: 19.82 }
  */
 export function calculateOvertimePay(
   totalHours: number,
@@ -54,9 +70,11 @@ export function calculateOvertimePay(
   const overtimeHours = totalHours - 40;
 
   // Calculate regular rate (total earnings / total hours)
+  // Note: totalEarnings should already include minimum wage adjustments
   let regularRate = totalHours > 0 ? totalEarnings / totalHours : 0;
 
-  // If regular rate is below minimum wage, use minimum wage
+  // Safety check: If regular rate is somehow below minimum wage, use minimum wage
+  // This should rarely happen if minimum wage adjustments were properly applied earlier
   if (regularRate < minimumWage) {
     regularRate = minimumWage;
   }
