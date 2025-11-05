@@ -337,6 +337,10 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           (acc, week) => acc + week.minimumWageTopUp,
           0
         );
+        const employeeOvertimePremium = emp.weeklySummaries.reduce(
+          (acc, week) => acc + (week.overtimePremium || 0),
+          0
+        );
 
         // Build task summary for this employee
         const tasksSummaryMap = new Map<string, {
@@ -430,6 +434,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           totalPieces,
           paidRestBreaks: employeePaidRestBreaks,
           minimumWageTopUp: employeeMinimumWageTopUp,
+          overtimePremium: employeeOvertimePremium,
           dailyWork: dailyWork.sort(
             (a, b) =>
               parseLocalDate(a.date).getTime() -

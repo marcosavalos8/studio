@@ -53,6 +53,7 @@ export type DetailedInvoiceData = {
     totalPieces: number;
     paidRestBreaks: number;
     minimumWageTopUp: number;
+    overtimePremium?: number;
     dailyWork: Array<{
       date: string;
       tasks: Array<{
