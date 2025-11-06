@@ -1861,7 +1861,7 @@ function TimeTrackingPage() {
       return;
     }
 
-    const pieceCount = overrideQuantity !== undefined
+    const pieceCount = typeof overrideQuantity === "number"
       ? overrideQuantity
       : typeof manualPieceQuantity === "number"
         ? manualPieceQuantity
