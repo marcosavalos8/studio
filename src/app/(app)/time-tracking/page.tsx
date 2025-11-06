@@ -3440,7 +3440,7 @@ function TimeTrackingPage() {
           </Card>
         </TabsContent>
         <TabsContent value="piece-work">
-          {!allTasks || !activeTimeEntries ? (
+          {!allTasks || !activeTimeEntries || !activeEmployees || !clients ? (
             <Card>
               <CardContent className="py-8">
                 <div className="flex items-center justify-center">
