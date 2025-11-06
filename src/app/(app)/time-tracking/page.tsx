@@ -815,6 +815,38 @@ function TimeTrackingPage() {
     }
   }, [manualEmployeeSearch]);
 
+  // Clear piecework selections when no active tasks remain
+  useEffect(() => {
+    if (clientsWithActiveTasks.length === 0) {
+      // If there are no clients with active tasks, clear the selections
+      if (pieceWorkClient) {
+        setPieceWorkClient("");
+      }
+      if (pieceWorkTask) {
+        setPieceWorkTask("");
+      }
+    } else {
+      // If the previously selected client no longer has active tasks, clear it
+      const selectedClientStillActive = clientsWithActiveTasks.some(
+        (client) => client.id === pieceWorkClient
+      );
+      if (pieceWorkClient && !selectedClientStillActive) {
+        setPieceWorkClient("");
+        setPieceWorkTask("");
+      }
+      
+      // If the previously selected task is no longer active, clear it
+      if (pieceWorkTask) {
+        const taskStillActive = activePieceworkTasksByClient.some(
+          (task) => task.id === pieceWorkTask
+        );
+        if (!taskStillActive) {
+          setPieceWorkTask("");
+        }
+      }
+    }
+  }, [clientsWithActiveTasks, activePieceworkTasksByClient, pieceWorkClient, pieceWorkTask]);
+
   const clockInEmployee = useCallback(
     async (
       employee: Employee,
@@ -1910,7 +1942,8 @@ function TimeTrackingPage() {
     setIsManualSubmitting(true);
     
     try {
-      // Show toast and stop loading immediately when offline to allow user to continue working
+      // When offline, show success feedback immediately and reset UI to allow user to continue
+      // The Firestore write will be queued for sync when connection is restored
       if (!isOnline) {
         const employeeNames = scannedSharedEmployees
           .map((id) => activeEmployees?.find((e) => e.id === id)?.name || "Unknown")
@@ -1929,9 +1962,26 @@ function TimeTrackingPage() {
             isOnline
           ),
         });
+        
+        // Clear form immediately when offline to allow continued use
+        setScannedSharedEmployees([]);
+        setManualPieceQuantity("");
         setIsManualSubmitting(false);
+        
+        // Queue the Firestore write in the background
+        recordPieceworkWithQuantity(
+          scannedSharedEmployees,
+          pieceWorkSelectedTask.id,
+          pieceCount,
+          undefined
+        ).catch((error) => {
+          console.warn("Background piecework sync queued for later:", error);
+        });
+        
+        return;
       }
       
+      // Online flow: wait for the operation to complete
       const success = await recordPieceworkWithQuantity(
         scannedSharedEmployees,
         pieceWorkSelectedTask.id,
@@ -1944,10 +1994,7 @@ function TimeTrackingPage() {
         setManualPieceQuantity("");
       }
       
-      // Only update loading state if online (offline already set to false)
-      if (isOnline) {
-        setIsManualSubmitting(false);
-      }
+      setIsManualSubmitting(false);
     } catch (error) {
       console.error("Error in handlePieceWorkSubmit:", error);
       toast({
