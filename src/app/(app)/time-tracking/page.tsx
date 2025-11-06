@@ -551,6 +551,7 @@ function TimeTrackingPage() {
 
   // Filter active piecework tasks by client
   const filteredActivePieceworkTasks = useMemo(() => {
+    if (!activePieceworkTasks) return [];
     if (!pieceworkClientFilter) return activePieceworkTasks;
     return activePieceworkTasks.filter(
       (item) => item.task.clientId === pieceworkClientFilter
@@ -3471,7 +3472,7 @@ function TimeTrackingPage() {
               </div>
 
               {/* Active Tasks List */}
-              {filteredActivePieceworkTasks.length === 0 ? (
+              {!filteredActivePieceworkTasks || filteredActivePieceworkTasks.length === 0 ? (
                 <div className="p-6 border-2 border-dashed border-orange-300 rounded-lg bg-orange-50 dark:bg-orange-950/20">
                   <div className="flex flex-col items-center text-center space-y-4">
                     <div className="p-4 bg-orange-100 dark:bg-orange-900/30 rounded-full">
@@ -3538,7 +3539,7 @@ function TimeTrackingPage() {
                           <div className="flex items-center gap-1 text-sm">
                             <Users className="h-3 w-3 text-blue-600" />
                             <span className="text-muted-foreground">
-                              Active employees: {item.employees.map((e) => e.name).join(", ")}
+                              Active employees: {item.employees.filter(e => e).map((e) => e.name).join(", ") || "None"}
                             </span>
                           </div>
                           {isSelected && (
@@ -3787,13 +3788,13 @@ function TimeTrackingPage() {
                               }
                             />
                             {manualEmployeeSearch &&
-                              employeesActiveInPieceworkTask.filter((emp) =>
-                                emp.name.toLowerCase().includes(manualEmployeeSearch.toLowerCase())
+                              employeesActiveInPieceworkTask?.filter((emp) =>
+                                emp?.name?.toLowerCase().includes(manualEmployeeSearch.toLowerCase())
                               ).length > 0 && (
                                 <div className="border rounded-md max-h-48 overflow-y-auto">
                                   {employeesActiveInPieceworkTask
                                     .filter((emp) =>
-                                      emp.name.toLowerCase().includes(manualEmployeeSearch.toLowerCase())
+                                      emp?.name?.toLowerCase().includes(manualEmployeeSearch.toLowerCase())
                                     )
                                     .map((employee) => (
                                       <Button
@@ -3811,8 +3812,8 @@ function TimeTrackingPage() {
                                 </div>
                               )}
                             {manualEmployeeSearch &&
-                              employeesActiveInPieceworkTask.filter((emp) =>
-                                emp.name.toLowerCase().includes(manualEmployeeSearch.toLowerCase())
+                              employeesActiveInPieceworkTask?.filter((emp) =>
+                                emp?.name?.toLowerCase().includes(manualEmployeeSearch.toLowerCase())
                               ).length === 0 && (
                                 <p className="p-4 text-sm text-muted-foreground">
                                   No active employees found for this task.
