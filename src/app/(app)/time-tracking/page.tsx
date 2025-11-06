@@ -1145,13 +1145,26 @@ function TimeTrackingPage() {
         });
         return true;
       } catch (serverError) {
-        const permissionError = new FirestorePermissionError({
-          path: "piecework",
-          operation: "create",
-          requestResourceData: { taskId, quantity },
-        });
-        errorEmitter.emit("permission-error", permissionError);
-        return false;
+        // When offline, Firestore operations are queued for sync
+        // Only emit errors if we're online (actual permission/validation errors)
+        if (isOnline) {
+          const permissionError = new FirestorePermissionError({
+            path: "piecework",
+            operation: "create",
+            requestResourceData: { taskId, quantity },
+          });
+          errorEmitter.emit("permission-error", permissionError);
+          return false;
+        } else {
+          // When offline, show a user-friendly message instead of throwing
+          console.warn("Piecework registration failed offline:", serverError);
+          toast({
+            variant: "destructive",
+            title: "Piecework Registration Error",
+            description: "Unable to complete registration. Please try again or check your data when back online.",
+          });
+          return false;
+        }
       }
     },
     [firestore, toast, activeEmployees, playSound, isOnline, isSharedPiece]
@@ -1860,6 +1873,28 @@ function TimeTrackingPage() {
 
     setIsManualSubmitting(true);
     
+    // Show toast and stop loading immediately when offline to allow user to continue working
+    if (!isOnline) {
+      const employeeNames = scannedSharedEmployees
+        .map((id) => activeEmployees?.find((e) => e.id === id)?.name || "Unknown")
+        .join(", ");
+      
+      const pieceCountPerEmployee = isSharedPiece 
+        ? pieceCount / scannedSharedEmployees.length 
+        : pieceCount;
+      
+      toast({
+        title: "Piecework Recorded",
+        description: addOfflineIndicator(
+          `${pieceCount} piece(s) recorded for ${employeeNames}.${
+            isSharedPiece ? ` (${pieceCountPerEmployee.toFixed(2)} each)` : ""
+          }`,
+          isOnline
+        ),
+      });
+      setIsManualSubmitting(false);
+    }
+    
     const success = await recordPieceworkWithQuantity(
       scannedSharedEmployees,
       pieceWorkSelectedTask.id,
@@ -1872,7 +1907,10 @@ function TimeTrackingPage() {
       setManualPieceQuantity("");
     }
     
-    setIsManualSubmitting(false);
+    // Only update loading state if online (offline already set to false)
+    if (isOnline) {
+      setIsManualSubmitting(false);
+    }
   };
 
   const handleBulkClockOut = async () => {
