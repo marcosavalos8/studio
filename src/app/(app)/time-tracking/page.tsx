@@ -3454,8 +3454,8 @@ function TimeTrackingPage() {
               <div className="space-y-2">
                 <Label htmlFor="piecework-client-filter">Filter by Client</Label>
                 <Select
-                  value={pieceworkClientFilter}
-                  onValueChange={setPieceworkClientFilter}
+                  value={pieceworkClientFilter || ""}
+                  onValueChange={(value) => setPieceworkClientFilter(value)}
                 >
                   <SelectTrigger id="piecework-client-filter">
                     <SelectValue placeholder="All clients" />
@@ -3491,7 +3491,8 @@ function TimeTrackingPage() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {filteredActivePieceworkTasks.map((item) => {
+                  {filteredActivePieceworkTasks?.map((item) => {
+                    if (!item?.task) return null;
                     const isSelected = selectedPieceworkTaskId === item.task.id;
                     return (
                       <div
@@ -3539,7 +3540,7 @@ function TimeTrackingPage() {
                           <div className="flex items-center gap-1 text-sm">
                             <Users className="h-3 w-3 text-blue-600" />
                             <span className="text-muted-foreground">
-                              Active employees: {item.employees.filter(e => e).map((e) => e.name).join(", ") || "None"}
+                              Active employees: {(item.employees || []).filter(e => e).map((e) => e.name).join(", ") || "None"}
                             </span>
                           </div>
                           {isSelected && (
