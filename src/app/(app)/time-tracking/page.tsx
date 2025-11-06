@@ -3440,6 +3440,16 @@ function TimeTrackingPage() {
           </Card>
         </TabsContent>
         <TabsContent value="piece-work">
+          {!allTasks || !activeTimeEntries ? (
+            <Card>
+              <CardContent className="py-8">
+                <div className="flex items-center justify-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
           <Card className="mb-4">
             <CardHeader>
               <CardTitle className="text-lg md:text-xl">
