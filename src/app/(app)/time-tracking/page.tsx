@@ -3450,524 +3450,526 @@ function TimeTrackingPage() {
             </Card>
           ) : (
             <>
-          <Card className="mb-4">
-            <CardHeader>
-              <CardTitle className="text-lg md:text-xl">
-                Active Piecework Tasks
-              </CardTitle>
-              <CardDescription>
-                Select an active piecework task to record pieces. Only tasks with clocked-in employees are shown.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Client Filter */}
-              <div className="space-y-2">
-                <Label htmlFor="piecework-client-filter">Filter by Client</Label>
-                <Select
-                  value={pieceworkClientFilter || ""}
-                  onValueChange={(value) => setPieceworkClientFilter(value)}
-                >
-                  <SelectTrigger id="piecework-client-filter">
-                    <SelectValue placeholder="All clients" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">All clients</SelectItem>
-                    {clients?.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Active Tasks List */}
-              {!filteredActivePieceworkTasks || filteredActivePieceworkTasks.length === 0 ? (
-                <div className="p-6 border-2 border-dashed border-orange-300 rounded-lg bg-orange-50 dark:bg-orange-950/20">
-                  <div className="flex flex-col items-center text-center space-y-4">
-                    <div className="p-4 bg-orange-100 dark:bg-orange-900/30 rounded-full">
-                      <Package className="h-10 w-10 text-orange-600" />
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="font-semibold text-lg text-orange-900 dark:text-orange-100">
-                        No Active Piecework Tasks
-                      </h3>
-                      <p className="text-sm text-orange-700 dark:text-orange-300 max-w-md">
-                        There are no piecework tasks with active employees currently.
-                        Employees must be clocked into a piecework task for it to appear here.
-                      </p>
+              <Card className="mb-4">
+                <CardHeader>
+                  <CardTitle className="text-lg md:text-xl">
+                    Active Piecework Tasks
+                  </CardTitle>
+                  <CardDescription>
+                    Select an active piecework task to record pieces. Only tasks with clocked-in employees are shown.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                {/* Client Filter */}
+                <div className="space-y-2">
+                  <Label htmlFor="piecework-client-filter">Filter by Client</Label>
+                  <Select
+                    value={pieceworkClientFilter || ""}
+                    onValueChange={(value) => setPieceworkClientFilter(value)}
+                  >
+                    <SelectTrigger id="piecework-client-filter">
+                      <SelectValue placeholder="All clients" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">All clients</SelectItem>
+                      {clients?.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+  
+                {/* Active Tasks List */}
+                {!filteredActivePieceworkTasks || filteredActivePieceworkTasks.length === 0 ? (
+                  <div className="p-6 border-2 border-dashed border-orange-300 rounded-lg bg-orange-50 dark:bg-orange-950/20">
+                    <div className="flex flex-col items-center text-center space-y-4">
+                      <div className="p-4 bg-orange-100 dark:bg-orange-900/30 rounded-full">
+                        <Package className="h-10 w-10 text-orange-600" />
+                      </div>
+                      <div className="space-y-2">
+                        <h3 className="font-semibold text-lg text-orange-900 dark:text-orange-100">
+                          No Active Piecework Tasks
+                        </h3>
+                        <p className="text-sm text-orange-700 dark:text-orange-300 max-w-md">
+                          There are no piecework tasks with active employees currently.
+                          Employees must be clocked into a piecework task for it to appear here.
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {filteredActivePieceworkTasks?.map((item) => {
-                    if (!item?.task) return null;
-                    const isSelected = selectedPieceworkTaskId === item.task.id;
-                    return (
-                      <div
-                        key={item.task.id}
-                        className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                          isSelected
-                            ? "border-green-500 bg-green-50 dark:bg-green-950/30"
-                            : "border-border hover:bg-accent/50"
-                        }`}
-                        onClick={() => setSelectedPieceworkTaskId(item.task.id)}
-                      >
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Package className="h-4 w-4 text-muted-foreground" />
-                            <p className="font-semibold text-base">
-                              {item.task.name}
-                              {item.task.variety && ` (${item.task.variety})`}
-                            </p>
-                            {item.task.piecePrice && (
-                              <span className="ml-auto text-sm font-medium text-green-600 dark:text-green-400">
-                                ${item.task.piecePrice.toFixed(2)}/piece
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <span className="font-medium">Client:</span>
-                              <span>
-                                {clients?.find((c) => c.id === item.task.clientId)?.name || "Unknown"}
-                              </span>
-                            </div>
-                            {item.task.ranch && (
-                              <div className="flex items-center gap-1">
-                                <span className="font-medium">Ranch:</span>
-                                <span>{item.task.ranch}</span>
-                              </div>
-                            )}
-                            {item.task.block && (
-                              <div className="flex items-center gap-1">
-                                <span className="font-medium">Block:</span>
-                                <span>{item.task.block}</span>
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1 text-sm">
-                            <Users className="h-3 w-3 text-blue-600" />
-                            <span className="text-muted-foreground">
-                              Active employees: {(item.employees || []).filter(e => e).map((e) => e.name).join(", ") || "None"}
-                            </span>
-                          </div>
-                          {isSelected && (
-                            <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 mt-2">
-                              <CheckCircle className="h-4 w-4" />
-                              <span className="font-medium">Selected for piecework recording</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {selectedPieceworkTaskForTab && (
-            <>
-              {/* Piecework Entry Tabs */}
-              <Tabs defaultValue="qr-piecework">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="qr-piecework">
-                    <QrCode className="mr-2 h-4 w-4" />
-                    QR Code Scanner
-                  </TabsTrigger>
-                  <TabsTrigger value="manual-piecework">
-                    <ClipboardEdit className="mr-2 h-4 w-4" />
-                    Manual Log Entry
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="qr-piecework">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg md:text-xl">
-                        QR Code Scanner - Piecework
-                      </CardTitle>
-                      <CardDescription className="text-sm">
-                        Scan employee QR codes to record piecework for {selectedPieceworkTaskForTab.name}.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3 md:space-y-4">
-                      <div className="p-4 border rounded-lg space-y-4">
-                        <div className="flex items-center space-x-2">
-                          <Switch
-                            id="piece-qr-shared-piece-switch"
-                            checked={isSharedPiece}
-                            onCheckedChange={setIsSharedPiece}
-                          />
-                          <Label htmlFor="piece-qr-shared-piece-switch">
-                            Shared Piece (Multiple Workers)
-                          </Label>
-                        </div>
-                        <RadioGroup
-                          value={pieceEntryMode}
-                          onValueChange={(v: string) =>
-                            setPieceEntryMode(v as PieceEntryMode)
-                          }
-                          className="flex gap-4"
+                ) : (
+                  <div className="space-y-2">
+                    {filteredActivePieceworkTasks?.map((item) => {
+                      if (!item?.task) return null;
+                      const isSelected = selectedPieceworkTaskId === item.task.id;
+                      return (
+                        <div
+                          key={item.task.id}
+                          className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                            isSelected
+                              ? "border-green-500 bg-green-50 dark:bg-green-950/30"
+                              : "border-border hover:bg-accent/50"
+                          }`}
+                          onClick={() => setSelectedPieceworkTaskId(item.task.id)}
                         >
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="scan" id="piece-qr-scan" />
-                            <Label htmlFor="piece-qr-scan">Scan QR</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem
-                              value="manual"
-                              id="piece-qr-manual"
-                            />
-                            <Label htmlFor="piece-qr-manual">
-                              Manual Count
-                            </Label>
-                          </div>
-                        </RadioGroup>
-                      </div>
-
-                      {pieceEntryMode === "scan" ? (
-                        <QrScanner
-                          onScanResult={(data) =>
-                            handlePieceworkScanResult(data)
-                          }
-                        />
-                      ) : (
-                        <div className="p-4 border rounded-lg space-y-4">
-                          {!showManualCountScanner ? (
-                            <>
-                              <div className="space-y-2">
-                                <Label htmlFor="piece-qr-quantity">
-                                  Quantity (Pieces/Bins)
-                                </Label>
-                                <Input
-                                  id="piece-qr-quantity"
-                                  type="number"
-                                  step="0.01"
-                                  placeholder="Enter number of pieces"
-                                  value={manualPieceQuantity}
-                                  onChange={(e) => {
-                                    const value = e.target.value;
-                                    setManualPieceQuantity(
-                                      value === "" ? "" : parseFloat(value)
-                                    );
-                                  }}
-                                  min="0"
-                                />
-                              </div>
-                              <Button
-                                className="w-full"
-                                variant="outline"
-                                onClick={() => setShowManualCountScanner(true)}
-                              >
-                                <QrCode className="mr-2 h-4 w-4" />
-                                Scan Employee QR Code
-                              </Button>
-                            </>
-                          ) : (
-                            <div className="space-y-3">
-                              <div className="flex items-center justify-between">
-                                <Label>Scan Employee QR Code</Label>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setShowManualCountScanner(false)}
-                                >
-                                  Cancel
-                                </Button>
-                              </div>
-                              <QrScanner
-                                onScanResult={(data) =>
-                                  handleManualCountScanResult(data)
-                                }
-                              />
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Package className="h-4 w-4 text-muted-foreground" />
+                              <p className="font-semibold text-base">
+                                {item.task.name}
+                                {item.task.variety && ` (${item.task.variety})`}
+                              </p>
+                              {item.task.piecePrice && (
+                                <span className="ml-auto text-sm font-medium text-green-600 dark:text-green-400">
+                                  ${item.task.piecePrice.toFixed(2)}/piece
+                                </span>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      )}
-
-                      {scannedSharedEmployees.length > 0 && (
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Users />
-                                Scanned Employees (
-                                {scannedSharedEmployees.length})
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium">Client:</span>
+                                <span>
+                                  {clients?.find((c) => c.id === item.task.clientId)?.name || "Unknown"}
+                                </span>
                               </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setScannedSharedEmployees([])}
-                              >
-                                Clear List
-                              </Button>
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            <ul className="space-y-1">
-                              {scannedSharedEmployees.map((id) => {
-                                const name =
-                                  activeEmployees?.find((e) => e.id === id)
-                                    ?.name || id;
-                                return (
-                                  <li
-                                    key={id}
-                                    className="flex items-center gap-2 text-green-600"
-                                  >
-                                    <CheckCircle className="h-5 w-5" />
-                                    <p className="font-mono text-sm">{name}</p>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                            
-                            {pieceEntryMode === "manual" && (
-                              <Button
-                                className="w-full"
-                                onClick={handleManualPieceSubmit}
-                                disabled={
-                                  isManualSubmitting ||
-                                  scannedSharedEmployees.length === 0
-                                }
-                              >
-                                {isManualSubmitting && (
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                )}
-                                Submit Pieces
-                              </Button>
-                            )}
-                            
-                            {pieceEntryMode === "scan" && isSharedPiece && (
-                              <>
-                                <p className="text-muted-foreground text-sm">
-                                  Scan more employees or submit to record 1 piece distributed among the group.
-                                </p>
-                                <Button
-                                  className="w-full"
-                                  onClick={handleSubmitSharedPiece}
-                                  disabled={scannedSharedEmployees.length === 0}
-                                >
-                                  Submit Shared Piece
-                                </Button>
-                              </>
-                            )}
-                          </CardContent>
-                        </Card>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-                <TabsContent value="manual-piecework">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Manual Piecework Entry</CardTitle>
-                      <CardDescription>
-                        Manually log piecework for employees in {selectedPieceworkTaskForTab.name}.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="piece-manual-employee-search">
-                          Employee
-                        </Label>
-                        {manualSelectedEmployee ? (
-                          <div className="flex items-center gap-2 rounded-md border p-2 bg-muted">
-                            <User className="h-4 w-4" />
-                            <span>{manualSelectedEmployee.name}</span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="ml-auto"
-                              onClick={() => {
-                                setManualSelectedEmployee(null);
-                                setManualEmployeeSearch("");
-                              }}
-                            >
-                              Change
-                            </Button>
-                          </div>
-                        ) : (
-                          <>
-                            <Input
-                              id="piece-manual-employee-search"
-                              placeholder="Search for an employee active in this task..."
-                              value={manualEmployeeSearch}
-                              onChange={(e) =>
-                                setManualEmployeeSearch(e.target.value)
-                              }
-                            />
-                            {manualEmployeeSearch &&
-                              employeesActiveInPieceworkTask?.filter((emp) =>
-                                emp?.name?.toLowerCase().includes(manualEmployeeSearch.toLowerCase())
-                              ).length > 0 && (
-                                <div className="border rounded-md max-h-48 overflow-y-auto">
-                                  {employeesActiveInPieceworkTask
-                                    .filter((emp) =>
-                                      emp?.name?.toLowerCase().includes(manualEmployeeSearch.toLowerCase())
-                                    )
-                                    .map((employee) => (
-                                      <Button
-                                        key={employee.id}
-                                        variant="ghost"
-                                        className="w-full justify-start"
-                                        onClick={() => {
-                                          setManualSelectedEmployee(employee);
-                                          setManualEmployeeSearch(employee.name);
-                                        }}
-                                      >
-                                        {employee.name}
-                                      </Button>
-                                    ))}
+                              {item.task.ranch && (
+                                <div className="flex items-center gap-1">
+                                  <span className="font-medium">Ranch:</span>
+                                  <span>{item.task.ranch}</span>
                                 </div>
                               )}
-                            {manualEmployeeSearch &&
-                              employeesActiveInPieceworkTask?.filter((emp) =>
-                                emp?.name?.toLowerCase().includes(manualEmployeeSearch.toLowerCase())
-                              ).length === 0 && (
-                                <p className="p-4 text-sm text-muted-foreground">
-                                  No active employees found for this task.
-                                </p>
+                              {item.task.block && (
+                                <div className="flex items-center gap-1">
+                                  <span className="font-medium">Block:</span>
+                                  <span>{item.task.block}</span>
+                                </div>
                               )}
-                          </>
+                            </div>
+                            <div className="flex items-center gap-1 text-sm">
+                              <Users className="h-3 w-3 text-blue-600" />
+                              <span className="text-muted-foreground">
+                                Active employees: {(item.employees || []).filter(e => e).map((e) => e.name).join(", ") || "None"}
+                              </span>
+                            </div>
+                            {isSelected && (
+                              <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 mt-2">
+                                <CheckCircle className="h-4 w-4" />
+                                <span className="font-medium">Selected for piecework recording</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+  
+            {selectedPieceworkTaskForTab && (
+              <>
+                {/* Piecework Entry Tabs */}
+                <Tabs defaultValue="qr-piecework">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="qr-piecework">
+                      <QrCode className="mr-2 h-4 w-4" />
+                      QR Code Scanner
+                    </TabsTrigger>
+                    <TabsTrigger value="manual-piecework">
+                      <ClipboardEdit className="mr-2 h-4 w-4" />
+                      Manual Log Entry
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="qr-piecework">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg md:text-xl">
+                          QR Code Scanner - Piecework
+                        </CardTitle>
+                        <CardDescription className="text-sm">
+                          Scan employee QR codes to record piecework for {selectedPieceworkTaskForTab.name}.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-3 md:space-y-4">
+                        <div className="p-4 border rounded-lg space-y-4">
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              id="piece-qr-shared-piece-switch"
+                              checked={isSharedPiece}
+                              onCheckedChange={setIsSharedPiece}
+                            />
+                            <Label htmlFor="piece-qr-shared-piece-switch">
+                              Shared Piece (Multiple Workers)
+                            </Label>
+                          </div>
+                          <RadioGroup
+                            value={pieceEntryMode}
+                            onValueChange={(v: string) =>
+                              setPieceEntryMode(v as PieceEntryMode)
+                            }
+                            className="flex gap-4"
+                          >
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="scan" id="piece-qr-scan" />
+                              <Label htmlFor="piece-qr-scan">Scan QR</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem
+                                value="manual"
+                                id="piece-qr-manual"
+                              />
+                              <Label htmlFor="piece-qr-manual">
+                                Manual Count
+                              </Label>
+                            </div>
+                          </RadioGroup>
+                        </div>
+  
+                        {pieceEntryMode === "scan" ? (
+                          <QrScanner
+                            onScanResult={(data) =>
+                              handlePieceworkScanResult(data)
+                            }
+                          />
+                        ) : (
+                          <div className="p-4 border rounded-lg space-y-4">
+                            {!showManualCountScanner ? (
+                              <>
+                                <div className="space-y-2">
+                                  <Label htmlFor="piece-qr-quantity">
+                                    Quantity (Pieces/Bins)
+                                  </Label>
+                                  <Input
+                                    id="piece-qr-quantity"
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="Enter number of pieces"
+                                    value={manualPieceQuantity}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      setManualPieceQuantity(
+                                        value === "" ? "" : parseFloat(value)
+                                      );
+                                    }}
+                                    min="0"
+                                  />
+                                </div>
+                                <Button
+                                  className="w-full"
+                                  variant="outline"
+                                  onClick={() => setShowManualCountScanner(true)}
+                                >
+                                  <QrCode className="mr-2 h-4 w-4" />
+                                  Scan Employee QR Code
+                                </Button>
+                              </>
+                            ) : (
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <Label>Scan Employee QR Code</Label>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setShowManualCountScanner(false)}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                                <QrScanner
+                                  onScanResult={(data) =>
+                                    handleManualCountScanResult(data)
+                                  }
+                                />
+                              </div>
+                            )}
+                          </div>
                         )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="piece-manual-quantity">
-                          Quantity (Pieces/Bins)
-                        </Label>
-                        <Input
-                          id="piece-manual-quantity"
-                          type="number"
-                          step="0.01"
-                          placeholder="Enter number of pieces"
-                          value={manualPieceQuantity}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setManualPieceQuantity(
-                              value === "" ? "" : parseFloat(value)
-                            );
-                          }}
-                          min="0"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="piece-manual-notes">
-                          Notes (Optional)
-                        </Label>
-                        <Textarea
-                          id="piece-manual-notes"
-                          placeholder="Add any relevant notes (e.g., QC issues)"
-                          value={manualNotes}
-                          onChange={(e) => setManualNotes(e.target.value)}
-                        />
-                      </div>
-
-                      <Button
-                        className="w-full"
-                        onClick={async () => {
-                          if (
-                            !firestore ||
-                            !selectedPieceworkTaskForTab ||
-                            !manualSelectedEmployee
-                          ) {
-                            toast({
-                              variant: "destructive",
-                              title: "Missing Information",
-                              description: "Please complete all fields.",
-                            });
-                            return;
-                          }
-
-                          const pieceCount =
-                            typeof manualPieceQuantity === "number"
-                              ? manualPieceQuantity
-                              : parseFloat(String(manualPieceQuantity));
-                          if (isNaN(pieceCount) || pieceCount <= 0) {
-                            toast({
-                              variant: "destructive",
-                              title: "Invalid Quantity",
-                              description:
-                                "Please enter a valid number of pieces.",
-                            });
-                            return;
-                          }
-
-                          setIsManualSubmitting(true);
-
-                          try {
-                            // Create individual records for each piece with incremental timestamps
-                            const baseTimestamp = new Date();
-
-                            for (let i = 0; i < pieceCount; i++) {
-                              // Add a small time offset (1 second) between each piece to maintain order
-                              const pieceTimestamp = new Date(
-                                baseTimestamp.getTime() + i * 1000
+  
+                        {scannedSharedEmployees.length > 0 && (
+                          <Card>
+                            <CardHeader>
+                              <CardTitle className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Users />
+                                  Scanned Employees (
+                                  {scannedSharedEmployees.length})
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setScannedSharedEmployees([])}
+                                >
+                                  Clear List
+                                </Button>
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                              <ul className="space-y-1">
+                                {scannedSharedEmployees.map((id) => {
+                                  const name =
+                                    activeEmployees?.find((e) => e.id === id)
+                                      ?.name || id;
+                                  return (
+                                    <li
+                                      key={id}
+                                      className="flex items-center gap-2 text-green-600"
+                                    >
+                                      <CheckCircle className="h-5 w-5" />
+                                      <p className="font-mono text-sm">{name}</p>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                              
+                              {pieceEntryMode === "manual" && (
+                                <Button
+                                  className="w-full"
+                                  onClick={handleManualPieceSubmit}
+                                  disabled={
+                                    isManualSubmitting ||
+                                    scannedSharedEmployees.length === 0
+                                  }
+                                >
+                                  {isManualSubmitting && (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  )}
+                                  Submit Pieces
+                                </Button>
+                              )}
+                              
+                              {pieceEntryMode === "scan" && isSharedPiece && (
+                                <>
+                                  <p className="text-muted-foreground text-sm">
+                                    Scan more employees or submit to record 1 piece distributed among the group.
+                                  </p>
+                                  <Button
+                                    className="w-full"
+                                    onClick={handleSubmitSharedPiece}
+                                    disabled={scannedSharedEmployees.length === 0}
+                                  >
+                                    Submit Shared Piece
+                                  </Button>
+                                </>
+                              )}
+                            </CardContent>
+                          </Card>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                  <TabsContent value="manual-piecework">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Manual Piecework Entry</CardTitle>
+                        <CardDescription>
+                          Manually log piecework for employees in {selectedPieceworkTaskForTab.name}.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="piece-manual-employee-search">
+                            Employee
+                          </Label>
+                          {manualSelectedEmployee ? (
+                            <div className="flex items-center gap-2 rounded-md border p-2 bg-muted">
+                              <User className="h-4 w-4" />
+                              <span>{manualSelectedEmployee.name}</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="ml-auto"
+                                onClick={() => {
+                                  setManualSelectedEmployee(null);
+                                  setManualEmployeeSearch("");
+                                }}
+                              >
+                                Change
+                              </Button>
+                            </div>
+                          ) : (
+                            <>
+                              <Input
+                                id="piece-manual-employee-search"
+                                placeholder="Search for an employee active in this task..."
+                                value={manualEmployeeSearch}
+                                onChange={(e) =>
+                                  setManualEmployeeSearch(e.target.value)
+                                }
+                              />
+                              {manualEmployeeSearch &&
+                                employeesActiveInPieceworkTask?.filter((emp) =>
+                                  emp?.name?.toLowerCase().includes(manualEmployeeSearch.toLowerCase())
+                                ).length > 0 && (
+                                  <div className="border rounded-md max-h-48 overflow-y-auto">
+                                    {employeesActiveInPieceworkTask
+                                      .filter((emp) =>
+                                        emp?.name?.toLowerCase().includes(manualEmployeeSearch.toLowerCase())
+                                      )
+                                      .map((employee) => (
+                                        <Button
+                                          key={employee.id}
+                                          variant="ghost"
+                                          className="w-full justify-start"
+                                          onClick={() => {
+                                            setManualSelectedEmployee(employee);
+                                            setManualEmployeeSearch(employee.name);
+                                          }}
+                                        >
+                                          {employee.name}
+                                        </Button>
+                                      ))}
+                                  </div>
+                                )}
+                              {manualEmployeeSearch &&
+                                employeesActiveInPieceworkTask?.filter((emp) =>
+                                  emp?.name?.toLowerCase().includes(manualEmployeeSearch.toLowerCase())
+                                ).length === 0 && (
+                                  <p className="p-4 text-sm text-muted-foreground">
+                                    No active employees found for this task.
+                                  </p>
+                                )}
+                            </>
+                          )}
+                        </div>
+  
+                        <div className="space-y-2">
+                          <Label htmlFor="piece-manual-quantity">
+                            Quantity (Pieces/Bins)
+                          </Label>
+                          <Input
+                            id="piece-manual-quantity"
+                            type="number"
+                            step="0.01"
+                            placeholder="Enter number of pieces"
+                            value={manualPieceQuantity}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setManualPieceQuantity(
+                                value === "" ? "" : parseFloat(value)
                               );
-
-                              const newPiecework: Omit<Piecework, "id"> = {
-                                employeeId: manualSelectedEmployee.id,
-                                taskId: selectedPieceworkTaskForTab.id,
-                                timestamp: pieceTimestamp,
-                                pieceCount: 1, // Each record represents 1 piece
-                                pieceQrCode: "manual_entry",
-                                qcNote: manualNotes,
-                              };
-
-                              await addDoc(
-                                collection(firestore, "piecework"),
-                                newPiecework
+                            }}
+                            min="0"
+                          />
+                        </div>
+  
+                        <div className="space-y-2">
+                          <Label htmlFor="piece-manual-notes">
+                            Notes (Optional)
+                          </Label>
+                          <Textarea
+                            id="piece-manual-notes"
+                            placeholder="Add any relevant notes (e.g., QC issues)"
+                            value={manualNotes}
+                            onChange={(e) => setManualNotes(e.target.value)}
+                          />
+                        </div>
+  
+                        <Button
+                          className="w-full"
+                          onClick={async () => {
+                            if (
+                              !firestore ||
+                              !selectedPieceworkTaskForTab ||
+                              !manualSelectedEmployee
+                            ) {
+                              toast({
+                                variant: "destructive",
+                                title: "Missing Information",
+                                description: "Please complete all fields.",
+                              });
+                              return;
+                            }
+  
+                            const pieceCount =
+                              typeof manualPieceQuantity === "number"
+                                ? manualPieceQuantity
+                                : parseFloat(String(manualPieceQuantity));
+                            if (isNaN(pieceCount) || pieceCount <= 0) {
+                              toast({
+                                variant: "destructive",
+                                title: "Invalid Quantity",
+                                description:
+                                  "Please enter a valid number of pieces.",
+                              });
+                              return;
+                            }
+  
+                            setIsManualSubmitting(true);
+  
+                            try {
+                              // Create individual records for each piece with incremental timestamps
+                              const baseTimestamp = new Date();
+  
+                              for (let i = 0; i < pieceCount; i++) {
+                                // Add a small time offset (1 second) between each piece to maintain order
+                                const pieceTimestamp = new Date(
+                                  baseTimestamp.getTime() + i * 1000
+                                );
+  
+                                const newPiecework: Omit<Piecework, "id"> = {
+                                  employeeId: manualSelectedEmployee.id,
+                                  taskId: selectedPieceworkTaskForTab.id,
+                                  timestamp: pieceTimestamp,
+                                  pieceCount: 1, // Each record represents 1 piece
+                                  pieceQrCode: "manual_entry",
+                                  qcNote: manualNotes,
+                                };
+  
+                                await addDoc(
+                                  collection(firestore, "piecework"),
+                                  newPiecework
+                                );
+                              }
+  
+                              playSound("piece");
+                              
+                              toast({
+                                title: "Piecework Recorded",
+                                description: addOfflineIndicator(
+                                  `${pieceCount} piece(s) recorded for ${manualSelectedEmployee.name}.`,
+                                  isOnline
+                                ),
+                              });
+                              setManualSelectedEmployee(null);
+                              setManualEmployeeSearch("");
+                              setManualPieceQuantity("");
+                              setManualNotes("");
+                            } catch (serverError) {
+                              const permissionError =
+                                new FirestorePermissionError({
+                                  path: "piecework",
+                                  operation: "create",
+                                  requestResourceData: {
+                                    taskId: selectedPieceworkTaskForTab.id,
+                                  },
+                                });
+                              errorEmitter.emit(
+                                "permission-error",
+                                permissionError
                               );
                             }
-
-                            playSound("piece");
-                            
-                            toast({
-                              title: "Piecework Recorded",
-                              description: addOfflineIndicator(
-                                `${pieceCount} piece(s) recorded for ${manualSelectedEmployee.name}.`,
-                                isOnline
-                              ),
-                            });
-                            setManualSelectedEmployee(null);
-                            setManualEmployeeSearch("");
-                            setManualPieceQuantity("");
-                            setManualNotes("");
-                          } catch (serverError) {
-                            const permissionError =
-                              new FirestorePermissionError({
-                                path: "piecework",
-                                operation: "create",
-                                requestResourceData: {
-                                  taskId: selectedPieceworkTaskForTab.id,
-                                },
-                              });
-                            errorEmitter.emit(
-                              "permission-error",
-                              permissionError
-                            );
+                            setIsManualSubmitting(false);
+                          }}
+                          disabled={
+                            isManualSubmitting ||
+                            !manualSelectedEmployee ||
+                            !selectedPieceworkTaskForTab
                           }
-                          setIsManualSubmitting(false);
-                        }}
-                        disabled={
-                          isManualSubmitting ||
-                          !manualSelectedEmployee ||
-                          !selectedPieceworkTaskForTab
-                        }
-                      >
-                        {isManualSubmitting && (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        )}
-                        Submit Piecework
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-            </>
+                        >
+                          {isManualSubmitting && (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          )}
+                          Submit Piecework
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </Tabs>
+              </>
+            )}
+          </>
           )}
         </TabsContent>
         <TabsContent value="history">
