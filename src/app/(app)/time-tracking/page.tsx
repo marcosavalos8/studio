@@ -1643,8 +1643,8 @@ function TimeTrackingPage() {
             playSound("clock-in");
             return [...prev, scannedEmployee.id];
           });
-        } else {
-          // Single employee mode - auto-submit with 1 piece
+        } else if (pieceEntryMode === "scan") {
+          // Single employee mode + Scan Employees - auto-submit with 1 piece
           const employeeIds = [scannedEmployee.id];
           
           // Show toast immediately when offline
@@ -1669,6 +1669,14 @@ function TimeTrackingPage() {
           if (success) {
             playSound("piece");
           }
+        } else {
+          // Manual count mode - just add to list for manual submission
+          setScannedSharedEmployees([scannedEmployee.id]);
+          toast({
+            title: "Employee Scanned",
+            description: `${scannedEmployee.name} ready for piece entry.`,
+          });
+          playSound("clock-in");
         }
       } else {
         toast({
@@ -1689,6 +1697,7 @@ function TimeTrackingPage() {
       isOnline,
       recordPieceworkWithQuantity,
       addOfflineIndicator,
+      pieceEntryMode,
     ]
   );
 
