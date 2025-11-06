@@ -4048,29 +4048,20 @@ function TimeTrackingPage() {
                           setIsManualSubmitting(true);
 
                           try {
-                            // Create individual records for each piece with incremental timestamps
-                            const baseTimestamp = new Date();
+                            // Create a single piecework record with the total quantity
+                            const newPiecework: Omit<Piecework, "id"> = {
+                              employeeId: manualSelectedEmployee.id,
+                              taskId: pieceWorkSelectedTask.id,
+                              timestamp: new Date(),
+                              pieceCount: pieceCount, // Store the total quantity in one record
+                              pieceQrCode: "manual_entry",
+                              qcNote: manualNotes,
+                            };
 
-                            for (let i = 0; i < pieceCount; i++) {
-                              // Add a small time offset (1 second) between each piece to maintain order
-                              const pieceTimestamp = new Date(
-                                baseTimestamp.getTime() + i * 1000
-                              );
-
-                              const newPiecework: Omit<Piecework, "id"> = {
-                                employeeId: manualSelectedEmployee.id,
-                                taskId: pieceWorkSelectedTask.id,
-                                timestamp: pieceTimestamp,
-                                pieceCount: 1, // Each record represents 1 piece
-                                pieceQrCode: "manual_entry",
-                                qcNote: manualNotes,
-                              };
-
-                              await addDoc(
-                                collection(firestore, "piecework"),
-                                newPiecework
-                              );
-                            }
+                            await addDoc(
+                              collection(firestore, "piecework"),
+                              newPiecework
+                            );
 
                             playSound("piece");
                             
