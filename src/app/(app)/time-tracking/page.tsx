@@ -1851,7 +1851,7 @@ function TimeTrackingPage() {
   };
 
   // Handler for piece-work tab piece submission
-  const handlePieceWorkSubmit = async () => {
+  const handlePieceWorkSubmit = async (overrideQuantity?: number) => {
     if (!firestore || !pieceWorkSelectedTask || scannedSharedEmployees.length === 0) {
       toast({
         variant: "destructive",
@@ -1861,8 +1861,9 @@ function TimeTrackingPage() {
       return;
     }
 
-    const pieceCount =
-      typeof manualPieceQuantity === "number"
+    const pieceCount = overrideQuantity !== undefined
+      ? overrideQuantity
+      : typeof manualPieceQuantity === "number"
         ? manualPieceQuantity
         : parseFloat(String(manualPieceQuantity));
     
@@ -3835,31 +3836,18 @@ function TimeTrackingPage() {
                             </ul>
                             {isSharedPiece && pieceEntryMode === "scan" && (
                               <div className="mt-4">
-                                <div className="space-y-2">
-                                  <Label htmlFor="shared-piece-quantity">
-                                    Quantity (Pieces/Bins)
-                                  </Label>
-                                  <Input
-                                    id="shared-piece-quantity"
-                                    type="number"
-                                    step="0.01"
-                                    placeholder="Enter number of pieces"
-                                    value={manualPieceQuantity}
-                                    onChange={(e) => {
-                                      const value = e.target.value;
-                                      setManualPieceQuantity(
-                                        value === "" ? "" : parseFloat(value)
-                                      );
-                                    }}
-                                    min="0"
-                                  />
+                                <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md mb-3">
+                                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                                    <strong>Division:</strong> 1 piece will be divided equally among {scannedSharedEmployees.length} worker{scannedSharedEmployees.length !== 1 ? 's' : ''}.
+                                    Each will receive {(1 / scannedSharedEmployees.length).toFixed(4)} piece{(1 / scannedSharedEmployees.length) !== 1 ? 's' : ''}.
+                                  </p>
                                 </div>
                                 <Button
-                                  className="w-full mt-2"
-                                  onClick={handlePieceWorkSubmit}
+                                  className="w-full"
+                                  onClick={() => handlePieceWorkSubmit(1)}
                                   disabled={
                                     isManualSubmitting ||
-                                    !manualPieceQuantity
+                                    scannedSharedEmployees.length === 0
                                   }
                                 >
                                   {isManualSubmitting && (
