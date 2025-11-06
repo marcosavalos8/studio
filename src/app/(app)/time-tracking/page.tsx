@@ -3472,7 +3472,7 @@ function TimeTrackingPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">All clients</SelectItem>
-                      {clients?.map((client) => (
+                      {clients?.filter(client => client.id && client.id.trim() !== '').map((client) => (
                         <SelectItem key={client.id} value={client.id}>
                           {client.name}
                         </SelectItem>
@@ -3501,7 +3501,7 @@ function TimeTrackingPage() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {filteredActivePieceworkTasks?.map((item) => {
+                    {filteredActivePieceworkTasks?.filter(item => item?.task?.id).map((item) => {
                       if (!item?.task) return null;
                       const isSelected = selectedPieceworkTaskId === item.task.id;
                       return (
@@ -3805,7 +3805,7 @@ function TimeTrackingPage() {
                                   <div className="border rounded-md max-h-48 overflow-y-auto">
                                     {employeesActiveInPieceworkTask
                                       .filter((emp) =>
-                                        emp?.name?.toLowerCase().includes(manualEmployeeSearch.toLowerCase())
+                                        emp?.id && emp?.name?.toLowerCase().includes(manualEmployeeSearch.toLowerCase())
                                       )
                                       .map((employee) => (
                                         <Button
