@@ -1127,22 +1127,26 @@ function TimeTrackingPage() {
         }
 
         playSound("piece");
-        const employeeNames = employeeIds
-          .map(
-            (id) =>
-              activeEmployees?.find((e) => e.id === id)?.name || "Unknown"
-          )
-          .join(", ");
         
-        toast({
-          title: "Piecework Recorded",
-          description: addOfflineIndicator(
-            `${quantity} piece(s) recorded for ${employeeNames}.${
-              isSharedPiece ? ` (${pieceCountPerEmployee.toFixed(2)} each)` : ""
-            }`,
-            isOnline
-          ),
-        });
+        // Only show toast when online (offline toast is shown in the handler)
+        if (isOnline) {
+          const employeeNames = employeeIds
+            .map(
+              (id) =>
+                activeEmployees?.find((e) => e.id === id)?.name || "Unknown"
+            )
+            .join(", ");
+          
+          toast({
+            title: "Piecework Recorded",
+            description: addOfflineIndicator(
+              `${quantity} piece(s) recorded for ${employeeNames}.${
+                isSharedPiece ? ` (${pieceCountPerEmployee.toFixed(2)} each)` : ""
+              }`,
+              isOnline
+            ),
+          });
+        }
         return true;
       } catch (serverError) {
         // When offline, Firestore operations are queued for sync
@@ -1873,42 +1877,52 @@ function TimeTrackingPage() {
 
     setIsManualSubmitting(true);
     
-    // Show toast and stop loading immediately when offline to allow user to continue working
-    if (!isOnline) {
-      const employeeNames = scannedSharedEmployees
-        .map((id) => activeEmployees?.find((e) => e.id === id)?.name || "Unknown")
-        .join(", ");
+    try {
+      // Show toast and stop loading immediately when offline to allow user to continue working
+      if (!isOnline) {
+        const employeeNames = scannedSharedEmployees
+          .map((id) => activeEmployees?.find((e) => e.id === id)?.name || "Unknown")
+          .join(", ");
+        
+        const pieceCountPerEmployee = isSharedPiece 
+          ? pieceCount / scannedSharedEmployees.length 
+          : pieceCount;
+        
+        toast({
+          title: "Piecework Recorded",
+          description: addOfflineIndicator(
+            `${pieceCount} piece(s) recorded for ${employeeNames}.${
+              isSharedPiece ? ` (${pieceCountPerEmployee.toFixed(2)} each)` : ""
+            }`,
+            isOnline
+          ),
+        });
+        setIsManualSubmitting(false);
+      }
       
-      const pieceCountPerEmployee = isSharedPiece 
-        ? pieceCount / scannedSharedEmployees.length 
-        : pieceCount;
-      
-      toast({
-        title: "Piecework Recorded",
-        description: addOfflineIndicator(
-          `${pieceCount} piece(s) recorded for ${employeeNames}.${
-            isSharedPiece ? ` (${pieceCountPerEmployee.toFixed(2)} each)` : ""
-          }`,
-          isOnline
-        ),
-      });
-      setIsManualSubmitting(false);
-    }
-    
-    const success = await recordPieceworkWithQuantity(
-      scannedSharedEmployees,
-      pieceWorkSelectedTask.id,
-      pieceCount,
-      undefined
-    );
+      const success = await recordPieceworkWithQuantity(
+        scannedSharedEmployees,
+        pieceWorkSelectedTask.id,
+        pieceCount,
+        undefined
+      );
 
-    if (success) {
-      setScannedSharedEmployees([]);
-      setManualPieceQuantity("");
-    }
-    
-    // Only update loading state if online (offline already set to false)
-    if (isOnline) {
+      if (success) {
+        setScannedSharedEmployees([]);
+        setManualPieceQuantity("");
+      }
+      
+      // Only update loading state if online (offline already set to false)
+      if (isOnline) {
+        setIsManualSubmitting(false);
+      }
+    } catch (error) {
+      console.error("Error in handlePieceWorkSubmit:", error);
+      toast({
+        variant: "destructive",
+        title: "Submission Error",
+        description: "An unexpected error occurred. Please try again.",
+      });
       setIsManualSubmitting(false);
     }
   };
