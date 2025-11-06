@@ -1963,20 +1963,21 @@ function TimeTrackingPage() {
           ),
         });
         
-        // Clear form immediately when offline to allow continued use
-        setScannedSharedEmployees([]);
-        setManualPieceQuantity("");
-        setIsManualSubmitting(false);
-        
-        // Queue the Firestore write in the background
+        // Queue the Firestore write in the background before clearing state
+        const employeeIdsToRecord = [...scannedSharedEmployees];
         recordPieceworkWithQuantity(
-          scannedSharedEmployees,
+          employeeIdsToRecord,
           pieceWorkSelectedTask.id,
           pieceCount,
           undefined
         ).catch((error) => {
           console.warn("Background piecework sync queued for later:", error);
         });
+        
+        // Clear form immediately when offline to allow continued use
+        setScannedSharedEmployees([]);
+        setManualPieceQuantity("");
+        setIsManualSubmitting(false);
         
         return;
       }
