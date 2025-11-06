@@ -1644,12 +1644,31 @@ function TimeTrackingPage() {
             return [...prev, scannedEmployee.id];
           });
         } else {
-          setScannedSharedEmployees([scannedEmployee.id]);
-          toast({
-            title: "Employee Scanned",
-            description: `${scannedEmployee.name} ready.`,
-          });
-          playSound("clock-in");
+          // Single employee mode - auto-submit with 1 piece
+          const employeeIds = [scannedEmployee.id];
+          
+          // Show toast immediately when offline
+          if (!isOnline) {
+            toast({
+              title: "Piecework Recorded",
+              description: addOfflineIndicator(
+                `1 piece recorded for ${scannedEmployee.name}.`,
+                isOnline
+              ),
+            });
+          }
+          
+          // Record the piecework
+          const success = await recordPieceworkWithQuantity(
+            employeeIds,
+            pieceWorkSelectedTask.id,
+            1,
+            undefined
+          );
+          
+          if (success) {
+            playSound("piece");
+          }
         }
       } else {
         toast({
@@ -1667,6 +1686,9 @@ function TimeTrackingPage() {
       activeTimeEntries,
       recentScans,
       playSound,
+      isOnline,
+      recordPieceworkWithQuantity,
+      addOfflineIndicator,
     ]
   );
 
