@@ -574,6 +574,28 @@ function TimeTrackingPage() {
     return allTasks.find(t => t.id === pieceWorkTask) || null;
   }, [pieceWorkTask, allTasks]);
 
+  // Get clients with active piecework tasks and their task counts
+  const clientsWithActiveTasks = useMemo(() => {
+    if (!clients || !activeTimeEntries || !allTasks) return [];
+    
+    const activeTaskIds = new Set(activeTimeEntries.map(entry => entry.taskId));
+    
+    return clients
+      .map(client => {
+        const activeTasksCount = allTasks.filter(task =>
+          task.clientRateType === "piece" &&
+          activeTaskIds.has(task.id) &&
+          task.clientId === client.id
+        ).length;
+        
+        return {
+          ...client,
+          activeTasksCount
+        };
+      })
+      .filter(client => client.activeTasksCount > 0);
+  }, [clients, activeTimeEntries, allTasks]);
+
   const tasksForClient = useMemo(() => {
     if (!allTasks || !selectedClient) return [];
     return allTasks.filter((t) => t.clientId === selectedClient);
@@ -3454,63 +3476,104 @@ function TimeTrackingPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Client Selector */}
+              {/* Client List with Active Task Counts */}
               <div className="space-y-2">
-                <Label htmlFor="piecework-client">Client</Label>
-                <Select
-                  value={pieceWorkClient}
-                  onValueChange={(value) => {
-                    setPieceWorkClient(value === CLEAR_SELECTION_VALUE ? "" : value);
-                    setPieceWorkTask(""); // Reset task when client changes
-                  }}
-                >
-                  <SelectTrigger id="piecework-client">
-                    <SelectValue placeholder="Select a client" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {!pieceWorkClient && <SelectItem value={CLEAR_SELECTION_VALUE}>-- Select a client --</SelectItem>}
-                    {pieceWorkClient && <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>}
-                    {clients?.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.name}
-                      </SelectItem>
+                <Label>Clients with Active Tasks</Label>
+                {clientsWithActiveTasks.length === 0 ? (
+                  <div className="p-4 border-2 border-dashed border-yellow-300 rounded-lg bg-yellow-50 dark:bg-yellow-950/20">
+                    <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                      No clients with active piecework tasks. Employees must be clocked into a piecework task for it to appear here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {clientsWithActiveTasks.map((client) => (
+                      <Card
+                        key={client.id}
+                        className={`cursor-pointer transition-all hover:shadow-md ${
+                          pieceWorkClient === client.id
+                            ? 'border-2 border-blue-500 bg-blue-50 dark:bg-blue-950/30'
+                            : 'hover:border-gray-400'
+                        }`}
+                        onClick={() => {
+                          if (pieceWorkClient === client.id) {
+                            setPieceWorkClient("");
+                            setPieceWorkTask("");
+                          } else {
+                            setPieceWorkClient(client.id);
+                            setPieceWorkTask("");
+                          }
+                        }}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-semibold">{client.name}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {client.activeTasksCount} active task{client.activeTasksCount !== 1 ? 's' : ''}
+                              </p>
+                            </div>
+                            {pieceWorkClient === client.id && (
+                              <CheckCircle className="h-5 w-5 text-blue-600" />
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </div>
+                )}
               </div>
 
-              {/* Task Selector - only show if client selected */}
-              {pieceWorkClient && (
+              {/* Active Tasks as Cards - only show if client selected */}
+              {pieceWorkClient && activePieceworkTasksByClient.length > 0 && (
                 <div className="space-y-2">
-                  <Label htmlFor="piecework-task">Active Piecework Task</Label>
-                  {activePieceworkTasksByClient.length === 0 ? (
-                    <div className="p-4 border-2 border-dashed border-yellow-300 rounded-lg bg-yellow-50 dark:bg-yellow-950/20">
-                      <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                        No active piecework tasks found for this client. Employees must be clocked into a piecework task for it to appear here.
-                      </p>
-                    </div>
-                  ) : (
-                    <Select
-                      value={pieceWorkTask}
-                      onValueChange={(value) => {
-                        setPieceWorkTask(value === CLEAR_SELECTION_VALUE ? "" : value);
-                        setScannedSharedEmployees([]); // Reset scanned employees when task changes
-                      }}
-                    >
-                      <SelectTrigger id="piecework-task">
-                        <SelectValue placeholder="Select an active task" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {!pieceWorkTask && <SelectItem value={CLEAR_SELECTION_VALUE}>-- Select a task --</SelectItem>}
-                        {pieceWorkTask && <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>}
-                        {activePieceworkTasksByClient.map((task) => (
-                          <SelectItem key={task.id} value={task.id}>
-                            {task.name} {task.variety && `(${task.variety})`} - ${task.piecePrice?.toFixed(2)}/piece
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                  <Label>Select Active Task</Label>
+                  <div className="grid grid-cols-1 gap-3">
+                    {activePieceworkTasksByClient.map((task) => (
+                      <Card
+                        key={task.id}
+                        className={`cursor-pointer transition-all hover:shadow-md ${
+                          pieceWorkTask === task.id
+                            ? 'border-2 border-green-500 bg-green-50 dark:bg-green-950/30'
+                            : 'hover:border-gray-400'
+                        }`}
+                        onClick={() => {
+                          setPieceWorkTask(task.id);
+                          setScannedSharedEmployees([]);
+                        }}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <Package className="h-4 w-4 text-muted-foreground" />
+                                <p className="font-semibold">
+                                  {task.name}
+                                  {task.variety && ` (${task.variety})`}
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
+                                {task.ranch && (
+                                  <span>Ranch: {task.ranch}</span>
+                                )}
+                                {task.block && (
+                                  <span>Block: {task.block}</span>
+                                )}
+                                {task.piecePrice && (
+                                  <span className="font-medium text-green-600 dark:text-green-400">
+                                    ${task.piecePrice.toFixed(2)}/piece
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {pieceWorkTask === task.id && (
+                              <CheckCircle className="h-5 w-5 text-green-600 ml-2" />
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -3767,7 +3830,7 @@ function TimeTrackingPage() {
                     <CardHeader>
                       <CardTitle>Manual Piecework Entry</CardTitle>
                       <CardDescription>
-                        Manually log piecework for employees. Use QR scanner below to select employee.
+                        Manually log piecework for employees without QR code.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -3793,47 +3856,9 @@ function TimeTrackingPage() {
                           </div>
                         ) : (
                           <>
-                            <div className="space-y-2 mb-4">
-                              <Label>Scan Employee QR Code</Label>
-                              <QrScanner
-                                onScanResult={(data) => {
-                                  const scannedEmployee = activeEmployees?.find(
-                                    (e) => e.qrCode === data
-                                  );
-                                  if (scannedEmployee) {
-                                    // Validate employee is active in the selected task
-                                    const isEmployeeActiveInTask = activeTimeEntries?.some(
-                                      (entry) =>
-                                        entry.employeeId === scannedEmployee.id &&
-                                        entry.taskId === pieceWorkSelectedTask.id &&
-                                        entry.endTime === null
-                                    );
-
-                                    if (!isEmployeeActiveInTask) {
-                                      toast({
-                                        variant: "destructive",
-                                        title: "Employee Not Active",
-                                        description: `${scannedEmployee.name} is not clocked into this task.`,
-                                      });
-                                      return;
-                                    }
-
-                                    setManualSelectedEmployee(scannedEmployee);
-                                    setManualEmployeeSearch(scannedEmployee.name);
-                                    playSound("clock-in");
-                                  } else {
-                                    toast({
-                                      variant: "destructive",
-                                      title: "Invalid Scan",
-                                      description: "Not a valid employee QR code.",
-                                    });
-                                  }
-                                }}
-                              />
-                            </div>
                             <Input
                               id="piece-manual-employee-search"
-                              placeholder="Or search for an active employee..."
+                              placeholder="Search for an active employee..."
                               value={manualEmployeeSearch}
                               onChange={(e) =>
                                 setManualEmployeeSearch(e.target.value)
