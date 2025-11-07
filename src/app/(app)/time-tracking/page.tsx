@@ -1146,6 +1146,9 @@ function TimeTrackingPage() {
           ? quantity / employeeIds.length 
           : quantity;
 
+        // Use batch write to ensure all records are created atomically
+        const batch = writeBatch(firestore);
+        
         // Create piecework record for each employee
         for (const employeeId of employeeIds) {
           const newPiecework: Omit<Piecework, "id"> = {
@@ -1155,8 +1158,12 @@ function TimeTrackingPage() {
             pieceCount: pieceCountPerEmployee,
             pieceQrCode: "qr_scan_entry", // Mark as QR scanned entry
           };
-          await addDoc(collection(firestore, "piecework"), newPiecework);
+          const docRef = doc(collection(firestore, "piecework"));
+          batch.set(docRef, newPiecework);
         }
+        
+        // Commit all records at once
+        await batch.commit();
 
         playSound("piece");
         
@@ -3826,6 +3833,7 @@ function TimeTrackingPage() {
 
                       {pieceEntryMode === "scan" ? (
                         <QrScanner
+                          key="piecework-scan-mode"
                           onScanResult={(data) =>
                             handlePieceWorkTabScanResult(data)
                           }
@@ -3835,6 +3843,7 @@ function TimeTrackingPage() {
                           <div className="space-y-2">
                             <Label>Scan Employee QR Code</Label>
                             <QrScanner
+                              key="piecework-manual-mode"
                               onScanResult={(data) =>
                                 handlePieceWorkTabScanResult(data)
                               }
