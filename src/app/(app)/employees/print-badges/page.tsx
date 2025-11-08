@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { doc } from "firebase/firestore";
 import { useFirestore } from "@/firebase";
 import { useDocument } from "@/firebase/firestore/use-doc";
@@ -13,29 +13,14 @@ export default function PrintBadgesPage() {
   const idsParam = searchParams.get("ids");
   const employeeIds = idsParam ? idsParam.split(",") : [];
   const firestore = useFirestore();
-  const [allLoaded, setAllLoaded] = useState(false);
-  const [loadedCount, setLoadedCount] = useState(0);
+  const [loadedIds, setLoadedIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    // Check if all badges are loaded
-    if (loadedCount === employeeIds.length && employeeIds.length > 0) {
-      setAllLoaded(true);
-    }
-  }, [loadedCount, employeeIds.length]);
+  const handleBadgeLoaded = useCallback((employeeId: string) => {
+    setLoadedIds(prev => new Set(prev).add(employeeId));
+  }, []);
 
-  useEffect(() => {
-    // Auto-print when all badges are loaded
-    if (allLoaded) {
-      const timer = setTimeout(() => {
-        window.print();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [allLoaded]);
-
-  const handleBadgeLoaded = () => {
-    setLoadedCount(prev => prev + 1);
-  };
+  // Don't auto-trigger print - let user do it from browser's print preview
+  // This prevents issues with data not loading in time
 
   return (
     <>
@@ -187,19 +172,21 @@ export default function PrintBadgesPage() {
 
 interface BadgeCardProps {
   employeeId: string;
-  onLoaded: () => void;
+  onLoaded: (employeeId: string) => void;
 }
 
 function BadgeCard({ employeeId, onLoaded }: BadgeCardProps) {
   const firestore = useFirestore();
   const employeeRef = firestore ? doc(firestore, "employees", employeeId) : null;
   const { data: employee, loading } = useDocument<Employee>(employeeRef);
+  const [hasNotified, setHasNotified] = useState(false);
 
   useEffect(() => {
-    if (!loading) {
-      onLoaded();
+    if (!loading && !hasNotified) {
+      onLoaded(employeeId);
+      setHasNotified(true);
     }
-  }, [loading, onLoaded]);
+  }, [loading, employeeId, onLoaded, hasNotified]);
 
   if (loading) {
     return (
