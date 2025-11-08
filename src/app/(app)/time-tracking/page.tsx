@@ -306,6 +306,7 @@ function TimeTrackingPage() {
   const [historyEndDate, setHistoryEndDate] = useState<Date | undefined>(
     undefined
   );
+  const [historyNameFilter, setHistoryNameFilter] = useState<string>("");
 
   // Delete confirmation state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -492,6 +493,36 @@ function TimeTrackingPage() {
       return bTime.getTime() - aTime.getTime();
     });
   }, [allTimeEntries, allPiecework]);
+
+  // Filter merged records by employee name
+  const filteredMergedRecords = useMemo(() => {
+    if (!historyNameFilter.trim()) {
+      return mergedRecords;
+    }
+
+    const searchTerm = historyNameFilter.toLowerCase().trim();
+    
+    return mergedRecords.filter((record) => {
+      if (record.type === "time") {
+        const employee = activeEmployees?.find(
+          (e) => e.id === record.data.employeeId
+        );
+        return employee?.name.toLowerCase().includes(searchTerm);
+      } else {
+        // Piecework - handle multiple employees (comma-separated IDs)
+        const employeeIds = record.data.employeeId.split(",");
+        const employeeNames = employeeIds
+          .map(
+            (id) =>
+              activeEmployees?.find((e) => e.id === id || e.qrCode === id)?.name
+          )
+          .filter(Boolean);
+        return employeeNames.some((name) =>
+          name?.toLowerCase().includes(searchTerm)
+        );
+      }
+    });
+  }, [mergedRecords, historyNameFilter, activeEmployees]);
 
   // Query for active time entries (for history tab)
   const activeTimeEntriesQuery = useMemo(() => {
@@ -4250,13 +4281,27 @@ function TimeTrackingPage() {
                     />
                   </div>
                 </div>
-                {(historyStartDate || historyEndDate) && (
+                
+                {/* Name Filter */}
+                <div className="space-y-2 pt-2 border-t">
+                  <Label htmlFor="history-name-filter">Filter by Employee Name</Label>
+                  <Input
+                    id="history-name-filter"
+                    type="text"
+                    placeholder="Type employee name to filter..."
+                    value={historyNameFilter}
+                    onChange={(e) => setHistoryNameFilter(e.target.value)}
+                  />
+                </div>
+
+                {(historyStartDate || historyEndDate || historyNameFilter) && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => {
                       setHistoryStartDate(undefined);
                       setHistoryEndDate(undefined);
+                      setHistoryNameFilter("");
                     }}
                   >
                     Clear Filters
@@ -4270,18 +4315,18 @@ function TimeTrackingPage() {
                   <History className="h-5 w-5 text-blue-600" />
                   All Records (Clock-In/Clock-Out & Piecework)
                 </h3>
-                {!mergedRecords || mergedRecords.length === 0 ? (
+                {!filteredMergedRecords || filteredMergedRecords.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground border rounded-lg">
                     <p>No records found.</p>
-                    {(historyStartDate || historyEndDate) && (
+                    {(historyStartDate || historyEndDate || historyNameFilter) && (
                       <p className="text-sm mt-2">
-                        Try adjusting your date filter.
+                        Try adjusting your filters.
                       </p>
                     )}
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {mergedRecords.map((record) => {
+                    {filteredMergedRecords.map((record) => {
                       if (record.type === "time") {
                         const entry = record.data;
                         const employee = activeEmployees?.find(
