@@ -318,6 +318,7 @@ function TimeTrackingPage() {
   // Delete all confirmation state
   const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [deleteAllPassword, setDeleteAllPassword] = useState("");
 
   // Edit state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -2420,27 +2421,40 @@ function TimeTrackingPage() {
   const handleDeleteAllMovements = async () => {
     if (!firestore) return;
 
+    // Check if filters are applied
+    const hasFilters = historyStartDate || historyEndDate || historyNameFilter;
+    
+    // If no filters, require password
+    if (!hasFilters) {
+      if (deleteAllPassword !== "4321") {
+        toast({
+          variant: "destructive",
+          title: "Incorrect Password",
+          description: "You must enter the correct password to delete all unfiltered records.",
+        });
+        setIsDeletingAll(false);
+        return;
+      }
+    }
+
     setIsDeletingAll(true);
 
     try {
       const batch = writeBatch(firestore);
       let deleteCount = 0;
 
-      // Delete all time entries in the current filter
-      if (allTimeEntries && allTimeEntries.length > 0) {
-        allTimeEntries.forEach((entry) => {
-          const entryRef = doc(firestore, "time_entries", entry.id);
-          batch.delete(entryRef);
-          deleteCount++;
-        });
-      }
-
-      // Delete all piecework records in the current filter
-      if (allPiecework && allPiecework.length > 0) {
-        allPiecework.forEach((piece) => {
-          const pieceRef = doc(firestore, "piecework", piece.id);
-          batch.delete(pieceRef);
-          deleteCount++;
+      // Delete only the filtered/visible records
+      if (filteredMergedRecords && filteredMergedRecords.length > 0) {
+        filteredMergedRecords.forEach((record) => {
+          if (record.type === "time") {
+            const entryRef = doc(firestore, "time_entries", record.data.id);
+            batch.delete(entryRef);
+            deleteCount++;
+          } else {
+            const pieceRef = doc(firestore, "piecework", record.data.id);
+            batch.delete(pieceRef);
+            deleteCount++;
+          }
         });
       }
 
@@ -2448,17 +2462,21 @@ function TimeTrackingPage() {
         await batch.commit();
         
         toast({
-          title: "All Movements Deleted",
-          description: addOfflineIndicator(`Successfully deleted ${deleteCount} record(s).`, isOnline),
+          title: "Movements Deleted",
+          description: addOfflineIndicator(
+            `Successfully deleted ${deleteCount} record(s).${hasFilters ? " (Filtered records only)" : " (All records)"}`,
+            isOnline
+          ),
         });
       } else {
         toast({
           title: "No Records to Delete",
-          description: "There are no movements in the current filter.",
+          description: "There are no movements matching the current filter.",
         });
       }
 
       setDeleteAllConfirmOpen(false);
+      setDeleteAllPassword("");
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
         path: "time_entries, piecework",
@@ -4212,8 +4230,7 @@ function TimeTrackingPage() {
                     entries. Filter by date range and delete individual records.
                   </CardDescription>
                 </div>
-                {((allTimeEntries && allTimeEntries.length > 0) ||
-                  (allPiecework && allPiecework.length > 0)) && (
+                {filteredMergedRecords && filteredMergedRecords.length > 0 && (
                   <Button
                     variant="destructive"
                     size="sm"
@@ -4479,7 +4496,7 @@ function TimeTrackingPage() {
                                 return (
                                   <div className="text-sm">
                                     <p className="font-medium text-muted-foreground mb-1">
-                                      Pieces (Total: {totalPieces}):
+                                      Pieces (Total: {totalPieces.toFixed(2)}):
                                     </p>
                                     <ul className="list-none space-y-1 ml-4">
                                       {entry.piecesWorked &&
@@ -4488,7 +4505,7 @@ function TimeTrackingPage() {
                                             {clockOutTime
                                               ? format(clockOutTime, "p")
                                               : "In progress"}
-                                            : {entry.piecesWorked} piece(s)
+                                            : {typeof entry.piecesWorked === 'number' ? entry.piecesWorked.toFixed(2) : entry.piecesWorked} piece(s)
                                           </li>
                                         )}
                                       {relatedPiecework.map((piece) => {
@@ -4504,7 +4521,7 @@ function TimeTrackingPage() {
                                             className="text-muted-foreground"
                                           >
                                             {format(pieceTime, "p")}:{" "}
-                                            {piece.pieceCount} piece(s)
+                                            {typeof piece.pieceCount === 'number' ? piece.pieceCount.toFixed(2) : piece.pieceCount} piece(s)
                                             {piece.pieceQrCode &&
                                               piece.pieceQrCode !==
                                                 "manual_entry" &&
@@ -4720,7 +4737,7 @@ function TimeTrackingPage() {
                                 <div className="flex items-center gap-2">
                                   <CheckCircle className="h-3 w-3 text-green-600" />
                                   <p className="text-muted-foreground">
-                                    Quantity: {piece.pieceCount}
+                                    Quantity: {typeof piece.pieceCount === 'number' ? piece.pieceCount.toFixed(2) : piece.pieceCount}
                                   </p>
                                 </div>
                                 {piece.pieceQrCode &&
@@ -4829,31 +4846,70 @@ function TimeTrackingPage() {
       {/* Delete All Confirmation Dialog */}
       <AlertDialog
         open={deleteAllConfirmOpen}
-        onOpenChange={setDeleteAllConfirmOpen}
+        onOpenChange={(open) => {
+          setDeleteAllConfirmOpen(open);
+          if (!open) {
+            setDeleteAllPassword("");
+          }
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete All Movements?</AlertDialogTitle>
+            <AlertDialogTitle>Delete {filteredMergedRecords.length === (allTimeEntries?.length || 0) + (allPiecework?.length || 0) ? "All" : "Filtered"} Movements?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete{" "}
-              <strong>
-                {(allTimeEntries?.length || 0) + (allPiecework?.length || 0)}{" "}
-                record(s)
-              </strong>{" "}
-              ({allTimeEntries?.length || 0} time entries and{" "}
-              {allPiecework?.length || 0} piecework records) from the database.
-              These records will not appear in any reports.
-              {(historyStartDate || historyEndDate) && (
-                <span className="block mt-2 text-yellow-600 font-semibold">
-                  Note: Only records matching your current date filter will be
-                  deleted.
-                </span>
-              )}
+              {(() => {
+                const hasFilters = historyStartDate || historyEndDate || historyNameFilter;
+                const totalRecords = filteredMergedRecords.length;
+                const totalTimeEntries = filteredMergedRecords.filter(r => r.type === "time").length;
+                const totalPiecework = filteredMergedRecords.filter(r => r.type === "piecework").length;
+                
+                return (
+                  <>
+                    <p className="mb-2">
+                      This action cannot be undone. This will permanently delete{" "}
+                      <strong>
+                        {totalRecords} record(s)
+                      </strong>{" "}
+                      ({totalTimeEntries} time {totalTimeEntries === 1 ? "entry" : "entries"} and{" "}
+                      {totalPiecework} piecework record{totalPiecework === 1 ? "" : "s"}) from the database.
+                      These records will not appear in any reports.
+                    </p>
+                    {!hasFilters && (
+                      <p className="mt-2 text-red-600 font-semibold">
+                        ⚠️ WARNING: You are about to delete ALL records without any filters applied!
+                      </p>
+                    )}
+                    {hasFilters && (
+                      <p className="mt-2 text-blue-600 font-semibold">
+                        ℹ️ Note: Only records matching your current filters will be deleted.
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {!historyStartDate && !historyEndDate && !historyNameFilter && (
+            <div className="py-4">
+              <Label htmlFor="delete-password" className="text-sm font-medium">
+                Enter Password to Confirm (Required for deleting all records)
+              </Label>
+              <Input
+                id="delete-password"
+                type="password"
+                placeholder="Enter password"
+                value={deleteAllPassword}
+                onChange={(e) => setDeleteAllPassword(e.target.value)}
+                className="mt-2"
+              />
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel
-              onClick={() => setDeleteAllConfirmOpen(false)}
+              onClick={() => {
+                setDeleteAllConfirmOpen(false);
+                setDeleteAllPassword("");
+              }}
               disabled={isDeletingAll}
             >
               Cancel
