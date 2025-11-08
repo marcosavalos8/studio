@@ -27,6 +27,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { PlusCircle, Printer, QrCode, MoreHorizontal, Search } from "lucide-react";
 
 import type { Employee } from "@/lib/types";
@@ -58,6 +59,7 @@ export default function EmployeesPage() {
   const [isCalculating, setIsCalculating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFilter, setSearchFilter] = useState("");
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
 
   const employeesQuery = useMemo(() => {
     if (!firestore) return null;
@@ -183,6 +185,28 @@ export default function EmployeesPage() {
     setDeleteDialogOpen(true);
   };
 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedEmployeeIds(filteredEmployees.map(emp => emp.id));
+    } else {
+      setSelectedEmployeeIds([]);
+    }
+  };
+
+  const handleSelectEmployee = (employeeId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedEmployeeIds(prev => [...prev, employeeId]);
+    } else {
+      setSelectedEmployeeIds(prev => prev.filter(id => id !== employeeId));
+    }
+  };
+
+  const handlePrintBadges = () => {
+    if (selectedEmployeeIds.length === 0) return;
+    const idsParam = selectedEmployeeIds.join(",");
+    window.open(`/employees/print-badges?ids=${idsParam}`, "_blank");
+  };
+
   return (
     <>
       <Card>
@@ -193,15 +217,28 @@ export default function EmployeesPage() {
               Manage your supervisors and workers.
             </CardDescription>
           </div>
-          <Button
-            size="sm"
-            className="gap-1 w-full sm:w-auto"
-            onClick={() => setAddDialogOpen(true)}
-          >
-            <PlusCircle className="h-4 w-4" />
-            <span className="hidden sm:inline">Add Employee</span>
-            <span className="sm:hidden">Add</span>
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              className="gap-1"
+              onClick={() => setAddDialogOpen(true)}
+            >
+              <PlusCircle className="h-4 w-4" />
+              <span className="hidden sm:inline">Add Employee</span>
+              <span className="sm:hidden">Add</span>
+            </Button>
+            <Button
+              size="sm"
+              className="gap-1"
+              onClick={handlePrintBadges}
+              disabled={selectedEmployeeIds.length === 0}
+              variant="secondary"
+            >
+              <Printer className="h-4 w-4" />
+              <span className="hidden sm:inline">Print Badges</span>
+              <span className="sm:hidden">Print</span>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="overflow-x-auto space-y-4">
           {/* Search bar */}
@@ -244,6 +281,12 @@ export default function EmployeesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={selectedEmployeeIds.length === filteredEmployees.length && filteredEmployees.length > 0}
+                      onCheckedChange={handleSelectAll}
+                    />
+                  </TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
@@ -256,7 +299,7 @@ export default function EmployeesPage() {
               <TableBody>
                 {(isLoading || isCalculating) && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center">
+                    <TableCell colSpan={8} className="text-center">
                       {isLoading ? "Loading employees..." : "Calculating sick hours..."}
                     </TableCell>
                   </TableRow>
@@ -264,6 +307,14 @@ export default function EmployeesPage() {
                 {!isLoading && !isCalculating && filteredEmployees &&
                   filteredEmployees.map((employee) => (
                     <TableRow key={employee.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedEmployeeIds.includes(employee.id)}
+                          onCheckedChange={(checked) => 
+                            handleSelectEmployee(employee.id, checked as boolean)
+                          }
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">
                         {employee.name}
                       </TableCell>
@@ -365,8 +416,16 @@ export default function EmployeesPage() {
                 <Card key={employee.id} className="relative">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <CardTitle className="text-lg">{employee.name}</CardTitle>
+                      <div className="flex gap-3 items-start flex-1">
+                        <Checkbox
+                          checked={selectedEmployeeIds.includes(employee.id)}
+                          onCheckedChange={(checked) => 
+                            handleSelectEmployee(employee.id, checked as boolean)
+                          }
+                          className="mt-1"
+                        />
+                        <div className="space-y-1 flex-1">
+                          <CardTitle className="text-lg">{employee.name}</CardTitle>
                         <div className="flex flex-wrap gap-2">
                           <Badge
                             variant={
@@ -389,6 +448,7 @@ export default function EmployeesPage() {
                             {employee.status}
                           </Badge>
                         </div>
+                      </div>
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
