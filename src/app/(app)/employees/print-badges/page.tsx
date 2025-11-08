@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { doc } from "firebase/firestore";
 import { useFirestore } from "@/firebase";
 import { useDocument } from "@/firebase/firestore/use-doc";
@@ -13,166 +13,193 @@ export default function PrintBadgesPage() {
   const idsParam = searchParams.get("ids");
   const employeeIds = idsParam ? idsParam.split(",") : [];
   const firestore = useFirestore();
+  const [allLoaded, setAllLoaded] = useState(false);
+  const [loadedCount, setLoadedCount] = useState(0);
 
   useEffect(() => {
-    // Auto-print when the page loads and all badges are rendered
-    const timer = setTimeout(() => {
-      window.print();
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, []);
+    // Check if all badges are loaded
+    if (loadedCount === employeeIds.length && employeeIds.length > 0) {
+      setAllLoaded(true);
+    }
+  }, [loadedCount, employeeIds.length]);
+
+  useEffect(() => {
+    // Auto-print when all badges are loaded
+    if (allLoaded) {
+      const timer = setTimeout(() => {
+        window.print();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [allLoaded]);
+
+  const handleBadgeLoaded = () => {
+    setLoadedCount(prev => prev + 1);
+  };
 
   return (
-    <html>
-      <head>
-        <style dangerouslySetInnerHTML={{__html: `
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+    <>
+      <style dangerouslySetInnerHTML={{__html: `
+        @media screen {
+          /* Hide ALL parent elements except our print container */
+          body > div:not(:has(.print-badges-root)) {
+            display: none !important;
           }
           
-          html, body {
+          body {
             margin: 0 !important;
             padding: 0 !important;
             background: white !important;
-            width: 100%;
-            height: 100%;
           }
           
-          @media print {
-            @page {
-              size: letter portrait;
-              margin: 0.5in;
-            }
-            
-            html, body {
-              margin: 0 !important;
-              padding: 0 !important;
-              background: white !important;
-            }
-            
-            .print-container {
-              width: 100%;
-              background: white !important;
-            }
-            
-            .page-break {
-              page-break-after: always;
-              page-break-inside: avoid;
-            }
-            
-            * {
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            }
+          /* Target specific parent layout elements */
+          nav, header, footer, aside, 
+          [data-sidebar], [data-sidebar-provider],
+          .sidebar, .app-header, .app-sidebar {
+            display: none !important;
+          }
+        }
+        
+        @media print {
+          @page {
+            size: letter portrait;
+            margin: 0.5in;
           }
           
-          @media screen {
-            body {
-              background: #f0f0f0;
-            }
+          /* Hide EVERYTHING except our print container */
+          body * {
+            visibility: hidden !important;
           }
           
-          .print-container {
-            width: 100%;
-            background: white;
-            min-height: 100vh;
+          .print-badges-root,
+          .print-badges-root * {
+            visibility: visible !important;
           }
           
-          .badge-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 5.5cm);
-            grid-template-rows: repeat(4, 8.5cm);
-            gap: 0.4cm;
-            width: fit-content;
-            margin: 0 auto;
-            padding: 0.5cm;
+          .print-badges-root {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
           }
           
-          .badge-card {
-            width: 5.5cm;
-            height: 8.5cm;
-            border: 2px dashed #d1d5db;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: space-evenly;
-            background: white;
-            box-sizing: border-box;
-            page-break-inside: avoid;
-            overflow: hidden;
-            padding: 0.4cm 0.3cm;
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
           }
+        }
+        
+        .print-badges-root {
+          width: 100%;
+          background: white;
+          min-height: 100vh;
+          padding: 0;
+          margin: 0;
+        }
+        
+        .badge-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 5.5cm);
+          grid-template-rows: repeat(4, 8.5cm);
+          gap: 0.4cm;
+          width: fit-content;
+          margin: 0 auto;
+          padding: 0.5cm 0;
+        }
+        
+        .badge-card {
+          width: 5.5cm;
+          height: 8.5cm;
+          border: 2px dashed #d1d5db;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: space-evenly;
+          background: white;
+          box-sizing: border-box;
+          page-break-inside: avoid;
+          overflow: hidden;
+          padding: 0.4cm 0.3cm;
+        }
+        
+        .company-logo-container {
+          width: 100%;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          flex-shrink: 0;
+        }
+        
+        .company-logo {
+          max-width: 4cm;
+          max-height: 1.5cm;
+          width: auto;
+          height: auto;
+          object-fit: contain;
+        }
+        
+        .badge-qr {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          flex-shrink: 0;
+        }
+        
+        .badge-name {
+          font-size: 11pt;
+          font-weight: 600;
+          color: #374151;
+          margin: 0;
+          text-align: center;
+          line-height: 1.3;
+          word-wrap: break-word;
+          max-width: 100%;
+        }
+        
+        .page-break {
+          page-break-after: always;
+          page-break-inside: avoid;
+        }
+      `}} />
+
+      <div className="print-badges-root">
+        {Array.from({ length: Math.ceil(employeeIds.length / 8) }).map((_, pageIndex) => {
+          const startIdx = pageIndex * 8;
+          const pageEmployeeIds = employeeIds.slice(startIdx, startIdx + 8);
           
-          .company-logo-container {
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-shrink: 0;
-          }
-          
-          .company-logo {
-            max-width: 4cm;
-            max-height: 1.5cm;
-            width: auto;
-            height: auto;
-            object-fit: contain;
-          }
-          
-          .badge-qr {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-shrink: 0;
-          }
-          
-          .badge-name {
-            font-size: 11pt;
-            font-weight: 600;
-            color: #374151;
-            margin: 0;
-            text-align: center;
-            line-height: 1.3;
-            word-wrap: break-word;
-            max-width: 100%;
-          }
-        `}} />
-      </head>
-      <body>
-        <div className="print-container">
-          {Array.from({ length: Math.ceil(employeeIds.length / 8) }).map((_, pageIndex) => {
-            const startIdx = pageIndex * 8;
-            const pageEmployeeIds = employeeIds.slice(startIdx, startIdx + 8);
-            
-            return (
-              <div
-                key={pageIndex}
-                className={pageIndex < Math.ceil(employeeIds.length / 8) - 1 ? "page-break" : ""}
-              >
-                <div className="badge-grid">
-                  {pageEmployeeIds.map((employeeId) => (
-                    <BadgeCard key={employeeId} employeeId={employeeId} />
-                  ))}
-                </div>
+          return (
+            <div
+              key={pageIndex}
+              className={pageIndex < Math.ceil(employeeIds.length / 8) - 1 ? "page-break" : ""}
+            >
+              <div className="badge-grid">
+                {pageEmployeeIds.map((employeeId) => (
+                  <BadgeCard key={employeeId} employeeId={employeeId} onLoaded={handleBadgeLoaded} />
+                ))}
               </div>
-            );
-          })}
-        </div>
-      </body>
-    </html>
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
 interface BadgeCardProps {
   employeeId: string;
+  onLoaded: () => void;
 }
 
-function BadgeCard({ employeeId }: BadgeCardProps) {
+function BadgeCard({ employeeId, onLoaded }: BadgeCardProps) {
   const firestore = useFirestore();
   const employeeRef = firestore ? doc(firestore, "employees", employeeId) : null;
   const { data: employee, loading } = useDocument<Employee>(employeeRef);
+
+  useEffect(() => {
+    if (!loading) {
+      onLoaded();
+    }
+  }, [loading, onLoaded]);
 
   if (loading) {
     return (
