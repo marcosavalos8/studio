@@ -7,6 +7,7 @@ import { useDocument } from "@/firebase/firestore/use-doc";
 import { Employee } from "@/lib/types";
 import { QRCodeSVG } from "qrcode.react";
 import { useSearchParams } from "next/navigation";
+import { User } from "lucide-react";
 
 export default function PrintBadgesPage() {
   const searchParams = useSearchParams();
@@ -18,7 +19,7 @@ export default function PrintBadgesPage() {
     // Auto-print when the page loads and all badges are rendered
     const timer = setTimeout(() => {
       window.print();
-    }, 1000);
+    }, 1500);
     return () => clearTimeout(timer);
   }, []);
 
@@ -34,6 +35,7 @@ export default function PrintBadgesPage() {
           body {
             margin: 0;
             padding: 0;
+            background: white;
           }
           
           .print-container {
@@ -42,6 +44,7 @@ export default function PrintBadgesPage() {
           
           .page-break {
             page-break-after: always;
+            page-break-inside: avoid;
           }
           
           .no-print {
@@ -49,44 +52,132 @@ export default function PrintBadgesPage() {
           }
         }
         
+        @media screen {
+          body {
+            background: #f5f5f5;
+          }
+        }
+        
         .badge-grid {
           display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          grid-template-rows: repeat(4, 1fr);
-          gap: 0.5rem;
-          width: 100%;
-          height: 100vh;
-          padding: 0.5rem;
+          grid-template-columns: repeat(2, 8.5cm);
+          grid-template-rows: repeat(4, 5.5cm);
+          gap: 0.3cm;
+          width: fit-content;
+          margin: 0 auto;
+          padding: 0.3cm;
         }
         
         .badge-card {
-          border: 1px dashed #ccc;
+          width: 8.5cm;
+          height: 5.5cm;
+          border: 1px dashed #ddd;
           display: flex;
           flex-direction: column;
           align-items: center;
-          justify-content: center;
-          padding: 0.5rem;
-          text-align: center;
+          justify-content: space-between;
           background: white;
+          box-sizing: border-box;
+          page-break-inside: avoid;
+          overflow: hidden;
+          padding: 0;
+        }
+        
+        .badge-header {
+          width: 100%;
+          padding: 0.3cm 0;
+          text-align: center;
+          background: #f8f9fa;
+          border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .company-name {
+          font-size: 14pt;
+          font-weight: bold;
+          color: #5B9BD5;
+          letter-spacing: 0.05em;
+          margin: 0;
+        }
+        
+        .badge-photo {
+          width: 100%;
+          height: 3.2cm;
+          background: linear-gradient(135deg, #5BC0DE 0%, #4A9FBF 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-top: 1px solid #e0e0e0;
+          border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .photo-placeholder {
+          width: 2.5cm;
+          height: 2.5cm;
+          background: white;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .photo-icon {
+          width: 1.5cm;
+          height: 1.5cm;
+          color: #5BC0DE;
+        }
+        
+        .badge-info {
+          width: 100%;
+          padding: 0.2cm 0.3cm;
+          text-align: center;
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
         }
         
         .badge-name {
-          font-size: 0.9rem;
+          font-size: 11pt;
           font-weight: bold;
-          margin-bottom: 0.25rem;
-          word-wrap: break-word;
-          max-width: 100%;
-        }
-        
-        .badge-qr {
-          margin: 0.25rem 0;
+          color: #4A5568;
+          margin: 0 0 0.1cm 0;
+          line-height: 1.2;
+          text-transform: uppercase;
+          letter-spacing: 0.02em;
         }
         
         .badge-code {
-          font-size: 0.7rem;
-          color: #666;
-          margin-top: 0.25rem;
-          font-family: monospace;
+          font-size: 10pt;
+          color: #5B9BD5;
+          font-weight: 600;
+          margin: 0;
+          letter-spacing: 0.05em;
+        }
+        
+        .badge-role-bar {
+          width: 100%;
+          background: #5B9BD5;
+          padding: 0.15cm 0;
+          text-align: center;
+        }
+        
+        .badge-role {
+          font-size: 9pt;
+          color: white;
+          font-weight: 600;
+          margin: 0;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+        
+        .badge-qr {
+          width: 100%;
+          padding: 0.2cm 0;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          background: white;
         }
       `}} />
 
@@ -125,7 +216,17 @@ function BadgeCard({ employeeId }: BadgeCardProps) {
   if (loading) {
     return (
       <div className="badge-card">
-        <div className="badge-name">Loading...</div>
+        <div className="badge-header">
+          <h2 className="company-name">JM AGRI</h2>
+        </div>
+        <div className="badge-photo">
+          <div className="photo-placeholder">
+            <User className="photo-icon" />
+          </div>
+        </div>
+        <div className="badge-info">
+          <p className="badge-name">Loading...</p>
+        </div>
       </div>
     );
   }
@@ -133,23 +234,55 @@ function BadgeCard({ employeeId }: BadgeCardProps) {
   if (!employee) {
     return (
       <div className="badge-card">
-        <div className="badge-name">Employee not found</div>
+        <div className="badge-header">
+          <h2 className="company-name">JM AGRI</h2>
+        </div>
+        <div className="badge-photo">
+          <div className="photo-placeholder">
+            <User className="photo-icon" />
+          </div>
+        </div>
+        <div className="badge-info">
+          <p className="badge-name">Employee not found</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="badge-card">
-      <div className="badge-name">{employee.name}</div>
+      {/* Header with company name */}
+      <div className="badge-header">
+        <h2 className="company-name">JM AGRI</h2>
+      </div>
+      
+      {/* Photo placeholder */}
+      <div className="badge-photo">
+        <div className="photo-placeholder">
+          <User className="photo-icon" />
+        </div>
+      </div>
+      
+      {/* Employee info */}
+      <div className="badge-info">
+        <p className="badge-name">{employee.name}</p>
+        <p className="badge-code">{employee.qrCode || employee.id}</p>
+      </div>
+      
+      {/* Role bar */}
+      <div className="badge-role-bar">
+        <p className="badge-role">{employee.role}</p>
+      </div>
+      
+      {/* QR Code */}
       <div className="badge-qr">
         <QRCodeSVG
           value={employee.qrCode || employee.id}
-          size={120}
+          size={80}
           level="H"
           includeMargin={false}
         />
       </div>
-      <div className="badge-code">{employee.qrCode || employee.id}</div>
     </div>
   );
 }
