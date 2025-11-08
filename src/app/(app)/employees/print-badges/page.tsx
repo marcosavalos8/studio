@@ -23,8 +23,8 @@ export default function PrintBadgesPage() {
   }, []);
 
   return (
-    <div className="print-container">
-      <style jsx global>{`
+    <>
+      <style dangerouslySetInnerHTML={{__html: `
         @media print {
           @page {
             size: letter;
@@ -88,26 +88,28 @@ export default function PrintBadgesPage() {
           margin-top: 0.25rem;
           font-family: monospace;
         }
-      `}</style>
+      `}} />
 
-      {Array.from({ length: Math.ceil(employeeIds.length / 8) }).map((_, pageIndex) => {
-        const startIdx = pageIndex * 8;
-        const pageEmployeeIds = employeeIds.slice(startIdx, startIdx + 8);
-        
-        return (
-          <div
-            key={pageIndex}
-            className={pageIndex < Math.ceil(employeeIds.length / 8) - 1 ? "page-break" : ""}
-          >
-            <div className="badge-grid">
-              {pageEmployeeIds.map((employeeId) => (
-                <BadgeCard key={employeeId} employeeId={employeeId} />
-              ))}
+      <div className="print-container">
+        {Array.from({ length: Math.ceil(employeeIds.length / 8) }).map((_, pageIndex) => {
+          const startIdx = pageIndex * 8;
+          const pageEmployeeIds = employeeIds.slice(startIdx, startIdx + 8);
+          
+          return (
+            <div
+              key={pageIndex}
+              className={pageIndex < Math.ceil(employeeIds.length / 8) - 1 ? "page-break" : ""}
+            >
+              <div className="badge-grid">
+                {pageEmployeeIds.map((employeeId) => (
+                  <BadgeCard key={employeeId} employeeId={employeeId} />
+                ))}
+              </div>
             </div>
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
