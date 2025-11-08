@@ -204,7 +204,10 @@ export default function EmployeesPage() {
   const handlePrintBadges = () => {
     if (selectedEmployeeIds.length === 0) return;
     const idsParam = selectedEmployeeIds.join(",");
-    window.open(`/employees/print-badges?ids=${idsParam}`, "_blank");
+    // Use setTimeout to avoid blocking the UI
+    setTimeout(() => {
+      window.open(`/employees/print-badges?ids=${idsParam}`, "_blank", "noopener,noreferrer");
+    }, 100);
   };
 
   return (

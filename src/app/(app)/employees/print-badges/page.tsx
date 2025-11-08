@@ -18,27 +18,42 @@ export default function PrintBadgesPage() {
     // Auto-print when the page loads and all badges are rendered
     const timer = setTimeout(() => {
       window.print();
-    }, 1500);
+    }, 2000);
     return () => clearTimeout(timer);
   }, []);
 
   return (
     <>
       <style dangerouslySetInnerHTML={{__html: `
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          background: white !important;
+          width: 100%;
+          height: 100%;
+        }
+        
         @media print {
           @page {
-            size: letter;
+            size: letter portrait;
             margin: 0.5in;
           }
           
-          body {
-            margin: 0;
-            padding: 0;
-            background: white;
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
           }
           
           .print-container {
             width: 100%;
+            background: white !important;
           }
           
           .page-break {
@@ -46,48 +61,54 @@ export default function PrintBadgesPage() {
             page-break-inside: avoid;
           }
           
-          .no-print {
-            display: none;
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
         }
         
         @media screen {
           body {
-            background: #f5f5f5;
+            background: #f0f0f0;
           }
+        }
+        
+        .print-container {
+          width: 100%;
+          background: white;
+          min-height: 100vh;
         }
         
         .badge-grid {
           display: grid;
-          grid-template-columns: repeat(2, 8.5cm);
-          grid-template-rows: repeat(4, 5.5cm);
-          gap: 0.3cm;
+          grid-template-columns: repeat(2, 5.5cm);
+          grid-template-rows: repeat(4, 8.5cm);
+          gap: 0.4cm;
           width: fit-content;
           margin: 0 auto;
-          padding: 0.3cm;
+          padding: 0.5cm;
         }
         
         .badge-card {
-          width: 8.5cm;
-          height: 5.5cm;
-          border: 2px solid #ea580c;
+          width: 5.5cm;
+          height: 8.5cm;
+          border: 2px dashed #d1d5db;
           display: flex;
           flex-direction: column;
           align-items: center;
-          justify-content: center;
+          justify-content: space-evenly;
           background: white;
           box-sizing: border-box;
           page-break-inside: avoid;
           overflow: hidden;
-          padding: 0.4cm;
-          gap: 0.3cm;
+          padding: 0.4cm 0.3cm;
         }
         
         .company-name {
-          font-size: 16pt;
+          font-size: 14pt;
           font-weight: bold;
           color: #ea580c;
-          letter-spacing: 0.1em;
+          letter-spacing: 0.15em;
           margin: 0;
           text-align: center;
         }
@@ -96,15 +117,18 @@ export default function PrintBadgesPage() {
           display: flex;
           justify-content: center;
           align-items: center;
+          flex-shrink: 0;
         }
         
         .badge-name {
-          font-size: 12pt;
+          font-size: 11pt;
           font-weight: 600;
-          color: #1f2937;
+          color: #374151;
           margin: 0;
           text-align: center;
           line-height: 1.3;
+          word-wrap: break-word;
+          max-width: 100%;
         }
       `}} />
 
@@ -145,7 +169,7 @@ function BadgeCard({ employeeId }: BadgeCardProps) {
       <div className="badge-card">
         <h2 className="company-name">JM AGRI</h2>
         <div className="badge-qr">
-          <div style={{ width: '140px', height: '140px', background: '#f3f4f6' }} />
+          <div style={{ width: '120px', height: '120px', background: '#f3f4f6' }} />
         </div>
         <p className="badge-name">Loading...</p>
       </div>
@@ -157,7 +181,7 @@ function BadgeCard({ employeeId }: BadgeCardProps) {
       <div className="badge-card">
         <h2 className="company-name">JM AGRI</h2>
         <div className="badge-qr">
-          <div style={{ width: '140px', height: '140px', background: '#f3f4f6' }} />
+          <div style={{ width: '120px', height: '120px', background: '#f3f4f6' }} />
         </div>
         <p className="badge-name">Employee not found</p>
       </div>
@@ -166,20 +190,15 @@ function BadgeCard({ employeeId }: BadgeCardProps) {
 
   return (
     <div className="badge-card">
-      {/* Company name */}
       <h2 className="company-name">JM AGRI</h2>
-      
-      {/* QR Code */}
       <div className="badge-qr">
         <QRCodeSVG
           value={employee.qrCode || employee.id}
-          size={140}
+          size={120}
           level="H"
           includeMargin={false}
         />
       </div>
-      
-      {/* Employee name */}
       <p className="badge-name">{employee.name}</p>
     </div>
   );
