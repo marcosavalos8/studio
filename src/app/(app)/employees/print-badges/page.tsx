@@ -7,6 +7,7 @@ import { useDocument } from "@/firebase/firestore/use-doc";
 import { Employee } from "@/lib/types";
 import { QRCodeSVG } from "qrcode.react";
 import { useSearchParams } from "next/navigation";
+import { Printer } from "lucide-react";
 
 export default function PrintBadgesPage() {
   const searchParams = useSearchParams();
@@ -19,25 +20,24 @@ export default function PrintBadgesPage() {
     setLoadedIds(prev => new Set(prev).add(employeeId));
   }, []);
 
-  // Don't auto-trigger print - let user do it from browser's print preview
-  // This prevents issues with data not loading in time
+  const allLoaded = loadedIds.size === employeeIds.length && employeeIds.length > 0;
+  const loadingProgress = employeeIds.length > 0 ? Math.round((loadedIds.size / employeeIds.length) * 100) : 0;
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   return (
     <>
       <style dangerouslySetInnerHTML={{__html: `
         @media screen {
-          /* Hide ALL parent elements except our print container */
-          body > div:not(:has(.print-badges-root)) {
-            display: none !important;
-          }
-          
           body {
             margin: 0 !important;
             padding: 0 !important;
-            background: white !important;
+            background: #f5f5f5 !important;
           }
           
-          /* Target specific parent layout elements */
+          /* Target specific parent layout elements to hide */
           nav, header, footer, aside, 
           [data-sidebar], [data-sidebar-provider],
           .sidebar, .app-header, .app-sidebar {
@@ -49,6 +49,11 @@ export default function PrintBadgesPage() {
           @page {
             size: letter portrait;
             margin: 0.5in;
+          }
+          
+          /* Hide the print button and loading indicator */
+          .print-controls {
+            display: none !important;
           }
           
           /* Hide EVERYTHING except our print container */
@@ -72,6 +77,65 @@ export default function PrintBadgesPage() {
             padding: 0 !important;
             background: white !important;
           }
+        }
+        
+        .print-controls {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          z-index: 1000;
+          background: white;
+          padding: 16px 24px;
+          border-radius: 8px;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          align-items: center;
+        }
+        
+        .print-button {
+          background: #ea580c;
+          color: white;
+          border: none;
+          padding: 12px 24px;
+          border-radius: 6px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          transition: background 0.2s;
+        }
+        
+        .print-button:hover {
+          background: #c2410c;
+        }
+        
+        .print-button:disabled {
+          background: #d1d5db;
+          cursor: not-allowed;
+        }
+        
+        .loading-indicator {
+          font-size: 14px;
+          color: #6b7280;
+          text-align: center;
+        }
+        
+        .progress-bar {
+          width: 200px;
+          height: 8px;
+          background: #e5e7eb;
+          border-radius: 4px;
+          overflow: hidden;
+        }
+        
+        .progress-fill {
+          height: 100%;
+          background: #ea580c;
+          transition: width 0.3s;
         }
         
         .print-badges-root {
@@ -146,6 +210,33 @@ export default function PrintBadgesPage() {
           page-break-inside: avoid;
         }
       `}} />
+
+      {/* Print Controls - visible on screen, hidden when printing */}
+      <div className="print-controls">
+        {!allLoaded && (
+          <>
+            <div className="loading-indicator">
+              Cargando badges... {loadedIds.size} de {employeeIds.length}
+            </div>
+            <div className="progress-bar">
+              <div className="progress-fill" style={{ width: `${loadingProgress}%` }} />
+            </div>
+          </>
+        )}
+        <button 
+          className="print-button" 
+          onClick={handlePrint}
+          disabled={!allLoaded}
+        >
+          <Printer size={20} />
+          {allLoaded ? 'Imprimir Badges' : 'Cargando...'}
+        </button>
+        {allLoaded && (
+          <div className="loading-indicator" style={{ color: '#10b981' }}>
+            ✓ Todos los badges cargados
+          </div>
+        )}
+      </div>
 
       <div className="print-badges-root">
         {Array.from({ length: Math.ceil(employeeIds.length / 8) }).map((_, pageIndex) => {
