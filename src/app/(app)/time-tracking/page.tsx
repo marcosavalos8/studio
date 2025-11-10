@@ -665,6 +665,22 @@ function TimeTrackingPage() {
     return filtered;
   }, [tasksForClient, selectedRanch, selectedBlock]);
 
+  // Filtered tasks for bulk clock out - only shows tasks with active clock-ins
+  const bulkClockOutTasks = useMemo(() => {
+    if (!filteredTasks || !activeTimeEntries) return [];
+    
+    // Get unique task IDs from active time entries
+    const activeTaskIds = new Set(activeTimeEntries.map(entry => entry.taskId));
+    
+    // Filter to only include tasks that:
+    // 1. Are in the filtered tasks list (client/ranch/block filter applied)
+    // 2. Have active clock-ins
+    // 3. Are active status
+    return filteredTasks.filter(task => 
+      task.status === "Active" && activeTaskIds.has(task.id)
+    );
+  }, [filteredTasks, activeTimeEntries]);
+
   // Filtered tasks for edit dialog
   const editTasksForClient = useMemo(() => {
     if (!allTasks || !editClient) return [];
@@ -3530,14 +3546,14 @@ function TimeTrackingPage() {
                     <SelectValue placeholder="Select a task to bulk clock out" />
                   </SelectTrigger>
                   <SelectContent>
-                    {allTasks
-                      ?.filter((t) => t.status === "Active")
-                      .map((task) => (
-                        <SelectItem key={task.id} value={task.id}>
-                          {task.name} (
-                          {clients?.find((c) => c.id === task.clientId)?.name})
-                        </SelectItem>
-                      ))}
+                    {bulkClockOutTasks?.map((task) => (
+                      <SelectItem key={task.id} value={task.id}>
+                        {task.name}
+                        {task.variety && ` (${task.variety})`}
+                        {task.ranch && ` - ${task.ranch}`}
+                        {task.block && ` - ${task.block}`}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
