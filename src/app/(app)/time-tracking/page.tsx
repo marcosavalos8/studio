@@ -347,7 +347,7 @@ function TimeTrackingPage() {
   const [recentScans, setRecentScans] = useState<
     { scanData: string; mode: ScanMode; timestamp: number }[]
   >([]);
-  const DEBOUNCE_MS = 3000; // 3 seconds
+  const DEBOUNCE_MS = 5000; // 5 seconds - prevents camera from double-scanning QR codes
   const PIECEWORK_DEBOUNCE_MS = 180000; // 3 minutes for piecework tab
 
   // Sick leave state
