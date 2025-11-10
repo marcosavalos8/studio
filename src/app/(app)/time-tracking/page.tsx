@@ -3541,9 +3541,18 @@ function TimeTrackingPage() {
                 <Select
                   value={selectedBulkTask}
                   onValueChange={setSelectedBulkTask}
+                  disabled={!selectedClient}
                 >
                   <SelectTrigger id="bulk-task-select">
-                    <SelectValue placeholder="Select a task to bulk clock out" />
+                    <SelectValue 
+                      placeholder={
+                        !selectedClient 
+                          ? "Select a client first to view tasks" 
+                          : bulkClockOutTasks && bulkClockOutTasks.length > 0
+                          ? "Select a task to bulk clock out"
+                          : "No active tasks with clock-ins available"
+                      } 
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {bulkClockOutTasks?.map((task) => (
