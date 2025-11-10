@@ -347,7 +347,8 @@ function TimeTrackingPage() {
   const [recentScans, setRecentScans] = useState<
     { scanData: string; mode: ScanMode; timestamp: number }[]
   >([]);
-  const DEBOUNCE_MS = 3000; // 3 seconds
+  const DEBOUNCE_MS = 5000; // 5 seconds - prevents camera from double-scanning QR codes
+  const PIECEWORK_DEBOUNCE_MS = 180000; // 3 minutes for piecework tab
 
   // Sick leave state
   const [sickHoursToUse, setSickHoursToUse] = useState<number | string>(0);
@@ -664,6 +665,22 @@ function TimeTrackingPage() {
     return filtered;
   }, [tasksForClient, selectedRanch, selectedBlock]);
 
+  // Filtered tasks for bulk clock out - only shows tasks with active clock-ins
+  const bulkClockOutTasks = useMemo(() => {
+    if (!filteredTasks || !activeTimeEntries) return [];
+    
+    // Get unique task IDs from active time entries
+    const activeTaskIds = new Set(activeTimeEntries.map(entry => entry.taskId));
+    
+    // Filter to only include tasks that:
+    // 1. Are in the filtered tasks list (client/ranch/block filter applied)
+    // 2. Have active clock-ins
+    // 3. Are active status
+    return filteredTasks.filter(task => 
+      task.status === "Active" && activeTaskIds.has(task.id)
+    );
+  }, [filteredTasks, activeTimeEntries]);
+
   // Filtered tasks for edit dialog
   const editTasksForClient = useMemo(() => {
     if (!allTasks || !editClient) return [];
@@ -733,7 +750,7 @@ function TimeTrackingPage() {
 
       gainNode.gain.setValueAtTime(0, audioContext.currentTime);
       gainNode.gain.linearRampToValueAtTime(
-        0.3,
+        0.8,
         audioContext.currentTime + 0.01
       );
 
@@ -748,14 +765,24 @@ function TimeTrackingPage() {
           oscillator.frequency.setValueAtTime(600, audioContext.currentTime);
           break;
       }
-      oscillator.type = "sine";
+      oscillator.type = "square";
 
       oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.15);
+      oscillator.stop(audioContext.currentTime + 0.3);
       gainNode.gain.exponentialRampToValueAtTime(
         0.00001,
-        audioContext.currentTime + 0.15
+        audioContext.currentTime + 0.3
       );
+      
+      // Add vibration feedback if supported
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try {
+          navigator.vibrate(200); // Vibrate for 200ms
+        } catch (e) {
+          // Silently fail if vibration is not supported
+          console.debug('Vibration not supported:', e);
+        }
+      }
     },
     [audioContext]
   );
@@ -1660,7 +1687,7 @@ function TimeTrackingPage() {
       const now = Date.now();
       const isDebounced = recentScans.some(
         (scan) =>
-          now - scan.timestamp < DEBOUNCE_MS &&
+          now - scan.timestamp < PIECEWORK_DEBOUNCE_MS &&
           scan.scanData === scannedData &&
           scan.mode === "piece"
       );
@@ -1670,7 +1697,7 @@ function TimeTrackingPage() {
       }
 
       setRecentScans((prev) => [
-        ...prev.filter((s) => now - s.timestamp < DEBOUNCE_MS),
+        ...prev.filter((s) => now - s.timestamp < PIECEWORK_DEBOUNCE_MS),
         { scanData: scannedData, mode: "piece", timestamp: now },
       ]);
 
@@ -2071,7 +2098,6 @@ function TimeTrackingPage() {
           title: "No one to clock out",
           description: "No employees are currently clocked in for this task.",
         });
-        setIsBulkClockingOut(false);
         return;
       }
 
@@ -3515,19 +3541,28 @@ function TimeTrackingPage() {
                 <Select
                   value={selectedBulkTask}
                   onValueChange={setSelectedBulkTask}
+                  disabled={!selectedClient}
                 >
                   <SelectTrigger id="bulk-task-select">
-                    <SelectValue placeholder="Select a task to bulk clock out" />
+                    <SelectValue 
+                      placeholder={
+                        !selectedClient 
+                          ? "Select a client first to view tasks" 
+                          : bulkClockOutTasks && bulkClockOutTasks.length > 0
+                          ? "Select a task to bulk clock out"
+                          : "No active tasks with clock-ins available"
+                      } 
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    {allTasks
-                      ?.filter((t) => t.status === "Active")
-                      .map((task) => (
-                        <SelectItem key={task.id} value={task.id}>
-                          {task.name} (
-                          {clients?.find((c) => c.id === task.clientId)?.name})
-                        </SelectItem>
-                      ))}
+                    {bulkClockOutTasks?.map((task) => (
+                      <SelectItem key={task.id} value={task.id}>
+                        {task.name}
+                        {task.variety && ` (${task.variety})`}
+                        {task.ranch && ` - ${task.ranch}`}
+                        {task.block && ` - ${task.block}`}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
