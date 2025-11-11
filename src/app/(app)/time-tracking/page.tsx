@@ -1484,75 +1484,82 @@ function TimeTrackingPage() {
           // Set loading state for past records
           setIsQrScannerProcessing(true);
 
-          const task = allTasks?.find((t) => t.id === selectedTask);
-          const piecesCount =
-            task?.clientRateType === "piece"
-              ? typeof pastRecordPiecesCount === "number"
-                ? pastRecordPiecesCount
-                : parseFloat(String(pastRecordPiecesCount))
-              : 0;
+          try {
+            const task = allTasks?.find((t) => t.id === selectedTask);
+            const piecesCount =
+              task?.clientRateType === "piece"
+                ? typeof pastRecordPiecesCount === "number"
+                  ? pastRecordPiecesCount
+                  : parseFloat(String(pastRecordPiecesCount))
+                : 0;
 
-          await createPastRecord(
-            scannedEmployee,
-            selectedTask,
-            pastRecordClockInDate,
-            pastRecordClockOutDate,
-            piecesCount > 0 ? piecesCount : undefined
-          );
-
-          setIsQrScannerProcessing(false);
+            await createPastRecord(
+              scannedEmployee,
+              selectedTask,
+              pastRecordClockInDate,
+              pastRecordClockOutDate,
+              piecesCount > 0 ? piecesCount : undefined
+            );
+          } finally {
+            // Always release loading state, even if createPastRecord fails or returns early
+            setIsQrScannerProcessing(false);
+          }
         } else if (scanMode === "clock-in") {
           // Set loading state to prevent duplicate scans
           setIsQrScannerProcessing(true);
 
-          // When offline, show toast immediately to match Manual Entry UX pattern
-          // This provides instant feedback and prevents UI from appearing frozen
-          // Note: Validation (same-task check) still occurs - if it fails, error toast will also appear
-          // This trade-off prioritizes responsive UX over avoiding potential dual toasts
-          if (!isOnline) {
-            toast({
-              title: "Clock In Successful",
-              description: addOfflineIndicator(
-                `Clocked in ${scannedEmployee.name}.${
-                  useSickHoursForPayment ? " (Using sick hours for payment)" : ""
-                }`,
-                isOnline
-              ),
-            });
+          try {
+            // When offline, show toast immediately to match Manual Entry UX pattern
+            // This provides instant feedback and prevents UI from appearing frozen
+            // Note: Validation (same-task check) still occurs - if it fails, error toast will also appear
+            // This trade-off prioritizes responsive UX over avoiding potential dual toasts
+            if (!isOnline) {
+              toast({
+                title: "Clock In Successful",
+                description: addOfflineIndicator(
+                  `Clocked in ${scannedEmployee.name}.${
+                    useSickHoursForPayment ? " (Using sick hours for payment)" : ""
+                  }`,
+                  isOnline
+                ),
+              });
+            }
+
+            const timestamp = useManualDateTime ? manualClockInDate : undefined;
+
+            await clockInEmployee(
+              scannedEmployee,
+              selectedTask,
+              timestamp,
+              useSickHoursForPayment,
+              undefined // No pieces from QR scanner anymore
+            );
+          } finally {
+            // Always release loading state, even if clockInEmployee fails
+            setIsQrScannerProcessing(false);
           }
-
-          const timestamp = useManualDateTime ? manualClockInDate : undefined;
-
-          const success = await clockInEmployee(
-            scannedEmployee,
-            selectedTask,
-            timestamp,
-            useSickHoursForPayment,
-            undefined // No pieces from QR scanner anymore
-          );
-
-          // Release loading state after operation completes
-          setIsQrScannerProcessing(false);
         } else if (scanMode === "clock-out") {
           // Set loading state to prevent duplicate scans
           setIsQrScannerProcessing(true);
 
-          // When offline, show toast immediately to match Manual Entry behavior
-          if (!isOnline) {
-            toast({
-              title: "Clock Out Successful",
-              description: addOfflineIndicator(
-                `Clocked out ${scannedEmployee.name}.`,
-                isOnline
-              ),
-            });
+          try {
+            // When offline, show toast immediately to match Manual Entry behavior
+            if (!isOnline) {
+              toast({
+                title: "Clock Out Successful",
+                description: addOfflineIndicator(
+                  `Clocked out ${scannedEmployee.name}.`,
+                  isOnline
+                ),
+              });
+            }
+
+            const timestamp = useManualDateTime ? manualClockOutDate : undefined;
+            await clockOutEmployee(scannedEmployee, selectedTask, timestamp);
+          } finally {
+            // Always release loading state, even if clockOutEmployee fails
+            setIsQrScannerProcessing(false);
           }
-
-          const timestamp = useManualDateTime ? manualClockOutDate : undefined;
-          await clockOutEmployee(scannedEmployee, selectedTask, timestamp);
-
-          // Release loading state after operation completes
-          setIsQrScannerProcessing(false);
         } else if (scanMode === "piece") {
           if (isSharedPiece) {
             setScannedSharedEmployees((prev) => {
