@@ -139,6 +139,10 @@ function TimeTrackingPage() {
   const [bulkClockOutDate, setBulkClockOutDate] = useState<Date | undefined>(
     undefined
   );
+  // Independent client selector for bulk clock-out
+  const [selectedBulkClient, setSelectedBulkClient] = useState<string>("");
+  const [selectedBulkRanch, setSelectedBulkRanch] = useState<string>("");
+  const [selectedBulkBlock, setSelectedBulkBlock] = useState<string>("");
 
   // Bulk clock in
   const [isBulkClockingIn, setIsBulkClockingIn] = useState(false);
@@ -683,6 +687,59 @@ function TimeTrackingPage() {
       task.status === "Active" && activeTaskIds.has(task.id)
     );
   }, [filteredTasks, activeTimeEntries]);
+
+  // Independent filters for bulk clock-out section
+  const bulkTasksForClient = useMemo(() => {
+    if (!allTasks || !selectedBulkClient) return [];
+    return allTasks.filter((t) => t.clientId === selectedBulkClient);
+  }, [allTasks, selectedBulkClient]);
+
+  const bulkRanches = useMemo(() => {
+    if (!bulkTasksForClient) return [];
+    return [
+      ...new Set(bulkTasksForClient.map((t) => t.ranch).filter(Boolean)),
+    ] as string[];
+  }, [bulkTasksForClient]);
+
+  const bulkBlocks = useMemo(() => {
+    if (!selectedBulkRanch || !bulkTasksForClient) return [];
+    return [
+      ...new Set(
+        bulkTasksForClient
+          .filter((t) => t.ranch === selectedBulkRanch)
+          .map((t) => t.block)
+          .filter(Boolean)
+      ),
+    ] as string[];
+  }, [bulkTasksForClient, selectedBulkRanch]);
+
+  const bulkFilteredTasks = useMemo(() => {
+    if (!bulkTasksForClient) return [];
+    let filtered = bulkTasksForClient;
+    if (selectedBulkRanch) {
+      filtered = filtered.filter((t) => t.ranch === selectedBulkRanch);
+    }
+    if (selectedBulkBlock) {
+      filtered = filtered.filter((t) => t.block === selectedBulkBlock);
+    }
+    return filtered;
+  }, [bulkTasksForClient, selectedBulkRanch, selectedBulkBlock]);
+
+  // Bulk clock-out tasks with active clock-ins
+  const bulkClockOutFilteredTasks = useMemo(() => {
+    if (!bulkFilteredTasks || !activeTimeEntries) return [];
+    
+    // Get unique task IDs from active time entries
+    const activeTaskIds = new Set(activeTimeEntries.map(entry => entry.taskId));
+    
+    // Filter to only include tasks that:
+    // 1. Are in the bulk filtered tasks list (independent client/ranch/block filter applied)
+    // 2. Have active clock-ins
+    // 3. Are active status
+    return bulkFilteredTasks.filter(task => 
+      task.status === "Active" && activeTaskIds.has(task.id)
+    );
+  }, [bulkFilteredTasks, activeTimeEntries]);
 
   // Filtered tasks for edit dialog
   const editTasksForClient = useMemo(() => {
@@ -3549,26 +3606,101 @@ function TimeTrackingPage() {
                 )}
               </div> */}
 
+              {/* Independent Client/Ranch/Block selectors for bulk clock-out */}
+              <div className="space-y-2">
+                <Label htmlFor="bulk-client-select">Client</Label>
+                <Select
+                  value={selectedBulkClient || ""}
+                  onValueChange={(value) => {
+                    setSelectedBulkClient(value === CLEAR_SELECTION_VALUE ? "" : value);
+                    setSelectedBulkRanch("");
+                    setSelectedBulkBlock("");
+                    setSelectedBulkTask("");
+                  }}
+                >
+                  <SelectTrigger id="bulk-client-select">
+                    <SelectValue placeholder="Select a client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
+                    {clients?.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bulk-ranch-select">Ranch (Optional)</Label>
+                <Select
+                  value={selectedBulkRanch || ""}
+                  onValueChange={(value) => {
+                    setSelectedBulkRanch(value === CLEAR_SELECTION_VALUE ? "" : value);
+                    setSelectedBulkBlock("");
+                    setSelectedBulkTask("");
+                  }}
+                  disabled={!selectedBulkClient || bulkRanches.length === 0}
+                >
+                  <SelectTrigger id="bulk-ranch-select">
+                    <SelectValue placeholder="Select a ranch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
+                    {bulkRanches.map((ranch) => (
+                      <SelectItem key={ranch} value={ranch}>
+                        {ranch}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bulk-block-select">Block (Optional)</Label>
+                <Select
+                  value={selectedBulkBlock || ""}
+                  onValueChange={(value) => {
+                    setSelectedBulkBlock(value === CLEAR_SELECTION_VALUE ? "" : value);
+                    setSelectedBulkTask("");
+                  }}
+                  disabled={!selectedBulkRanch || bulkBlocks.length === 0}
+                >
+                  <SelectTrigger id="bulk-block-select">
+                    <SelectValue placeholder="Select a block" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
+                    {bulkBlocks.map((block) => (
+                      <SelectItem key={block} value={block}>
+                        {block}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="bulk-task-select">Task</Label>
                 <Select
                   value={selectedBulkTask}
                   onValueChange={setSelectedBulkTask}
-                  disabled={!selectedClient}
+                  disabled={!selectedBulkClient}
                 >
                   <SelectTrigger id="bulk-task-select">
                     <SelectValue 
                       placeholder={
-                        !selectedClient 
+                        !selectedBulkClient 
                           ? "Select a client first to view tasks" 
-                          : bulkClockOutTasks && bulkClockOutTasks.length > 0
+                          : bulkClockOutFilteredTasks && bulkClockOutFilteredTasks.length > 0
                           ? "Select a task to bulk clock out"
                           : "No active tasks with clock-ins available"
                       } 
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    {bulkClockOutTasks?.map((task) => (
+                    {bulkClockOutFilteredTasks?.map((task) => (
                       <SelectItem key={task.id} value={task.id}>
                         {task.name}
                         {task.variety && ` (${task.variety})`}
