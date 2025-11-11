@@ -1803,51 +1803,78 @@ function TimeTrackingPage() {
       }
 
       const now = Date.now();
-      const isDebounced = recentScans.some(
-        (scan) =>
-          now - scan.timestamp < PIECEWORK_DEBOUNCE_MS &&
-          scan.scanData === scannedData &&
-          scan.mode === "piece"
-      );
-
-      if (isDebounced) {
-        return; // Silently ignore debounced scans
-      }
-
-      setRecentScans((prev) => [
-        ...prev.filter((s) => now - s.timestamp < PIECEWORK_DEBOUNCE_MS),
-        { scanData: scannedData, mode: "piece", timestamp: now },
-      ]);
-
+      
+      // Find the scanned employee first
       const scannedEmployee = activeEmployees?.find(
         (e) => e.qrCode === scannedData
       );
 
-      if (scannedEmployee) {
-        // Validate employee is active in the selected task
-        const isEmployeeActiveInTask = activeTimeEntries?.some(
-          (entry) =>
-            entry.employeeId === scannedEmployee.id &&
-            entry.taskId === pieceWorkSelectedTask.id &&
-            entry.endTime === null
+      if (!scannedEmployee) {
+        toast({
+          variant: "destructive",
+          title: "Invalid Scan",
+          description: "Not a valid employee QR code.",
+        });
+        return;
+      }
+
+      // Check for debounce specific to this employee and task combination
+      const employeeTaskKey = `${scannedEmployee.id}-${pieceWorkSelectedTask.id}`;
+      const isDebounced = recentScans.some(
+        (scan) =>
+          now - scan.timestamp < PIECEWORK_DEBOUNCE_MS &&
+          scan.scanData === employeeTaskKey &&
+          scan.mode === "piecework-tab"
+      );
+
+      if (isDebounced) {
+        const lastScan = recentScans.find(
+          (scan) =>
+            scan.scanData === employeeTaskKey &&
+            scan.mode === "piecework-tab"
         );
+        const timeRemaining = lastScan
+          ? Math.ceil((PIECEWORK_DEBOUNCE_MS - (now - lastScan.timestamp)) / 60000)
+          : 3;
+        
+        toast({
+          variant: "destructive",
+          title: "Please Wait",
+          description: `You must wait ${timeRemaining} minute(s) before recording another piece for ${scannedEmployee.name} on this task.`,
+        });
+        return; // Block the scan with a clear message
+      }
 
-        if (!isEmployeeActiveInTask) {
-          toast({
-            variant: "destructive",
-            title: "Employee Not Active",
-            description: `${scannedEmployee.name} is not clocked into this task.`,
-          });
-          return;
-        }
+      // Validate employee is active in the selected task
+      const isEmployeeActiveInTask = activeTimeEntries?.some(
+        (entry) =>
+          entry.employeeId === scannedEmployee.id &&
+          entry.taskId === pieceWorkSelectedTask.id &&
+          entry.endTime === null
+      );
 
-        // Add employee to scanned list
-        if (isSharedPiece) {
-          setScannedSharedEmployees((prev) => {
-            if (prev.includes(scannedEmployee.id)) {
-              toast({
-                variant: "destructive",
-                title: "Duplicate Employee",
+      if (!isEmployeeActiveInTask) {
+        toast({
+          variant: "destructive",
+          title: "Employee Not Active",
+          description: `${scannedEmployee.name} is not clocked into this task.`,
+        });
+        return;
+      }
+
+      // Add to recent scans with employee-task key
+      setRecentScans((prev) => [
+        ...prev.filter((s) => now - s.timestamp < PIECEWORK_DEBOUNCE_MS),
+        { scanData: employeeTaskKey, mode: "piecework-tab", timestamp: now },
+      ]);
+
+      // Add employee to scanned list
+      if (isSharedPiece) {
+        setScannedSharedEmployees((prev) => {
+          if (prev.includes(scannedEmployee.id)) {
+            toast({
+              variant: "destructive",
+              title: "Duplicate Employee",
                 description: `${scannedEmployee.name} is already on the list.`,
               });
               return prev;
@@ -1902,13 +1929,6 @@ function TimeTrackingPage() {
           });
           playSound("clock-in");
         }
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Invalid Scan",
-          description: "Not a valid employee QR code.",
-        });
-      }
     },
     [
       pieceWorkSelectedTask,
