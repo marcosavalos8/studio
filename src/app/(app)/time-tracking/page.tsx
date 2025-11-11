@@ -1313,6 +1313,8 @@ function TimeTrackingPage() {
 
         const duplicateSnap = await getDocs(duplicateQuery);
         
+        console.log(`Checking for duplicates: Found ${duplicateSnap.docs.length} existing records for ${employee.name} on ${clockInTime.toDateString()}`);
+        
         // Check if there's an exact match with both timestamp and endTime
         const exactDuplicate = duplicateSnap.docs.some((docSnap) => {
           const entry = docSnap.data() as TimeEntry;
@@ -1332,12 +1334,17 @@ function TimeTrackingPage() {
               : new Date(entry.endTime as any)
             : null;
 
-          // Check if both clock-in and clock-out times match exactly
-          return (
+          const isMatch = (
             entryClockIn.getTime() === clockInTime.getTime() &&
             entryClockOut !== null &&
             entryClockOut.getTime() === clockOutTime.getTime()
           );
+          
+          if (isMatch) {
+            console.log(`Found exact duplicate: Clock-in ${entryClockIn.toLocaleString()} matches ${clockInTime.toLocaleString()}, Clock-out ${entryClockOut?.toLocaleString()} matches ${clockOutTime.toLocaleString()}`);
+          }
+          
+          return isMatch;
         });
 
         if (exactDuplicate) {
@@ -1421,6 +1428,10 @@ function TimeTrackingPage() {
       } catch (serverError) {
         console.error("Error creating past record:", serverError);
         
+        // Extract error message for better debugging
+        const errorMessage = serverError instanceof Error ? serverError.message : String(serverError);
+        console.error("Error details:", errorMessage);
+        
         // When offline, Firestore operations are queued for sync
         // Only emit errors if we're online (actual permission/validation errors)
         if (isOnline) {
@@ -1431,11 +1442,11 @@ function TimeTrackingPage() {
           });
           errorEmitter.emit("permission-error", permissionError);
           
-          // Show user-friendly error message when online
+          // Show user-friendly error message when online with more details
           toast({
             variant: "destructive",
             title: "Failed to Create Record",
-            description: "An error occurred while creating the past record. Please check permissions and try again.",
+            description: `Error: ${errorMessage.substring(0, 100)}`,
           });
         } else {
           // When offline, show a user-friendly message instead of throwing
