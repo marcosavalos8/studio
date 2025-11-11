@@ -356,6 +356,9 @@ function TimeTrackingPage() {
 
   // QR Scanner processing state - prevents duplicate scans while processing
   const [isQrProcessing, setIsQrProcessing] = useState(false);
+  
+  // Piecework QR Scanner processing state - prevents duplicate scans while processing
+  const [isPieceworkQrProcessing, setIsPieceworkQrProcessing] = useState(false);
 
   // Sick leave state
   const [sickHoursToUse, setSickHoursToUse] = useState<number | string>(0);
@@ -1794,6 +1797,11 @@ function TimeTrackingPage() {
         return;
       }
 
+      // Prevent processing if already processing
+      if (isPieceworkQrProcessing) {
+        return;
+      }
+
       const now = Date.now();
       const isDebounced = recentScans.some(
         (scan) =>
@@ -1853,29 +1861,37 @@ function TimeTrackingPage() {
           });
         } else if (pieceEntryMode === "scan") {
           // Single employee mode + Scan Employees - auto-submit with 1 piece
-          const employeeIds = [scannedEmployee.id];
+          // Set processing state to show loading overlay
+          setIsPieceworkQrProcessing(true);
           
-          // Show toast immediately when offline
-          if (!isOnline) {
-            toast({
-              title: "Piecework Recorded",
-              description: addOfflineIndicator(
-                `1 piece recorded for ${scannedEmployee.name}.`,
-                isOnline
-              ),
-            });
-          }
-          
-          // Record the piecework
-          const success = await recordPieceworkWithQuantity(
-            employeeIds,
-            pieceWorkSelectedTask.id,
-            1,
-            undefined
-          );
-          
-          if (success) {
-            playSound("piece");
+          try {
+            const employeeIds = [scannedEmployee.id];
+            
+            // Show toast immediately when offline
+            if (!isOnline) {
+              toast({
+                title: "Piecework Recorded",
+                description: addOfflineIndicator(
+                  `1 piece recorded for ${scannedEmployee.name}.`,
+                  isOnline
+                ),
+              });
+            }
+            
+            // Record the piecework
+            const success = await recordPieceworkWithQuantity(
+              employeeIds,
+              pieceWorkSelectedTask.id,
+              1,
+              undefined
+            );
+            
+            if (success) {
+              playSound("piece");
+            }
+          } finally {
+            // Reset processing state after operation completes
+            setIsPieceworkQrProcessing(false);
           }
         } else {
           // Manual count mode - just add to list for manual submission
@@ -1906,6 +1922,7 @@ function TimeTrackingPage() {
       recordPieceworkWithQuantity,
       addOfflineIndicator,
       pieceEntryMode,
+      isPieceworkQrProcessing,
     ]
   );
 
@@ -4111,6 +4128,7 @@ function TimeTrackingPage() {
                           onScanResult={(data) =>
                             handlePieceWorkTabScanResult(data)
                           }
+                          isProcessing={isPieceworkQrProcessing}
                         />
                       ) : (
                         <div className="p-4 border rounded-lg space-y-4">
@@ -4121,6 +4139,7 @@ function TimeTrackingPage() {
                               onScanResult={(data) =>
                                 handlePieceWorkTabScanResult(data)
                               }
+                              isProcessing={isPieceworkQrProcessing}
                             />
                           </div>
                           <div className="space-y-2">
