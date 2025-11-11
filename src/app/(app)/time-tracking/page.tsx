@@ -1419,12 +1419,33 @@ function TimeTrackingPage() {
           description: addOfflineIndicator(description, isOnline),
         });
       } catch (serverError) {
-        const permissionError = new FirestorePermissionError({
-          path: "time_entries",
-          operation: "write",
-          requestResourceData: { message: `Past record for ${employee.name}` },
-        });
-        errorEmitter.emit("permission-error", permissionError);
+        console.error("Error creating past record:", serverError);
+        
+        // When offline, Firestore operations are queued for sync
+        // Only emit errors if we're online (actual permission/validation errors)
+        if (isOnline) {
+          const permissionError = new FirestorePermissionError({
+            path: "time_entries",
+            operation: "write",
+            requestResourceData: { message: `Past record for ${employee.name}` },
+          });
+          errorEmitter.emit("permission-error", permissionError);
+          
+          // Show user-friendly error message when online
+          toast({
+            variant: "destructive",
+            title: "Failed to Create Record",
+            description: "An error occurred while creating the past record. Please check permissions and try again.",
+          });
+        } else {
+          // When offline, show a user-friendly message instead of throwing
+          console.warn("Past record creation failed offline:", serverError);
+          toast({
+            variant: "destructive",
+            title: "Past Record Error",
+            description: "Unable to create past record. Please try again or check your data when back online.",
+          });
+        }
       }
     },
     [firestore, toast, playSound, isOnline]
