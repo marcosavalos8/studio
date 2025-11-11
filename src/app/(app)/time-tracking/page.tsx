@@ -1495,6 +1495,49 @@ function TimeTrackingPage() {
               return;
             }
 
+            // Check for duplicate time entries (same employee, task, clock-in and clock-out times)
+            if (allTimeEntries) {
+              const duplicate = allTimeEntries.find((entry) => {
+                if (entry.employeeId !== scannedEmployee.id || entry.taskId !== selectedTask) {
+                  return false;
+                }
+                
+                // Check if clock-in times match (within 1 minute tolerance)
+                const entryClockIn = entry.timestamp instanceof Date
+                  ? entry.timestamp
+                  : (entry.timestamp as any)?.toDate?.()
+                  ? (entry.timestamp as any).toDate()
+                  : new Date(entry.timestamp as any);
+                const timeDiffIn = Math.abs(entryClockIn.getTime() - pastRecordClockInDate.getTime());
+                
+                // Check if clock-out times match (within 1 minute tolerance)
+                if (entry.endTime) {
+                  const entryClockOut = entry.endTime instanceof Date
+                    ? entry.endTime
+                    : (entry.endTime as any)?.toDate?.()
+                    ? (entry.endTime as any).toDate()
+                    : new Date(entry.endTime as any);
+                  const timeDiffOut = Math.abs(entryClockOut.getTime() - pastRecordClockOutDate.getTime());
+                  
+                  // If both clock-in and clock-out times match within 1 minute, it's a duplicate
+                  return timeDiffIn < 60000 && timeDiffOut < 60000;
+                }
+                
+                return false;
+              });
+              
+              if (duplicate) {
+                const task = allTasks?.find((t) => t.id === selectedTask);
+                const client = clients?.find((c) => c.id === task?.clientId);
+                toast({
+                  variant: "destructive",
+                  title: "Duplicate Entry Detected",
+                  description: `A time entry already exists for ${scannedEmployee.name} on ${format(pastRecordClockInDate, "PPP")} with the same clock-in and clock-out times for ${task?.name || 'this task'} (${client?.name || 'this client'}).`,
+                });
+                return;
+              }
+            }
+
             const task = allTasks?.find((t) => t.id === selectedTask);
             const piecesCount =
               task?.clientRateType === "piece"
@@ -1636,6 +1679,8 @@ function TimeTrackingPage() {
       allTasks,
       isQrProcessing,
       isOnline,
+      allTimeEntries,
+      clients,
     ]
   );
 
