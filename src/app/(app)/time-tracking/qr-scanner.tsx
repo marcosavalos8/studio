@@ -12,9 +12,10 @@ import jsQR from "jsqr";
 
 type QrScannerComponentProps = {
     onScanResult: (result: string) => void;
+    isProcessing?: boolean; // New prop to indicate if the parent is processing a scan
 }
 
-export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
+export function QrScannerComponent({ onScanResult, isProcessing = false }: QrScannerComponentProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [error, setError] = useState<string | null>(null);
@@ -78,7 +79,8 @@ export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
         const scan = () => {
             animationFrameId = requestAnimationFrame(scan);
             
-            if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+            // Skip scanning if currently processing a scan
+            if (!isProcessing && videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
                 const video = videoRef.current;
                 const canvas = canvasRef.current;
                 if (canvas) {
@@ -106,7 +108,7 @@ export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
         return () => {
             cancelAnimationFrame(animationFrameId);
         };
-    }, [hasCameraPermission, onScan]);
+    }, [hasCameraPermission, onScan, isProcessing]);
     
     if (!isClient) {
       return <Skeleton className="w-full aspect-video bg-muted rounded-md flex items-center justify-center"><VideoOff className="h-10 w-10 text-muted-foreground" /></Skeleton>
@@ -142,6 +144,13 @@ export function QrScannerComponent({ onScanResult }: QrScannerComponentProps) {
                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50">
                     <Loader2 className="h-8 w-8 animate-spin text-white" />
                     <p className="text-white mt-2">Initializing camera...</p>
+                 </div>
+           )}
+           {/* Show loading overlay when processing a scan */}
+           {isProcessing && (
+                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70">
+                    <Loader2 className="h-12 w-12 animate-spin text-white" />
+                    <p className="text-white mt-2 font-semibold">Processing...</p>
                  </div>
            )}
         </div>

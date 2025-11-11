@@ -350,6 +350,9 @@ function TimeTrackingPage() {
   const DEBOUNCE_MS = 5000; // 5 seconds - prevents camera from double-scanning QR codes
   const PIECEWORK_DEBOUNCE_MS = 180000; // 3 minutes for piecework tab
 
+  // QR Scanner processing state - prevents duplicate scans while processing
+  const [isQrProcessing, setIsQrProcessing] = useState(false);
+
   // Sick leave state
   const [sickHoursToUse, setSickHoursToUse] = useState<number | string>(0);
   const [sickLeaveDate, setSickLeaveDate] = useState<string>("");
@@ -749,8 +752,9 @@ function TimeTrackingPage() {
       gainNode.connect(audioContext.destination);
 
       gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+      // Increase volume from 0.8 to 1.0 (maximum)
       gainNode.gain.linearRampToValueAtTime(
-        0.8,
+        1.0,
         audioContext.currentTime + 0.01
       );
 
@@ -768,16 +772,18 @@ function TimeTrackingPage() {
       oscillator.type = "square";
 
       oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.3);
+      // Increase duration from 0.3s to 0.6s (twice as long)
+      oscillator.stop(audioContext.currentTime + 0.6);
       gainNode.gain.exponentialRampToValueAtTime(
         0.00001,
-        audioContext.currentTime + 0.3
+        audioContext.currentTime + 0.6
       );
       
-      // Add vibration feedback if supported
+      // Enhance vibration feedback: make it longer and use a pattern for more impact
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         try {
-          navigator.vibrate(200); // Vibrate for 200ms
+          // Vibrate pattern: [vibrate, pause, vibrate] - total 500ms of vibration
+          navigator.vibrate([300, 100, 200]); // 300ms vibrate, 100ms pause, 200ms vibrate
         } catch (e) {
           // Silently fail if vibration is not supported
           console.debug('Vibration not supported:', e);
@@ -1385,6 +1391,12 @@ function TimeTrackingPage() {
         });
         return;
       }
+      
+      // Prevent processing if already processing
+      if (isQrProcessing) {
+        return;
+      }
+      
       const now = Date.now();
 
       const isDebounced = recentScans.some(
@@ -1408,115 +1420,109 @@ function TimeTrackingPage() {
       );
 
       if (scannedEmployee) {
-        // If past records mode is enabled, create both clock-in and clock-out
-        if (usePastRecords) {
-          if (!pastRecordClockInDate || !pastRecordClockOutDate) {
-            toast({
-              variant: "destructive",
-              title: "Missing Times",
-              description:
-                "Please set both clock-in and clock-out times for past records.",
-            });
-            return;
-          }
-
-          const task = allTasks?.find((t) => t.id === selectedTask);
-          const piecesCount =
-            task?.clientRateType === "piece"
-              ? typeof pastRecordPiecesCount === "number"
-                ? pastRecordPiecesCount
-                : parseFloat(String(pastRecordPiecesCount))
-              : 0;
-
-          await createPastRecord(
-            scannedEmployee,
-            selectedTask,
-            pastRecordClockInDate,
-            pastRecordClockOutDate,
-            piecesCount > 0 ? piecesCount : undefined
-          );
-        } else if (scanMode === "clock-in") {
-          // When offline, show toast immediately to match Manual Entry UX pattern
-          // This provides instant feedback and prevents UI from appearing frozen
-          // Note: Validation (same-task check) still occurs - if it fails, error toast will also appear
-          // This trade-off prioritizes responsive UX over avoiding potential dual toasts
-          if (!isOnline) {
-            toast({
-              title: "Clock In Successful",
-              description: addOfflineIndicator(
-                `Clocked in ${scannedEmployee.name}.${
-                  useSickHoursForPayment ? " (Using sick hours for payment)" : ""
-                }`,
-                isOnline
-              ),
-            });
-          }
-
-          const timestamp = useManualDateTime ? manualClockInDate : undefined;
-          
-          // For piecework tasks, include pieces completed
-          const task = allTasks?.find((t) => t.id === selectedTask);
-          let piecesWorked: number | undefined = undefined;
-          if (task?.clientRateType === "piece" && qrPiecesCompleted) {
-            // qrPiecesCompleted is number | string, convert to number for validation
-            const parsed = Number(qrPiecesCompleted);
-            // Only set if it's a valid positive number (zero excluded)
-            if (!isNaN(parsed) && parsed > 0) {
-              piecesWorked = parsed;
-            }
-          }
-
-          const success = await clockInEmployee(
-            scannedEmployee,
-            selectedTask,
-            timestamp,
-            useSickHoursForPayment,
-            piecesWorked
-          );
-          
-          // Reset pieces completed after successful clock-in
-          if (success) {
-            setQrPiecesCompleted("");
-          }
-        } else if (scanMode === "clock-out") {
-          // When offline, show toast immediately to match Manual Entry behavior
-          if (!isOnline) {
-            toast({
-              title: "Clock Out Successful",
-              description: addOfflineIndicator(
-                `Clocked out ${scannedEmployee.name}.`,
-                isOnline
-              ),
-            });
-          }
-
-          const timestamp = useManualDateTime ? manualClockOutDate : undefined;
-          await clockOutEmployee(scannedEmployee, selectedTask, timestamp);
-        } else if (scanMode === "piece") {
-          if (isSharedPiece) {
-            setScannedSharedEmployees((prev) => {
-              if (prev.includes(scannedEmployee.id)) {
-                toast({
-                  variant: "destructive",
-                  title: "Duplicate Employee",
-                  description: `${scannedEmployee.name} is already on the list.`,
-                });
-                return prev;
-              }
+        // Set processing state for clock-in and clock-out operations
+        if (scanMode === "clock-in" || scanMode === "clock-out") {
+          setIsQrProcessing(true);
+        }
+        
+        try {
+          // If past records mode is enabled, create both clock-in and clock-out
+          if (usePastRecords) {
+            if (!pastRecordClockInDate || !pastRecordClockOutDate) {
               toast({
-                title: "Employee Added",
-                description: `Added ${scannedEmployee.name} to group.`,
+                variant: "destructive",
+                title: "Missing Times",
+                description:
+                  "Please set both clock-in and clock-out times for past records.",
+              });
+              return;
+            }
+
+            const task = allTasks?.find((t) => t.id === selectedTask);
+            const piecesCount =
+              task?.clientRateType === "piece"
+                ? typeof pastRecordPiecesCount === "number"
+                  ? pastRecordPiecesCount
+                  : parseFloat(String(pastRecordPiecesCount))
+                : 0;
+
+            await createPastRecord(
+              scannedEmployee,
+              selectedTask,
+              pastRecordClockInDate,
+              pastRecordClockOutDate,
+              piecesCount > 0 ? piecesCount : undefined
+            );
+          } else if (scanMode === "clock-in") {
+            // When offline, show toast immediately to match Manual Entry UX pattern
+            // This provides instant feedback and prevents UI from appearing frozen
+            // Note: Validation (same-task check) still occurs - if it fails, error toast will also appear
+            // This trade-off prioritizes responsive UX over avoiding potential dual toasts
+            if (!isOnline) {
+              toast({
+                title: "Clock In Successful",
+                description: addOfflineIndicator(
+                  `Clocked in ${scannedEmployee.name}.${
+                    useSickHoursForPayment ? " (Using sick hours for payment)" : ""
+                  }`,
+                  isOnline
+                ),
+              });
+            }
+
+            const timestamp = useManualDateTime ? manualClockInDate : undefined;
+
+            await clockInEmployee(
+              scannedEmployee,
+              selectedTask,
+              timestamp,
+              useSickHoursForPayment
+            );
+          } else if (scanMode === "clock-out") {
+            // When offline, show toast immediately to match Manual Entry behavior
+            if (!isOnline) {
+              toast({
+                title: "Clock Out Successful",
+                description: addOfflineIndicator(
+                  `Clocked out ${scannedEmployee.name}.`,
+                  isOnline
+                ),
+              });
+            }
+
+            const timestamp = useManualDateTime ? manualClockOutDate : undefined;
+            await clockOutEmployee(scannedEmployee, selectedTask, timestamp);
+          } else if (scanMode === "piece") {
+            if (isSharedPiece) {
+              setScannedSharedEmployees((prev) => {
+                if (prev.includes(scannedEmployee.id)) {
+                  toast({
+                    variant: "destructive",
+                    title: "Duplicate Employee",
+                    description: `${scannedEmployee.name} is already on the list.`,
+                  });
+                  return prev;
+                }
+                toast({
+                  title: "Employee Added",
+                  description: `Added ${scannedEmployee.name} to group.`,
+                });
+                playSound("clock-in");
+                return [...prev, scannedEmployee.id];
+              });
+            } else {
+              setScannedSharedEmployees([scannedEmployee.id]);
+              toast({
+                title: "Employee Scanned",
+                description: `${scannedEmployee.name} ready. Scan a bin.`,
               });
               playSound("clock-in");
-              return [...prev, scannedEmployee.id];
-            });
-          } else {
-            setScannedSharedEmployees([scannedEmployee.id]);
-            toast({
-              title: "Employee Scanned",
-              description: `${scannedEmployee.name} ready. Scan a bin.`,
-            });
-            playSound("clock-in");
+            }
+          }
+        } finally {
+          // Reset processing state after operation completes
+          if (scanMode === "clock-in" || scanMode === "clock-out") {
+            setIsQrProcessing(false);
           }
         }
       } else {
@@ -1571,6 +1577,8 @@ function TimeTrackingPage() {
       pastRecordPiecesCount,
       createPastRecord,
       allTasks,
+      isQrProcessing,
+      isOnline,
     ]
   );
 
@@ -3013,47 +3021,8 @@ function TimeTrackingPage() {
               )}
 
               {/* Pieces Completed input for piecework tasks in clock-in mode */}
-              {!usePastRecords &&
-                scanMode === "clock-in" &&
-                selectedTask &&
-                allTasks?.find((t) => t.id === selectedTask)?.clientRateType ===
-                  "piece" && (
-                  <div className="p-4 border rounded-lg space-y-2 bg-purple-50 dark:bg-purple-950/20">
-                    <Label
-                      htmlFor="qr-pieces-completed"
-                      className="font-semibold text-purple-900 dark:text-purple-100"
-                    >
-                      Pieces Completed (Optional)
-                    </Label>
-                    <Input
-                      id="qr-pieces-completed"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="Enter number of pieces completed"
-                      value={qrPiecesCompleted}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        if (value === "") {
-                          setQrPiecesCompleted("");
-                        } else {
-                          const parsed = parseFloat(value);
-                          // Accept non-negative numbers in UI (zero accepted but filtered out during processing if > 0 check applies)
-                          if (!isNaN(parsed) && parsed >= 0) {
-                            setQrPiecesCompleted(parsed);
-                          }
-                        }
-                      }}
-                    />
-                    <p className="text-sm text-purple-700 dark:text-purple-300">
-                      💡 Enter the number of pieces this employee completed for this
-                      task (e.g., bins harvested). This will be recorded when you
-                      scan their QR code to clock in.
-                    </p>
-                  </div>
-                )}
 
-              <QrScanner onScanResult={handleScanResult} />
+              <QrScanner onScanResult={handleScanResult} isProcessing={isQrProcessing} />
             </CardContent>
           </Card>
         </TabsContent>
