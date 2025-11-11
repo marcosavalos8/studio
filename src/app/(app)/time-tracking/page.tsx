@@ -131,9 +131,13 @@ function TimeTrackingPage() {
 
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
 
+  // QR Scanner loading state - prevents duplicate scans during async operations
+  const [isQrScannerProcessing, setIsQrScannerProcessing] = useState(false);
+
   // Bulk clock out
   const [isBulkClockingOut, setIsBulkClockingOut] = useState(false);
   const [selectedBulkTask, setSelectedBulkTask] = useState<string>("");
+  const [selectedBulkClient, setSelectedBulkClient] = useState<string>("");
   const [useBulkClockOutManualDateTime, setUseBulkClockOutManualDateTime] =
     useState(false);
   const [bulkClockOutDate, setBulkClockOutDate] = useState<Date | undefined>(
@@ -276,9 +280,6 @@ function TimeTrackingPage() {
   const [manualPieceworkDate, setManualPieceworkDate] = useState<
     Date | undefined
   >(undefined);
-
-  // QR Scanner piecework state - for entering pieces completed when clocking in to piecework task
-  const [qrPiecesCompleted, setQrPiecesCompleted] = useState<number | string>("");
 
   // Past records state - for creating both clock-in and clock-out at once
   const [usePastRecords, setUsePastRecords] = useState(false);
@@ -666,20 +667,23 @@ function TimeTrackingPage() {
   }, [tasksForClient, selectedRanch, selectedBlock]);
 
   // Filtered tasks for bulk clock out - only shows tasks with active clock-ins
+  // Uses independent selectedBulkClient instead of selectedClient
   const bulkClockOutTasks = useMemo(() => {
-    if (!filteredTasks || !activeTimeEntries) return [];
+    if (!allTasks || !activeTimeEntries || !selectedBulkClient) return [];
     
     // Get unique task IDs from active time entries
     const activeTaskIds = new Set(activeTimeEntries.map(entry => entry.taskId));
     
     // Filter to only include tasks that:
-    // 1. Are in the filtered tasks list (client/ranch/block filter applied)
+    // 1. Belong to the selected bulk client
     // 2. Have active clock-ins
     // 3. Are active status
-    return filteredTasks.filter(task => 
-      task.status === "Active" && activeTaskIds.has(task.id)
+    return allTasks.filter(task => 
+      task.status === "Active" && 
+      activeTaskIds.has(task.id) &&
+      task.clientId === selectedBulkClient
     );
-  }, [filteredTasks, activeTimeEntries]);
+  }, [allTasks, activeTimeEntries, selectedBulkClient]);
 
   // Filtered tasks for edit dialog
   const editTasksForClient = useMemo(() => {
@@ -748,9 +752,10 @@ function TimeTrackingPage() {
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
 
+      // Start with silence and ramp up to maximum volume (1.0) for louder sound
       gainNode.gain.setValueAtTime(0, audioContext.currentTime);
       gainNode.gain.linearRampToValueAtTime(
-        0.8,
+        1.0,
         audioContext.currentTime + 0.01
       );
 
@@ -767,17 +772,18 @@ function TimeTrackingPage() {
       }
       oscillator.type = "square";
 
+      // Play sound for longer duration (0.8 seconds instead of 0.3)
       oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.3);
+      oscillator.stop(audioContext.currentTime + 0.8);
       gainNode.gain.exponentialRampToValueAtTime(
         0.00001,
-        audioContext.currentTime + 0.3
+        audioContext.currentTime + 0.8
       );
       
-      // Add vibration feedback if supported
+      // Add stronger vibration feedback if supported (500ms instead of 200ms)
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         try {
-          navigator.vibrate(200); // Vibrate for 200ms
+          navigator.vibrate(500); // Vibrate for 500ms - much stronger
         } catch (e) {
           // Silently fail if vibration is not supported
           console.debug('Vibration not supported:', e);
@@ -864,7 +870,6 @@ function TimeTrackingPage() {
   useEffect(() => {
     setScannedSharedEmployees([]);
     setUseSickHoursForPayment(false); // Reset sick hours checkbox when mode changes
-    setQrPiecesCompleted(""); // Reset pieces completed when mode or task changes
   }, [scanMode, isSharedPiece, selectedTask, pieceEntryMode]);
 
   // Reset manual employee selection when searching
@@ -1293,6 +1298,57 @@ function TimeTrackingPage() {
       }
 
       try {
+        // Check for duplicate record - same employee, date, clock-in time, and clock-out time
+        const startOfClockInDay = new Date(clockInTime);
+        startOfClockInDay.setHours(0, 0, 0, 0);
+        const endOfClockInDay = new Date(clockInTime);
+        endOfClockInDay.setHours(23, 59, 59, 999);
+
+        const duplicateQuery = query(
+          collection(firestore, "time_entries"),
+          where("employeeId", "==", employee.id),
+          where("timestamp", ">=", startOfClockInDay),
+          where("timestamp", "<=", endOfClockInDay)
+        );
+
+        const duplicateSnap = await getDocs(duplicateQuery);
+        
+        // Check if there's an exact match with both timestamp and endTime
+        const exactDuplicate = duplicateSnap.docs.some((docSnap) => {
+          const entry = docSnap.data() as TimeEntry;
+          
+          // Convert timestamps to comparable format
+          const entryClockIn = entry.timestamp instanceof Date
+            ? entry.timestamp
+            : (entry.timestamp as any)?.toDate?.()
+            ? (entry.timestamp as any).toDate()
+            : new Date(entry.timestamp as any);
+          
+          const entryClockOut = entry.endTime
+            ? entry.endTime instanceof Date
+              ? entry.endTime
+              : (entry.endTime as any)?.toDate?.()
+              ? (entry.endTime as any).toDate()
+              : new Date(entry.endTime as any)
+            : null;
+
+          // Check if both clock-in and clock-out times match exactly
+          return (
+            entryClockIn.getTime() === clockInTime.getTime() &&
+            entryClockOut !== null &&
+            entryClockOut.getTime() === clockOutTime.getTime()
+          );
+        });
+
+        if (exactDuplicate) {
+          toast({
+            variant: "destructive",
+            title: "Duplicate Record",
+            description: `A record for ${employee.name} with the same date and times already exists.`,
+          });
+          return;
+        }
+
         const batch = writeBatch(firestore);
 
         // Close any active entries first
@@ -1376,6 +1432,11 @@ function TimeTrackingPage() {
 
   const handleScanResult = useCallback(
     async (scannedData: string) => {
+      // Prevent processing if already handling a scan
+      if (isQrScannerProcessing) {
+        return;
+      }
+
       if (!selectedTask) {
         toast({
           variant: "destructive",
@@ -1420,6 +1481,9 @@ function TimeTrackingPage() {
             return;
           }
 
+          // Set loading state for past records
+          setIsQrScannerProcessing(true);
+
           const task = allTasks?.find((t) => t.id === selectedTask);
           const piecesCount =
             task?.clientRateType === "piece"
@@ -1435,7 +1499,12 @@ function TimeTrackingPage() {
             pastRecordClockOutDate,
             piecesCount > 0 ? piecesCount : undefined
           );
+
+          setIsQrScannerProcessing(false);
         } else if (scanMode === "clock-in") {
+          // Set loading state to prevent duplicate scans
+          setIsQrScannerProcessing(true);
+
           // When offline, show toast immediately to match Manual Entry UX pattern
           // This provides instant feedback and prevents UI from appearing frozen
           // Note: Validation (same-task check) still occurs - if it fails, error toast will also appear
@@ -1453,32 +1522,21 @@ function TimeTrackingPage() {
           }
 
           const timestamp = useManualDateTime ? manualClockInDate : undefined;
-          
-          // For piecework tasks, include pieces completed
-          const task = allTasks?.find((t) => t.id === selectedTask);
-          let piecesWorked: number | undefined = undefined;
-          if (task?.clientRateType === "piece" && qrPiecesCompleted) {
-            // qrPiecesCompleted is number | string, convert to number for validation
-            const parsed = Number(qrPiecesCompleted);
-            // Only set if it's a valid positive number (zero excluded)
-            if (!isNaN(parsed) && parsed > 0) {
-              piecesWorked = parsed;
-            }
-          }
 
           const success = await clockInEmployee(
             scannedEmployee,
             selectedTask,
             timestamp,
             useSickHoursForPayment,
-            piecesWorked
+            undefined // No pieces from QR scanner anymore
           );
-          
-          // Reset pieces completed after successful clock-in
-          if (success) {
-            setQrPiecesCompleted("");
-          }
+
+          // Release loading state after operation completes
+          setIsQrScannerProcessing(false);
         } else if (scanMode === "clock-out") {
+          // Set loading state to prevent duplicate scans
+          setIsQrScannerProcessing(true);
+
           // When offline, show toast immediately to match Manual Entry behavior
           if (!isOnline) {
             toast({
@@ -1492,6 +1550,9 @@ function TimeTrackingPage() {
 
           const timestamp = useManualDateTime ? manualClockOutDate : undefined;
           await clockOutEmployee(scannedEmployee, selectedTask, timestamp);
+
+          // Release loading state after operation completes
+          setIsQrScannerProcessing(false);
         } else if (scanMode === "piece") {
           if (isSharedPiece) {
             setScannedSharedEmployees((prev) => {
@@ -1549,6 +1610,7 @@ function TimeTrackingPage() {
       }
     },
     [
+      isQrScannerProcessing,
       selectedTask,
       toast,
       scanMode,
@@ -3012,48 +3074,19 @@ function TimeTrackingPage() {
                 </>
               )}
 
-              {/* Pieces Completed input for piecework tasks in clock-in mode */}
-              {!usePastRecords &&
-                scanMode === "clock-in" &&
-                selectedTask &&
-                allTasks?.find((t) => t.id === selectedTask)?.clientRateType ===
-                  "piece" && (
-                  <div className="p-4 border rounded-lg space-y-2 bg-purple-50 dark:bg-purple-950/20">
-                    <Label
-                      htmlFor="qr-pieces-completed"
-                      className="font-semibold text-purple-900 dark:text-purple-100"
-                    >
-                      Pieces Completed (Optional)
-                    </Label>
-                    <Input
-                      id="qr-pieces-completed"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="Enter number of pieces completed"
-                      value={qrPiecesCompleted}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        if (value === "") {
-                          setQrPiecesCompleted("");
-                        } else {
-                          const parsed = parseFloat(value);
-                          // Accept non-negative numbers in UI (zero accepted but filtered out during processing if > 0 check applies)
-                          if (!isNaN(parsed) && parsed >= 0) {
-                            setQrPiecesCompleted(parsed);
-                          }
-                        }
-                      }}
-                    />
-                    <p className="text-sm text-purple-700 dark:text-purple-300">
-                      💡 Enter the number of pieces this employee completed for this
-                      task (e.g., bins harvested). This will be recorded when you
-                      scan their QR code to clock in.
-                    </p>
+              <div className="relative">
+                <QrScanner onScanResult={handleScanResult} />
+                
+                {/* Loading overlay when processing scan */}
+                {isQrScannerProcessing && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-md z-10">
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg flex flex-col items-center gap-3">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <p className="text-sm font-medium">Processing scan...</p>
+                    </div>
                   </div>
                 )}
-
-              <QrScanner onScanResult={handleScanResult} />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -3537,16 +3570,40 @@ function TimeTrackingPage() {
               </div> */}
 
               <div className="space-y-2">
+                <Label htmlFor="bulk-client-select">Client</Label>
+                <Select
+                  value={selectedBulkClient}
+                  onValueChange={(value) => {
+                    setSelectedBulkClient(value === CLEAR_SELECTION_VALUE ? "" : value);
+                    // Clear task selection when client changes
+                    setSelectedBulkTask("");
+                  }}
+                >
+                  <SelectTrigger id="bulk-client-select">
+                    <SelectValue placeholder="Select a client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
+                    {clients?.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="bulk-task-select">Task</Label>
                 <Select
                   value={selectedBulkTask}
                   onValueChange={setSelectedBulkTask}
-                  disabled={!selectedClient}
+                  disabled={!selectedBulkClient}
                 >
                   <SelectTrigger id="bulk-task-select">
                     <SelectValue 
                       placeholder={
-                        !selectedClient 
+                        !selectedBulkClient 
                           ? "Select a client first to view tasks" 
                           : bulkClockOutTasks && bulkClockOutTasks.length > 0
                           ? "Select a task to bulk clock out"
@@ -3955,7 +4012,7 @@ function TimeTrackingPage() {
                           {scannedSharedEmployees.length > 0 && (
                             <Button
                               className="w-full"
-                              onClick={handlePieceWorkSubmit}
+                              onClick={() => handlePieceWorkSubmit()}
                               disabled={
                                 isManualSubmitting ||
                                 !manualPieceQuantity ||
@@ -5148,7 +5205,7 @@ function TimeTrackingPage() {
                               const updated = [...editRelatedPiecework];
 
                               if (value === "") {
-                                updated[index] = { ...piece, pieceCount: "" }; // <- Guardar como string vacío
+                                updated[index] = { ...piece, pieceCount: 0 }; // Use 0 for empty
                               } else {
                                 const numValue = parseFloat(value);
                                 if (!isNaN(numValue)) {
@@ -5165,38 +5222,6 @@ function TimeTrackingPage() {
                       );
                     })}
 
-                    {/* También para piecework individual */}
-                    {editTarget?.type === "piecework" && (
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-piece-count">
-                          Quantity (can include decimals)
-                        </Label>
-                        <Input
-                          id="edit-piece-count"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="Enter quantity"
-                          value={
-                            editPieceCount === 1 || editPieceCount === 0
-                              ? ""
-                              : String(editPieceCount)
-                          } // <- Si es valor por defecto, mostrar vacío
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            if (value === "") {
-                              setEditPieceCount(""); // <- Guardar como string vacío
-                            } else {
-                              const numValue = parseFloat(value);
-                              if (!isNaN(numValue)) {
-                                setEditPieceCount(numValue);
-                              }
-                            }
-                          }}
-                        />
-                      </div>
-                    )}
-
                     <div className="pt-2 border-t">
                       <p className="text-sm font-medium text-muted-foreground">
                         Total Pieces:{" "}
@@ -5211,7 +5236,7 @@ function TimeTrackingPage() {
 
                           const relatedPieces = editRelatedPiecework.reduce(
                             (sum, p) => {
-                              if (p.pieceCount === "" || p.pieceCount === 0)
+                              if (p.pieceCount === 0)
                                 return sum;
                               return (
                                 sum +
