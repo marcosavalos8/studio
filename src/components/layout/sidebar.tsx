@@ -23,6 +23,7 @@ import {
   Settings,
   LifeBuoy,
   QrCode,
+  Tag,
 } from "lucide-react"
 
 const menuItems = [
@@ -33,6 +34,7 @@ const menuItems = [
   { href: "/tasks", label: "Tasks", icon: ClipboardList },
   { href: "/payroll", label: "Payroll", icon: FileText },
   { href: "/invoicing", label: "Invoicing", icon: DollarSign },
+  { href: "/label-report", label: "Label Report", icon: Tag },
 ]
 
 export function AppSidebar() {
