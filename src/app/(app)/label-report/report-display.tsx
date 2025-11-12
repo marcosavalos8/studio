@@ -36,36 +36,14 @@ export function LabelReportDisplay({
     window.print();
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (!report.employeeDetails || report.employeeDetails.length === 0) {
       return;
     }
 
-    // Prepare data for Excel
-    const excelData: any[] = [];
-
-    // Add header row with date range
-    const sortedDates = Object.keys(report.dailyBreakdown).sort(
-      (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime()
-    );
-    if (sortedDates.length > 0) {
-      const firstDate = parseLocalDate(sortedDates[0]);
-      const lastDate = parseLocalDate(sortedDates[sortedDates.length - 1]);
-      const startDay = format(firstDate, "EEEE");
-      const endDay = format(lastDate, "EEEE");
-      const startMonth = format(firstDate, "LLL");
-      const endMonth = format(lastDate, "LLL");
-      const startDayNum = format(firstDate, "dd");
-      const endDayNum = format(lastDate, "dd");
-      const year = format(lastDate, "yyyy");
-
-      const dateRangeHeader = startMonth === endMonth
-        ? `${startDay} - ${endDay}, ${startMonth} ${startDayNum}-${endDayNum}, ${year}`
-        : `${startDay}, ${startMonth} ${startDayNum} - ${endDay}, ${endMonth} ${endDayNum}, ${year}`;
-
-      excelData.push([dateRangeHeader]);
-      excelData.push([]); // Empty row
-    }
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const ws: XLSX.WorkSheet = {};
 
     // Collect all unique tasks across all employees
     const allTaskNames = new Set<string>();
@@ -76,37 +54,96 @@ export function LabelReportDisplay({
     });
     const uniqueTasks = Array.from(allTaskNames);
 
-    // Build header row
-    const headerRow = ["Worker Name", "Hours"];
-    uniqueTasks.forEach((taskName) => {
-      headerRow.push(`${taskName} - Pieces`, `${taskName} - Rate`, `${taskName} - Pay`);
-    });
-    headerRow.push("Total Pieces Pay", "MIN PAY REQ", "Diff Owed");
-    excelData.push(headerRow);
+    // Prepare date range
+    const sortedDates = Object.keys(report.dailyBreakdown).sort(
+      (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime()
+    );
+    let dateRangeStr = "";
+    if (sortedDates.length > 0) {
+      const firstDate = parseLocalDate(sortedDates[0]);
+      const lastDate = parseLocalDate(sortedDates[sortedDates.length - 1]);
+      dateRangeStr = `${format(firstDate, "MM/dd/yyyy")}`;
+    }
 
-    // Build data rows
+    // Build header section
+    ws["!ref"] = "A1:Z100"; // Set range
+    ws["A1"] = { v: "J&M Agricultural Labor LLC", t: "s" };
+    ws["A2"] = { v: "Labor Report", t: "s" };
+    ws["A4"] = { v: dateRangeStr, t: "s" };
+    ws["A5"] = { v: "$ 19.82 :Min Wage", t: "s" };
+    
+    ws["B4"] = { v: "EIN#", t: "s" };
+    ws["C4"] = { v: "33-2236422", t: "s" };
+    ws["D4"] = { v: "LIC#172-25", t: "s" };
+    ws["B5"] = { v: "UBI#", t: "s" };
+    ws["C5"] = { v: "605 650 411", t: "s" };
+
+    // Header row for table (row 7)
+    const headerRow = 7;
+    const headers = ["Worker Name", "Hours"];
+    let col = 0;
+    
+    // Set Worker Name and Hours
+    ws[XLSX.utils.encode_cell({ r: headerRow - 1, c: col++ })] = { v: "Worker Name", t: "s" };
+    ws[XLSX.utils.encode_cell({ r: headerRow - 1, c: col++ })] = { v: "Hours", t: "s" };
+
+    // Add task columns (renamed to Piece A, Piece B, etc.)
+    uniqueTasks.forEach((taskName, idx) => {
+      const label = String.fromCharCode(65 + idx); // A, B, C, etc.
+      ws[XLSX.utils.encode_cell({ r: headerRow - 1, c: col++ })] = { v: `Piece ${label}`, t: "s" };
+      ws[XLSX.utils.encode_cell({ r: headerRow - 1, c: col++ })] = { v: `Rate ${label}`, t: "s" };
+      ws[XLSX.utils.encode_cell({ r: headerRow - 1, c: col++ })] = { v: `Piece Pay ${label}`, t: "s" };
+    });
+
+    ws[XLSX.utils.encode_cell({ r: headerRow - 1, c: col++ })] = { v: "Total Pieces Pay", t: "s" };
+    ws[XLSX.utils.encode_cell({ r: headerRow - 1, c: col++ })] = { v: "MIN PAY REQ", t: "s" };
+    ws[XLSX.utils.encode_cell({ r: headerRow - 1, c: col++ })] = { v: "Diff Owed", t: "s" };
+
+    const totalCols = col;
+
+    // Data rows
+    let currentRow = headerRow;
     report.employeeDetails.forEach((employee) => {
-      const row: any[] = [
-        employee.employeeName,
-        employee.totalHours.toFixed(2),
-      ];
+      col = 0;
+      
+      ws[XLSX.utils.encode_cell({ r: currentRow, c: col++ })] = { 
+        v: employee.employeeName, 
+        t: "s" 
+      };
+      ws[XLSX.utils.encode_cell({ r: currentRow, c: col++ })] = { 
+        v: parseFloat(employee.totalHours.toFixed(2)), 
+        t: "n",
+        z: "0.00"
+      };
 
       // Create a map of task name to task data for quick lookup
       const taskMap = new Map(
         employee.tasksSummary.map((task) => [task.taskName, task])
       );
 
-      // Add columns for each unique task
+      // Add task data
       uniqueTasks.forEach((taskName) => {
         const task = taskMap.get(taskName);
         if (task) {
-          row.push(
-            task.quantity.toFixed(2),
-            task.rate.toFixed(2),
-            task.cost.toFixed(2)
-          );
+          ws[XLSX.utils.encode_cell({ r: currentRow, c: col++ })] = { 
+            v: parseFloat(task.quantity.toFixed(2)), 
+            t: "n",
+            z: "0.00"
+          };
+          ws[XLSX.utils.encode_cell({ r: currentRow, c: col++ })] = { 
+            v: parseFloat(task.rate.toFixed(2)), 
+            t: "n",
+            z: "$0.00"
+          };
+          ws[XLSX.utils.encode_cell({ r: currentRow, c: col++ })] = { 
+            v: parseFloat(task.cost.toFixed(2)), 
+            t: "n",
+            z: "$0.00"
+          };
         } else {
-          row.push(0, 0, 0); // Empty values if employee didn't work on this task
+          ws[XLSX.utils.encode_cell({ r: currentRow, c: col++ })] = { v: 0, t: "n", z: "0.00" };
+          ws[XLSX.utils.encode_cell({ r: currentRow, c: col++ })] = { v: 0, t: "n", z: "$0.00" };
+          ws[XLSX.utils.encode_cell({ r: currentRow, c: col++ })] = { v: 0, t: "n", z: "$0.00" };
         }
       });
 
@@ -125,22 +162,53 @@ export function LabelReportDisplay({
         employee.minimumWageTopUp +
         (employee.overtimePremium || 0);
 
-      row.push(
-        totalPiecesPay.toFixed(2),
-        minPayRequired.toFixed(2),
-        diffOwed.toFixed(2)
-      );
+      ws[XLSX.utils.encode_cell({ r: currentRow, c: col++ })] = { 
+        v: parseFloat(totalPiecesPay.toFixed(2)), 
+        t: "n",
+        z: "$0.00"
+      };
+      ws[XLSX.utils.encode_cell({ r: currentRow, c: col++ })] = { 
+        v: parseFloat(minPayRequired.toFixed(2)), 
+        t: "n",
+        z: "$0.00"
+      };
+      ws[XLSX.utils.encode_cell({ r: currentRow, c: col++ })] = { 
+        v: parseFloat(diffOwed.toFixed(2)), 
+        t: "n",
+        z: "$0.00"
+      };
 
-      excelData.push(row);
+      currentRow++;
     });
 
-    // Create workbook and worksheet
-    const ws = XLSX.utils.aoa_to_sheet(excelData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Label Report");
+    // Set column widths
+    const colWidths = [
+      { wch: 20 }, // Worker Name
+      { wch: 8 },  // Hours
+    ];
+    
+    uniqueTasks.forEach(() => {
+      colWidths.push({ wch: 10 }); // Piece
+      colWidths.push({ wch: 10 }); // Rate
+      colWidths.push({ wch: 12 }); // Pay
+    });
+    
+    colWidths.push({ wch: 15 }); // Total Pieces Pay
+    colWidths.push({ wch: 12 }); // MIN PAY REQ
+    colWidths.push({ wch: 12 }); // Diff Owed
+    
+    ws["!cols"] = colWidths;
+
+    // Merge cells for title
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } }, // J&M Agricultural Labor LLC
+      { s: { r: 1, c: 0 }, e: { r: 1, c: totalCols - 1 } }, // Labor Report
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Labor Report");
 
     // Generate filename
-    const filename = `label_report_${report.client.name}_${report.date.from}_to_${report.date.to}.xlsx`;
+    const filename = `labor_report_${report.client.name}_${report.date.from}_to_${report.date.to}.xlsx`;
 
     // Save file
     XLSX.writeFile(wb, filename);
@@ -230,18 +298,28 @@ export function LabelReportDisplay({
               border: none;
               box-shadow: none;
               margin: 0;
-              padding: 1.5rem;
+              padding: 0.5rem;
               color: #000;
-              font-size: 11px;
+              font-size: 8px;
             }
             .report-container table {
-              font-size: 9px;
+              font-size: 7px;
+            }
+            .report-container table th,
+            .report-container table td {
+              padding: 2px 4px !important;
             }
             .report-container h1 {
-              font-size: 20px;
+              font-size: 14px;
+              margin-bottom: 0.25rem;
             }
             .report-container h2 {
-              font-size: 14px;
+              font-size: 10px;
+              margin-bottom: 0.25rem;
+            }
+            .report-container p {
+              font-size: 8px;
+              margin-bottom: 0.25rem;
             }
             .print\\:hidden {
               display: none;
@@ -249,7 +327,7 @@ export function LabelReportDisplay({
           }
           @page {
             size: landscape;
-            margin: 0.4in;
+            margin: 0.3in;
           }
         `}</style>
 
@@ -273,19 +351,22 @@ export function LabelReportDisplay({
                 <TableRow>
                   <TableHead className="whitespace-nowrap">Worker Name</TableHead>
                   <TableHead className="text-right whitespace-nowrap">Hours</TableHead>
-                  {uniqueTasks.map((taskName) => (
-                    <React.Fragment key={taskName}>
-                      <TableHead className="text-right whitespace-nowrap">
-                        {taskName} - Pieces
-                      </TableHead>
-                      <TableHead className="text-right whitespace-nowrap">
-                        {taskName} - Rate
-                      </TableHead>
-                      <TableHead className="text-right whitespace-nowrap">
-                        {taskName} - Pay
-                      </TableHead>
-                    </React.Fragment>
-                  ))}
+                  {uniqueTasks.map((taskName, idx) => {
+                    const label = String.fromCharCode(65 + idx); // A, B, C, etc.
+                    return (
+                      <React.Fragment key={taskName}>
+                        <TableHead className="text-right whitespace-nowrap">
+                          Piece {label}
+                        </TableHead>
+                        <TableHead className="text-right whitespace-nowrap">
+                          Rate {label}
+                        </TableHead>
+                        <TableHead className="text-right whitespace-nowrap">
+                          Piece Pay {label}
+                        </TableHead>
+                      </React.Fragment>
+                    );
+                  })}
                   <TableHead className="text-right whitespace-nowrap">
                     Total Pieces Pay
                   </TableHead>
