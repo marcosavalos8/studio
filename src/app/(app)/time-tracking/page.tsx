@@ -139,6 +139,10 @@ function TimeTrackingPage() {
   const [bulkClockOutDate, setBulkClockOutDate] = useState<Date | undefined>(
     undefined
   );
+  // Independent client selector for bulk clock-out
+  const [selectedBulkClient, setSelectedBulkClient] = useState<string>("");
+  const [selectedBulkRanch, setSelectedBulkRanch] = useState<string>("");
+  const [selectedBulkBlock, setSelectedBulkBlock] = useState<string>("");
 
   // Bulk clock in
   const [isBulkClockingIn, setIsBulkClockingIn] = useState(false);
@@ -349,6 +353,12 @@ function TimeTrackingPage() {
   >([]);
   const DEBOUNCE_MS = 5000; // 5 seconds - prevents camera from double-scanning QR codes
   const PIECEWORK_DEBOUNCE_MS = 180000; // 3 minutes for piecework tab
+
+  // QR Scanner processing state - prevents duplicate scans while processing
+  const [isQrProcessing, setIsQrProcessing] = useState(false);
+  
+  // Piecework QR Scanner processing state - prevents duplicate scans while processing
+  const [isPieceworkQrProcessing, setIsPieceworkQrProcessing] = useState(false);
 
   // Sick leave state
   const [sickHoursToUse, setSickHoursToUse] = useState<number | string>(0);
@@ -681,6 +691,59 @@ function TimeTrackingPage() {
     );
   }, [filteredTasks, activeTimeEntries]);
 
+  // Independent filters for bulk clock-out section
+  const bulkTasksForClient = useMemo(() => {
+    if (!allTasks || !selectedBulkClient) return [];
+    return allTasks.filter((t) => t.clientId === selectedBulkClient);
+  }, [allTasks, selectedBulkClient]);
+
+  const bulkRanches = useMemo(() => {
+    if (!bulkTasksForClient) return [];
+    return [
+      ...new Set(bulkTasksForClient.map((t) => t.ranch).filter(Boolean)),
+    ] as string[];
+  }, [bulkTasksForClient]);
+
+  const bulkBlocks = useMemo(() => {
+    if (!selectedBulkRanch || !bulkTasksForClient) return [];
+    return [
+      ...new Set(
+        bulkTasksForClient
+          .filter((t) => t.ranch === selectedBulkRanch)
+          .map((t) => t.block)
+          .filter(Boolean)
+      ),
+    ] as string[];
+  }, [bulkTasksForClient, selectedBulkRanch]);
+
+  const bulkFilteredTasks = useMemo(() => {
+    if (!bulkTasksForClient) return [];
+    let filtered = bulkTasksForClient;
+    if (selectedBulkRanch) {
+      filtered = filtered.filter((t) => t.ranch === selectedBulkRanch);
+    }
+    if (selectedBulkBlock) {
+      filtered = filtered.filter((t) => t.block === selectedBulkBlock);
+    }
+    return filtered;
+  }, [bulkTasksForClient, selectedBulkRanch, selectedBulkBlock]);
+
+  // Bulk clock-out tasks with active clock-ins
+  const bulkClockOutFilteredTasks = useMemo(() => {
+    if (!bulkFilteredTasks || !activeTimeEntries) return [];
+    
+    // Get unique task IDs from active time entries
+    const activeTaskIds = new Set(activeTimeEntries.map(entry => entry.taskId));
+    
+    // Filter to only include tasks that:
+    // 1. Are in the bulk filtered tasks list (independent client/ranch/block filter applied)
+    // 2. Have active clock-ins
+    // 3. Are active status
+    return bulkFilteredTasks.filter(task => 
+      task.status === "Active" && activeTaskIds.has(task.id)
+    );
+  }, [bulkFilteredTasks, activeTimeEntries]);
+
   // Filtered tasks for edit dialog
   const editTasksForClient = useMemo(() => {
     if (!allTasks || !editClient) return [];
@@ -749,8 +812,9 @@ function TimeTrackingPage() {
       gainNode.connect(audioContext.destination);
 
       gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+      // Increase volume from 0.8 to 1.0 (maximum)
       gainNode.gain.linearRampToValueAtTime(
-        0.8,
+        1.0,
         audioContext.currentTime + 0.01
       );
 
@@ -768,16 +832,18 @@ function TimeTrackingPage() {
       oscillator.type = "square";
 
       oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.3);
+      // Increase duration from 0.3s to 0.6s (twice as long)
+      oscillator.stop(audioContext.currentTime + 0.6);
       gainNode.gain.exponentialRampToValueAtTime(
         0.00001,
-        audioContext.currentTime + 0.3
+        audioContext.currentTime + 0.6
       );
       
-      // Add vibration feedback if supported
+      // Enhance vibration feedback: make it longer and use a pattern for more impact
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         try {
-          navigator.vibrate(200); // Vibrate for 200ms
+          // Vibrate pattern: [vibrate, pause, vibrate] - total 500ms of vibration
+          navigator.vibrate([300, 100, 200]); // 300ms vibrate, 100ms pause, 200ms vibrate
         } catch (e) {
           // Silently fail if vibration is not supported
           console.debug('Vibration not supported:', e);
@@ -1385,6 +1451,12 @@ function TimeTrackingPage() {
         });
         return;
       }
+      
+      // Prevent processing if already processing
+      if (isQrProcessing) {
+        return;
+      }
+      
       const now = Date.now();
 
       const isDebounced = recentScans.some(
@@ -1408,115 +1480,152 @@ function TimeTrackingPage() {
       );
 
       if (scannedEmployee) {
-        // If past records mode is enabled, create both clock-in and clock-out
-        if (usePastRecords) {
-          if (!pastRecordClockInDate || !pastRecordClockOutDate) {
-            toast({
-              variant: "destructive",
-              title: "Missing Times",
-              description:
-                "Please set both clock-in and clock-out times for past records.",
-            });
-            return;
-          }
-
-          const task = allTasks?.find((t) => t.id === selectedTask);
-          const piecesCount =
-            task?.clientRateType === "piece"
-              ? typeof pastRecordPiecesCount === "number"
-                ? pastRecordPiecesCount
-                : parseFloat(String(pastRecordPiecesCount))
-              : 0;
-
-          await createPastRecord(
-            scannedEmployee,
-            selectedTask,
-            pastRecordClockInDate,
-            pastRecordClockOutDate,
-            piecesCount > 0 ? piecesCount : undefined
-          );
-        } else if (scanMode === "clock-in") {
-          // When offline, show toast immediately to match Manual Entry UX pattern
-          // This provides instant feedback and prevents UI from appearing frozen
-          // Note: Validation (same-task check) still occurs - if it fails, error toast will also appear
-          // This trade-off prioritizes responsive UX over avoiding potential dual toasts
-          if (!isOnline) {
-            toast({
-              title: "Clock In Successful",
-              description: addOfflineIndicator(
-                `Clocked in ${scannedEmployee.name}.${
-                  useSickHoursForPayment ? " (Using sick hours for payment)" : ""
-                }`,
-                isOnline
-              ),
-            });
-          }
-
-          const timestamp = useManualDateTime ? manualClockInDate : undefined;
-          
-          // For piecework tasks, include pieces completed
-          const task = allTasks?.find((t) => t.id === selectedTask);
-          let piecesWorked: number | undefined = undefined;
-          if (task?.clientRateType === "piece" && qrPiecesCompleted) {
-            // qrPiecesCompleted is number | string, convert to number for validation
-            const parsed = Number(qrPiecesCompleted);
-            // Only set if it's a valid positive number (zero excluded)
-            if (!isNaN(parsed) && parsed > 0) {
-              piecesWorked = parsed;
+        // Set processing state for clock-in and clock-out operations
+        if (scanMode === "clock-in" || scanMode === "clock-out") {
+          setIsQrProcessing(true);
+        }
+        
+        try {
+          // If past records mode is enabled, create both clock-in and clock-out
+          if (usePastRecords) {
+            if (!pastRecordClockInDate || !pastRecordClockOutDate) {
+              toast({
+                variant: "destructive",
+                title: "Missing Times",
+                description:
+                  "Please set both clock-in and clock-out times for past records.",
+              });
+              return;
             }
-          }
 
-          const success = await clockInEmployee(
-            scannedEmployee,
-            selectedTask,
-            timestamp,
-            useSickHoursForPayment,
-            piecesWorked
-          );
-          
-          // Reset pieces completed after successful clock-in
-          if (success) {
-            setQrPiecesCompleted("");
-          }
-        } else if (scanMode === "clock-out") {
-          // When offline, show toast immediately to match Manual Entry behavior
-          if (!isOnline) {
-            toast({
-              title: "Clock Out Successful",
-              description: addOfflineIndicator(
-                `Clocked out ${scannedEmployee.name}.`,
-                isOnline
-              ),
-            });
-          }
-
-          const timestamp = useManualDateTime ? manualClockOutDate : undefined;
-          await clockOutEmployee(scannedEmployee, selectedTask, timestamp);
-        } else if (scanMode === "piece") {
-          if (isSharedPiece) {
-            setScannedSharedEmployees((prev) => {
-              if (prev.includes(scannedEmployee.id)) {
+            // Check for duplicate time entries (same employee, task, clock-in and clock-out times)
+            if (allTimeEntries) {
+              const duplicate = allTimeEntries.find((entry) => {
+                if (entry.employeeId !== scannedEmployee.id || entry.taskId !== selectedTask) {
+                  return false;
+                }
+                
+                // Check if clock-in times match (within 1 minute tolerance)
+                const entryClockIn = entry.timestamp instanceof Date
+                  ? entry.timestamp
+                  : (entry.timestamp as any)?.toDate?.()
+                  ? (entry.timestamp as any).toDate()
+                  : new Date(entry.timestamp as any);
+                const timeDiffIn = Math.abs(entryClockIn.getTime() - pastRecordClockInDate.getTime());
+                
+                // Check if clock-out times match (within 1 minute tolerance)
+                if (entry.endTime) {
+                  const entryClockOut = entry.endTime instanceof Date
+                    ? entry.endTime
+                    : (entry.endTime as any)?.toDate?.()
+                    ? (entry.endTime as any).toDate()
+                    : new Date(entry.endTime as any);
+                  const timeDiffOut = Math.abs(entryClockOut.getTime() - pastRecordClockOutDate.getTime());
+                  
+                  // If both clock-in and clock-out times match within 1 minute, it's a duplicate
+                  return timeDiffIn < 60000 && timeDiffOut < 60000;
+                }
+                
+                return false;
+              });
+              
+              if (duplicate) {
+                const task = allTasks?.find((t) => t.id === selectedTask);
+                const client = clients?.find((c) => c.id === task?.clientId);
                 toast({
                   variant: "destructive",
-                  title: "Duplicate Employee",
-                  description: `${scannedEmployee.name} is already on the list.`,
+                  title: "Duplicate Entry Detected",
+                  description: `A time entry already exists for ${scannedEmployee.name} on ${format(pastRecordClockInDate, "PPP")} with the same clock-in and clock-out times for ${task?.name || 'this task'} (${client?.name || 'this client'}).`,
                 });
-                return prev;
+                return;
               }
+            }
+
+            const task = allTasks?.find((t) => t.id === selectedTask);
+            const piecesCount =
+              task?.clientRateType === "piece"
+                ? typeof pastRecordPiecesCount === "number"
+                  ? pastRecordPiecesCount
+                  : parseFloat(String(pastRecordPiecesCount))
+                : 0;
+
+            await createPastRecord(
+              scannedEmployee,
+              selectedTask,
+              pastRecordClockInDate,
+              pastRecordClockOutDate,
+              piecesCount > 0 ? piecesCount : undefined
+            );
+          } else if (scanMode === "clock-in") {
+            // When offline, show toast immediately to match Manual Entry UX pattern
+            // This provides instant feedback and prevents UI from appearing frozen
+            // Note: Validation (same-task check) still occurs - if it fails, error toast will also appear
+            // This trade-off prioritizes responsive UX over avoiding potential dual toasts
+            if (!isOnline) {
               toast({
-                title: "Employee Added",
-                description: `Added ${scannedEmployee.name} to group.`,
+                title: "Clock In Successful",
+                description: addOfflineIndicator(
+                  `Clocked in ${scannedEmployee.name}.${
+                    useSickHoursForPayment ? " (Using sick hours for payment)" : ""
+                  }`,
+                  isOnline
+                ),
+              });
+            }
+
+            const timestamp = useManualDateTime ? manualClockInDate : undefined;
+
+            await clockInEmployee(
+              scannedEmployee,
+              selectedTask,
+              timestamp,
+              useSickHoursForPayment
+            );
+          } else if (scanMode === "clock-out") {
+            // When offline, show toast immediately to match Manual Entry behavior
+            if (!isOnline) {
+              toast({
+                title: "Clock Out Successful",
+                description: addOfflineIndicator(
+                  `Clocked out ${scannedEmployee.name}.`,
+                  isOnline
+                ),
+              });
+            }
+
+            const timestamp = useManualDateTime ? manualClockOutDate : undefined;
+            await clockOutEmployee(scannedEmployee, selectedTask, timestamp);
+          } else if (scanMode === "piece") {
+            if (isSharedPiece) {
+              setScannedSharedEmployees((prev) => {
+                if (prev.includes(scannedEmployee.id)) {
+                  toast({
+                    variant: "destructive",
+                    title: "Duplicate Employee",
+                    description: `${scannedEmployee.name} is already on the list.`,
+                  });
+                  return prev;
+                }
+                toast({
+                  title: "Employee Added",
+                  description: `Added ${scannedEmployee.name} to group.`,
+                });
+                playSound("clock-in");
+                return [...prev, scannedEmployee.id];
+              });
+            } else {
+              setScannedSharedEmployees([scannedEmployee.id]);
+              toast({
+                title: "Employee Scanned",
+                description: `${scannedEmployee.name} ready. Scan a bin.`,
               });
               playSound("clock-in");
-              return [...prev, scannedEmployee.id];
-            });
-          } else {
-            setScannedSharedEmployees([scannedEmployee.id]);
-            toast({
-              title: "Employee Scanned",
-              description: `${scannedEmployee.name} ready. Scan a bin.`,
-            });
-            playSound("clock-in");
+            }
+          }
+        } finally {
+          // Reset processing state after operation completes
+          if (scanMode === "clock-in" || scanMode === "clock-out") {
+            setIsQrProcessing(false);
           }
         }
       } else {
@@ -1571,6 +1680,10 @@ function TimeTrackingPage() {
       pastRecordPiecesCount,
       createPastRecord,
       allTasks,
+      isQrProcessing,
+      isOnline,
+      allTimeEntries,
+      clients,
     ]
   );
 
@@ -1684,52 +1797,84 @@ function TimeTrackingPage() {
         return;
       }
 
-      const now = Date.now();
-      const isDebounced = recentScans.some(
-        (scan) =>
-          now - scan.timestamp < PIECEWORK_DEBOUNCE_MS &&
-          scan.scanData === scannedData &&
-          scan.mode === "piece"
-      );
-
-      if (isDebounced) {
-        return; // Silently ignore debounced scans
+      // Prevent processing if already processing
+      if (isPieceworkQrProcessing) {
+        return;
       }
 
-      setRecentScans((prev) => [
-        ...prev.filter((s) => now - s.timestamp < PIECEWORK_DEBOUNCE_MS),
-        { scanData: scannedData, mode: "piece", timestamp: now },
-      ]);
-
+      const now = Date.now();
+      
+      // Find the scanned employee first
       const scannedEmployee = activeEmployees?.find(
         (e) => e.qrCode === scannedData
       );
 
-      if (scannedEmployee) {
-        // Validate employee is active in the selected task
-        const isEmployeeActiveInTask = activeTimeEntries?.some(
-          (entry) =>
-            entry.employeeId === scannedEmployee.id &&
-            entry.taskId === pieceWorkSelectedTask.id &&
-            entry.endTime === null
+      if (!scannedEmployee) {
+        toast({
+          variant: "destructive",
+          title: "Invalid Scan",
+          description: "Not a valid employee QR code.",
+        });
+        return;
+      }
+
+      // Check for debounce specific to this employee and task combination
+      const employeeTaskKey = `${scannedEmployee.id}-${pieceWorkSelectedTask.id}`;
+      const isDebounced = recentScans.some(
+        (scan) =>
+          now - scan.timestamp < PIECEWORK_DEBOUNCE_MS &&
+          scan.scanData === employeeTaskKey &&
+          scan.mode === "piecework-tab"
+      );
+
+      if (isDebounced) {
+        const lastScan = recentScans.find(
+          (scan) =>
+            scan.scanData === employeeTaskKey &&
+            scan.mode === "piecework-tab"
         );
+        const timeRemaining = lastScan
+          ? Math.ceil((PIECEWORK_DEBOUNCE_MS - (now - lastScan.timestamp)) / 60000)
+          : 3;
+        
+        toast({
+          variant: "destructive",
+          title: "Please Wait",
+          description: `You must wait ${timeRemaining} minute(s) before recording another piece for ${scannedEmployee.name} on this task.`,
+        });
+        return; // Block the scan with a clear message
+      }
 
-        if (!isEmployeeActiveInTask) {
-          toast({
-            variant: "destructive",
-            title: "Employee Not Active",
-            description: `${scannedEmployee.name} is not clocked into this task.`,
-          });
-          return;
-        }
+      // Validate employee is active in the selected task
+      const isEmployeeActiveInTask = activeTimeEntries?.some(
+        (entry) =>
+          entry.employeeId === scannedEmployee.id &&
+          entry.taskId === pieceWorkSelectedTask.id &&
+          entry.endTime === null
+      );
 
-        // Add employee to scanned list
-        if (isSharedPiece) {
-          setScannedSharedEmployees((prev) => {
-            if (prev.includes(scannedEmployee.id)) {
-              toast({
-                variant: "destructive",
-                title: "Duplicate Employee",
+      if (!isEmployeeActiveInTask) {
+        toast({
+          variant: "destructive",
+          title: "Employee Not Active",
+          description: `${scannedEmployee.name} is not clocked into this task.`,
+        });
+        return;
+      }
+
+      // Add to recent scans with employee-task key
+      setRecentScans((prev) => [
+        ...prev.filter((s) => now - s.timestamp < PIECEWORK_DEBOUNCE_MS),
+        { scanData: employeeTaskKey, mode: "piecework-tab", timestamp: now },
+      ]);
+
+      // Add employee to scanned list
+      if (isSharedPiece) {
+        setScannedSharedEmployees((prev) => {
+          if (prev.includes(scannedEmployee.id)) {
+            toast({
+              variant: "destructive",
+              title: "Duplicate Employee",
                 description: `${scannedEmployee.name} is already on the list.`,
               });
               return prev;
@@ -1743,29 +1888,37 @@ function TimeTrackingPage() {
           });
         } else if (pieceEntryMode === "scan") {
           // Single employee mode + Scan Employees - auto-submit with 1 piece
-          const employeeIds = [scannedEmployee.id];
+          // Set processing state to show loading overlay
+          setIsPieceworkQrProcessing(true);
           
-          // Show toast immediately when offline
-          if (!isOnline) {
-            toast({
-              title: "Piecework Recorded",
-              description: addOfflineIndicator(
-                `1 piece recorded for ${scannedEmployee.name}.`,
-                isOnline
-              ),
-            });
-          }
-          
-          // Record the piecework
-          const success = await recordPieceworkWithQuantity(
-            employeeIds,
-            pieceWorkSelectedTask.id,
-            1,
-            undefined
-          );
-          
-          if (success) {
-            playSound("piece");
+          try {
+            const employeeIds = [scannedEmployee.id];
+            
+            // Show toast immediately when offline
+            if (!isOnline) {
+              toast({
+                title: "Piecework Recorded",
+                description: addOfflineIndicator(
+                  `1 piece recorded for ${scannedEmployee.name}.`,
+                  isOnline
+                ),
+              });
+            }
+            
+            // Record the piecework
+            const success = await recordPieceworkWithQuantity(
+              employeeIds,
+              pieceWorkSelectedTask.id,
+              1,
+              undefined
+            );
+            
+            if (success) {
+              playSound("piece");
+            }
+          } finally {
+            // Reset processing state after operation completes
+            setIsPieceworkQrProcessing(false);
           }
         } else {
           // Manual count mode - just add to list for manual submission
@@ -1776,13 +1929,6 @@ function TimeTrackingPage() {
           });
           playSound("clock-in");
         }
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Invalid Scan",
-          description: "Not a valid employee QR code.",
-        });
-      }
     },
     [
       pieceWorkSelectedTask,
@@ -1796,6 +1942,7 @@ function TimeTrackingPage() {
       recordPieceworkWithQuantity,
       addOfflineIndicator,
       pieceEntryMode,
+      isPieceworkQrProcessing,
     ]
   );
 
@@ -1822,6 +1969,50 @@ function TimeTrackingPage() {
         });
         setIsManualSubmitting(false);
         return;
+      }
+
+      // Check for duplicate time entries (same employee, task, clock-in and clock-out times)
+      if (allTimeEntries) {
+        const duplicate = allTimeEntries.find((entry) => {
+          if (entry.employeeId !== manualSelectedEmployee.id || entry.taskId !== selectedTask) {
+            return false;
+          }
+          
+          // Check if clock-in times match (within 1 minute tolerance)
+          const entryClockIn = entry.timestamp instanceof Date
+            ? entry.timestamp
+            : (entry.timestamp as any)?.toDate?.()
+            ? (entry.timestamp as any).toDate()
+            : new Date(entry.timestamp as any);
+          const timeDiffIn = Math.abs(entryClockIn.getTime() - pastRecordClockInDate.getTime());
+          
+          // Check if clock-out times match (within 1 minute tolerance)
+          if (entry.endTime) {
+            const entryClockOut = entry.endTime instanceof Date
+              ? entry.endTime
+              : (entry.endTime as any)?.toDate?.()
+              ? (entry.endTime as any).toDate()
+              : new Date(entry.endTime as any);
+            const timeDiffOut = Math.abs(entryClockOut.getTime() - pastRecordClockOutDate.getTime());
+            
+            // If both clock-in and clock-out times match within 1 minute, it's a duplicate
+            return timeDiffIn < 60000 && timeDiffOut < 60000;
+          }
+          
+          return false;
+        });
+        
+        if (duplicate) {
+          const task = allTasks?.find((t) => t.id === selectedTask);
+          const client = clients?.find((c) => c.id === task?.clientId);
+          toast({
+            variant: "destructive",
+            title: "Duplicate Entry Detected",
+            description: `A time entry already exists for ${manualSelectedEmployee.name} on ${format(pastRecordClockInDate, "PPP")} with the same clock-in and clock-out times for ${task?.name || 'this task'} (${client?.name || 'this client'}).`,
+          });
+          setIsManualSubmitting(false);
+          return;
+        }
       }
 
       // Show toast and stop loading immediately when offline to allow user to continue working
@@ -3013,47 +3204,8 @@ function TimeTrackingPage() {
               )}
 
               {/* Pieces Completed input for piecework tasks in clock-in mode */}
-              {!usePastRecords &&
-                scanMode === "clock-in" &&
-                selectedTask &&
-                allTasks?.find((t) => t.id === selectedTask)?.clientRateType ===
-                  "piece" && (
-                  <div className="p-4 border rounded-lg space-y-2 bg-purple-50 dark:bg-purple-950/20">
-                    <Label
-                      htmlFor="qr-pieces-completed"
-                      className="font-semibold text-purple-900 dark:text-purple-100"
-                    >
-                      Pieces Completed (Optional)
-                    </Label>
-                    <Input
-                      id="qr-pieces-completed"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="Enter number of pieces completed"
-                      value={qrPiecesCompleted}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        if (value === "") {
-                          setQrPiecesCompleted("");
-                        } else {
-                          const parsed = parseFloat(value);
-                          // Accept non-negative numbers in UI (zero accepted but filtered out during processing if > 0 check applies)
-                          if (!isNaN(parsed) && parsed >= 0) {
-                            setQrPiecesCompleted(parsed);
-                          }
-                        }
-                      }}
-                    />
-                    <p className="text-sm text-purple-700 dark:text-purple-300">
-                      💡 Enter the number of pieces this employee completed for this
-                      task (e.g., bins harvested). This will be recorded when you
-                      scan their QR code to clock in.
-                    </p>
-                  </div>
-                )}
 
-              <QrScanner onScanResult={handleScanResult} />
+              <QrScanner onScanResult={handleScanResult} isProcessing={isQrProcessing} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -3536,26 +3688,101 @@ function TimeTrackingPage() {
                 )}
               </div> */}
 
+              {/* Independent Client/Ranch/Block selectors for bulk clock-out */}
+              <div className="space-y-2">
+                <Label htmlFor="bulk-client-select">Client</Label>
+                <Select
+                  value={selectedBulkClient || ""}
+                  onValueChange={(value) => {
+                    setSelectedBulkClient(value === CLEAR_SELECTION_VALUE ? "" : value);
+                    setSelectedBulkRanch("");
+                    setSelectedBulkBlock("");
+                    setSelectedBulkTask("");
+                  }}
+                >
+                  <SelectTrigger id="bulk-client-select">
+                    <SelectValue placeholder="Select a client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
+                    {clients?.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bulk-ranch-select">Ranch (Optional)</Label>
+                <Select
+                  value={selectedBulkRanch || ""}
+                  onValueChange={(value) => {
+                    setSelectedBulkRanch(value === CLEAR_SELECTION_VALUE ? "" : value);
+                    setSelectedBulkBlock("");
+                    setSelectedBulkTask("");
+                  }}
+                  disabled={!selectedBulkClient || bulkRanches.length === 0}
+                >
+                  <SelectTrigger id="bulk-ranch-select">
+                    <SelectValue placeholder="Select a ranch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
+                    {bulkRanches.map((ranch) => (
+                      <SelectItem key={ranch} value={ranch}>
+                        {ranch}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bulk-block-select">Block (Optional)</Label>
+                <Select
+                  value={selectedBulkBlock || ""}
+                  onValueChange={(value) => {
+                    setSelectedBulkBlock(value === CLEAR_SELECTION_VALUE ? "" : value);
+                    setSelectedBulkTask("");
+                  }}
+                  disabled={!selectedBulkRanch || bulkBlocks.length === 0}
+                >
+                  <SelectTrigger id="bulk-block-select">
+                    <SelectValue placeholder="Select a block" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
+                    {bulkBlocks.map((block) => (
+                      <SelectItem key={block} value={block}>
+                        {block}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="bulk-task-select">Task</Label>
                 <Select
                   value={selectedBulkTask}
                   onValueChange={setSelectedBulkTask}
-                  disabled={!selectedClient}
+                  disabled={!selectedBulkClient}
                 >
                   <SelectTrigger id="bulk-task-select">
                     <SelectValue 
                       placeholder={
-                        !selectedClient 
+                        !selectedBulkClient 
                           ? "Select a client first to view tasks" 
-                          : bulkClockOutTasks && bulkClockOutTasks.length > 0
+                          : bulkClockOutFilteredTasks && bulkClockOutFilteredTasks.length > 0
                           ? "Select a task to bulk clock out"
                           : "No active tasks with clock-ins available"
                       } 
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    {bulkClockOutTasks?.map((task) => (
+                    {bulkClockOutFilteredTasks?.map((task) => (
                       <SelectItem key={task.id} value={task.id}>
                         {task.name}
                         {task.variety && ` (${task.variety})`}
@@ -3921,6 +4148,7 @@ function TimeTrackingPage() {
                           onScanResult={(data) =>
                             handlePieceWorkTabScanResult(data)
                           }
+                          isProcessing={isPieceworkQrProcessing}
                         />
                       ) : (
                         <div className="p-4 border rounded-lg space-y-4">
@@ -3931,6 +4159,7 @@ function TimeTrackingPage() {
                               onScanResult={(data) =>
                                 handlePieceWorkTabScanResult(data)
                               }
+                              isProcessing={isPieceworkQrProcessing}
                             />
                           </div>
                           <div className="space-y-2">
