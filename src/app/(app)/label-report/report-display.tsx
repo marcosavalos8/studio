@@ -181,6 +181,26 @@ export function LabelReportDisplay({
       currentRow++;
     });
 
+    // Add glossary section after a few blank rows
+    currentRow += 3; // Skip 3 rows for spacing
+    
+    // Add glossary title
+    ws[XLSX.utils.encode_cell({ r: currentRow, c: 0 })] = { 
+      v: "Task Legend:", 
+      t: "s" 
+    };
+    currentRow++;
+    
+    // Add task definitions
+    uniqueTasks.forEach((taskName, idx) => {
+      const label = String.fromCharCode(65 + idx); // A, B, C, etc.
+      ws[XLSX.utils.encode_cell({ r: currentRow, c: 0 })] = { 
+        v: `PIECE ${label} = ${taskName}`, 
+        t: "s" 
+      };
+      currentRow++;
+    });
+
     // Set column widths
     const colWidths = [
       { wch: 20 }, // Worker Name
