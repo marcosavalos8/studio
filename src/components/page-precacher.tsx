@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 /**
  * Component that pre-caches important app pages on mount.
@@ -9,26 +9,27 @@ import { useRouter } from 'next/navigation';
  */
 export function PagePrecacher() {
   const router = useRouter();
-  const [status, setStatus] = useState<'idle' | 'loading' | 'loaded'>('idle');
+  const [status, setStatus] = useState<"idle" | "loading" | "loaded">("idle");
 
   useEffect(() => {
     // Only run once
-    if (status !== 'idle') return;
+    if (status !== "idle") return;
 
     // List of all important pages to pre-cache
     const pagesToCache = [
-      '/dashboard',
-      '/clients',
-      '/employees',
-      '/tasks',
-      '/time-tracking',
-      '/payroll',
-      '/invoicing',
+      "/dashboard",
+      "/clients",
+      "/employees",
+      "/tasks",
+      "/time-tracking",
+      "/payroll",
+      "/labor-report",
+      // '/invoicing',
     ];
 
     const precachePages = async () => {
-      setStatus('loading');
-      
+      setStatus("loading");
+
       try {
         // Use Next.js router prefetch to preload pages
         // This is more reliable than fetch for Next.js pages
@@ -46,10 +47,10 @@ export function PagePrecacher() {
           try {
             // Fetch the page - this will trigger the service worker to cache it
             const response = await fetch(path, {
-              method: 'GET',
-              credentials: 'same-origin',
+              method: "GET",
+              credentials: "same-origin",
             });
-            
+
             if (response.ok) {
               console.log(`Cached: ${path}`);
             } else {
@@ -62,12 +63,12 @@ export function PagePrecacher() {
 
         // Wait for all pages to be fetched
         await Promise.all(fetchPromises);
-        
-        setStatus('loaded');
-        console.log('All pages pre-cached successfully');
+
+        setStatus("loaded");
+        console.log("All pages pre-cached successfully");
       } catch (error) {
-        console.error('Error pre-caching pages:', error);
-        setStatus('loaded'); // Mark as loaded even on error to prevent retries
+        console.error("Error pre-caching pages:", error);
+        setStatus("loaded"); // Mark as loaded even on error to prevent retries
       }
     };
 

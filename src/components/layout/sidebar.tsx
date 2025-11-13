@@ -1,7 +1,7 @@
-'use client'
+"use client";
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import {
   Sidebar,
@@ -11,8 +11,8 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarFooter,
-} from "@/components/ui/sidebar"
-import { Logo } from "@/components/icons/logo"
+} from "@/components/ui/sidebar";
+import { Logo } from "@/components/icons/logo";
 import {
   LayoutDashboard,
   Users,
@@ -24,7 +24,7 @@ import {
   LifeBuoy,
   QrCode,
   Tag,
-} from "lucide-react"
+} from "lucide-react";
 
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -33,19 +33,21 @@ const menuItems = [
   { href: "/clients", label: "Clients", icon: Briefcase },
   { href: "/tasks", label: "Tasks", icon: ClipboardList },
   { href: "/payroll", label: "Payroll", icon: FileText },
-  { href: "/invoicing", label: "Invoicing", icon: DollarSign },
-  { href: "/label-report", label: "Label Report", icon: Tag },
-]
+  // { href: "/invoicing", label: "Invoicing", icon: DollarSign },
+  { label: "Labor Report", href: "/labor-report", icon: Tag },
+];
 
 export function AppSidebar() {
-  const pathname = usePathname()
+  const pathname = usePathname();
 
   return (
     <Sidebar className="border-r">
       <SidebarHeader className="border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <Logo className="size-7 md:size-8 text-primary flex-shrink-0" />
-          <span className="text-base md:text-lg font-semibold text-sidebar-foreground truncate">FieldTack WA</span>
+          <span className="text-base md:text-lg font-semibold text-sidebar-foreground truncate">
+            FieldTack WA
+          </span>
         </div>
       </SidebarHeader>
       <SidebarContent className="py-2">
@@ -86,5 +88,5 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }

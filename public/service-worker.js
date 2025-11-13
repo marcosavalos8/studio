@@ -13,7 +13,8 @@ const APP_SHELL_URLS = [
   "/tasks",
   "/time-tracking",
   "/payroll",
-  "/invoicing",
+  // "/invoicing",
+  "/labor-report",
   "/login",
   "/offline",
 

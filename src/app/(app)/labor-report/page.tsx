@@ -85,9 +85,11 @@ function LabelReportPage() {
     <div className="grid gap-3 md:gap-4">
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg md:text-xl">Generate Label Report</CardTitle>
+          <CardTitle className="text-lg md:text-xl">
+            Generate Labor Report
+          </CardTitle>
           <CardDescription className="text-sm">
-            Select a client and date range to generate a label report showing
+            Select a client and date range to generate a labor report showing
             worker details grouped by the selected date range.
           </CardDescription>
         </CardHeader>
