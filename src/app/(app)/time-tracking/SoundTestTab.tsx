@@ -39,13 +39,28 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
   const [settings, setSettings] = useState<SoundSettings>(
     SoundSettingsService.getSoundSettings(user?.displayName || "default")
   );
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  // Skip notification on initial load
+  useEffect(() => {
+    setIsInitialLoad(false);
+  }, []);
 
   // Guardar automáticamente cuando cambien los settings
   useEffect(() => {
     if (user?.displayName) {
       SoundSettingsService.updateSoundSettings(user.displayName, settings);
+      
+      // Show notification only after initial load
+      if (!isInitialLoad) {
+        toast({
+          title: "Settings Saved",
+          description: "Your sound settings have been saved successfully.",
+          duration: 2000,
+        });
+      }
     }
-  }, [settings, user?.displayName]);
+  }, [settings, user?.displayName, isInitialLoad, toast]);
 
   const playSound = useCallback(
     (soundId: string, customVolume?: number) => {

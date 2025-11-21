@@ -32,10 +32,20 @@ export class SoundSettingsService {
         updatedAt: new Date(),
       };
 
+      const storageKey = `${this.STORAGE_KEY}_${username}`;
       localStorage.setItem(
-        `${this.STORAGE_KEY}_${username}`,
+        storageKey,
         JSON.stringify(updatedSettings)
       );
+      
+      // Verify the save was successful
+      const savedValue = localStorage.getItem(storageKey);
+      if (!savedValue) {
+        console.error("Failed to save settings to localStorage");
+        throw new Error("localStorage save verification failed");
+      }
+      
+      console.log("Sound settings saved successfully to localStorage:", storageKey);
     } catch (error) {
       console.error("Error updating sound settings in localStorage:", error);
       throw error;
