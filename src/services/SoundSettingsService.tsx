@@ -38,14 +38,21 @@ export class SoundSettingsService {
         JSON.stringify(updatedSettings)
       );
       
-      // Verify the save was successful
+      // Verify the save was successful by reading back and comparing
       const savedValue = localStorage.getItem(storageKey);
       if (!savedValue) {
-        console.error("Failed to save settings to localStorage");
-        throw new Error("localStorage save verification failed");
+        throw new Error("localStorage save verification failed - no value returned");
       }
       
-      console.log("Sound settings saved successfully to localStorage:", storageKey);
+      try {
+        const parsedValue = JSON.parse(savedValue);
+        // Basic verification that the key fields are present
+        if (!parsedValue.userId || !parsedValue.clockInSound || !parsedValue.clockOutSound) {
+          throw new Error("localStorage save verification failed - incomplete data");
+        }
+      } catch (parseError) {
+        throw new Error("localStorage save verification failed - invalid JSON");
+      }
     } catch (error) {
       console.error("Error updating sound settings in localStorage:", error);
       throw error;
