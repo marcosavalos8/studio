@@ -4291,11 +4291,6 @@ function TimeTrackingPage() {
                     <ClipboardEdit className="mr-2 h-4 w-4" />
                     Manual Entry
                   </TabsTrigger>
-                  <TabsTrigger value="test" className="text-xs sm:text-sm">
-                    <div className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full" />
-                    <span className="hidden sm:inline">Sound Test</span>
-                    <span className="sm:hidden">Test</span>
-                  </TabsTrigger>
                 </TabsList>
 
                 {/* QR Scanner Tab */}

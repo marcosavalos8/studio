@@ -54,8 +54,8 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
       // Show notification only after initial load
       if (!isInitialLoad) {
         toast({
-          title: "Settings Saved",
-          description: "Your sound settings have been saved successfully.",
+          title: "Configuración Guardada",
+          description: "Tu configuración de sonido se ha guardado correctamente.",
           duration: 2000,
         });
       }
@@ -318,8 +318,8 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
                     SoundSettingsService.getSoundSettings(user.displayName)
                   );
                   toast({
-                    title: "Settings Reset",
-                    description: "Sound settings have been reset to default.",
+                    title: "Configuración Restablecida",
+                    description: "La configuración de sonido se ha restablecido a los valores predeterminados.",
                   });
                 }
               }}
