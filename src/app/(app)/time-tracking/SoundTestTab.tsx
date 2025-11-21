@@ -44,15 +44,31 @@ export default function SoundTestTab({ audioContext, onSettingsSaved }: SoundTes
 
   // Track when settings change to show unsaved indicator
   const handleSettingsChange = useCallback((newSettings: Partial<SoundSettings>) => {
-    setSettings((prev) => ({ ...prev, ...newSettings }));
+    console.log("Settings changed:", newSettings);
+    setSettings((prev) => {
+      const updated = { ...prev, ...newSettings };
+      console.log("Updated settings:", updated);
+      return updated;
+    });
     setHasUnsavedChanges(true);
+    console.log("hasUnsavedChanges set to true");
   }, []);
 
   // Save button handler
   const handleSave = useCallback(() => {
-    if (user?.displayName) {
-      SoundSettingsService.updateSoundSettings(user.displayName, settings);
+    console.log("Save button clicked");
+    console.log("User:", user);
+    console.log("User displayName:", user?.displayName);
+    console.log("Settings to save:", settings);
+    console.log("hasUnsavedChanges:", hasUnsavedChanges);
+    
+    const username = user?.displayName || "default";
+    
+    try {
+      SoundSettingsService.updateSoundSettings(username, settings);
       setHasUnsavedChanges(false);
+      
+      console.log("Settings saved successfully");
       
       toast({
         title: "Configuración Guardada",
@@ -64,8 +80,16 @@ export default function SoundTestTab({ audioContext, onSettingsSaved }: SoundTes
       if (onSettingsSaved) {
         onSettingsSaved();
       }
+    } catch (error) {
+      console.error("Error saving settings:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo guardar la configuración. Revisa la consola para más detalles.",
+        duration: 3000,
+      });
     }
-  }, [settings, user?.displayName, toast, onSettingsSaved]);
+  }, [settings, user, toast, onSettingsSaved, hasUnsavedChanges]);
 
   const playSound = useCallback(
     (soundId: string, customVolume?: number) => {
@@ -323,9 +347,12 @@ export default function SoundTestTab({ audioContext, onSettingsSaved }: SoundTes
             <Button
               variant="outline"
               onClick={() => {
-                if (user?.displayName) {
-                  SoundSettingsService.clearSoundSettings(user.displayName);
-                  const defaultSettings = SoundSettingsService.getSoundSettings(user.displayName);
+                console.log("Reset button clicked");
+                const username = user?.displayName || "default";
+                try {
+                  SoundSettingsService.clearSoundSettings(username);
+                  const defaultSettings = SoundSettingsService.getSoundSettings(username);
+                  console.log("Default settings loaded:", defaultSettings);
                   setSettings(defaultSettings);
                   setHasUnsavedChanges(false);
                   toast({
@@ -336,6 +363,14 @@ export default function SoundTestTab({ audioContext, onSettingsSaved }: SoundTes
                   if (onSettingsSaved) {
                     onSettingsSaved();
                   }
+                } catch (error) {
+                  console.error("Error resetting settings:", error);
+                  toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "No se pudo restablecer la configuración.",
+                    duration: 3000,
+                  });
                 }
               }}
             >
