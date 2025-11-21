@@ -5310,7 +5310,16 @@ function TimeTrackingPage() {
           </Card>
         </TabsContent>
         <TabsContent value="test">
-          <SoundTestTab audioContext={audioContext} />
+          <SoundTestTab 
+            audioContext={audioContext} 
+            onSettingsSaved={() => {
+              // Reload sound settings when saved
+              if (username) {
+                const settings = SoundSettingsService.getSoundSettings(username);
+                setSoundSettings(settings);
+              }
+            }}
+          />
         </TabsContent>
       </Tabs>
 

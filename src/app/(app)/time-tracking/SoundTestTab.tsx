@@ -5,7 +5,7 @@ import {
   SoundOption,
 } from "../../../lib/types";
 
-import React, { useState, useCallback, useEffect, useContext, useRef } from "react";
+import React, { useState, useCallback, useContext } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -30,34 +30,42 @@ import { SoundSettingsService } from "@/services/SoundSettingsService";
 
 interface SoundTestTabProps {
   audioContext: AudioContext | null;
+  onSettingsSaved?: () => void;
 }
 
-export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
+export default function SoundTestTab({ audioContext, onSettingsSaved }: SoundTestTabProps) {
   const { user } = useContext(FirebaseContext);
   const { toast } = useToast();
 
   const [settings, setSettings] = useState<SoundSettings>(
     SoundSettingsService.getSoundSettings(user?.displayName || "default")
   );
-  const isFirstRender = useRef(true);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  // Guardar automáticamente cuando cambien los settings
-  useEffect(() => {
+  // Track when settings change to show unsaved indicator
+  const handleSettingsChange = useCallback((newSettings: Partial<SoundSettings>) => {
+    setSettings((prev) => ({ ...prev, ...newSettings }));
+    setHasUnsavedChanges(true);
+  }, []);
+
+  // Save button handler
+  const handleSave = useCallback(() => {
     if (user?.displayName) {
       SoundSettingsService.updateSoundSettings(user.displayName, settings);
+      setHasUnsavedChanges(false);
       
-      // Show notification only after first render (when user actually changes something)
-      if (!isFirstRender.current) {
-        toast({
-          title: "Configuración Guardada",
-          description: "Tu configuración de sonido se ha guardado correctamente.",
-          duration: 2000,
-        });
-      } else {
-        isFirstRender.current = false;
+      toast({
+        title: "Configuración Guardada",
+        description: "Tu configuración de sonido se ha guardado correctamente.",
+        duration: 2000,
+      });
+
+      // Notify parent that settings were saved
+      if (onSettingsSaved) {
+        onSettingsSaved();
       }
     }
-  }, [settings, user?.displayName, toast]);
+  }, [settings, user?.displayName, toast, onSettingsSaved]);
 
   const playSound = useCallback(
     (soundId: string, customVolume?: number) => {
@@ -136,8 +144,7 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
           🔊 Sound Control Center
         </CardTitle>
         <CardDescription>
-          Configure your production sounds and test different options. Settings
-          are saved automatically in your browser.
+          Configure your production sounds and test different options. Click "Guardar Configuración" to save your changes.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -157,7 +164,7 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
                 <Select
                   value={settings.clockInSound}
                   onValueChange={(value) =>
-                    setSettings((prev) => ({ ...prev, clockInSound: value }))
+                    handleSettingsChange({ clockInSound: value })
                   }
                 >
                   <SelectTrigger className="flex-1">
@@ -193,7 +200,7 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
                 <Select
                   value={settings.clockOutSound}
                   onValueChange={(value) =>
-                    setSettings((prev) => ({ ...prev, clockOutSound: value }))
+                    handleSettingsChange({ clockOutSound: value })
                   }
                 >
                   <SelectTrigger className="flex-1">
@@ -229,7 +236,7 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
                 <Select
                   value={settings.pieceworkSound}
                   onValueChange={(value) =>
-                    setSettings((prev) => ({ ...prev, pieceworkSound: value }))
+                    handleSettingsChange({ pieceworkSound: value })
                   }
                 >
                   <SelectTrigger className="flex-1">
@@ -264,7 +271,7 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
               <Slider
                 value={[settings.volume]}
                 onValueChange={([value]) =>
-                  setSettings((prev) => ({ ...prev, volume: value }))
+                  handleSettingsChange({ volume: value })
                 }
                 max={1}
                 min={0}
@@ -296,7 +303,7 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
               id="vibration"
               checked={settings.vibrationEnabled}
               onCheckedChange={(checked) =>
-                setSettings((prev) => ({ ...prev, vibrationEnabled: checked }))
+                handleSettingsChange({ vibrationEnabled: checked })
               }
             />
             <Label htmlFor="vibration">
@@ -304,16 +311,23 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
             </Label>
           </div>
 
-          {/* Clear Settings Button */}
-          <div className="mt-4">
+          {/* Save Settings Button */}
+          <div className="mt-6 flex gap-3">
+            <Button
+              onClick={handleSave}
+              disabled={!hasUnsavedChanges}
+              className="flex-1"
+            >
+              💾 Guardar Configuración
+            </Button>
             <Button
               variant="outline"
               onClick={() => {
                 if (user?.displayName) {
                   SoundSettingsService.clearSoundSettings(user.displayName);
-                  setSettings(
-                    SoundSettingsService.getSoundSettings(user.displayName)
-                  );
+                  const defaultSettings = SoundSettingsService.getSoundSettings(user.displayName);
+                  setSettings(defaultSettings);
+                  setHasUnsavedChanges(false);
                   toast({
                     title: "Configuración Restablecida",
                     description: "La configuración de sonido se ha restablecido a los valores predeterminados.",
@@ -321,7 +335,7 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
                 }
               }}
             >
-              🔄 Reset to Default
+              🔄 Restablecer
             </Button>
           </div>
         </div>
