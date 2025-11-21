@@ -5,7 +5,7 @@ import {
   SoundOption,
 } from "../../../lib/types";
 
-import React, { useState, useCallback, useEffect, useContext } from "react";
+import React, { useState, useCallback, useEffect, useContext, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -39,28 +39,25 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
   const [settings, setSettings] = useState<SoundSettings>(
     SoundSettingsService.getSoundSettings(user?.displayName || "default")
   );
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-
-  // Skip notification on initial load
-  useEffect(() => {
-    setIsInitialLoad(false);
-  }, []);
+  const isFirstRender = useRef(true);
 
   // Guardar automáticamente cuando cambien los settings
   useEffect(() => {
     if (user?.displayName) {
       SoundSettingsService.updateSoundSettings(user.displayName, settings);
       
-      // Show notification only after initial load
-      if (!isInitialLoad) {
+      // Show notification only after first render (when user actually changes something)
+      if (!isFirstRender.current) {
         toast({
           title: "Configuración Guardada",
           description: "Tu configuración de sonido se ha guardado correctamente.",
           duration: 2000,
         });
+      } else {
+        isFirstRender.current = false;
       }
     }
-  }, [settings, user?.displayName, isInitialLoad, toast]);
+  }, [settings, user?.displayName, toast]);
 
   const playSound = useCallback(
     (soundId: string, customVolume?: number) => {
