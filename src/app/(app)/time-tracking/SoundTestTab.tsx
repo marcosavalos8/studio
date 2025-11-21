@@ -89,7 +89,7 @@ export default function SoundTestTab({ audioContext, onSettingsSaved }: SoundTes
         duration: 3000,
       });
     }
-  }, [settings, user, toast, onSettingsSaved, hasUnsavedChanges]);
+  }, [settings, user, toast, onSettingsSaved]);
 
   const playSound = useCallback(
     (soundId: string, customVolume?: number) => {
