@@ -5311,11 +5311,14 @@ function TimeTrackingPage() {
         </TabsContent>
         <TabsContent value="test">
           <SoundTestTab 
-            audioContext={audioContext} 
+            audioContext={audioContext}
+            username={username}
             onSettingsSaved={() => {
               // Reload sound settings when saved
+              console.log("onSettingsSaved callback triggered, username:", username);
               if (username) {
                 const settings = SoundSettingsService.getSoundSettings(username);
+                console.log("Reloading settings from localStorage:", settings);
                 setSoundSettings(settings);
               }
             }}

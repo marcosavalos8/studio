@@ -31,14 +31,22 @@ import { SoundSettingsService } from "@/services/SoundSettingsService";
 interface SoundTestTabProps {
   audioContext: AudioContext | null;
   onSettingsSaved?: () => void;
+  username?: string;
 }
 
-export default function SoundTestTab({ audioContext, onSettingsSaved }: SoundTestTabProps) {
+export default function SoundTestTab({ audioContext, onSettingsSaved, username: propUsername }: SoundTestTabProps) {
   const { user } = useContext(FirebaseContext);
   const { toast } = useToast();
 
+  // Use prop username if provided, otherwise fall back to user.displayName, then "default"
+  const username = propUsername || user?.displayName || "default";
+  
+  console.log("SoundTestTab username:", username);
+  console.log("propUsername:", propUsername);
+  console.log("user?.displayName:", user?.displayName);
+
   const [settings, setSettings] = useState<SoundSettings>(
-    SoundSettingsService.getSoundSettings(user?.displayName || "default")
+    SoundSettingsService.getSoundSettings(username)
   );
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
@@ -57,18 +65,15 @@ export default function SoundTestTab({ audioContext, onSettingsSaved }: SoundTes
   // Save button handler
   const handleSave = useCallback(() => {
     console.log("Save button clicked");
-    console.log("User:", user);
-    console.log("User displayName:", user?.displayName);
+    console.log("Username being used:", username);
     console.log("Settings to save:", settings);
     console.log("hasUnsavedChanges:", hasUnsavedChanges);
-    
-    const username = user?.displayName || "default";
     
     try {
       SoundSettingsService.updateSoundSettings(username, settings);
       setHasUnsavedChanges(false);
       
-      console.log("Settings saved successfully");
+      console.log("Settings saved successfully to key:", `sound_settings_${username}`);
       
       toast({
         title: "Configuración Guardada",
@@ -89,7 +94,7 @@ export default function SoundTestTab({ audioContext, onSettingsSaved }: SoundTes
         duration: 3000,
       });
     }
-  }, [settings, user, toast, onSettingsSaved]);
+  }, [settings, username, toast, onSettingsSaved, hasUnsavedChanges]);
 
   const playSound = useCallback(
     (soundId: string, customVolume?: number) => {
@@ -348,7 +353,7 @@ export default function SoundTestTab({ audioContext, onSettingsSaved }: SoundTes
               variant="outline"
               onClick={() => {
                 console.log("Reset button clicked");
-                const username = user?.displayName || "default";
+                console.log("Username being used:", username);
                 try {
                   SoundSettingsService.clearSoundSettings(username);
                   const defaultSettings = SoundSettingsService.getSoundSettings(username);
