@@ -144,7 +144,7 @@ export default function SoundTestTab({ audioContext, onSettingsSaved }: SoundTes
           🔊 Sound Control Center
         </CardTitle>
         <CardDescription>
-          Configure your production sounds and test different options. Click "Guardar Configuración" to save your changes.
+          Configura los sonidos de producción y prueba diferentes opciones. Haz clic en "Guardar Configuración" para guardar tus cambios.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -332,6 +332,10 @@ export default function SoundTestTab({ audioContext, onSettingsSaved }: SoundTes
                     title: "Configuración Restablecida",
                     description: "La configuración de sonido se ha restablecido a los valores predeterminados.",
                   });
+                  // Notify parent to reload settings
+                  if (onSettingsSaved) {
+                    onSettingsSaved();
+                  }
                 }
               }}
             >
