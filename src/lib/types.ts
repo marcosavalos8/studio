@@ -149,3 +149,211 @@ export interface DailyBreakdownEntry {
   >;
   total: number;
 }
+
+export interface SoundSettings {
+  id?: string;
+  userId?: string;
+  companyId?: string;
+  clockInSound: string;
+  clockOutSound: string;
+  pieceworkSound: string;
+  volume: number;
+  vibrationEnabled: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface SoundOption {
+  id: string;
+  name: string;
+  description: string;
+  category:
+    | "notification"
+    | "alarm"
+    | "musical"
+    | "nature"
+    | "industrial"
+    | "custom";
+  frequencies: number[];
+  durations: number[];
+  gaps: number[];
+  waveType: OscillatorType;
+  vibrationPattern?: number[];
+}
+
+export const AVAILABLE_SOUNDS: SoundOption[] = [
+  // Notification Sounds
+  {
+    id: "notification-soft",
+    name: "🔔 Soft Bell",
+    description: "Gentle notification sound",
+    category: "notification",
+    frequencies: [800, 600],
+    durations: [0.15, 0.3],
+    gaps: [0.05, 0],
+    waveType: "sine",
+    vibrationPattern: [150, 75, 150],
+  },
+  {
+    id: "notification-chime",
+    name: "🎐 Wind Chime",
+    description: "Pleasant chime sound",
+    category: "notification",
+    frequencies: [523, 659, 784],
+    durations: [0.2, 0.2, 0.4],
+    gaps: [0.1, 0.1, 0],
+    waveType: "sine",
+    vibrationPattern: [100, 50, 100, 50, 200],
+  },
+  {
+    id: "notification-ding",
+    name: "🔔 Quick Ding",
+    description: "Sharp notification ding",
+    category: "notification",
+    frequencies: [1000],
+    durations: [0.2],
+    gaps: [0],
+    waveType: "triangle",
+    vibrationPattern: [200],
+  },
+
+  // Alarm Sounds
+  {
+    id: "alarm-classic",
+    name: "🚨 Classic Alarm",
+    description: "Traditional alarm sound",
+    category: "alarm",
+    frequencies: [800, 1000, 800, 1000, 800, 1000],
+    durations: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+    gaps: [0.05, 0.05, 0.05, 0.05, 0.05, 0],
+    waveType: "square",
+    vibrationPattern: [100, 50, 100, 50, 100, 50, 200],
+  },
+  {
+    id: "alarm-siren",
+    name: "🚁 Emergency Siren",
+    description: "Rising and falling siren",
+    category: "alarm",
+    frequencies: [400, 800, 1200, 800, 400],
+    durations: [0.2, 0.2, 0.2, 0.2, 0.2],
+    gaps: [0, 0, 0, 0, 0],
+    waveType: "sawtooth",
+    vibrationPattern: [200, 100, 200, 100, 300],
+  },
+  {
+    id: "alarm-beeper",
+    name: "📟 Beeper Alert",
+    description: "Rapid beeping alarm",
+    category: "alarm",
+    frequencies: [1200, 1200, 1200],
+    durations: [0.1, 0.1, 0.1],
+    gaps: [0.05, 0.05, 0],
+    waveType: "square",
+    vibrationPattern: [100, 50, 100, 50, 100],
+  },
+
+  // Musical Sounds
+  {
+    id: "musical-success",
+    name: "🎵 Success Fanfare",
+    description: "Triumphant success melody",
+    category: "musical",
+    frequencies: [523, 659, 784, 1047],
+    durations: [0.15, 0.15, 0.15, 0.5],
+    gaps: [0.05, 0.05, 0.05, 0],
+    waveType: "triangle",
+    vibrationPattern: [100, 50, 100, 50, 300],
+  },
+  {
+    id: "musical-mario",
+    name: "🍄 Mario Coin",
+    description: "Classic video game coin sound",
+    category: "musical",
+    frequencies: [1319, 1568, 2637, 2093],
+    durations: [0.1, 0.1, 0.1, 0.3],
+    gaps: [0.02, 0.02, 0.02, 0],
+    waveType: "square",
+    vibrationPattern: [50, 25, 50, 25, 200],
+  },
+  {
+    id: "musical-doorbell",
+    name: "🚪 Doorbell",
+    description: "Classic doorbell chime",
+    category: "musical",
+    frequencies: [659, 523],
+    durations: [0.3, 0.6],
+    gaps: [0.1, 0],
+    waveType: "sine",
+    vibrationPattern: [200, 100, 400],
+  },
+  {
+    id: "musical-scale",
+    name: "🎼 Rising Scale",
+    description: "Musical scale progression",
+    category: "musical",
+    frequencies: [261, 294, 330, 349, 392, 440, 494, 523],
+    durations: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.2],
+    gaps: [0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0],
+    waveType: "sine",
+    vibrationPattern: [50, 25, 50, 25, 50, 25, 50, 25, 200],
+  },
+
+  // Nature Sounds (Synthetic)
+  {
+    id: "nature-bird",
+    name: "🐦 Bird Chirp",
+    description: "Synthetic bird chirping",
+    category: "nature",
+    frequencies: [2000, 1800, 2200, 1900],
+    durations: [0.1, 0.05, 0.1, 0.15],
+    gaps: [0.02, 0.02, 0.02, 0],
+    waveType: "sine",
+    vibrationPattern: [100, 50, 100],
+  },
+  {
+    id: "nature-water",
+    name: "💧 Water Drop",
+    description: "Gentle water drop sound",
+    category: "nature",
+    frequencies: [800, 400, 200],
+    durations: [0.1, 0.2, 0.3],
+    gaps: [0.05, 0.05, 0],
+    waveType: "sine",
+    vibrationPattern: [150],
+  },
+
+  // Industrial Sounds
+  {
+    id: "industrial-horn",
+    name: "📯 Air Horn",
+    description: "Loud industrial horn",
+    category: "industrial",
+    frequencies: [200, 220, 200],
+    durations: [0.3, 0.3, 0.4],
+    gaps: [0.05, 0.05, 0],
+    waveType: "sawtooth",
+    vibrationPattern: [300, 100, 300],
+  },
+  {
+    id: "industrial-buzzer",
+    name: "⚡ Electric Buzzer",
+    description: "Sharp electric buzzer",
+    category: "industrial",
+    frequencies: [100, 120, 100, 120],
+    durations: [0.2, 0.2, 0.2, 0.2],
+    gaps: [0.05, 0.05, 0.05, 0],
+    waveType: "square",
+    vibrationPattern: [200, 100, 200, 100, 200],
+  },
+  {
+    id: "industrial-machinery",
+    name: "⚙️ Machinery Beep",
+    description: "Heavy machinery warning beep",
+    category: "industrial",
+    frequencies: [440, 440, 440],
+    durations: [0.5, 0.5, 0.5],
+    gaps: [0.2, 0.2, 0],
+    waveType: "square",
+    vibrationPattern: [400, 200, 400, 200, 400],
+  },
+];

@@ -82,14 +82,25 @@ import {
   deleteDoc,
   Timestamp,
 } from "firebase/firestore";
-import type { Task, TimeEntry, Piecework, Employee, Client } from "@/lib/types";
+import type {
+  Task,
+  TimeEntry,
+  Piecework,
+  Employee,
+  Client,
+  SoundSettings,
+} from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { withAuth } from "@/components/withAuth";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { addOfflineIndicator } from "@/lib/offline-utils";
-
+import { useAuth } from "@/contexts/auth-context";
+import { SoundSettingsService } from "../../../services/SoundSettingsService";
+import { AVAILABLE_SOUNDS, SoundOption } from "../../../lib/types";
+// Al inicio del archivo, agregar el import
+import SoundTestTab from "./SoundTestTab";
 const QrScanner = dynamic(
   () => import("./qr-scanner").then((mod) => mod.QrScannerComponent),
   {
@@ -110,12 +121,28 @@ type ManualLogType =
   | "end-break"
   | "piecework";
 type PieceEntryMode = "scan" | "manual";
-type SoundType = "clock-in" | "clock-out" | "piece";
+type SoundType =
+  | "clock-in"
+  | "clock-out"
+  | "piece"
+  | "alarm1"
+  | "alarm2"
+  | "beep1"
+  | "beep2"
+  | "melody1"
+  | "melody2"
+  | "notification"
+  | "success"
+  | "error";
 
 // Constant for clear selection value in dropdowns
 const CLEAR_SELECTION_VALUE = "none";
 
 function TimeTrackingPage() {
+  const { username } = useAuth();
+  const [soundSettings, setSoundSettings] = useState<SoundSettings | null>(
+    null
+  );
   const firestore = useFirestore();
   const { toast } = useToast();
   const { isOnline } = useNetworkStatus();
@@ -216,7 +243,12 @@ function TimeTrackingPage() {
       }
     }
   }, [selectedRanch]);
-
+  useEffect(() => {
+    if (username) {
+      const settings = SoundSettingsService.getSoundSettings(username);
+      setSoundSettings(settings);
+    }
+  }, [username]);
   useEffect(() => {
     if (typeof window !== "undefined") {
       if (selectedBlock) {
@@ -241,7 +273,10 @@ function TimeTrackingPage() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       if (pieceWorkClient) {
-        sessionStorage.setItem("time_tracking_piecework_client", pieceWorkClient);
+        sessionStorage.setItem(
+          "time_tracking_piecework_client",
+          pieceWorkClient
+        );
       } else {
         sessionStorage.removeItem("time_tracking_piecework_client");
       }
@@ -282,7 +317,9 @@ function TimeTrackingPage() {
   >(undefined);
 
   // QR Scanner piecework state - for entering pieces completed when clocking in to piecework task
-  const [qrPiecesCompleted, setQrPiecesCompleted] = useState<number | string>("");
+  const [qrPiecesCompleted, setQrPiecesCompleted] = useState<number | string>(
+    ""
+  );
 
   // Past records state - for creating both clock-in and clock-out at once
   const [usePastRecords, setUsePastRecords] = useState(false);
@@ -356,7 +393,7 @@ function TimeTrackingPage() {
 
   // QR Scanner processing state - prevents duplicate scans while processing
   const [isQrProcessing, setIsQrProcessing] = useState(false);
-  
+
   // Piecework QR Scanner processing state - prevents duplicate scans while processing
   const [isPieceworkQrProcessing, setIsPieceworkQrProcessing] = useState(false);
 
@@ -513,7 +550,7 @@ function TimeTrackingPage() {
     }
 
     const searchTerm = historyNameFilter.toLowerCase().trim();
-    
+
     return mergedRecords.filter((record) => {
       if (record.type === "time") {
         const employee = activeEmployees?.find(
@@ -596,47 +633,53 @@ function TimeTrackingPage() {
   // Get active piecework tasks by client (tasks with active clock-ins and piecework type)
   const activePieceworkTasksByClient = useMemo(() => {
     if (!activeTimeEntries || !allTasks || !pieceWorkClient) return [];
-    
+
     // Find all unique task IDs from active time entries
-    const activeTaskIds = new Set(activeTimeEntries.map(entry => entry.taskId));
-    
+    const activeTaskIds = new Set(
+      activeTimeEntries.map((entry) => entry.taskId)
+    );
+
     // Filter tasks that are:
     // 1. Piecework type
     // 2. Have active clock-ins
     // 3. Belong to selected client
-    return allTasks.filter(task => 
-      task.clientRateType === "piece" && 
-      activeTaskIds.has(task.id) &&
-      task.clientId === pieceWorkClient
+    return allTasks.filter(
+      (task) =>
+        task.clientRateType === "piece" &&
+        activeTaskIds.has(task.id) &&
+        task.clientId === pieceWorkClient
     );
   }, [activeTimeEntries, allTasks, pieceWorkClient]);
 
   // Get the selected piecework task for the piece-work tab
   const pieceWorkSelectedTask = useMemo(() => {
     if (!pieceWorkTask || !allTasks) return null;
-    return allTasks.find(t => t.id === pieceWorkTask) || null;
+    return allTasks.find((t) => t.id === pieceWorkTask) || null;
   }, [pieceWorkTask, allTasks]);
 
   // Get clients with active piecework tasks and their task counts
   const clientsWithActiveTasks = useMemo(() => {
     if (!clients || !activeTimeEntries || !allTasks) return [];
-    
-    const activeTaskIds = new Set(activeTimeEntries.map(entry => entry.taskId));
-    
+
+    const activeTaskIds = new Set(
+      activeTimeEntries.map((entry) => entry.taskId)
+    );
+
     return clients
-      .map(client => {
-        const activeTasksCount = allTasks.filter(task =>
-          task.clientRateType === "piece" &&
-          activeTaskIds.has(task.id) &&
-          task.clientId === client.id
+      .map((client) => {
+        const activeTasksCount = allTasks.filter(
+          (task) =>
+            task.clientRateType === "piece" &&
+            activeTaskIds.has(task.id) &&
+            task.clientId === client.id
         ).length;
-        
+
         return {
           ...client,
-          activeTasksCount
+          activeTasksCount,
         };
       })
-      .filter(client => client.activeTasksCount > 0);
+      .filter((client) => client.activeTasksCount > 0);
   }, [clients, activeTimeEntries, allTasks]);
 
   const tasksForClient = useMemo(() => {
@@ -678,16 +721,18 @@ function TimeTrackingPage() {
   // Filtered tasks for bulk clock out - only shows tasks with active clock-ins
   const bulkClockOutTasks = useMemo(() => {
     if (!filteredTasks || !activeTimeEntries) return [];
-    
+
     // Get unique task IDs from active time entries
-    const activeTaskIds = new Set(activeTimeEntries.map(entry => entry.taskId));
-    
+    const activeTaskIds = new Set(
+      activeTimeEntries.map((entry) => entry.taskId)
+    );
+
     // Filter to only include tasks that:
     // 1. Are in the filtered tasks list (client/ranch/block filter applied)
     // 2. Have active clock-ins
     // 3. Are active status
-    return filteredTasks.filter(task => 
-      task.status === "Active" && activeTaskIds.has(task.id)
+    return filteredTasks.filter(
+      (task) => task.status === "Active" && activeTaskIds.has(task.id)
     );
   }, [filteredTasks, activeTimeEntries]);
 
@@ -731,16 +776,18 @@ function TimeTrackingPage() {
   // Bulk clock-out tasks with active clock-ins
   const bulkClockOutFilteredTasks = useMemo(() => {
     if (!bulkFilteredTasks || !activeTimeEntries) return [];
-    
+
     // Get unique task IDs from active time entries
-    const activeTaskIds = new Set(activeTimeEntries.map(entry => entry.taskId));
-    
+    const activeTaskIds = new Set(
+      activeTimeEntries.map((entry) => entry.taskId)
+    );
+
     // Filter to only include tasks that:
     // 1. Are in the bulk filtered tasks list (independent client/ranch/block filter applied)
     // 2. Have active clock-ins
     // 3. Are active status
-    return bulkFilteredTasks.filter(task => 
-      task.status === "Active" && activeTaskIds.has(task.id)
+    return bulkFilteredTasks.filter(
+      (task) => task.status === "Active" && activeTaskIds.has(task.id)
     );
   }, [bulkFilteredTasks, activeTimeEntries]);
 
@@ -801,56 +848,90 @@ function TimeTrackingPage() {
     return () => document.removeEventListener("click", initializeAudio);
   }, [audioContext]);
 
+  // Actualizar la función playSound para usar la configuración guardada
   const playSound = useCallback(
-    (type: SoundType) => {
-      if (!audioContext) return;
+    (type: "clock-in" | "clock-out" | "piece") => {
+      if (!audioContext || !soundSettings) return;
 
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-
-      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-      // Increase volume from 0.8 to 1.0 (maximum)
-      gainNode.gain.linearRampToValueAtTime(
-        1.0,
-        audioContext.currentTime + 0.01
-      );
-
+      let soundId: string;
       switch (type) {
         case "clock-in":
-          oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+          soundId = soundSettings.clockInSound;
           break;
         case "clock-out":
-          oscillator.frequency.setValueAtTime(400, audioContext.currentTime);
+          soundId = soundSettings.clockOutSound;
           break;
         case "piece":
-          oscillator.frequency.setValueAtTime(600, audioContext.currentTime);
+          soundId = soundSettings.pieceworkSound;
           break;
       }
-      oscillator.type = "square";
 
-      oscillator.start(audioContext.currentTime);
-      // Increase duration from 0.3s to 0.6s (twice as long)
-      oscillator.stop(audioContext.currentTime + 0.6);
-      gainNode.gain.exponentialRampToValueAtTime(
-        0.00001,
-        audioContext.currentTime + 0.6
-      );
-      
-      // Enhance vibration feedback: make it longer and use a pattern for more impact
-      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      const soundOption = AVAILABLE_SOUNDS.find((s) => s.id === soundId);
+      if (!soundOption) return;
+
+      // Función helper para crear osciladores
+      const createOscillator = (
+        frequency: number,
+        waveType: OscillatorType = "sine"
+      ) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        oscillator.frequency.setValueAtTime(
+          frequency,
+          audioContext.currentTime
+        );
+        oscillator.type = waveType;
+
+        const volume = soundSettings.volume;
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(
+          volume,
+          audioContext.currentTime + 0.01
+        );
+
+        return { oscillator, gainNode };
+      };
+
+      // Reproducir el sonido
+      let currentTime = audioContext.currentTime;
+
+      soundOption.frequencies.forEach((freq, index) => {
+        const { oscillator, gainNode } = createOscillator(
+          freq,
+          soundOption.waveType
+        );
+        const duration = soundOption.durations[index] || 0.2;
+        const gap = soundOption.gaps[index] || 0.1;
+
+        oscillator.start(currentTime);
+        oscillator.stop(currentTime + duration);
+        gainNode.gain.exponentialRampToValueAtTime(
+          0.001,
+          currentTime + duration
+        );
+
+        currentTime += duration + gap;
+      });
+
+      // Vibración si está habilitada
+      if (
+        soundSettings.vibrationEnabled &&
+        soundOption.vibrationPattern &&
+        typeof navigator !== "undefined" &&
+        "vibrate" in navigator
+      ) {
         try {
-          // Vibrate pattern: [vibrate, pause, vibrate] - total 500ms of vibration
-          navigator.vibrate([300, 100, 200]); // 300ms vibrate, 100ms pause, 200ms vibrate
+          navigator.vibrate(soundOption.vibrationPattern);
         } catch (e) {
-          // Silently fail if vibration is not supported
-          console.debug('Vibration not supported:', e);
+          console.debug("Vibration not supported:", e);
         }
       }
     },
-    [audioContext]
+    [audioContext, soundSettings]
   );
 
   /*   // Reset selections when client changes
@@ -959,7 +1040,7 @@ function TimeTrackingPage() {
         setPieceWorkClient("");
         setPieceWorkTask("");
       }
-      
+
       // If the previously selected task is no longer active, clear it
       if (pieceWorkTask) {
         const taskStillActive = activePieceworkTasksByClient.some(
@@ -970,7 +1051,12 @@ function TimeTrackingPage() {
         }
       }
     }
-  }, [clientsWithActiveTasks, activePieceworkTasksByClient, pieceWorkClient, pieceWorkTask]);
+  }, [
+    clientsWithActiveTasks,
+    activePieceworkTasksByClient,
+    pieceWorkClient,
+    pieceWorkTask,
+  ]);
 
   const clockInEmployee = useCallback(
     async (
@@ -1058,7 +1144,8 @@ function TimeTrackingPage() {
           toast({
             variant: "destructive",
             title: "Clock In Error",
-            description: "Unable to complete clock-in. Please try again or check your data when back online.",
+            description:
+              "Unable to complete clock-in. Please try again or check your data when back online.",
           });
         }
         return false;
@@ -1108,12 +1195,12 @@ function TimeTrackingPage() {
               let hoursWorked =
                 (clockOutTime.getTime() - clockInTime.getTime()) /
                 (1000 * 60 * 60);
-              
+
               // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (0.5 hours) unpaid meal break
               if (hoursWorked > 5) {
                 hoursWorked -= 0.5; // Deduct 30 minutes (0.5 hours)
               }
-              
+
               totalHoursForThisSession += hoursWorked;
               usingSickHours = entry.useSickHoursForPayment || false;
             }
@@ -1205,7 +1292,8 @@ function TimeTrackingPage() {
           toast({
             variant: "destructive",
             title: "Clock Out Error",
-            description: "Unable to complete clock-out. Please try again or check your data when back online.",
+            description:
+              "Unable to complete clock-out. Please try again or check your data when back online.",
           });
         }
       }
@@ -1238,10 +1326,13 @@ function TimeTrackingPage() {
               activeEmployees?.find((e) => e.qrCode === id)?.name || "Unknown"
           )
           .join(", ");
-        
+
         toast({
           title: "Piecework Recorded",
-          description: addOfflineIndicator(`1 piece recorded for ${employeeNames}.`, isOnline),
+          description: addOfflineIndicator(
+            `1 piece recorded for ${employeeNames}.`,
+            isOnline
+          ),
         });
       } catch (serverError) {
         const permissionError = new FirestorePermissionError({
@@ -1267,13 +1358,13 @@ function TimeTrackingPage() {
 
       try {
         // For multiple employees (shared piece), divide quantity among them
-        const pieceCountPerEmployee = isSharedPiece 
-          ? quantity / employeeIds.length 
+        const pieceCountPerEmployee = isSharedPiece
+          ? quantity / employeeIds.length
           : quantity;
 
         // Use batch write to ensure all records are created atomically
         const batch = writeBatch(firestore);
-        
+
         // Create piecework record for each employee
         for (const employeeId of employeeIds) {
           const newPiecework: Omit<Piecework, "id"> = {
@@ -1286,12 +1377,12 @@ function TimeTrackingPage() {
           const docRef = doc(collection(firestore, "piecework"));
           batch.set(docRef, newPiecework);
         }
-        
+
         // Commit all records at once
         await batch.commit();
 
         playSound("piece");
-        
+
         // Only show toast when online (offline toast is shown in the handler)
         if (isOnline) {
           const employeeNames = employeeIds
@@ -1300,12 +1391,14 @@ function TimeTrackingPage() {
                 activeEmployees?.find((e) => e.id === id)?.name || "Unknown"
             )
             .join(", ");
-          
+
           toast({
             title: "Piecework Recorded",
             description: addOfflineIndicator(
               `${quantity} piece(s) recorded for ${employeeNames}.${
-                isSharedPiece ? ` (${pieceCountPerEmployee.toFixed(2)} each)` : ""
+                isSharedPiece
+                  ? ` (${pieceCountPerEmployee.toFixed(2)} each)`
+                  : ""
               }`,
               isOnline
             ),
@@ -1329,7 +1422,8 @@ function TimeTrackingPage() {
           toast({
             variant: "destructive",
             title: "Piecework Registration Error",
-            description: "Unable to complete registration. Please try again or check your data when back online.",
+            description:
+              "Unable to complete registration. Please try again or check your data when back online.",
           });
           return false;
         }
@@ -1392,12 +1486,12 @@ function TimeTrackingPage() {
         // Update employee's totalHoursWorked and sickHoursBalance
         let hoursWorked =
           (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
-        
+
         // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (0.5 hours) unpaid meal break
         if (hoursWorked > 5) {
           hoursWorked -= 0.5; // Deduct 30 minutes (0.5 hours)
         }
-        
+
         const currentTotalHours = employee.totalHoursWorked || 0;
         const newTotalHours = currentTotalHours + hoursWorked;
 
@@ -1451,12 +1545,12 @@ function TimeTrackingPage() {
         });
         return;
       }
-      
+
       // Prevent processing if already processing
       if (isQrProcessing) {
         return;
       }
-      
+
       const now = Date.now();
 
       const isDebounced = recentScans.some(
@@ -1484,7 +1578,7 @@ function TimeTrackingPage() {
         if (scanMode === "clock-in" || scanMode === "clock-out") {
           setIsQrProcessing(true);
         }
-        
+
         try {
           // If past records mode is enabled, create both clock-in and clock-out
           if (usePastRecords) {
@@ -1501,41 +1595,57 @@ function TimeTrackingPage() {
             // Check for duplicate time entries (same employee, task, clock-in and clock-out times)
             if (allTimeEntries) {
               const duplicate = allTimeEntries.find((entry) => {
-                if (entry.employeeId !== scannedEmployee.id || entry.taskId !== selectedTask) {
+                if (
+                  entry.employeeId !== scannedEmployee.id ||
+                  entry.taskId !== selectedTask
+                ) {
                   return false;
                 }
-                
+
                 // Check if clock-in times match (within 1 minute tolerance)
-                const entryClockIn = entry.timestamp instanceof Date
-                  ? entry.timestamp
-                  : (entry.timestamp as any)?.toDate?.()
-                  ? (entry.timestamp as any).toDate()
-                  : new Date(entry.timestamp as any);
-                const timeDiffIn = Math.abs(entryClockIn.getTime() - pastRecordClockInDate.getTime());
-                
+                const entryClockIn =
+                  entry.timestamp instanceof Date
+                    ? entry.timestamp
+                    : (entry.timestamp as any)?.toDate?.()
+                    ? (entry.timestamp as any).toDate()
+                    : new Date(entry.timestamp as any);
+                const timeDiffIn = Math.abs(
+                  entryClockIn.getTime() - pastRecordClockInDate.getTime()
+                );
+
                 // Check if clock-out times match (within 1 minute tolerance)
                 if (entry.endTime) {
-                  const entryClockOut = entry.endTime instanceof Date
-                    ? entry.endTime
-                    : (entry.endTime as any)?.toDate?.()
-                    ? (entry.endTime as any).toDate()
-                    : new Date(entry.endTime as any);
-                  const timeDiffOut = Math.abs(entryClockOut.getTime() - pastRecordClockOutDate.getTime());
-                  
+                  const entryClockOut =
+                    entry.endTime instanceof Date
+                      ? entry.endTime
+                      : (entry.endTime as any)?.toDate?.()
+                      ? (entry.endTime as any).toDate()
+                      : new Date(entry.endTime as any);
+                  const timeDiffOut = Math.abs(
+                    entryClockOut.getTime() - pastRecordClockOutDate.getTime()
+                  );
+
                   // If both clock-in and clock-out times match within 1 minute, it's a duplicate
                   return timeDiffIn < 60000 && timeDiffOut < 60000;
                 }
-                
+
                 return false;
               });
-              
+
               if (duplicate) {
                 const task = allTasks?.find((t) => t.id === selectedTask);
                 const client = clients?.find((c) => c.id === task?.clientId);
                 toast({
                   variant: "destructive",
                   title: "Duplicate Entry Detected",
-                  description: `A time entry already exists for ${scannedEmployee.name} on ${format(pastRecordClockInDate, "PPP")} with the same clock-in and clock-out times for ${task?.name || 'this task'} (${client?.name || 'this client'}).`,
+                  description: `A time entry already exists for ${
+                    scannedEmployee.name
+                  } on ${format(
+                    pastRecordClockInDate,
+                    "PPP"
+                  )} with the same clock-in and clock-out times for ${
+                    task?.name || "this task"
+                  } (${client?.name || "this client"}).`,
                 });
                 return;
               }
@@ -1566,7 +1676,9 @@ function TimeTrackingPage() {
                 title: "Clock In Successful",
                 description: addOfflineIndicator(
                   `Clocked in ${scannedEmployee.name}.${
-                    useSickHoursForPayment ? " (Using sick hours for payment)" : ""
+                    useSickHoursForPayment
+                      ? " (Using sick hours for payment)"
+                      : ""
                   }`,
                   isOnline
                 ),
@@ -1593,7 +1705,9 @@ function TimeTrackingPage() {
               });
             }
 
-            const timestamp = useManualDateTime ? manualClockOutDate : undefined;
+            const timestamp = useManualDateTime
+              ? manualClockOutDate
+              : undefined;
             await clockOutEmployee(scannedEmployee, selectedTask, timestamp);
           } else if (scanMode === "piece") {
             if (isSharedPiece) {
@@ -1803,7 +1917,7 @@ function TimeTrackingPage() {
       }
 
       const now = Date.now();
-      
+
       // Find the scanned employee first
       const scannedEmployee = activeEmployees?.find(
         (e) => e.qrCode === scannedData
@@ -1830,13 +1944,14 @@ function TimeTrackingPage() {
       if (isDebounced) {
         const lastScan = recentScans.find(
           (scan) =>
-            scan.scanData === employeeTaskKey &&
-            scan.mode === "piecework-tab"
+            scan.scanData === employeeTaskKey && scan.mode === "piecework-tab"
         );
         const timeRemaining = lastScan
-          ? Math.ceil((PIECEWORK_DEBOUNCE_MS - (now - lastScan.timestamp)) / 60000)
+          ? Math.ceil(
+              (PIECEWORK_DEBOUNCE_MS - (now - lastScan.timestamp)) / 60000
+            )
           : 3;
-        
+
         toast({
           variant: "destructive",
           title: "Please Wait",
@@ -1875,60 +1990,60 @@ function TimeTrackingPage() {
             toast({
               variant: "destructive",
               title: "Duplicate Employee",
-                description: `${scannedEmployee.name} is already on the list.`,
-              });
-              return prev;
-            }
-            toast({
-              title: "Employee Added",
-              description: `Added ${scannedEmployee.name} to group.`,
+              description: `${scannedEmployee.name} is already on the list.`,
             });
-            playSound("clock-in");
-            return [...prev, scannedEmployee.id];
-          });
-        } else if (pieceEntryMode === "scan") {
-          // Single employee mode + Scan Employees - auto-submit with 1 piece
-          // Set processing state to show loading overlay
-          setIsPieceworkQrProcessing(true);
-          
-          try {
-            const employeeIds = [scannedEmployee.id];
-            
-            // Show toast immediately when offline
-            if (!isOnline) {
-              toast({
-                title: "Piecework Recorded",
-                description: addOfflineIndicator(
-                  `1 piece recorded for ${scannedEmployee.name}.`,
-                  isOnline
-                ),
-              });
-            }
-            
-            // Record the piecework
-            const success = await recordPieceworkWithQuantity(
-              employeeIds,
-              pieceWorkSelectedTask.id,
-              1,
-              undefined
-            );
-            
-            if (success) {
-              playSound("piece");
-            }
-          } finally {
-            // Reset processing state after operation completes
-            setIsPieceworkQrProcessing(false);
+            return prev;
           }
-        } else {
-          // Manual count mode - just add to list for manual submission
-          setScannedSharedEmployees([scannedEmployee.id]);
           toast({
-            title: "Employee Scanned",
-            description: `${scannedEmployee.name} ready for piece entry.`,
+            title: "Employee Added",
+            description: `Added ${scannedEmployee.name} to group.`,
           });
           playSound("clock-in");
+          return [...prev, scannedEmployee.id];
+        });
+      } else if (pieceEntryMode === "scan") {
+        // Single employee mode + Scan Employees - auto-submit with 1 piece
+        // Set processing state to show loading overlay
+        setIsPieceworkQrProcessing(true);
+
+        try {
+          const employeeIds = [scannedEmployee.id];
+
+          // Show toast immediately when offline
+          if (!isOnline) {
+            toast({
+              title: "Piecework Recorded",
+              description: addOfflineIndicator(
+                `1 piece recorded for ${scannedEmployee.name}.`,
+                isOnline
+              ),
+            });
+          }
+
+          // Record the piecework
+          const success = await recordPieceworkWithQuantity(
+            employeeIds,
+            pieceWorkSelectedTask.id,
+            1,
+            undefined
+          );
+
+          if (success) {
+            playSound("piece");
+          }
+        } finally {
+          // Reset processing state after operation completes
+          setIsPieceworkQrProcessing(false);
         }
+      } else {
+        // Manual count mode - just add to list for manual submission
+        setScannedSharedEmployees([scannedEmployee.id]);
+        toast({
+          title: "Employee Scanned",
+          description: `${scannedEmployee.name} ready for piece entry.`,
+        });
+        playSound("clock-in");
+      }
     },
     [
       pieceWorkSelectedTask,
@@ -1974,41 +2089,57 @@ function TimeTrackingPage() {
       // Check for duplicate time entries (same employee, task, clock-in and clock-out times)
       if (allTimeEntries) {
         const duplicate = allTimeEntries.find((entry) => {
-          if (entry.employeeId !== manualSelectedEmployee.id || entry.taskId !== selectedTask) {
+          if (
+            entry.employeeId !== manualSelectedEmployee.id ||
+            entry.taskId !== selectedTask
+          ) {
             return false;
           }
-          
+
           // Check if clock-in times match (within 1 minute tolerance)
-          const entryClockIn = entry.timestamp instanceof Date
-            ? entry.timestamp
-            : (entry.timestamp as any)?.toDate?.()
-            ? (entry.timestamp as any).toDate()
-            : new Date(entry.timestamp as any);
-          const timeDiffIn = Math.abs(entryClockIn.getTime() - pastRecordClockInDate.getTime());
-          
+          const entryClockIn =
+            entry.timestamp instanceof Date
+              ? entry.timestamp
+              : (entry.timestamp as any)?.toDate?.()
+              ? (entry.timestamp as any).toDate()
+              : new Date(entry.timestamp as any);
+          const timeDiffIn = Math.abs(
+            entryClockIn.getTime() - pastRecordClockInDate.getTime()
+          );
+
           // Check if clock-out times match (within 1 minute tolerance)
           if (entry.endTime) {
-            const entryClockOut = entry.endTime instanceof Date
-              ? entry.endTime
-              : (entry.endTime as any)?.toDate?.()
-              ? (entry.endTime as any).toDate()
-              : new Date(entry.endTime as any);
-            const timeDiffOut = Math.abs(entryClockOut.getTime() - pastRecordClockOutDate.getTime());
-            
+            const entryClockOut =
+              entry.endTime instanceof Date
+                ? entry.endTime
+                : (entry.endTime as any)?.toDate?.()
+                ? (entry.endTime as any).toDate()
+                : new Date(entry.endTime as any);
+            const timeDiffOut = Math.abs(
+              entryClockOut.getTime() - pastRecordClockOutDate.getTime()
+            );
+
             // If both clock-in and clock-out times match within 1 minute, it's a duplicate
             return timeDiffIn < 60000 && timeDiffOut < 60000;
           }
-          
+
           return false;
         });
-        
+
         if (duplicate) {
           const task = allTasks?.find((t) => t.id === selectedTask);
           const client = clients?.find((c) => c.id === task?.clientId);
           toast({
             variant: "destructive",
             title: "Duplicate Entry Detected",
-            description: `A time entry already exists for ${manualSelectedEmployee.name} on ${format(pastRecordClockInDate, "PPP")} with the same clock-in and clock-out times for ${task?.name || 'this task'} (${client?.name || 'this client'}).`,
+            description: `A time entry already exists for ${
+              manualSelectedEmployee.name
+            } on ${format(
+              pastRecordClockInDate,
+              "PPP"
+            )} with the same clock-in and clock-out times for ${
+              task?.name || "this task"
+            } (${client?.name || "this client"}).`,
           });
           setIsManualSubmitting(false);
           return;
@@ -2053,7 +2184,7 @@ function TimeTrackingPage() {
       setPastRecordClockInTime("");
       setPastRecordClockOutTime("");
       setPastRecordPiecesCount("");
-      
+
       // Only update loading state if online (offline already set to false)
       if (isOnline) {
         setIsManualSubmitting(false);
@@ -2085,7 +2216,7 @@ function TimeTrackingPage() {
       setManualSelectedEmployee(null);
       setManualEmployeeSearch("");
       setUseSickHoursForPayment(false);
-      
+
       // Only update loading state if online (offline already set to false)
       if (isOnline) {
         setIsManualSubmitting(false);
@@ -2110,7 +2241,7 @@ function TimeTrackingPage() {
       setManualSelectedEmployee(null);
       setManualEmployeeSearch("");
       setUseSickHoursForPayment(false);
-      
+
       // Only update loading state if online (offline already set to false)
       if (isOnline) {
         setIsManualSubmitting(false);
@@ -2172,7 +2303,11 @@ function TimeTrackingPage() {
 
   // Handler for piece-work tab piece submission
   const handlePieceWorkSubmit = async (overrideQuantity?: number) => {
-    if (!firestore || !pieceWorkSelectedTask || scannedSharedEmployees.length === 0) {
+    if (
+      !firestore ||
+      !pieceWorkSelectedTask ||
+      scannedSharedEmployees.length === 0
+    ) {
       toast({
         variant: "destructive",
         title: "Missing Information",
@@ -2181,12 +2316,13 @@ function TimeTrackingPage() {
       return;
     }
 
-    const pieceCount = typeof overrideQuantity === "number"
-      ? overrideQuantity
-      : typeof manualPieceQuantity === "number"
+    const pieceCount =
+      typeof overrideQuantity === "number"
+        ? overrideQuantity
+        : typeof manualPieceQuantity === "number"
         ? manualPieceQuantity
         : parseFloat(String(manualPieceQuantity));
-    
+
     if (isNaN(pieceCount) || pieceCount <= 0) {
       toast({
         variant: "destructive",
@@ -2197,19 +2333,21 @@ function TimeTrackingPage() {
     }
 
     setIsManualSubmitting(true);
-    
+
     try {
       // When offline, show success feedback immediately and reset UI to allow user to continue
       // The Firestore write will be queued for sync when connection is restored
       if (!isOnline) {
         const employeeNames = scannedSharedEmployees
-          .map((id) => activeEmployees?.find((e) => e.id === id)?.name || "Unknown")
+          .map(
+            (id) => activeEmployees?.find((e) => e.id === id)?.name || "Unknown"
+          )
           .join(", ");
-        
-        const pieceCountPerEmployee = isSharedPiece 
-          ? pieceCount / scannedSharedEmployees.length 
+
+        const pieceCountPerEmployee = isSharedPiece
+          ? pieceCount / scannedSharedEmployees.length
           : pieceCount;
-        
+
         toast({
           title: "Piecework Recorded",
           description: addOfflineIndicator(
@@ -2219,7 +2357,7 @@ function TimeTrackingPage() {
             isOnline
           ),
         });
-        
+
         // Queue the Firestore write in the background before clearing state
         const employeeIdsToRecord = [...scannedSharedEmployees];
         recordPieceworkWithQuantity(
@@ -2230,15 +2368,15 @@ function TimeTrackingPage() {
         ).catch((error) => {
           console.warn("Background piecework sync queued for later:", error);
         });
-        
+
         // Clear form immediately when offline to allow continued use
         setScannedSharedEmployees([]);
         setManualPieceQuantity("");
         setIsManualSubmitting(false);
-        
+
         return;
       }
-      
+
       // Online flow: wait for the operation to complete
       const success = await recordPieceworkWithQuantity(
         scannedSharedEmployees,
@@ -2251,7 +2389,7 @@ function TimeTrackingPage() {
         setScannedSharedEmployees([]);
         setManualPieceQuantity("");
       }
-      
+
       setIsManualSubmitting(false);
     } catch (error) {
       console.error("Error in handlePieceWorkSubmit:", error);
@@ -2303,11 +2441,13 @@ function TimeTrackingPage() {
       });
 
       await batch.commit();
-      
-      
+
       toast({
         title: "Bulk Clock Out Successful",
-        description: addOfflineIndicator(`Successfully clocked out ${querySnapshot.size} employee(s) from the task.`, isOnline),
+        description: addOfflineIndicator(
+          `Successfully clocked out ${querySnapshot.size} employee(s) from the task.`,
+          isOnline
+        ),
       });
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
@@ -2385,10 +2525,13 @@ function TimeTrackingPage() {
       });
 
       await batch.commit();
-      
+
       toast({
         title: "Bulk Clock In Successful",
-        description: addOfflineIndicator(`Successfully clocked in ${selectedBulkInEmployees.size} employee(s).`, isOnline),
+        description: addOfflineIndicator(
+          `Successfully clocked in ${selectedBulkInEmployees.size} employee(s).`,
+          isOnline
+        ),
       });
       setSelectedBulkInEmployees(new Set()); // Clear selection after success
     } catch (serverError) {
@@ -2410,10 +2553,13 @@ function TimeTrackingPage() {
 
     try {
       await deleteDoc(doc(firestore, "time_entries", entryId));
-      
+
       toast({
         title: "Entry Deleted",
-        description: addOfflineIndicator("Time entry has been successfully deleted.", isOnline),
+        description: addOfflineIndicator(
+          "Time entry has been successfully deleted.",
+          isOnline
+        ),
       });
       setDeleteConfirmOpen(false);
       setDeleteTarget(null);
@@ -2437,10 +2583,13 @@ function TimeTrackingPage() {
 
     try {
       await deleteDoc(doc(firestore, "piecework", pieceworkId));
-      
+
       toast({
         title: "Piecework Deleted",
-        description: addOfflineIndicator("Piecework record has been successfully deleted.", isOnline),
+        description: addOfflineIndicator(
+          "Piecework record has been successfully deleted.",
+          isOnline
+        ),
       });
       setDeleteConfirmOpen(false);
       setDeleteTarget(null);
@@ -2527,7 +2676,10 @@ function TimeTrackingPage() {
 
       toast({
         title: "Entry Updated",
-        description: addOfflineIndicator("Time entry and all pieces have been successfully updated.", isOnline),
+        description: addOfflineIndicator(
+          "Time entry and all pieces have been successfully updated.",
+          isOnline
+        ),
       });
       setEditDialogOpen(false);
       setEditTarget(null);
@@ -2596,11 +2748,13 @@ function TimeTrackingPage() {
         pieceCount: pieceCount,
         taskId: editTaskId,
       });
-      
-      
+
       toast({
         title: "Piecework Updated",
-        description: addOfflineIndicator("Piecework record has been successfully updated.", isOnline),
+        description: addOfflineIndicator(
+          "Piecework record has been successfully updated.",
+          isOnline
+        ),
       });
       setEditDialogOpen(false);
       setEditTarget(null);
@@ -2640,14 +2794,15 @@ function TimeTrackingPage() {
 
     // Check if filters are applied
     const hasFilters = historyStartDate || historyEndDate || historyNameFilter;
-    
+
     // If no filters, require password
     if (!hasFilters) {
       if (deleteAllPassword !== "4321") {
         toast({
           variant: "destructive",
           title: "Incorrect Password",
-          description: "You must enter the correct password to delete all unfiltered records.",
+          description:
+            "You must enter the correct password to delete all unfiltered records.",
         });
         setIsDeletingAll(false);
         return;
@@ -2677,11 +2832,13 @@ function TimeTrackingPage() {
 
       if (deleteCount > 0) {
         await batch.commit();
-        
+
         toast({
           title: "Movements Deleted",
           description: addOfflineIndicator(
-            `Successfully deleted ${deleteCount} record(s).${hasFilters ? " (Filtered records only)" : " (All records)"}`,
+            `Successfully deleted ${deleteCount} record(s).${
+              hasFilters ? " (Filtered records only)" : " (All records)"
+            }`,
             isOnline
           ),
         });
@@ -2801,7 +2958,9 @@ function TimeTrackingPage() {
       toast({
         title: "Sick Leave Logged",
         description: addOfflineIndicator(
-          `${hours} sick hours logged for ${manualSelectedEmployee.name}. New balance: ${newBalance.toFixed(2)} hrs`,
+          `${hours} sick hours logged for ${
+            manualSelectedEmployee.name
+          }. New balance: ${newBalance.toFixed(2)} hrs`,
           isOnline
         ),
       });
@@ -2844,12 +3003,19 @@ function TimeTrackingPage() {
       >
         <div className="space-y-2">
           <Label htmlFor={`client-select-${isManual}`}>Client</Label>
-          <Select value={selectedClient || ""} onValueChange={(value) => setSelectedClient(value === CLEAR_SELECTION_VALUE ? "" : value)}>
+          <Select
+            value={selectedClient || ""}
+            onValueChange={(value) =>
+              setSelectedClient(value === CLEAR_SELECTION_VALUE ? "" : value)
+            }
+          >
             <SelectTrigger id={`client-select-${isManual}`}>
               <SelectValue placeholder="Select a client" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
+              <SelectItem value={CLEAR_SELECTION_VALUE}>
+                -- Clear selection --
+              </SelectItem>
               {clients?.map((client) => (
                 <SelectItem key={client.id} value={client.id}>
                   {client.name}
@@ -2862,14 +3028,18 @@ function TimeTrackingPage() {
           <Label htmlFor={`ranch-select-${isManual}`}>Ranch</Label>
           <Select
             value={selectedRanch || ""}
-            onValueChange={(value) => setSelectedRanch(value === CLEAR_SELECTION_VALUE ? "" : value)}
+            onValueChange={(value) =>
+              setSelectedRanch(value === CLEAR_SELECTION_VALUE ? "" : value)
+            }
             disabled={!selectedClient || ranches.length === 0}
           >
             <SelectTrigger id={`ranch-select-${isManual}`}>
               <SelectValue placeholder="Select a ranch" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
+              <SelectItem value={CLEAR_SELECTION_VALUE}>
+                -- Clear selection --
+              </SelectItem>
               {ranches.map((ranch) => (
                 <SelectItem key={ranch} value={ranch}>
                   {ranch}
@@ -2882,14 +3052,18 @@ function TimeTrackingPage() {
           <Label htmlFor={`block-select-${isManual}`}>Block</Label>
           <Select
             value={selectedBlock || ""}
-            onValueChange={(value) => setSelectedBlock(value === CLEAR_SELECTION_VALUE ? "" : value)}
+            onValueChange={(value) =>
+              setSelectedBlock(value === CLEAR_SELECTION_VALUE ? "" : value)
+            }
             disabled={!selectedRanch || blocks.length === 0}
           >
             <SelectTrigger id={`block-select-${isManual}`}>
               <SelectValue placeholder="Select a block" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
+              <SelectItem value={CLEAR_SELECTION_VALUE}>
+                -- Clear selection --
+              </SelectItem>
               {blocks.map((block) => (
                 <SelectItem key={block} value={block}>
                   {block}
@@ -2902,14 +3076,18 @@ function TimeTrackingPage() {
           <Label htmlFor={`task-select-${isManual}`}>Task</Label>
           <Select
             value={selectedTask || ""}
-            onValueChange={(value) => setSelectedTask(value === CLEAR_SELECTION_VALUE ? "" : value)}
+            onValueChange={(value) =>
+              setSelectedTask(value === CLEAR_SELECTION_VALUE ? "" : value)
+            }
             disabled={displayTasks.length === 0}
           >
             <SelectTrigger id={`task-select-${isManual}`}>
               <SelectValue placeholder="Select a task" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
+              <SelectItem value={CLEAR_SELECTION_VALUE}>
+                -- Clear selection --
+              </SelectItem>
               {displayTasks?.map((task) => (
                 <SelectItem key={task.id} value={task.id}>
                   {task.name} ({task.variety}) -{" "}
@@ -2928,7 +3106,7 @@ function TimeTrackingPage() {
   return (
     <div className="max-w-4xl mx-auto">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="qr-scanner" className="text-xs sm:text-sm">
             <QrCode className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">QR Scanner</span>
@@ -2948,6 +3126,11 @@ function TimeTrackingPage() {
             <History className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">History</span>
             <span className="sm:hidden">History</span>
+          </TabsTrigger>
+          <TabsTrigger value="test" className="text-xs sm:text-sm">
+            <div className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full" />
+            <span className="hidden sm:inline">Sound Test</span>
+            <span className="sm:hidden">Test</span>
           </TabsTrigger>
         </TabsList>
         <TabsContent value="qr-scanner">
@@ -3205,7 +3388,10 @@ function TimeTrackingPage() {
 
               {/* Pieces Completed input for piecework tasks in clock-in mode */}
 
-              <QrScanner onScanResult={handleScanResult} isProcessing={isQrProcessing} />
+              <QrScanner
+                onScanResult={handleScanResult}
+                isProcessing={isQrProcessing}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -3694,7 +3880,9 @@ function TimeTrackingPage() {
                 <Select
                   value={selectedBulkClient || ""}
                   onValueChange={(value) => {
-                    setSelectedBulkClient(value === CLEAR_SELECTION_VALUE ? "" : value);
+                    setSelectedBulkClient(
+                      value === CLEAR_SELECTION_VALUE ? "" : value
+                    );
                     setSelectedBulkRanch("");
                     setSelectedBulkBlock("");
                     setSelectedBulkTask("");
@@ -3704,7 +3892,9 @@ function TimeTrackingPage() {
                     <SelectValue placeholder="Select a client" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
                     {clients?.map((client) => (
                       <SelectItem key={client.id} value={client.id}>
                         {client.name}
@@ -3719,7 +3909,9 @@ function TimeTrackingPage() {
                 <Select
                   value={selectedBulkRanch || ""}
                   onValueChange={(value) => {
-                    setSelectedBulkRanch(value === CLEAR_SELECTION_VALUE ? "" : value);
+                    setSelectedBulkRanch(
+                      value === CLEAR_SELECTION_VALUE ? "" : value
+                    );
                     setSelectedBulkBlock("");
                     setSelectedBulkTask("");
                   }}
@@ -3729,7 +3921,9 @@ function TimeTrackingPage() {
                     <SelectValue placeholder="Select a ranch" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
                     {bulkRanches.map((ranch) => (
                       <SelectItem key={ranch} value={ranch}>
                         {ranch}
@@ -3744,7 +3938,9 @@ function TimeTrackingPage() {
                 <Select
                   value={selectedBulkBlock || ""}
                   onValueChange={(value) => {
-                    setSelectedBulkBlock(value === CLEAR_SELECTION_VALUE ? "" : value);
+                    setSelectedBulkBlock(
+                      value === CLEAR_SELECTION_VALUE ? "" : value
+                    );
                     setSelectedBulkTask("");
                   }}
                   disabled={!selectedBulkRanch || bulkBlocks.length === 0}
@@ -3753,7 +3949,9 @@ function TimeTrackingPage() {
                     <SelectValue placeholder="Select a block" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
                     {bulkBlocks.map((block) => (
                       <SelectItem key={block} value={block}>
                         {block}
@@ -3771,14 +3969,15 @@ function TimeTrackingPage() {
                   disabled={!selectedBulkClient}
                 >
                   <SelectTrigger id="bulk-task-select">
-                    <SelectValue 
+                    <SelectValue
                       placeholder={
-                        !selectedBulkClient 
-                          ? "Select a client first to view tasks" 
-                          : bulkClockOutFilteredTasks && bulkClockOutFilteredTasks.length > 0
+                        !selectedBulkClient
+                          ? "Select a client first to view tasks"
+                          : bulkClockOutFilteredTasks &&
+                            bulkClockOutFilteredTasks.length > 0
                           ? "Select a task to bulk clock out"
                           : "No active tasks with clock-ins available"
-                      } 
+                      }
                     />
                   </SelectTrigger>
                   <SelectContent>
@@ -3932,7 +4131,8 @@ function TimeTrackingPage() {
                 {clientsWithActiveTasks.length === 0 ? (
                   <div className="p-4 border-2 border-dashed border-yellow-300 rounded-lg bg-yellow-50 dark:bg-yellow-950/20">
                     <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                      No clients with active piecework tasks. Employees must be clocked into a piecework task for it to appear here.
+                      No clients with active piecework tasks. Employees must be
+                      clocked into a piecework task for it to appear here.
                     </p>
                   </div>
                 ) : (
@@ -3942,8 +4142,8 @@ function TimeTrackingPage() {
                         key={client.id}
                         className={`cursor-pointer transition-all hover:shadow-md ${
                           pieceWorkClient === client.id
-                            ? 'border-2 border-blue-500 bg-blue-50 dark:bg-blue-950/30'
-                            : 'hover:border-gray-400'
+                            ? "border-2 border-blue-500 bg-blue-50 dark:bg-blue-950/30"
+                            : "hover:border-gray-400"
                         }`}
                         onClick={() => {
                           if (pieceWorkClient === client.id) {
@@ -3960,7 +4160,8 @@ function TimeTrackingPage() {
                             <div>
                               <p className="font-semibold">{client.name}</p>
                               <p className="text-sm text-muted-foreground">
-                                {client.activeTasksCount} active task{client.activeTasksCount !== 1 ? 's' : ''}
+                                {client.activeTasksCount} active task
+                                {client.activeTasksCount !== 1 ? "s" : ""}
                               </p>
                             </div>
                             {pieceWorkClient === client.id && (
@@ -3984,8 +4185,8 @@ function TimeTrackingPage() {
                         key={task.id}
                         className={`cursor-pointer transition-all hover:shadow-md ${
                           pieceWorkTask === task.id
-                            ? 'border-2 border-green-500 bg-green-50 dark:bg-green-950/30'
-                            : 'hover:border-gray-400'
+                            ? "border-2 border-green-500 bg-green-50 dark:bg-green-950/30"
+                            : "hover:border-gray-400"
                         }`}
                         onClick={() => {
                           setPieceWorkTask(task.id);
@@ -4003,12 +4204,8 @@ function TimeTrackingPage() {
                                 </p>
                               </div>
                               <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
-                                {task.ranch && (
-                                  <span>Ranch: {task.ranch}</span>
-                                )}
-                                {task.block && (
-                                  <span>Block: {task.block}</span>
-                                )}
+                                {task.ranch && <span>Ranch: {task.ranch}</span>}
+                                {task.block && <span>Block: {task.block}</span>}
                                 {task.piecePrice && (
                                   <span className="font-medium text-green-600 dark:text-green-400">
                                     ${task.piecePrice.toFixed(2)}/piece
@@ -4094,6 +4291,11 @@ function TimeTrackingPage() {
                     <ClipboardEdit className="mr-2 h-4 w-4" />
                     Manual Entry
                   </TabsTrigger>
+                  <TabsTrigger value="test" className="text-xs sm:text-sm">
+                    <div className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full" />
+                    <span className="hidden sm:inline">Sound Test</span>
+                    <span className="sm:hidden">Test</span>
+                  </TabsTrigger>
                 </TabsList>
 
                 {/* QR Scanner Tab */}
@@ -4104,7 +4306,8 @@ function TimeTrackingPage() {
                         QR Code Scanner
                       </CardTitle>
                       <CardDescription className="text-sm">
-                        Scan employee QR codes to record piecework. Employees must be clocked into the selected task.
+                        Scan employee QR codes to record piecework. Employees
+                        must be clocked into the selected task.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3 md:space-y-4">
@@ -4128,7 +4331,9 @@ function TimeTrackingPage() {
                         >
                           <div className="flex items-center space-x-2">
                             <RadioGroupItem value="scan" id="piece-qr-scan" />
-                            <Label htmlFor="piece-qr-scan">Scan Employees</Label>
+                            <Label htmlFor="piece-qr-scan">
+                              Scan Employees
+                            </Label>
                           </div>
                           <div className="flex items-center space-x-2">
                             <RadioGroupItem
@@ -4239,8 +4444,21 @@ function TimeTrackingPage() {
                               <div className="mt-4">
                                 <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md mb-3">
                                   <p className="text-sm text-blue-700 dark:text-blue-300">
-                                    <strong>Division:</strong> 1 piece will be divided equally among {scannedSharedEmployees.length} worker{scannedSharedEmployees.length !== 1 ? 's' : ''}.
-                                    Each will receive {(1 / scannedSharedEmployees.length).toFixed(4)} piece{(1 / scannedSharedEmployees.length) !== 1 ? 's' : ''}.
+                                    <strong>Division:</strong> 1 piece will be
+                                    divided equally among{" "}
+                                    {scannedSharedEmployees.length} worker
+                                    {scannedSharedEmployees.length !== 1
+                                      ? "s"
+                                      : ""}
+                                    . Each will receive{" "}
+                                    {(
+                                      1 / scannedSharedEmployees.length
+                                    ).toFixed(4)}{" "}
+                                    piece
+                                    {1 / scannedSharedEmployees.length !== 1
+                                      ? "s"
+                                      : ""}
+                                    .
                                   </p>
                                 </div>
                                 <Button
@@ -4311,13 +4529,15 @@ function TimeTrackingPage() {
                                 <div className="border rounded-md max-h-48 overflow-y-auto">
                                   {filteredManualEmployees.map((employee) => {
                                     // Check if employee is active in selected task
-                                    const isActiveInTask = activeTimeEntries?.some(
-                                      (entry) =>
-                                        entry.employeeId === employee.id &&
-                                        entry.taskId === pieceWorkSelectedTask.id &&
-                                        entry.endTime === null
-                                    );
-                                    
+                                    const isActiveInTask =
+                                      activeTimeEntries?.some(
+                                        (entry) =>
+                                          entry.employeeId === employee.id &&
+                                          entry.taskId ===
+                                            pieceWorkSelectedTask.id &&
+                                          entry.endTime === null
+                                      );
+
                                     return (
                                       <Button
                                         key={employee.id}
@@ -4327,7 +4547,9 @@ function TimeTrackingPage() {
                                         onClick={() => {
                                           if (isActiveInTask) {
                                             setManualSelectedEmployee(employee);
-                                            setManualEmployeeSearch(employee.name);
+                                            setManualEmployeeSearch(
+                                              employee.name
+                                            );
                                           }
                                         }}
                                       >
@@ -4434,7 +4656,7 @@ function TimeTrackingPage() {
                             );
 
                             playSound("piece");
-                            
+
                             toast({
                               title: "Piecework Recorded",
                               description: addOfflineIndicator(
@@ -4562,10 +4784,12 @@ function TimeTrackingPage() {
                     />
                   </div>
                 </div>
-                
+
                 {/* Name Filter */}
                 <div className="space-y-2 pt-2 border-t">
-                  <Label htmlFor="history-name-filter">Filter by Employee Name</Label>
+                  <Label htmlFor="history-name-filter">
+                    Filter by Employee Name
+                  </Label>
                   <Input
                     id="history-name-filter"
                     type="text"
@@ -4596,10 +4820,13 @@ function TimeTrackingPage() {
                   <History className="h-5 w-5 text-blue-600" />
                   All Records (Clock-In/Clock-Out & Piecework)
                 </h3>
-                {!filteredMergedRecords || filteredMergedRecords.length === 0 ? (
+                {!filteredMergedRecords ||
+                filteredMergedRecords.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground border rounded-lg">
                     <p>No records found.</p>
-                    {(historyStartDate || historyEndDate || historyNameFilter) && (
+                    {(historyStartDate ||
+                      historyEndDate ||
+                      historyNameFilter) && (
                       <p className="text-sm mt-2">
                         Try adjusting your filters.
                       </p>
@@ -4769,7 +4996,12 @@ function TimeTrackingPage() {
                                             {clockOutTime
                                               ? format(clockOutTime, "p")
                                               : "In progress"}
-                                            : {typeof entry.piecesWorked === 'number' ? entry.piecesWorked.toFixed(2) : entry.piecesWorked} piece(s)
+                                            :{" "}
+                                            {typeof entry.piecesWorked ===
+                                            "number"
+                                              ? entry.piecesWorked.toFixed(2)
+                                              : entry.piecesWorked}{" "}
+                                            piece(s)
                                           </li>
                                         )}
                                       {relatedPiecework.map((piece) => {
@@ -4785,7 +5017,11 @@ function TimeTrackingPage() {
                                             className="text-muted-foreground"
                                           >
                                             {format(pieceTime, "p")}:{" "}
-                                            {typeof piece.pieceCount === 'number' ? piece.pieceCount.toFixed(2) : piece.pieceCount} piece(s)
+                                            {typeof piece.pieceCount ===
+                                            "number"
+                                              ? piece.pieceCount.toFixed(2)
+                                              : piece.pieceCount}{" "}
+                                            piece(s)
                                             {piece.pieceQrCode &&
                                               piece.pieceQrCode !==
                                                 "manual_entry" &&
@@ -5001,7 +5237,10 @@ function TimeTrackingPage() {
                                 <div className="flex items-center gap-2">
                                   <CheckCircle className="h-3 w-3 text-green-600" />
                                   <p className="text-muted-foreground">
-                                    Quantity: {typeof piece.pieceCount === 'number' ? piece.pieceCount.toFixed(2) : piece.pieceCount}
+                                    Quantity:{" "}
+                                    {typeof piece.pieceCount === "number"
+                                      ? piece.pieceCount.toFixed(2)
+                                      : piece.pieceCount}
                                   </p>
                                 </div>
                                 {piece.pieceQrCode &&
@@ -5075,6 +5314,9 @@ function TimeTrackingPage() {
             </CardContent>
           </Card>
         </TabsContent>
+        <TabsContent value="test">
+          <SoundTestTab audioContext={audioContext} />
+        </TabsContent>
       </Tabs>
 
       {/* Delete Confirmation Dialog */}
@@ -5119,33 +5361,47 @@ function TimeTrackingPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {filteredMergedRecords.length === (allTimeEntries?.length || 0) + (allPiecework?.length || 0) ? "All" : "Filtered"} Movements?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Delete{" "}
+              {filteredMergedRecords.length ===
+              (allTimeEntries?.length || 0) + (allPiecework?.length || 0)
+                ? "All"
+                : "Filtered"}{" "}
+              Movements?
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {(() => {
-                const hasFilters = historyStartDate || historyEndDate || historyNameFilter;
+                const hasFilters =
+                  historyStartDate || historyEndDate || historyNameFilter;
                 const totalRecords = filteredMergedRecords.length;
-                const totalTimeEntries = filteredMergedRecords.filter(r => r.type === "time").length;
-                const totalPiecework = filteredMergedRecords.filter(r => r.type === "piecework").length;
-                
+                const totalTimeEntries = filteredMergedRecords.filter(
+                  (r) => r.type === "time"
+                ).length;
+                const totalPiecework = filteredMergedRecords.filter(
+                  (r) => r.type === "piecework"
+                ).length;
+
                 return (
                   <>
                     <p className="mb-2">
                       This action cannot be undone. This will permanently delete{" "}
-                      <strong>
-                        {totalRecords} record(s)
-                      </strong>{" "}
-                      ({totalTimeEntries} time {totalTimeEntries === 1 ? "entry" : "entries"} and{" "}
-                      {totalPiecework} piecework record{totalPiecework === 1 ? "" : "s"}) from the database.
+                      <strong>{totalRecords} record(s)</strong> (
+                      {totalTimeEntries} time{" "}
+                      {totalTimeEntries === 1 ? "entry" : "entries"} and{" "}
+                      {totalPiecework} piecework record
+                      {totalPiecework === 1 ? "" : "s"}) from the database.
                       These records will not appear in any reports.
                     </p>
                     {!hasFilters && (
                       <p className="mt-2 text-red-600 font-semibold">
-                        ⚠️ WARNING: You are about to delete ALL records without any filters applied!
+                        ⚠️ WARNING: You are about to delete ALL records without
+                        any filters applied!
                       </p>
                     )}
                     {hasFilters && (
                       <p className="mt-2 text-blue-600 font-semibold">
-                        ℹ️ Note: Only records matching your current filters will be deleted.
+                        ℹ️ Note: Only records matching your current filters will
+                        be deleted.
                       </p>
                     )}
                   </>
@@ -5223,12 +5479,19 @@ function TimeTrackingPage() {
             <div className="space-y-4 p-4 border rounded-md bg-muted/30">
               <div className="space-y-2">
                 <Label htmlFor="edit-client">Client</Label>
-                <Select value={editClient || ""} onValueChange={(value) => setEditClient(value === CLEAR_SELECTION_VALUE ? "" : value)}>
+                <Select
+                  value={editClient || ""}
+                  onValueChange={(value) =>
+                    setEditClient(value === CLEAR_SELECTION_VALUE ? "" : value)
+                  }
+                >
                   <SelectTrigger id="edit-client">
                     <SelectValue placeholder="Select a client" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
                     {clients?.map((client) => (
                       <SelectItem key={client.id} value={client.id}>
                         {client.name}
@@ -5241,14 +5504,18 @@ function TimeTrackingPage() {
                 <Label htmlFor="edit-ranch">Ranch</Label>
                 <Select
                   value={editRanch || ""}
-                  onValueChange={(value) => setEditRanch(value === CLEAR_SELECTION_VALUE ? "" : value)}
+                  onValueChange={(value) =>
+                    setEditRanch(value === CLEAR_SELECTION_VALUE ? "" : value)
+                  }
                   disabled={!editClient || editRanches.length === 0}
                 >
                   <SelectTrigger id="edit-ranch">
                     <SelectValue placeholder="Select a ranch" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
                     {editRanches.map((ranch) => (
                       <SelectItem key={ranch} value={ranch}>
                         {ranch}
@@ -5261,14 +5528,18 @@ function TimeTrackingPage() {
                 <Label htmlFor="edit-block">Block</Label>
                 <Select
                   value={editBlock || ""}
-                  onValueChange={(value) => setEditBlock(value === CLEAR_SELECTION_VALUE ? "" : value)}
+                  onValueChange={(value) =>
+                    setEditBlock(value === CLEAR_SELECTION_VALUE ? "" : value)
+                  }
                   disabled={!editRanch || editBlocks.length === 0}
                 >
                   <SelectTrigger id="edit-block">
                     <SelectValue placeholder="Select a block" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
                     {editBlocks.map((block) => (
                       <SelectItem key={block} value={block}>
                         {block}
@@ -5281,14 +5552,18 @@ function TimeTrackingPage() {
                 <Label htmlFor="edit-task">Task</Label>
                 <Select
                   value={editTaskId || ""}
-                  onValueChange={(value) => setEditTaskId(value === CLEAR_SELECTION_VALUE ? "" : value)}
+                  onValueChange={(value) =>
+                    setEditTaskId(value === CLEAR_SELECTION_VALUE ? "" : value)
+                  }
                   disabled={editFilteredTasks.length === 0}
                 >
                   <SelectTrigger id="edit-task">
                     <SelectValue placeholder="Select a task" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={CLEAR_SELECTION_VALUE}>-- Clear selection --</SelectItem>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
                     {editFilteredTasks?.map((task) => (
                       <SelectItem key={task.id} value={task.id}>
                         {task.name} ({task.variety})
