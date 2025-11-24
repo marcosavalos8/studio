@@ -148,7 +148,7 @@ export function DateTimePicker({
                   type="number"
                   min="0"
                   max="23"
-                  value={timeValue.split(":")[0] || "00"}
+                  value={timeValue?.split(":")[0] || "00"}
                   onChange={(e) => handleHourChange(e.target.value)}
                   className="mt-1"
                   placeholder="HH"
@@ -164,7 +164,7 @@ export function DateTimePicker({
                   type="number"
                   min="0"
                   max="59"
-                  value={timeValue.split(":")[1] || "00"}
+                  value={timeValue?.split(":")[1] || "00"}
                   onChange={(e) => handleMinuteChange(e.target.value)}
                   className="mt-1"
                   placeholder="MM"
