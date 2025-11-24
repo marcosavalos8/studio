@@ -66,8 +66,12 @@ export function DateTimePicker({
     const hour = parseInt(value, 10)
     if (isNaN(hour) || hour < 0 || hour > 23) return
     
-    const [, minutes] = timeValue.split(":").map(Number)
-    const newTimeValue = `${String(hour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+    // Validate timeValue format and extract minutes
+    const parts = timeValue.split(":")
+    const minutes = parts.length >= 2 ? parseInt(parts[1], 10) : 0
+    const validMinutes = isNaN(minutes) ? 0 : Math.max(0, Math.min(59, minutes))
+    
+    const newTimeValue = `${String(hour).padStart(2, '0')}:${String(validMinutes).padStart(2, '0')}`
     setTimeValue(newTimeValue)
 
     if (!selectedDate) return
@@ -76,7 +80,7 @@ export function DateTimePicker({
     const month = selectedDate.getMonth()
     const day = selectedDate.getDate()
     
-    const newDate = new Date(year, month, day, hour, minutes, 0, 0)
+    const newDate = new Date(year, month, day, hour, validMinutes, 0, 0)
     setSelectedDate(newDate)
     setDate(newDate)
   }
@@ -85,8 +89,12 @@ export function DateTimePicker({
     const minute = parseInt(value, 10)
     if (isNaN(minute) || minute < 0 || minute > 59) return
     
-    const [hours] = timeValue.split(":").map(Number)
-    const newTimeValue = `${String(hours).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+    // Validate timeValue format and extract hours
+    const parts = timeValue.split(":")
+    const hours = parts.length >= 1 ? parseInt(parts[0], 10) : 0
+    const validHours = isNaN(hours) ? 0 : Math.max(0, Math.min(23, hours))
+    
+    const newTimeValue = `${String(validHours).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
     setTimeValue(newTimeValue)
 
     if (!selectedDate) return
@@ -95,7 +103,7 @@ export function DateTimePicker({
     const month = selectedDate.getMonth()
     const day = selectedDate.getDate()
     
-    const newDate = new Date(year, month, day, hours, minute, 0, 0)
+    const newDate = new Date(year, month, day, validHours, minute, 0, 0)
     setSelectedDate(newDate)
     setDate(newDate)
   }
@@ -140,7 +148,7 @@ export function DateTimePicker({
                   type="number"
                   min="0"
                   max="23"
-                  value={timeValue.split(":")[0]}
+                  value={timeValue.split(":")[0] || "00"}
                   onChange={(e) => handleHourChange(e.target.value)}
                   className="mt-1"
                   placeholder="HH"
@@ -156,7 +164,7 @@ export function DateTimePicker({
                   type="number"
                   min="0"
                   max="59"
-                  value={timeValue.split(":")[1]}
+                  value={timeValue.split(":")[1] || "00"}
                   onChange={(e) => handleMinuteChange(e.target.value)}
                   className="mt-1"
                   placeholder="MM"
