@@ -304,10 +304,24 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
           (acc, week) => acc + week.minimumWageTopUp,
           0
         );
-        const employeeOvertimePremium = emp.weeklySummaries.reduce(
-          (acc, week) => acc + (week.overtimePremium || 0),
-          0
+        // Calculate all overtime values in a single pass
+        const overtimeData = emp.weeklySummaries.reduce(
+          (acc, week) => {
+            const weekOvertimeHours = week.overtimeHours || 0;
+            return {
+              overtimePremium: acc.overtimePremium + (week.overtimePremium || 0),
+              overtimeHours: acc.overtimeHours + weekOvertimeHours,
+              weightedRateSum: acc.weightedRateSum + (week.regularRate || 0) * weekOvertimeHours,
+            };
+          },
+          { overtimePremium: 0, overtimeHours: 0, weightedRateSum: 0 }
         );
+        
+        const employeeOvertimePremium = overtimeData.overtimePremium;
+        const employeeOvertimeHours = overtimeData.overtimeHours;
+        const employeeRegularRate = overtimeData.overtimeHours > 0 
+          ? overtimeData.weightedRateSum / overtimeData.overtimeHours 
+          : 0;
 
         const tasksSummaryMap = new Map<string, {
           taskName: string;
@@ -395,7 +409,9 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
           totalPieces,
           paidRestBreaks: employeePaidRestBreaks,
           minimumWageTopUp: employeeMinimumWageTopUp,
+          overtimeHours: employeeOvertimeHours,
           overtimePremium: employeeOvertimePremium,
+          regularRate: employeeRegularRate,
           dailyWork: dailyWork.sort(
             (a, b) =>
               parseLocalDate(a.date).getTime() -

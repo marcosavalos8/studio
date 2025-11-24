@@ -53,6 +53,11 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       });
       const uniqueTasks = Array.from(allTaskNames);
 
+      // Check if any employee has overtime
+      const hasOvertimeData = report.employeeDetails.some(
+        (employee) => (employee.overtimeHours || 0) > 0
+      );
+
       // Prepare date range
       const sortedDates = Object.keys(report.dailyBreakdown).sort(
         (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime()
@@ -68,7 +73,8 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       }
 
       // Calculate total columns for merging
-      const totalColumns = 2 + uniqueTasks.length * 3 + 3; // Name + Hours + (Tasks*3) + Total+Min+Diff
+      const overtimeColumns = hasOvertimeData ? 3 : 0; // OT Hours, Regular Rate, OT Premium
+      const totalColumns = 2 + uniqueTasks.length * 3 + 3 + overtimeColumns; // Name + Hours + (Tasks*3) + Total+Min+Diff + Overtime
 
       // Set up header section with styling
       worksheet.mergeCells(1, 1, 1, totalColumns);
@@ -205,6 +211,38 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       totalPiecesHeader.value = "Total Pieces Pay";
       totalPiecesHeader.style = headerStyle;
 
+      // Add overtime headers if there's overtime data
+      if (hasOvertimeData) {
+        const overtimeHeaderStyle = {
+          font: { bold: true, size: 10, color: { argb: "FFFFFFFF" } },
+          fill: {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FF9B59B6" }, // Purple color
+          },
+          alignment: { horizontal: "center" },
+          border: {
+            top: { style: "thick" },
+            left: { style: "thick" },
+            bottom: { style: "thick" },
+            right: { style: "thick" },
+          },
+        };
+
+        const overtimeHoursHeader = worksheet.getCell(headerRow, currentCol++);
+        overtimeHoursHeader.value = "Overtime Hours (over 40/week)";
+        overtimeHoursHeader.style = overtimeHeaderStyle;
+
+        const regularRateHeader = worksheet.getCell(headerRow, currentCol++);
+        regularRateHeader.value = "Regular Rate for OT Calculation";
+        regularRateHeader.style = overtimeHeaderStyle;
+
+        const overtimePremiumHeader = worksheet.getCell(headerRow, currentCol++);
+        overtimePremiumHeader.value = "Overtime Premium (0.5x rate)";
+        overtimePremiumHeader.style = overtimeHeaderStyle;
+      }
+
+      // MIN PAY REQ and Diff Owed always at the end
       const minPayHeader = worksheet.getCell(headerRow, currentCol++);
       minPayHeader.value = "MIN PAY REQ";
       minPayHeader.style = headerStyle;
@@ -319,6 +357,64 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
           font: { bold: true },
         };
 
+        // Add overtime cells if there's overtime data
+        if (hasOvertimeData) {
+          const overtimeHoursCell = worksheet.getCell(currentRow, currentCol++);
+          overtimeHoursCell.value = parseFloat((employee.overtimeHours || 0).toFixed(2));
+          overtimeHoursCell.style = {
+            border: {
+              top: { style: "thin" },
+              left: { style: "thin" },
+              bottom: { style: "thin" },
+              right: { style: "thin" },
+            },
+            numFmt: "0.00",
+            font: { bold: true },
+            fill: {
+              type: "pattern",
+              pattern: "solid",
+              fgColor: { argb: "FFE6D5F0" }, // Light purple
+            },
+          };
+
+          const regularRateCell = worksheet.getCell(currentRow, currentCol++);
+          regularRateCell.value = parseFloat((employee.regularRate || 0).toFixed(2));
+          regularRateCell.style = {
+            border: {
+              top: { style: "thin" },
+              left: { style: "thin" },
+              bottom: { style: "thin" },
+              right: { style: "thin" },
+            },
+            numFmt: '"$"0.00',
+            font: { bold: true },
+            fill: {
+              type: "pattern",
+              pattern: "solid",
+              fgColor: { argb: "FFE6D5F0" }, // Light purple
+            },
+          };
+
+          const overtimePremiumCell = worksheet.getCell(currentRow, currentCol++);
+          overtimePremiumCell.value = parseFloat((employee.overtimePremium || 0).toFixed(2));
+          overtimePremiumCell.style = {
+            border: {
+              top: { style: "thin" },
+              left: { style: "thin" },
+              bottom: { style: "thin" },
+              right: { style: "thin" },
+            },
+            numFmt: '"$"0.00',
+            font: { bold: true },
+            fill: {
+              type: "pattern",
+              pattern: "solid",
+              fgColor: { argb: "FFE6D5F0" }, // Light purple
+            },
+          };
+        }
+
+        // MIN PAY REQ and Diff Owed always at the end
         const minPayCell = worksheet.getCell(currentRow, currentCol++);
         minPayCell.value = parseFloat(minPayRequired.toFixed(2));
         minPayCell.style = {
@@ -375,8 +471,17 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       });
 
       worksheet.getColumn(colIndex++).width = 15; // Total Pieces Pay
+
+      // Add overtime column widths if there's overtime data
+      if (hasOvertimeData) {
+        worksheet.getColumn(colIndex++).width = 18; // Overtime Hours
+        worksheet.getColumn(colIndex++).width = 20; // Regular Rate
+        worksheet.getColumn(colIndex++).width = 18; // Overtime Premium
+      }
+
+      // MIN PAY REQ and Diff Owed always at the end
       worksheet.getColumn(colIndex++).width = 12; // MIN PAY REQ
-      worksheet.getColumn(colIndex).width = 12; // Diff Owed
+      worksheet.getColumn(colIndex++).width = 12; // Diff Owed
 
       // Generate and save file
       const filename = `labor_report_${report.client.name.replace(
@@ -437,6 +542,11 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
     });
   }
   const uniqueTasks = Array.from(allTaskNames);
+
+  // Check if any employee has overtime
+  const hasOvertimeData = report.employeeDetails?.some(
+    (employee) => (employee.overtimeHours || 0) > 0
+  ) || false;
 
   return (
     <div>
@@ -625,6 +735,19 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                   <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-600 text-white">
                     Total Pieces Pay
                   </th>
+                  {hasOvertimeData && (
+                    <>
+                      <th className="border-2 border-black px-2 py-1 text-center font-bold bg-purple-600 text-white">
+                        Overtime Hours (over 40/week)
+                      </th>
+                      <th className="border-2 border-black px-2 py-1 text-center font-bold bg-purple-600 text-white">
+                        Regular Rate for OT Calculation
+                      </th>
+                      <th className="border-2 border-black px-2 py-1 text-center font-bold bg-purple-600 text-white">
+                        Overtime Premium (0.5x rate)
+                      </th>
+                    </>
+                  )}
                   <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-600 text-white">
                     MIN PAY REQ
                   </th>
@@ -683,6 +806,19 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                       <td className="border border-black px-2 py-1 text-center font-bold bg-yellow-100">
                         {formatCurrency(totalPiecesPay)}
                       </td>
+                      {hasOvertimeData && (
+                        <>
+                          <td className="border border-black px-2 py-1 text-center font-bold bg-purple-100">
+                            {(employee.overtimeHours || 0).toFixed(2)} hrs
+                          </td>
+                          <td className="border border-black px-2 py-1 text-center font-bold bg-purple-100">
+                            {formatCurrency(employee.regularRate || 0)}/hr
+                          </td>
+                          <td className="border border-black px-2 py-1 text-center font-bold bg-purple-100">
+                            {formatCurrency(employee.overtimePremium || 0)}
+                          </td>
+                        </>
+                      )}
                       <td className="border border-black px-2 py-1 text-center font-bold bg-green-100">
                         {formatCurrency(minPayRequired)}
                       </td>
