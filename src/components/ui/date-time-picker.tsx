@@ -67,7 +67,7 @@ export function DateTimePicker({
     if (isNaN(hour) || hour < 0 || hour > 23) return
     
     // Validate timeValue format and extract minutes
-    const parts = timeValue.split(":")
+    const parts = timeValue?.split(":") || []
     const minutes = parts.length >= 2 ? parseInt(parts[1], 10) : 0
     const validMinutes = isNaN(minutes) ? 0 : Math.max(0, Math.min(59, minutes))
     
@@ -90,7 +90,7 @@ export function DateTimePicker({
     if (isNaN(minute) || minute < 0 || minute > 59) return
     
     // Validate timeValue format and extract hours
-    const parts = timeValue.split(":")
+    const parts = timeValue?.split(":") || []
     const hours = parts.length >= 1 ? parseInt(parts[0], 10) : 0
     const validHours = isNaN(hours) ? 0 : Math.max(0, Math.min(23, hours))
     
