@@ -224,10 +224,10 @@ export const AVAILABLE_SOUNDS: SoundOption[] = [
     description: "Traditional alarm sound",
     category: "alarm",
     frequencies: [800, 1000, 800, 1000, 800, 1000],
-    durations: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
-    gaps: [0.05, 0.05, 0.05, 0.05, 0.05, 0],
+    durations: [0.25, 0.25, 0.25, 0.25, 0.25, 0.25],
+    gaps: [0.1, 0.1, 0.1, 0.1, 0.1, 0],
     waveType: "square",
-    vibrationPattern: [100, 50, 100, 50, 100, 50, 200],
+    vibrationPattern: [200, 100, 200, 100, 200, 100, 300],
   },
   {
     id: "alarm-siren",

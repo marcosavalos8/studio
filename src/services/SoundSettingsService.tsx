@@ -32,10 +32,27 @@ export class SoundSettingsService {
         updatedAt: new Date(),
       };
 
+      const storageKey = `${this.STORAGE_KEY}_${username}`;
       localStorage.setItem(
-        `${this.STORAGE_KEY}_${username}`,
+        storageKey,
         JSON.stringify(updatedSettings)
       );
+      
+      // Verify the save was successful by reading back and comparing
+      const savedValue = localStorage.getItem(storageKey);
+      if (!savedValue) {
+        throw new Error("localStorage save verification failed - no value returned");
+      }
+      
+      try {
+        const parsedValue = JSON.parse(savedValue);
+        // Basic verification that the key fields are present
+        if (!parsedValue.userId || !parsedValue.clockInSound || !parsedValue.clockOutSound) {
+          throw new Error("localStorage save verification failed - incomplete data");
+        }
+      } catch (parseError) {
+        throw new Error("localStorage save verification failed - invalid JSON");
+      }
     } catch (error) {
       console.error("Error updating sound settings in localStorage:", error);
       throw error;

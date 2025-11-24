@@ -5,7 +5,7 @@ import {
   SoundOption,
 } from "../../../lib/types";
 
-import React, { useState, useCallback, useEffect, useContext } from "react";
+import React, { useState, useCallback, useContext } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -30,22 +30,71 @@ import { SoundSettingsService } from "@/services/SoundSettingsService";
 
 interface SoundTestTabProps {
   audioContext: AudioContext | null;
+  onSettingsSaved?: () => void;
+  username?: string;
 }
 
-export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
+export default function SoundTestTab({ audioContext, onSettingsSaved, username: propUsername }: SoundTestTabProps) {
   const { user } = useContext(FirebaseContext);
   const { toast } = useToast();
 
-  const [settings, setSettings] = useState<SoundSettings>(
-    SoundSettingsService.getSoundSettings(user?.displayName || "default")
-  );
+  // Use prop username if provided, otherwise fall back to user.displayName, then "default"
+  const username = propUsername || user?.displayName || "default";
+  
+  console.log("SoundTestTab username:", username);
+  console.log("propUsername:", propUsername);
+  console.log("user?.displayName:", user?.displayName);
 
-  // Guardar automáticamente cuando cambien los settings
-  useEffect(() => {
-    if (user?.displayName) {
-      SoundSettingsService.updateSoundSettings(user.displayName, settings);
+  const [settings, setSettings] = useState<SoundSettings>(
+    SoundSettingsService.getSoundSettings(username)
+  );
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Track when settings change to show unsaved indicator
+  const handleSettingsChange = useCallback((newSettings: Partial<SoundSettings>) => {
+    console.log("Settings changed:", newSettings);
+    setSettings((prev) => {
+      const updated = { ...prev, ...newSettings };
+      console.log("Updated settings:", updated);
+      return updated;
+    });
+    setHasUnsavedChanges(true);
+    console.log("hasUnsavedChanges set to true");
+  }, []);
+
+  // Save button handler
+  const handleSave = useCallback(() => {
+    console.log("Save button clicked");
+    console.log("Username being used:", username);
+    console.log("Settings to save:", settings);
+    console.log("hasUnsavedChanges:", hasUnsavedChanges);
+    
+    try {
+      SoundSettingsService.updateSoundSettings(username, settings);
+      setHasUnsavedChanges(false);
+      
+      console.log("Settings saved successfully to key:", `sound_settings_${username}`);
+      
+      toast({
+        title: "Configuración Guardada",
+        description: "Tu configuración de sonido se ha guardado correctamente.",
+        duration: 2000,
+      });
+
+      // Notify parent that settings were saved
+      if (onSettingsSaved) {
+        onSettingsSaved();
+      }
+    } catch (error) {
+      console.error("Error saving settings:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo guardar la configuración. Revisa la consola para más detalles.",
+        duration: 3000,
+      });
     }
-  }, [settings, user?.displayName]);
+  }, [settings, username, toast, onSettingsSaved, hasUnsavedChanges]);
 
   const playSound = useCallback(
     (soundId: string, customVolume?: number) => {
@@ -124,8 +173,7 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
           🔊 Sound Control Center
         </CardTitle>
         <CardDescription>
-          Configure your production sounds and test different options. Settings
-          are saved automatically in your browser.
+          Configura los sonidos de producción y prueba diferentes opciones. Haz clic en "Guardar Configuración" para guardar tus cambios.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -145,7 +193,7 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
                 <Select
                   value={settings.clockInSound}
                   onValueChange={(value) =>
-                    setSettings((prev) => ({ ...prev, clockInSound: value }))
+                    handleSettingsChange({ clockInSound: value })
                   }
                 >
                   <SelectTrigger className="flex-1">
@@ -181,7 +229,7 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
                 <Select
                   value={settings.clockOutSound}
                   onValueChange={(value) =>
-                    setSettings((prev) => ({ ...prev, clockOutSound: value }))
+                    handleSettingsChange({ clockOutSound: value })
                   }
                 >
                   <SelectTrigger className="flex-1">
@@ -217,7 +265,7 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
                 <Select
                   value={settings.pieceworkSound}
                   onValueChange={(value) =>
-                    setSettings((prev) => ({ ...prev, pieceworkSound: value }))
+                    handleSettingsChange({ pieceworkSound: value })
                   }
                 >
                   <SelectTrigger className="flex-1">
@@ -252,7 +300,7 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
               <Slider
                 value={[settings.volume]}
                 onValueChange={([value]) =>
-                  setSettings((prev) => ({ ...prev, volume: value }))
+                  handleSettingsChange({ volume: value })
                 }
                 max={1}
                 min={0}
@@ -284,7 +332,7 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
               id="vibration"
               checked={settings.vibrationEnabled}
               onCheckedChange={(checked) =>
-                setSettings((prev) => ({ ...prev, vibrationEnabled: checked }))
+                handleSettingsChange({ vibrationEnabled: checked })
               }
             />
             <Label htmlFor="vibration">
@@ -292,24 +340,46 @@ export default function SoundTestTab({ audioContext }: SoundTestTabProps) {
             </Label>
           </div>
 
-          {/* Clear Settings Button */}
-          <div className="mt-4">
+          {/* Save Settings Button */}
+          <div className="mt-6 flex gap-3">
+            <Button
+              onClick={handleSave}
+              disabled={!hasUnsavedChanges}
+              className="flex-1"
+            >
+              💾 Guardar Configuración
+            </Button>
             <Button
               variant="outline"
               onClick={() => {
-                if (user?.displayName) {
-                  SoundSettingsService.clearSoundSettings(user.displayName);
-                  setSettings(
-                    SoundSettingsService.getSoundSettings(user.displayName)
-                  );
+                console.log("Reset button clicked");
+                console.log("Username being used:", username);
+                try {
+                  SoundSettingsService.clearSoundSettings(username);
+                  const defaultSettings = SoundSettingsService.getSoundSettings(username);
+                  console.log("Default settings loaded:", defaultSettings);
+                  setSettings(defaultSettings);
+                  setHasUnsavedChanges(false);
                   toast({
-                    title: "Settings Reset",
-                    description: "Sound settings have been reset to default.",
+                    title: "Configuración Restablecida",
+                    description: "La configuración de sonido se ha restablecido a los valores predeterminados.",
+                  });
+                  // Notify parent to reload settings
+                  if (onSettingsSaved) {
+                    onSettingsSaved();
+                  }
+                } catch (error) {
+                  console.error("Error resetting settings:", error);
+                  toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "No se pudo restablecer la configuración.",
+                    duration: 3000,
                   });
                 }
               }}
             >
-              🔄 Reset to Default
+              🔄 Restablecer
             </Button>
           </div>
         </div>
