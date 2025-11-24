@@ -182,7 +182,7 @@ export async function generatePayrollReport({
       [...empTimeEntries, ...empPiecework].forEach((entry) => {
         if (!entry.timestamp) return;
         const date = parseLocalDateOrDateTime(String(entry.timestamp));
-        const weekStart = startOfWeek(date, { weekStartsOn: 1 }); // Monday is the start of the week
+        const weekStart = startOfWeek(date, { weekStartsOn: 0 }); // Sunday is the start of the week
         const weekKey = format(weekStart, "yyyy-MM-dd");
         if (!workByWeek[weekKey]) {
           workByWeek[weekKey] = { time: [], pieces: [] };
@@ -202,7 +202,7 @@ export async function generatePayrollReport({
         const weekStartDate = parseLocalDate(weekKey);
         const [year, weekNumber] = [
           getYear(weekStartDate),
-          getWeek(weekStartDate, { weekStartsOn: 1 }),
+          getWeek(weekStartDate, { weekStartsOn: 0 }),
         ];
 
         const dailyWork: Record<

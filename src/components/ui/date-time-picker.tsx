@@ -62,21 +62,40 @@ export function DateTimePicker({
     setDate(dateWithTime)
   }
 
-  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const time = e.target.value
-    setTimeValue(time)
+  const handleHourChange = (value: string) => {
+    const hour = parseInt(value, 10)
+    if (isNaN(hour) || hour < 0 || hour > 23) return
+    
+    const [, minutes] = timeValue.split(":").map(Number)
+    const newTimeValue = `${String(hour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+    setTimeValue(newTimeValue)
 
     if (!selectedDate) return
 
-    // Extract year, month, day from the selected date to avoid timezone issues
-    const [hours, minutes] = time.split(":").map(Number)
     const year = selectedDate.getFullYear()
     const month = selectedDate.getMonth()
     const day = selectedDate.getDate()
     
-    // Create a new date in the local timezone with the selected date and time
-    const newDate = new Date(year, month, day, hours, minutes, 0, 0)
+    const newDate = new Date(year, month, day, hour, minutes, 0, 0)
+    setSelectedDate(newDate)
+    setDate(newDate)
+  }
+
+  const handleMinuteChange = (value: string) => {
+    const minute = parseInt(value, 10)
+    if (isNaN(minute) || minute < 0 || minute > 59) return
     
+    const [hours] = timeValue.split(":").map(Number)
+    const newTimeValue = `${String(hours).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+    setTimeValue(newTimeValue)
+
+    if (!selectedDate) return
+
+    const year = selectedDate.getFullYear()
+    const month = selectedDate.getMonth()
+    const day = selectedDate.getDate()
+    
+    const newDate = new Date(year, month, day, hours, minute, 0, 0)
     setSelectedDate(newDate)
     setDate(newDate)
   }
@@ -109,15 +128,41 @@ export function DateTimePicker({
             onSelect={handleDateSelect}
             initialFocus
           />
-          <div className="p-3 border-t">
-            <Label htmlFor="time">Time</Label>
-            <Input
-              id="time"
-              type="time"
-              value={timeValue}
-              onChange={handleTimeChange}
-              className="mt-2"
-            />
+          <div className="p-3 border-t space-y-2">
+            <Label>Time</Label>
+            <div className="flex gap-2 items-center">
+              <div className="flex-1">
+                <Label htmlFor="hour" className="text-xs text-muted-foreground">
+                  Hour
+                </Label>
+                <Input
+                  id="hour"
+                  type="number"
+                  min="0"
+                  max="23"
+                  value={timeValue.split(":")[0]}
+                  onChange={(e) => handleHourChange(e.target.value)}
+                  className="mt-1"
+                  placeholder="HH"
+                />
+              </div>
+              <span className="text-2xl font-bold pb-0 mt-5">:</span>
+              <div className="flex-1">
+                <Label htmlFor="minute" className="text-xs text-muted-foreground">
+                  Minute
+                </Label>
+                <Input
+                  id="minute"
+                  type="number"
+                  min="0"
+                  max="59"
+                  value={timeValue.split(":")[1]}
+                  onChange={(e) => handleMinuteChange(e.target.value)}
+                  className="mt-1"
+                  placeholder="MM"
+                />
+              </div>
+            </div>
           </div>
         </PopoverContent>
       </Popover>
