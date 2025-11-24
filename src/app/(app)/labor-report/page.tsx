@@ -53,7 +53,9 @@ export type DetailedLabelReportData = {
     totalPieces: number;
     paidRestBreaks: number;
     minimumWageTopUp: number;
+    overtimeHours?: number;
     overtimePremium?: number;
+    regularRate?: number;
     dailyWork: Array<{
       date: string;
       tasks: Array<{
