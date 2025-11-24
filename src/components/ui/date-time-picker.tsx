@@ -29,6 +29,11 @@ function parseTimeValue(timeValue: string | undefined): { hour: number; minute: 
   }
   
   const parts = timeValue.split(":")
+  // Validate we have exactly 2 parts (HH:MM format)
+  if (parts.length !== 2) {
+    return { hour: 0, minute: 0 }
+  }
+  
   const hour = parseInt(parts[0], 10)
   const minute = parseInt(parts[1], 10)
   
@@ -45,6 +50,11 @@ function getTimePartValue(timeValue: string | undefined, part: 'hour' | 'minute'
   }
   
   const parts = timeValue.split(":")
+  // Validate we have at least 2 parts before accessing
+  if (parts.length < 2) {
+    return "00"
+  }
+  
   const value = part === 'hour' ? parts[0] : parts[1]
   return value || "00"
 }
