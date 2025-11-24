@@ -304,27 +304,24 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
           (acc, week) => acc + week.minimumWageTopUp,
           0
         );
-        const employeeOvertimePremium = emp.weeklySummaries.reduce(
-          (acc, week) => acc + (week.overtimePremium || 0),
-          0
+        // Calculate all overtime values in a single pass
+        const overtimeData = emp.weeklySummaries.reduce(
+          (acc, week) => {
+            const weekOvertimeHours = week.overtimeHours || 0;
+            return {
+              overtimePremium: acc.overtimePremium + (week.overtimePremium || 0),
+              overtimeHours: acc.overtimeHours + weekOvertimeHours,
+              weightedRateSum: acc.weightedRateSum + (week.regularRate || 0) * weekOvertimeHours,
+            };
+          },
+          { overtimePremium: 0, overtimeHours: 0, weightedRateSum: 0 }
         );
-        const employeeOvertimeHours = emp.weeklySummaries.reduce(
-          (acc, week) => acc + (week.overtimeHours || 0),
-          0
-        );
-        // Calculate weighted average regular rate for weeks with overtime
-        const weeksWithOvertime = emp.weeklySummaries.filter(week => (week.overtimeHours || 0) > 0);
-        let employeeRegularRate = 0;
-        if (weeksWithOvertime.length > 0) {
-          const { totalOvertimeHours, weightedRateSum } = weeksWithOvertime.reduce(
-            (acc, week) => ({
-              totalOvertimeHours: acc.totalOvertimeHours + (week.overtimeHours || 0),
-              weightedRateSum: acc.weightedRateSum + (week.regularRate || 0) * (week.overtimeHours || 0)
-            }),
-            { totalOvertimeHours: 0, weightedRateSum: 0 }
-          );
-          employeeRegularRate = weightedRateSum / totalOvertimeHours;
-        }
+        
+        const employeeOvertimePremium = overtimeData.overtimePremium;
+        const employeeOvertimeHours = overtimeData.overtimeHours;
+        const employeeRegularRate = overtimeData.overtimeHours > 0 
+          ? overtimeData.weightedRateSum / overtimeData.overtimeHours 
+          : 0;
 
         const tasksSummaryMap = new Map<string, {
           taskName: string;
