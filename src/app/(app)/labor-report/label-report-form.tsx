@@ -316,9 +316,14 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
         const weeksWithOvertime = emp.weeklySummaries.filter(week => (week.overtimeHours || 0) > 0);
         let employeeRegularRate = 0;
         if (weeksWithOvertime.length > 0) {
-          const totalOvertimeHoursForRate = weeksWithOvertime.reduce((acc, week) => acc + (week.overtimeHours || 0), 0);
-          const weightedRateSum = weeksWithOvertime.reduce((acc, week) => acc + (week.regularRate || 0) * (week.overtimeHours || 0), 0);
-          employeeRegularRate = totalOvertimeHoursForRate > 0 ? weightedRateSum / totalOvertimeHoursForRate : 0;
+          const { totalOvertimeHours, weightedRateSum } = weeksWithOvertime.reduce(
+            (acc, week) => ({
+              totalOvertimeHours: acc.totalOvertimeHours + (week.overtimeHours || 0),
+              weightedRateSum: acc.weightedRateSum + (week.regularRate || 0) * (week.overtimeHours || 0)
+            }),
+            { totalOvertimeHours: 0, weightedRateSum: 0 }
+          );
+          employeeRegularRate = weightedRateSum / totalOvertimeHours;
         }
 
         const tasksSummaryMap = new Map<string, {
