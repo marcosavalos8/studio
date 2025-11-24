@@ -22,6 +22,33 @@ interface DateTimePickerProps {
   disabled?: boolean
 }
 
+// Helper function to safely parse time value and extract hour/minute
+function parseTimeValue(timeValue: string | undefined): { hour: number; minute: number } {
+  if (!timeValue?.includes(":")) {
+    return { hour: 0, minute: 0 }
+  }
+  
+  const parts = timeValue.split(":")
+  const hour = parseInt(parts[0], 10)
+  const minute = parseInt(parts[1], 10)
+  
+  return {
+    hour: isNaN(hour) ? 0 : Math.max(0, Math.min(23, hour)),
+    minute: isNaN(minute) ? 0 : Math.max(0, Math.min(59, minute))
+  }
+}
+
+// Helper function to get display value for hour or minute input
+function getTimePartValue(timeValue: string | undefined, part: 'hour' | 'minute'): string {
+  if (!timeValue?.includes(":")) {
+    return "00"
+  }
+  
+  const parts = timeValue.split(":")
+  const value = part === 'hour' ? parts[0] : parts[1]
+  return value || "00"
+}
+
 export function DateTimePicker({
   date,
   setDate,
@@ -49,8 +76,7 @@ export function DateTimePicker({
     }
 
     // Preserve the time when selecting a new date
-    // Use local methods to extract the date components
-    const [hours, minutes] = timeValue.split(":").map(Number)
+    const { hour: hours, minute: minutes } = parseTimeValue(timeValue)
     const year = newDate.getFullYear()
     const month = newDate.getMonth()
     const day = newDate.getDate()
@@ -66,10 +92,7 @@ export function DateTimePicker({
     const hour = parseInt(value, 10)
     if (isNaN(hour) || hour < 0 || hour > 23) return
     
-    // Validate timeValue format and extract minutes
-    const parts = timeValue?.split(":") || []
-    const minutes = parts.length >= 2 ? parseInt(parts[1], 10) : 0
-    const validMinutes = isNaN(minutes) ? 0 : Math.max(0, Math.min(59, minutes))
+    const { minute: validMinutes } = parseTimeValue(timeValue)
     
     const newTimeValue = `${String(hour).padStart(2, '0')}:${String(validMinutes).padStart(2, '0')}`
     setTimeValue(newTimeValue)
@@ -89,10 +112,7 @@ export function DateTimePicker({
     const minute = parseInt(value, 10)
     if (isNaN(minute) || minute < 0 || minute > 59) return
     
-    // Validate timeValue format and extract hours
-    const parts = timeValue?.split(":") || []
-    const hours = parts.length >= 1 ? parseInt(parts[0], 10) : 0
-    const validHours = isNaN(hours) ? 0 : Math.max(0, Math.min(23, hours))
+    const { hour: validHours } = parseTimeValue(timeValue)
     
     const newTimeValue = `${String(validHours).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
     setTimeValue(newTimeValue)
@@ -148,7 +168,7 @@ export function DateTimePicker({
                   type="number"
                   min="0"
                   max="23"
-                  value={(timeValue?.includes(":") ? timeValue.split(":")[0] : timeValue) || "00"}
+                  value={getTimePartValue(timeValue, 'hour')}
                   onChange={(e) => handleHourChange(e.target.value)}
                   className="mt-1"
                   placeholder="HH"
@@ -164,7 +184,7 @@ export function DateTimePicker({
                   type="number"
                   min="0"
                   max="59"
-                  value={(timeValue?.includes(":") ? timeValue.split(":")[1] : undefined) || "00"}
+                  value={getTimePartValue(timeValue, 'minute')}
                   onChange={(e) => handleMinuteChange(e.target.value)}
                   className="mt-1"
                   placeholder="MM"
