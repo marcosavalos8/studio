@@ -148,13 +148,13 @@ export function DateTimePicker({
                   type="number"
                   min="0"
                   max="23"
-                  value={timeValue?.split(":")[0] || "00"}
+                  value={(timeValue?.includes(":") ? timeValue.split(":")[0] : timeValue) || "00"}
                   onChange={(e) => handleHourChange(e.target.value)}
                   className="mt-1"
                   placeholder="HH"
                 />
               </div>
-              <span className="text-2xl font-bold pb-0 mt-5">:</span>
+              <span className="text-2xl font-bold self-end mb-1">:</span>
               <div className="flex-1">
                 <Label htmlFor="minute" className="text-xs text-muted-foreground">
                   Minute
@@ -164,7 +164,7 @@ export function DateTimePicker({
                   type="number"
                   min="0"
                   max="59"
-                  value={timeValue?.split(":")[1] || "00"}
+                  value={(timeValue?.includes(":") ? timeValue.split(":")[1] : undefined) || "00"}
                   onChange={(e) => handleMinuteChange(e.target.value)}
                   className="mt-1"
                   placeholder="MM"
