@@ -211,14 +211,6 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       totalPiecesHeader.value = "Total Pieces Pay";
       totalPiecesHeader.style = headerStyle;
 
-      const minPayHeader = worksheet.getCell(headerRow, currentCol++);
-      minPayHeader.value = "MIN PAY REQ";
-      minPayHeader.style = headerStyle;
-
-      const diffOwedHeader = worksheet.getCell(headerRow, currentCol++);
-      diffOwedHeader.value = "Diff Owed";
-      diffOwedHeader.style = headerStyle;
-
       // Add overtime headers if there's overtime data
       if (hasOvertimeData) {
         const overtimeHeaderStyle = {
@@ -249,6 +241,15 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         overtimePremiumHeader.value = "Overtime Premium (0.5x rate)";
         overtimePremiumHeader.style = overtimeHeaderStyle;
       }
+
+      // MIN PAY REQ and Diff Owed always at the end
+      const minPayHeader = worksheet.getCell(headerRow, currentCol++);
+      minPayHeader.value = "MIN PAY REQ";
+      minPayHeader.style = headerStyle;
+
+      const diffOwedHeader = worksheet.getCell(headerRow, currentCol++);
+      diffOwedHeader.value = "Diff Owed";
+      diffOwedHeader.style = headerStyle;
 
       // Data rows
       let currentRow = headerRow + 1;
@@ -356,32 +357,6 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
           font: { bold: true },
         };
 
-        const minPayCell = worksheet.getCell(currentRow, currentCol++);
-        minPayCell.value = parseFloat(minPayRequired.toFixed(2));
-        minPayCell.style = {
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
-          numFmt: '"$"0.00',
-          font: { bold: true },
-        };
-
-        const diffCell = worksheet.getCell(currentRow, currentCol++);
-        diffCell.value = parseFloat(diffOwed.toFixed(2));
-        diffCell.style = {
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
-          numFmt: '"$"0.00',
-          font: { bold: true },
-        };
-
         // Add overtime cells if there's overtime data
         if (hasOvertimeData) {
           const overtimeHoursCell = worksheet.getCell(currentRow, currentCol++);
@@ -439,6 +414,33 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
           };
         }
 
+        // MIN PAY REQ and Diff Owed always at the end
+        const minPayCell = worksheet.getCell(currentRow, currentCol++);
+        minPayCell.value = parseFloat(minPayRequired.toFixed(2));
+        minPayCell.style = {
+          border: {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          },
+          numFmt: '"$"0.00',
+          font: { bold: true },
+        };
+
+        const diffCell = worksheet.getCell(currentRow, currentCol++);
+        diffCell.value = parseFloat(diffOwed.toFixed(2));
+        diffCell.style = {
+          border: {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          },
+          numFmt: '"$"0.00',
+          font: { bold: true },
+        };
+
         currentRow++;
       });
 
@@ -469,8 +471,6 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       });
 
       worksheet.getColumn(colIndex++).width = 15; // Total Pieces Pay
-      worksheet.getColumn(colIndex++).width = 12; // MIN PAY REQ
-      worksheet.getColumn(colIndex++).width = 12; // Diff Owed
 
       // Add overtime column widths if there's overtime data
       if (hasOvertimeData) {
@@ -478,6 +478,10 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         worksheet.getColumn(colIndex++).width = 20; // Regular Rate
         worksheet.getColumn(colIndex++).width = 18; // Overtime Premium
       }
+
+      // MIN PAY REQ and Diff Owed always at the end
+      worksheet.getColumn(colIndex++).width = 12; // MIN PAY REQ
+      worksheet.getColumn(colIndex++).width = 12; // Diff Owed
 
       // Generate and save file
       const filename = `labor_report_${report.client.name.replace(
@@ -731,12 +735,6 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                   <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-600 text-white">
                     Total Pieces Pay
                   </th>
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-600 text-white">
-                    MIN PAY REQ
-                  </th>
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-600 text-white">
-                    Diff Owed
-                  </th>
                   {hasOvertimeData && (
                     <>
                       <th className="border-2 border-black px-2 py-1 text-center font-bold bg-purple-600 text-white">
@@ -750,6 +748,12 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                       </th>
                     </>
                   )}
+                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-600 text-white">
+                    MIN PAY REQ
+                  </th>
+                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-600 text-white">
+                    Diff Owed
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -802,12 +806,6 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                       <td className="border border-black px-2 py-1 text-center font-bold bg-yellow-100">
                         {formatCurrency(totalPiecesPay)}
                       </td>
-                      <td className="border border-black px-2 py-1 text-center font-bold bg-green-100">
-                        {formatCurrency(minPayRequired)}
-                      </td>
-                      <td className="border border-black px-2 py-1 text-center font-bold bg-blue-100">
-                        {formatCurrency(diffOwed)}
-                      </td>
                       {hasOvertimeData && (
                         <>
                           <td className="border border-black px-2 py-1 text-center font-bold bg-purple-100">
@@ -821,6 +819,12 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                           </td>
                         </>
                       )}
+                      <td className="border border-black px-2 py-1 text-center font-bold bg-green-100">
+                        {formatCurrency(minPayRequired)}
+                      </td>
+                      <td className="border border-black px-2 py-1 text-center font-bold bg-blue-100">
+                        {formatCurrency(diffOwed)}
+                      </td>
                     </tr>
                   );
                 })}
