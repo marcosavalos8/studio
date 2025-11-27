@@ -195,8 +195,7 @@ export function DateTimePicker({
   // Handler to open native date picker when button is clicked (iOS)
   const handleIOSButtonClick = () => {
     if (nativeInputRef.current && !disabled) {
-      // Focus and click the hidden input to trigger the native picker
-      nativeInputRef.current.focus()
+      // Click the hidden input to trigger the native picker
       nativeInputRef.current.click()
     }
   }
@@ -217,7 +216,6 @@ export function DateTimePicker({
             disabled={disabled}
             className="sr-only"
             tabIndex={-1}
-            aria-hidden="true"
           />
           {/* Visible button that triggers the native picker when clicked */}
           <Button
