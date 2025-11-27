@@ -177,6 +177,9 @@ export function DateTimePicker({
     setDate(newDate)
   }
 
+  // Reference to the hidden native input for iOS
+  const nativeInputRef = React.useRef<HTMLInputElement>(null)
+
   // Handler for native datetime-local input (iOS)
   const handleNativeDateTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newDate = parseDateTimeLocal(e.target.value)
@@ -189,23 +192,51 @@ export function DateTimePicker({
     }
   }
 
+  // Handler to open native date picker when button is clicked (iOS)
+  const handleIOSButtonClick = () => {
+    if (nativeInputRef.current && !disabled) {
+      // Focus and click the hidden input to trigger the native picker
+      nativeInputRef.current.focus()
+      nativeInputRef.current.click()
+    }
+  }
+
   // Render native datetime-local input for iOS devices
+  // Uses a click-to-activate pattern to prevent auto-opening when dialog opens
   if (isIOS) {
     return (
       <div className="space-y-2">
         {label && <Label>{label}</Label>}
         <div className="relative">
-          <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input
+          {/* Hidden native input that will be triggered on button click */}
+          <input
+            ref={nativeInputRef}
             type="datetime-local"
             value={formatForDateTimeLocal(date)}
             onChange={handleNativeDateTimeChange}
             disabled={disabled}
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden="true"
+          />
+          {/* Visible button that triggers the native picker when clicked */}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleIOSButtonClick}
+            disabled={disabled}
             className={cn(
-              "w-full pl-10",
+              "w-full justify-start text-left font-normal",
               !date && "text-muted-foreground"
             )}
-          />
+          >
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            {date ? (
+              format(date, "PPP 'at' HH:mm")
+            ) : (
+              <span>{placeholder}</span>
+            )}
+          </Button>
         </div>
       </div>
     )
