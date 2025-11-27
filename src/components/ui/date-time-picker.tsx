@@ -195,8 +195,18 @@ export function DateTimePicker({
   // Handler to open native date picker when button is clicked (iOS)
   const handleIOSButtonClick = () => {
     if (nativeInputRef.current && !disabled) {
-      // Click the hidden input to trigger the native picker
-      nativeInputRef.current.click()
+      // Trigger the native picker - use showPicker if available, fall back to click
+      try {
+        // showPicker() is the modern, reliable way to open native date pickers
+        if ('showPicker' in nativeInputRef.current) {
+          (nativeInputRef.current as HTMLInputElement).showPicker()
+        } else {
+          nativeInputRef.current.click()
+        }
+      } catch {
+        // Fallback to click if showPicker fails
+        nativeInputRef.current.click()
+      }
     }
   }
 
