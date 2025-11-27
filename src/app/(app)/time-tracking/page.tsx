@@ -850,8 +850,18 @@ function TimeTrackingPage() {
 
   // Actualizar la función playSound para usar la configuración guardada
   const playSound = useCallback(
-    (type: "clock-in" | "clock-out" | "piece") => {
+    async (type: "clock-in" | "clock-out" | "piece") => {
       if (!audioContext || !soundSettings) return;
+
+      // Resume AudioContext if suspended (required for mobile browsers)
+      if (audioContext.state === "suspended") {
+        try {
+          await audioContext.resume();
+        } catch (e) {
+          console.debug("Failed to resume AudioContext:", e);
+          return;
+        }
+      }
 
       let soundId: string;
       switch (type) {

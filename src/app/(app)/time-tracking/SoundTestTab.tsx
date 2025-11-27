@@ -97,7 +97,7 @@ export default function SoundTestTab({ audioContext, onSettingsSaved, username: 
   }, [settings, username, toast, onSettingsSaved, hasUnsavedChanges]);
 
   const playSound = useCallback(
-    (soundId: string, customVolume?: number) => {
+    async (soundId: string, customVolume?: number) => {
       if (!audioContext) {
         toast({
           variant: "destructive",
@@ -105,6 +105,21 @@ export default function SoundTestTab({ audioContext, onSettingsSaved, username: 
           description: "Click anywhere on the page first to enable audio.",
         });
         return;
+      }
+
+      // Resume AudioContext if suspended (required for mobile browsers)
+      if (audioContext.state === "suspended") {
+        try {
+          await audioContext.resume();
+        } catch (e) {
+          console.debug("Failed to resume AudioContext:", e);
+          toast({
+            variant: "destructive",
+            title: "Audio Error",
+            description: "Failed to enable audio. Please try again.",
+          });
+          return;
+        }
       }
 
       const soundOption = AVAILABLE_SOUNDS.find((s) => s.id === soundId);
