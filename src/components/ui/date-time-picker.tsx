@@ -22,6 +22,26 @@ interface DateTimePickerProps {
   disabled?: boolean
 }
 
+// Hook to detect iOS devices
+function useIsIOS(): boolean {
+  const [isIOS, setIsIOS] = React.useState(false)
+  
+  React.useEffect(() => {
+    // Check for iOS devices (iPhone, iPad, iPod)
+    const checkIOS = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || ''
+      // Check for iOS devices including iPad on iOS 13+ (which reports as Mac)
+      const isIOSDevice = /iPad|iPhone|iPod/.test(userAgent)
+      const isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
+      return isIOSDevice || isIPadOS
+    }
+    
+    setIsIOS(checkIOS())
+  }, [])
+  
+  return isIOS
+}
+
 // Helper function to safely parse time value and extract hour/minute
 function parseTimeValue(timeValue: string | undefined): { hour: number; minute: number } {
   if (!timeValue?.includes(":")) {
@@ -59,6 +79,24 @@ function getTimePartValue(timeValue: string | undefined, part: 'hour' | 'minute'
   return value || "00"
 }
 
+// Helper function to format date for datetime-local input (YYYY-MM-DDTHH:mm)
+function formatForDateTimeLocal(date: Date | undefined): string {
+  if (!date) return ""
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day}T${hours}:${minutes}`
+}
+
+// Helper function to parse datetime-local input value
+function parseDateTimeLocal(value: string): Date | undefined {
+  if (!value) return undefined
+  const date = new Date(value)
+  return isNaN(date.getTime()) ? undefined : date
+}
+
 export function DateTimePicker({
   date,
   setDate,
@@ -66,6 +104,7 @@ export function DateTimePicker({
   placeholder = "Pick a date and time",
   disabled = false,
 }: DateTimePickerProps) {
+  const isIOS = useIsIOS()
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(date)
   const [timeValue, setTimeValue] = React.useState<string>(
     date ? format(date, "HH:mm") : "00:00"
@@ -138,6 +177,41 @@ export function DateTimePicker({
     setDate(newDate)
   }
 
+  // Handler for native datetime-local input (iOS)
+  const handleNativeDateTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newDate = parseDateTimeLocal(e.target.value)
+    setSelectedDate(newDate)
+    setDate(newDate)
+    if (newDate) {
+      setTimeValue(format(newDate, "HH:mm"))
+    } else {
+      setTimeValue("00:00")
+    }
+  }
+
+  // Render native datetime-local input for iOS devices
+  if (isIOS) {
+    return (
+      <div className="space-y-2">
+        {label && <Label>{label}</Label>}
+        <div className="relative">
+          <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input
+            type="datetime-local"
+            value={formatForDateTimeLocal(date)}
+            onChange={handleNativeDateTimeChange}
+            disabled={disabled}
+            className={cn(
+              "w-full pl-10",
+              !date && "text-muted-foreground"
+            )}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // Render Popover-based picker for non-iOS devices
   return (
     <div className="space-y-2">
       {label && <Label>{label}</Label>}
