@@ -850,95 +850,99 @@ function TimeTrackingPage() {
 
   // Actualizar la función playSound para usar la configuración guardada
   const playSound = useCallback(
-    async (type: "clock-in" | "clock-out" | "piece") => {
+    (type: "clock-in" | "clock-out" | "piece") => {
       if (!audioContext || !soundSettings) return;
+
+      // Helper function to play the sound after AudioContext is ready
+      const playSoundInternal = () => {
+        let soundId: string;
+        switch (type) {
+          case "clock-in":
+            soundId = soundSettings.clockInSound;
+            break;
+          case "clock-out":
+            soundId = soundSettings.clockOutSound;
+            break;
+          case "piece":
+            soundId = soundSettings.pieceworkSound;
+            break;
+        }
+
+        const soundOption = AVAILABLE_SOUNDS.find((s) => s.id === soundId);
+        if (!soundOption) return;
+
+        // Función helper para crear osciladores
+        const createOscillator = (
+          frequency: number,
+          waveType: OscillatorType = "sine"
+        ) => {
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+
+          oscillator.frequency.setValueAtTime(
+            frequency,
+            audioContext.currentTime
+          );
+          oscillator.type = waveType;
+
+          const volume = soundSettings.volume;
+          gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+          gainNode.gain.linearRampToValueAtTime(
+            volume,
+            audioContext.currentTime + 0.01
+          );
+
+          return { oscillator, gainNode };
+        };
+
+        // Reproducir el sonido
+        let currentTime = audioContext.currentTime;
+
+        soundOption.frequencies.forEach((freq, index) => {
+          const { oscillator, gainNode } = createOscillator(
+            freq,
+            soundOption.waveType
+          );
+          const duration = soundOption.durations[index] || 0.2;
+          const gap = soundOption.gaps[index] || 0.1;
+
+          oscillator.start(currentTime);
+          oscillator.stop(currentTime + duration);
+          gainNode.gain.exponentialRampToValueAtTime(
+            0.001,
+            currentTime + duration
+          );
+
+          currentTime += duration + gap;
+        });
+
+        // Vibración si está habilitada
+        if (
+          soundSettings.vibrationEnabled &&
+          soundOption.vibrationPattern &&
+          typeof navigator !== "undefined" &&
+          "vibrate" in navigator
+        ) {
+          try {
+            navigator.vibrate(soundOption.vibrationPattern);
+          } catch (e) {
+            console.debug("Vibration not supported:", e);
+          }
+        }
+      };
 
       // Resume AudioContext if suspended (required for mobile browsers)
       if (audioContext.state === "suspended") {
-        try {
-          await audioContext.resume();
-        } catch (e) {
+        audioContext.resume().then(() => {
+          playSoundInternal();
+        }).catch((e) => {
           console.debug("Failed to resume AudioContext:", e);
-          return;
-        }
-      }
-
-      let soundId: string;
-      switch (type) {
-        case "clock-in":
-          soundId = soundSettings.clockInSound;
-          break;
-        case "clock-out":
-          soundId = soundSettings.clockOutSound;
-          break;
-        case "piece":
-          soundId = soundSettings.pieceworkSound;
-          break;
-      }
-
-      const soundOption = AVAILABLE_SOUNDS.find((s) => s.id === soundId);
-      if (!soundOption) return;
-
-      // Función helper para crear osciladores
-      const createOscillator = (
-        frequency: number,
-        waveType: OscillatorType = "sine"
-      ) => {
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-
-        oscillator.frequency.setValueAtTime(
-          frequency,
-          audioContext.currentTime
-        );
-        oscillator.type = waveType;
-
-        const volume = soundSettings.volume;
-        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-        gainNode.gain.linearRampToValueAtTime(
-          volume,
-          audioContext.currentTime + 0.01
-        );
-
-        return { oscillator, gainNode };
-      };
-
-      // Reproducir el sonido
-      let currentTime = audioContext.currentTime;
-
-      soundOption.frequencies.forEach((freq, index) => {
-        const { oscillator, gainNode } = createOscillator(
-          freq,
-          soundOption.waveType
-        );
-        const duration = soundOption.durations[index] || 0.2;
-        const gap = soundOption.gaps[index] || 0.1;
-
-        oscillator.start(currentTime);
-        oscillator.stop(currentTime + duration);
-        gainNode.gain.exponentialRampToValueAtTime(
-          0.001,
-          currentTime + duration
-        );
-
-        currentTime += duration + gap;
-      });
-
-      // Vibración si está habilitada
-      if (
-        soundSettings.vibrationEnabled &&
-        soundOption.vibrationPattern &&
-        typeof navigator !== "undefined" &&
-        "vibrate" in navigator
-      ) {
-        try {
-          navigator.vibrate(soundOption.vibrationPattern);
-        } catch (e) {
-          console.debug("Vibration not supported:", e);
-        }
+        });
+      } else {
+        playSoundInternal();
       }
     },
     [audioContext, soundSettings]

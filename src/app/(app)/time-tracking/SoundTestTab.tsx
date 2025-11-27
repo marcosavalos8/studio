@@ -97,7 +97,7 @@ export default function SoundTestTab({ audioContext, onSettingsSaved, username: 
   }, [settings, username, toast, onSettingsSaved, hasUnsavedChanges]);
 
   const playSound = useCallback(
-    async (soundId: string, customVolume?: number) => {
+    (soundId: string, customVolume?: number) => {
       if (!audioContext) {
         toast({
           variant: "destructive",
@@ -107,64 +107,68 @@ export default function SoundTestTab({ audioContext, onSettingsSaved, username: 
         return;
       }
 
+      // Helper function to play the sound after AudioContext is ready
+      const playSoundInternal = () => {
+        const soundOption = AVAILABLE_SOUNDS.find((s) => s.id === soundId);
+        if (!soundOption) return;
+
+        // Crear y reproducir el sonido
+        let currentTime = audioContext.currentTime;
+
+        soundOption.frequencies.forEach((freq, index) => {
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+
+          oscillator.frequency.setValueAtTime(freq, currentTime);
+          oscillator.type = soundOption.waveType;
+
+          const volume =
+            customVolume !== undefined ? customVolume : settings.volume;
+          gainNode.gain.setValueAtTime(0, currentTime);
+          gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.01);
+
+          const duration = soundOption.durations[index] || 0.2;
+          const gap = soundOption.gaps[index] || 0.1;
+
+          oscillator.start(currentTime);
+          oscillator.stop(currentTime + duration);
+          gainNode.gain.exponentialRampToValueAtTime(
+            0.001,
+            currentTime + duration
+          );
+
+          currentTime += duration + gap;
+        });
+
+        // Vibración
+        if (settings.vibrationEnabled && soundOption.vibrationPattern) {
+          try {
+            if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+              navigator.vibrate(soundOption.vibrationPattern);
+            }
+          } catch (e) {
+            console.debug("Vibration not supported:", e);
+          }
+        }
+      };
+
       // Resume AudioContext if suspended (required for mobile browsers)
       if (audioContext.state === "suspended") {
-        try {
-          await audioContext.resume();
-        } catch (e) {
+        audioContext.resume().then(() => {
+          playSoundInternal();
+        }).catch((e) => {
           console.debug("Failed to resume AudioContext:", e);
           toast({
             variant: "destructive",
             title: "Audio Error",
             description: "Failed to enable audio. Please try again.",
           });
-          return;
-        }
-      }
-
-      const soundOption = AVAILABLE_SOUNDS.find((s) => s.id === soundId);
-      if (!soundOption) return;
-
-      // Crear y reproducir el sonido
-      let currentTime = audioContext.currentTime;
-
-      soundOption.frequencies.forEach((freq, index) => {
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-
-        oscillator.frequency.setValueAtTime(freq, currentTime);
-        oscillator.type = soundOption.waveType;
-
-        const volume =
-          customVolume !== undefined ? customVolume : settings.volume;
-        gainNode.gain.setValueAtTime(0, currentTime);
-        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.01);
-
-        const duration = soundOption.durations[index] || 0.2;
-        const gap = soundOption.gaps[index] || 0.1;
-
-        oscillator.start(currentTime);
-        oscillator.stop(currentTime + duration);
-        gainNode.gain.exponentialRampToValueAtTime(
-          0.001,
-          currentTime + duration
-        );
-
-        currentTime += duration + gap;
-      });
-
-      // Vibración
-      if (settings.vibrationEnabled && soundOption.vibrationPattern) {
-        try {
-          if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-            navigator.vibrate(soundOption.vibrationPattern);
-          }
-        } catch (e) {
-          console.debug("Vibration not supported:", e);
-        }
+        });
+      } else {
+        playSoundInternal();
       }
     },
     [audioContext, settings, toast]
