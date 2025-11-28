@@ -204,6 +204,8 @@ export function DateTimePicker({
             type="button"
             variant="outline"
             disabled={disabled}
+            aria-hidden="true"
+            tabIndex={-1}
             className={cn(
               "w-full justify-start text-left font-normal pointer-events-none",
               !date && "text-muted-foreground"
@@ -223,8 +225,8 @@ export function DateTimePicker({
             value={formatForDateTimeLocal(date)}
             onChange={handleNativeDateTimeChange}
             disabled={disabled}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            style={{ WebkitAppearance: 'none' }}
+            aria-label={label || placeholder}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer appearance-none"
           />
         </div>
       </div>
