@@ -193,32 +193,16 @@ export function DateTimePicker({
   }
 
   // Render native datetime-local input for iOS devices
-  // Uses a transparent overlay pattern to ensure native picker opens when user taps
+  // Uses a visible, styled native input that iOS Safari can properly handle
+  // The transparent overlay pattern doesn't work reliably in iOS Safari, 
+  // especially inside dialogs/modals with z-index contexts
   if (isIOS) {
     return (
       <div className="space-y-2">
         {label && <Label>{label}</Label>}
-        <div className="relative">
-          {/* Visible button showing the date/time - positioned below the input */}
-          <Button
-            type="button"
-            variant="outline"
-            disabled={disabled}
-            aria-hidden="true"
-            tabIndex={-1}
-            className={cn(
-              "w-full justify-start text-left font-normal pointer-events-none",
-              !date && "text-muted-foreground"
-            )}
-          >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {date ? (
-              format(date, "PPP 'at' HH:mm")
-            ) : (
-              <span>{placeholder}</span>
-            )}
-          </Button>
-          {/* Native input overlayed on top - transparent but captures taps */}
+        <div className="relative flex items-center">
+          <CalendarIcon className="absolute left-3 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
+          {/* Use visible native datetime-local input for iOS - styled to match the design system */}
           <input
             ref={nativeInputRef}
             type="datetime-local"
@@ -226,7 +210,14 @@ export function DateTimePicker({
             onChange={handleNativeDateTimeChange}
             disabled={disabled}
             aria-label={label || placeholder}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer appearance-none"
+            className={cn(
+              "flex h-10 w-full rounded-md border border-input bg-background pl-10 pr-3 py-2 text-sm ring-offset-background",
+              "file:border-0 file:bg-transparent file:text-sm file:font-medium",
+              "placeholder:text-muted-foreground",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+              "disabled:cursor-not-allowed disabled:opacity-50",
+              !date && "text-muted-foreground"
+            )}
           />
         </div>
       </div>
