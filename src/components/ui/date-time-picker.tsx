@@ -193,12 +193,13 @@ export function DateTimePicker({
   }
 
   // Render native datetime-local input for iOS devices
-  // Uses a transparent overlay pattern to ensure native picker opens when user taps
+  // Uses a transparent overlay pattern with high z-index to ensure native picker opens when user taps
+  // The key is ensuring the transparent input properly captures touch events inside dialogs
   if (isIOS) {
     return (
       <div className="space-y-2">
         {label && <Label>{label}</Label>}
-        <div className="relative">
+        <div className="relative isolate">
           {/* Visible button showing the date/time - positioned below the input */}
           <Button
             type="button"
@@ -219,6 +220,7 @@ export function DateTimePicker({
             )}
           </Button>
           {/* Native input overlayed on top - transparent but captures taps */}
+          {/* Using z-50 and touch-manipulation to ensure iOS Safari properly captures touch events inside dialogs */}
           <input
             ref={nativeInputRef}
             type="datetime-local"
@@ -226,7 +228,13 @@ export function DateTimePicker({
             onChange={handleNativeDateTimeChange}
             disabled={disabled}
             aria-label={label || placeholder}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer appearance-none"
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-50 touch-manipulation"
+            style={{ 
+              WebkitAppearance: 'none',
+              // Ensure the input is properly sized and positioned for touch events
+              minHeight: '40px',
+              fontSize: '16px' // Prevents iOS from zooming on focus
+            }}
           />
         </div>
       </div>
