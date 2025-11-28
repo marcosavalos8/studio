@@ -192,49 +192,22 @@ export function DateTimePicker({
     }
   }
 
-  // Handler to open native date picker when button is clicked (iOS)
-  const handleIOSButtonClick = () => {
-    if (nativeInputRef.current && !disabled) {
-      // Trigger the native picker - use showPicker if available, fall back to click
-      try {
-        // showPicker() is the modern, reliable way to open native date pickers
-        if ('showPicker' in nativeInputRef.current) {
-          (nativeInputRef.current as HTMLInputElement).showPicker()
-        } else {
-          nativeInputRef.current.click()
-        }
-      } catch {
-        // Fallback to click if showPicker fails
-        nativeInputRef.current.click()
-      }
-    }
-  }
-
   // Render native datetime-local input for iOS devices
-  // Uses a click-to-activate pattern to prevent auto-opening when dialog opens
+  // Uses a transparent overlay pattern to ensure native picker opens when user taps
   if (isIOS) {
     return (
       <div className="space-y-2">
         {label && <Label>{label}</Label>}
         <div className="relative">
-          {/* Hidden native input that will be triggered on button click */}
-          <input
-            ref={nativeInputRef}
-            type="datetime-local"
-            value={formatForDateTimeLocal(date)}
-            onChange={handleNativeDateTimeChange}
-            disabled={disabled}
-            className="sr-only"
-            tabIndex={-1}
-          />
-          {/* Visible button that triggers the native picker when clicked */}
+          {/* Visible button showing the date/time - positioned below the input */}
           <Button
             type="button"
             variant="outline"
-            onClick={handleIOSButtonClick}
             disabled={disabled}
+            aria-hidden="true"
+            tabIndex={-1}
             className={cn(
-              "w-full justify-start text-left font-normal",
+              "w-full justify-start text-left font-normal pointer-events-none",
               !date && "text-muted-foreground"
             )}
           >
@@ -245,6 +218,16 @@ export function DateTimePicker({
               <span>{placeholder}</span>
             )}
           </Button>
+          {/* Native input overlayed on top - transparent but captures taps */}
+          <input
+            ref={nativeInputRef}
+            type="datetime-local"
+            value={formatForDateTimeLocal(date)}
+            onChange={handleNativeDateTimeChange}
+            disabled={disabled}
+            aria-label={label || placeholder}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer appearance-none"
+          />
         </div>
       </div>
     )
