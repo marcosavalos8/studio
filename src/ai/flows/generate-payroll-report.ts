@@ -277,7 +277,8 @@ export async function generatePayrollReport({
             if (!task) continue;
 
             const client = clientMap.get(task.clientId);
-            if (client?.minimumWage && client.minimumWage > applicableMinWage) {
+            // Use client-specific minimum wage if available, otherwise use state minimum
+            if (client?.minimumWage !== undefined && client.minimumWage !== null) {
               applicableMinWage = client.minimumWage;
             }
 
