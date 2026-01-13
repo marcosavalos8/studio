@@ -95,7 +95,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       dateCell.font = { bold: true };
 
       const minWageCell = worksheet.getCell(5, 1);
-      minWageCell.value = "$ 19.82 :Min Wage";
+      minWageCell.value = `$ ${(report.client.minimumWage || 19.82).toFixed(2)} :Min Wage`;
       minWageCell.font = { size: 10 };
 
       const einCell = worksheet.getCell(4, 2);
@@ -670,7 +670,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                 <strong>{formatDateRange()}</strong>
               </p>
               <p>
-                <strong>$ 19.82 :Min Wage</strong>
+                <strong>$ {(report.client.minimumWage || 19.82).toFixed(2)} :Min Wage</strong>
               </p>
             </div>
             <div>
