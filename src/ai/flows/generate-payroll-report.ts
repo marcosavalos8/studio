@@ -415,30 +415,29 @@ export async function generatePayrollReport({
         // PASO 2: CALCULAR PAGO POR TRABAJO A DESTAJO (PIECEWORK)
         // Solo para piecework se calculan descansos pagados y ajustes de salario mínimo
         
-        // 2.1: Comparación con salario mínimo SOLO para horas de piecework
-        // Este paso debe hacerse PRIMERO, antes de calcular descansos pagados
-        const pieceworkMinimumWageRequirement = weeklyPieceworkHours * applicableMinWage;
-        
-        // 2.2: Calcular ajuste (top-up) SOLO para piecework basado en earnings crudos
-        const pieceworkMinimumWageTopUp = Math.max(
-          0,
-          pieceworkMinimumWageRequirement - weeklyPieceworkEarnings
-        );
-        
-        // 2.3: Aplicar ajuste de salario mínimo para obtener ganancias ajustadas
-        const pieceworkAdjustedEarnings = weeklyPieceworkEarnings + pieceworkMinimumWageTopUp;
-        
-        // 2.4: Calcular tasa regular AJUSTADA (que será al menos el salario mínimo)
+        // 2.1: Calcular tasa regular basada SOLO en earnings de piecework
         const pieceworkRegularRate = 
-          weeklyPieceworkHours > 0 ? pieceworkAdjustedEarnings / weeklyPieceworkHours : 0;
+          weeklyPieceworkHours > 0 ? weeklyPieceworkEarnings / weeklyPieceworkHours : 0;
         
-        // 2.5: Calcular descansos pagados usando la tasa AJUSTADA
+        // 2.2: Calcular descansos pagados SOLO para horas de piecework
         // 10 minutos por cada 4 horas trabajadas en piecework
         const pieceworkRestBreakHours = Math.floor(weeklyPieceworkHours / 4) * (10 / 60);
         const pieceworkRestBreaksPay = pieceworkRestBreakHours * pieceworkRegularRate;
         
-        // 2.6: Pago final de piecework (earnings ajustados + descansos pagados)
-        const pieceworkFinalPay = pieceworkAdjustedEarnings + pieceworkRestBreaksPay;
+        // 2.3: Sumar ganancias de piecework + descansos
+        const pieceworkEarningsWithBreaks = weeklyPieceworkEarnings + pieceworkRestBreaksPay;
+        
+        // 2.4: Comparación con salario mínimo SOLO para horas de piecework
+        const pieceworkMinimumWageRequirement = weeklyPieceworkHours * applicableMinWage;
+        
+        // 2.5: Calcular ajuste (top-up) SOLO para piecework
+        const pieceworkMinimumWageTopUp = Math.max(
+          0,
+          pieceworkMinimumWageRequirement - pieceworkEarningsWithBreaks
+        );
+        
+        // 2.6: Pago final de piecework
+        const pieceworkFinalPay = pieceworkEarningsWithBreaks + pieceworkMinimumWageTopUp;
         
         // PASO 3: COMBINAR HOURLY Y PIECEWORK PARA EL TOTAL SEMANAL
         const weeklyTotalRawEarnings = weeklyHourlyEarnings + weeklyPieceworkEarnings;
