@@ -10,7 +10,7 @@ export function calculateHoursWorked(
 export function calculateMinimumWageTopUp(
   totalEarnings: number,
   hoursWorked: number,
-  minimumWage: number = 19.82
+  minimumWage: number
 ): number {
   const minimumDue = hoursWorked * minimumWage;
   return Math.max(0, minimumDue - totalEarnings);
@@ -35,7 +35,7 @@ export function calculateBreakPay(
  * 
  * @param totalHours Total hours worked in the week
  * @param totalEarnings Total earnings including minimum wage adjustments (before overtime)
- * @param minimumWage Applicable minimum wage (default WA state minimum of $19.82)
+ * @param minimumWage Applicable minimum wage for the client
  * @returns Object containing overtime hours, overtime premium pay, and regular rate used
  * 
  * @example
@@ -51,7 +51,7 @@ export function calculateBreakPay(
 export function calculateOvertimePay(
   totalHours: number,
   totalEarnings: number,
-  minimumWage: number = 19.82
+  minimumWage: number
 ): {
   overtimeHours: number;
   overtimePremium: number;

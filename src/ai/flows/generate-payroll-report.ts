@@ -76,7 +76,7 @@ export async function generatePayrollReport({
       dateRange: { startDate, endDate },
     });
 
-    const STATE_MINIMUM_WAGE = 19.82; // Washington state minimum wage (as of 2025)
+    const STATE_MINIMUM_WAGE = 19.82; // Washington state minimum wage (as of 2025) - default fallback
 
     // Create maps for quick lookups and ensure strong typing
     const reportEmployeeIds = new Set(allEmployees.map((e: Employee) => e.id));
@@ -209,6 +209,7 @@ export async function generatePayrollReport({
           string,
           { tasks: Record<string, { hours: number; pieces: number }> }
         > = {};
+        // Start with state minimum wage, then update with client-specific minimum wage
         let applicableMinWage = STATE_MINIMUM_WAGE;
 
         time.forEach((entry) => {
