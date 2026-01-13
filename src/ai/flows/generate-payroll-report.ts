@@ -209,8 +209,9 @@ export async function generatePayrollReport({
           string,
           { tasks: Record<string, { hours: number; pieces: number }> }
         > = {};
-        // Start with state minimum wage, then update with client-specific minimum wage
+        // Start with state minimum wage as fallback, will be replaced by client-specific minimum wage
         let applicableMinWage = STATE_MINIMUM_WAGE;
+        let clientMinWageFound = false;
 
         time.forEach((entry) => {
           if (!entry.timestamp || !entry.endTime) return;
@@ -278,8 +279,25 @@ export async function generatePayrollReport({
             if (!task) continue;
 
             const client = clientMap.get(task.clientId);
-            if (client?.minimumWage && client.minimumWage > applicableMinWage) {
-              applicableMinWage = client.minimumWage;
+            if (client?.minimumWage) {
+              if (!clientMinWageFound) {
+                // First client minimum wage found - use it
+                console.log("📊 Using client minimum wage:", {
+                  clientName: client.name,
+                  clientMinWage: client.minimumWage,
+                  stateMinWage: STATE_MINIMUM_WAGE,
+                });
+                applicableMinWage = client.minimumWage;
+                clientMinWageFound = true;
+              } else if (client.minimumWage > applicableMinWage) {
+                // If worker has multiple clients, use the highest minimum wage
+                console.log("📊 Updating to higher client minimum wage:", {
+                  clientName: client.name,
+                  clientMinWage: client.minimumWage,
+                  previousMinWage: applicableMinWage,
+                });
+                applicableMinWage = client.minimumWage;
+              }
             }
 
             const { hours, pieces } = dailyWork[dayKey].tasks[taskId];
@@ -415,20 +433,35 @@ export async function generatePayrollReport({
         // PASO 2: CALCULAR PAGO POR TRABAJO A DESTAJO (PIECEWORK)
         // Solo para piecework se calculan descansos pagados y ajustes de salario mínimo
         
+        console.log("🔍 PIECEWORK CALCULATION DEBUG:", {
+          weeklyPieceworkHours,
+          weeklyPieceworkEarnings,
+          applicableMinWage,
+        });
+        
         // 2.1: Calcular tasa regular basada SOLO en earnings de piecework
         const pieceworkRegularRate = 
           weeklyPieceworkHours > 0 ? weeklyPieceworkEarnings / weeklyPieceworkHours : 0;
+        
+        console.log("  Piecework regular rate:", pieceworkRegularRate.toFixed(2));
         
         // 2.2: Calcular descansos pagados SOLO para horas de piecework
         // 10 minutos por cada 4 horas trabajadas en piecework
         const pieceworkRestBreakHours = Math.floor(weeklyPieceworkHours / 4) * (10 / 60);
         const pieceworkRestBreaksPay = pieceworkRestBreakHours * pieceworkRegularRate;
         
+        console.log("  Rest break hours:", pieceworkRestBreakHours.toFixed(4));
+        console.log("  Rest breaks pay:", pieceworkRestBreaksPay.toFixed(2));
+        
         // 2.3: Sumar ganancias de piecework + descansos
         const pieceworkEarningsWithBreaks = weeklyPieceworkEarnings + pieceworkRestBreaksPay;
         
+        console.log("  Earnings with breaks:", pieceworkEarningsWithBreaks.toFixed(2));
+        
         // 2.4: Comparación con salario mínimo SOLO para horas de piecework
         const pieceworkMinimumWageRequirement = weeklyPieceworkHours * applicableMinWage;
+        
+        console.log("  Min wage requirement:", pieceworkMinimumWageRequirement.toFixed(2));
         
         // 2.5: Calcular ajuste (top-up) SOLO para piecework
         const pieceworkMinimumWageTopUp = Math.max(
@@ -436,8 +469,12 @@ export async function generatePayrollReport({
           pieceworkMinimumWageRequirement - pieceworkEarningsWithBreaks
         );
         
+        console.log("  Min wage top-up:", pieceworkMinimumWageTopUp.toFixed(2));
+        
         // 2.6: Pago final de piecework
         const pieceworkFinalPay = pieceworkEarningsWithBreaks + pieceworkMinimumWageTopUp;
+        
+        console.log("  Final piecework pay:", pieceworkFinalPay.toFixed(2));
         
         // PASO 3: COMBINAR HOURLY Y PIECEWORK PARA EL TOTAL SEMANAL
         const weeklyTotalRawEarnings = weeklyHourlyEarnings + weeklyPieceworkEarnings;
