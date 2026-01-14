@@ -1503,6 +1503,7 @@ function TimeTrackingPage() {
         );
         const activeEntriesSnap = await getDocs(activeEntriesQuery);
         activeEntriesSnap.forEach((docSnap) => {
+          // Close previous entries 1 second before new clock-in to avoid overlapping timestamps
           batch.update(docSnap.ref, {
             endTime: new Date(roundedClockInTime.getTime() - 1000),
           });
