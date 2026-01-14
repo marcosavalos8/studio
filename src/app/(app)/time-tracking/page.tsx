@@ -2531,12 +2531,9 @@ function TimeTrackingPage() {
           ? roundToNearestQuarterHour(bulkClockInDate)
           : roundToNearestQuarterHour(new Date());
 
-      // For clock out of active sessions, use current time or 1 second before clock-in time
-      // This prevents zero-duration entries
-      const clockOutTimestamp =
-        useBulkClockInManualDateTime && bulkClockInDate
-          ? new Date(clockInTimestamp.getTime() - 1000) // 1 second before clock-in
-          : roundToNearestQuarterHour(new Date());
+      // Clock out any active sessions at the same rounded timestamp as the new clock-in
+      // This is consistent with the regular clockInEmployee behavior
+      const clockOutTimestamp = clockInTimestamp;
 
       // Sub-query for currently active entries of the selected employees
       const activeEntriesQuery = query(
