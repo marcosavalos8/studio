@@ -138,6 +138,38 @@ type SoundType =
 // Constant for clear selection value in dropdowns
 const CLEAR_SELECTION_VALUE = "none";
 
+/**
+ * Rounds a date to the nearest 15-minute interval (quarter hour).
+ * Rules:
+ * - Minutes 0-7: round down to current quarter (e.g., 7:04 → 7:00, 7:37 → 7:30)
+ * - Minutes 8-14: round up to next quarter (e.g., 7:08 → 7:15, 7:38 → 7:45)
+ * 
+ * Examples:
+ * - 7:04 → 7:00
+ * - 7:08 → 7:15
+ * - 7:37 → 7:30
+ * - 7:38 → 7:45
+ */
+function roundToNearestQuarterHour(date: Date): Date {
+  const rounded = new Date(date);
+  const minutes = rounded.getMinutes();
+  const remainder = minutes % 15;
+  
+  if (remainder <= 7) {
+    // Round down to current quarter
+    rounded.setMinutes(minutes - remainder);
+  } else {
+    // Round up to next quarter
+    rounded.setMinutes(minutes + (15 - remainder));
+  }
+  
+  // Reset seconds and milliseconds to 0
+  rounded.setSeconds(0);
+  rounded.setMilliseconds(0);
+  
+  return rounded;
+}
+
 function TimeTrackingPage() {
   const { username } = useAuth();
   const [soundSettings, setSoundSettings] = useState<SoundSettings | null>(
@@ -1096,16 +1128,19 @@ function TimeTrackingPage() {
         const newTask = allTasks?.find((t) => t.id === taskId);
         const isNewTaskHourly = newTask?.clientRateType === "hourly";
 
+        // Round timestamp to nearest quarter hour
+        const timestamp = roundToNearestQuarterHour(customTimestamp || new Date());
+
         // Auto-close any active entries when switching tasks (different task)
         activeEntriesSnap.forEach((docSnap) => {
-          batch.update(docSnap.ref, { endTime: customTimestamp || new Date() });
+          batch.update(docSnap.ref, { endTime: timestamp });
         });
 
         const newTimeEntryRef = doc(collection(firestore, "time_entries"));
         const newTimeEntry: Omit<TimeEntry, "id"> = {
           employeeId: employee.id,
           taskId: taskId,
-          timestamp: customTimestamp || new Date(),
+          timestamp: timestamp,
           endTime: null,
           isBreak: false,
           useSickHoursForPayment: useSickHours || false,
@@ -1172,7 +1207,8 @@ function TimeTrackingPage() {
             description: `No active clock-in found for ${employee.name}.`,
           });
         } else {
-          const clockOutTime = customTimestamp || new Date();
+          // Round timestamp to nearest quarter hour
+          const clockOutTime = roundToNearestQuarterHour(customTimestamp || new Date());
 
           // Validate that clock-out is not before clock-in
           let hasInvalidClockOut = false;
@@ -1442,8 +1478,12 @@ function TimeTrackingPage() {
     ) => {
       if (!firestore) return;
 
+      // Round both times to nearest quarter hour
+      const roundedClockInTime = roundToNearestQuarterHour(clockInTime);
+      const roundedClockOutTime = roundToNearestQuarterHour(clockOutTime);
+
       // Validate times
-      if (clockOutTime <= clockInTime) {
+      if (roundedClockOutTime <= roundedClockInTime) {
         toast({
           variant: "destructive",
           title: "Invalid Times",
@@ -1464,7 +1504,7 @@ function TimeTrackingPage() {
         const activeEntriesSnap = await getDocs(activeEntriesQuery);
         activeEntriesSnap.forEach((docSnap) => {
           batch.update(docSnap.ref, {
-            endTime: new Date(clockInTime.getTime() - 1000),
+            endTime: new Date(roundedClockInTime.getTime() - 1000),
           });
         });
 
@@ -1473,8 +1513,8 @@ function TimeTrackingPage() {
         const newTimeEntry: Omit<TimeEntry, "id"> = {
           employeeId: employee.id,
           taskId: taskId,
-          timestamp: clockInTime,
-          endTime: clockOutTime,
+          timestamp: roundedClockInTime,
+          endTime: roundedClockOutTime,
           isBreak: false,
           ...(piecesCount && piecesCount > 0
             ? { piecesWorked: piecesCount }
@@ -1485,7 +1525,7 @@ function TimeTrackingPage() {
 
         // Update employee's totalHoursWorked and sickHoursBalance
         let hoursWorked =
-          (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
+          (roundedClockOutTime.getTime() - roundedClockInTime.getTime()) / (1000 * 60 * 60);
 
         // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (0.5 hours) unpaid meal break
         if (hoursWorked > 5) {
@@ -2432,8 +2472,8 @@ function TimeTrackingPage() {
 
       const timestamp =
         useBulkClockOutManualDateTime && bulkClockOutDate
-          ? bulkClockOutDate
-          : new Date();
+          ? roundToNearestQuarterHour(bulkClockOutDate)
+          : roundToNearestQuarterHour(new Date());
       const updatedData = { endTime: timestamp };
       const batch = writeBatch(firestore);
       querySnapshot.forEach((doc) => {
@@ -2488,15 +2528,15 @@ function TimeTrackingPage() {
       const batch = writeBatch(firestore);
       const clockInTimestamp =
         useBulkClockInManualDateTime && bulkClockInDate
-          ? bulkClockInDate
-          : new Date();
+          ? roundToNearestQuarterHour(bulkClockInDate)
+          : roundToNearestQuarterHour(new Date());
 
       // For clock out of active sessions, use current time or 1 second before clock-in time
       // This prevents zero-duration entries
       const clockOutTimestamp =
         useBulkClockInManualDateTime && bulkClockInDate
-          ? new Date(bulkClockInDate.getTime() - 1000) // 1 second before clock-in
-          : new Date();
+          ? new Date(clockInTimestamp.getTime() - 1000) // 1 second before clock-in
+          : roundToNearestQuarterHour(new Date());
 
       // Sub-query for currently active entries of the selected employees
       const activeEntriesQuery = query(
