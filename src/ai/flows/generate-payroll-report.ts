@@ -16,7 +16,7 @@ import {
   startOfWeek,
 } from "date-fns";
 import { parseLocalDate, parseLocalDateOrDateTime } from "@/lib/utils";
-import { calculateOvertimePay } from "@/lib/calculations";
+import { calculateOvertimePay, roundToQuarterHour } from "@/lib/calculations";
 import type {
   Client,
   Task,
@@ -232,6 +232,9 @@ export async function generatePayrollReport({
           if (hours > 5) {
             hours -= 0.5; // Deduct 30 minutes (0.5 hours)
           }
+
+          // Round hours to nearest quarter hour (0.25 increments) to match 15-minute billing requirement
+          hours = roundToQuarterHour(hours);
 
           if (!dailyWork[dayKey]) dailyWork[dayKey] = { tasks: {} };
           if (!dailyWork[dayKey].tasks[entry.taskId])

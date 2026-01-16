@@ -1,3 +1,20 @@
+/**
+ * Rounds hours to the nearest quarter hour (0.25 hour increments).
+ * This ensures that calculated hours match the 15-minute increment billing requirement.
+ * 
+ * Examples:
+ * - 24.01 → 24.00
+ * - 31.49 → 31.50
+ * - 32.01 → 32.00
+ * - 8.126 → 8.25
+ * 
+ * @param hours The number of hours to round
+ * @returns Hours rounded to the nearest 0.25
+ */
+export function roundToQuarterHour(hours: number): number {
+  return Math.round(hours * 4) / 4;
+}
+
 export function calculateHoursWorked(
   startTime: string,
   endTime: string
