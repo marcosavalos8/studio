@@ -449,8 +449,8 @@ export async function generatePayrollReport({
         console.log("  Piecework regular rate:", pieceworkRegularRate.toFixed(2));
         
         // 2.2: Calcular descansos pagados SOLO para horas de piecework
-        // Fórmula: (Total Pieces Pay / Hours) × 0.25 × (# of Days Worked)
-        // Esto equivale a: Regular Rate × 0.25 × Days = 1 hora de break por día trabajado
+        // Fórmula del cliente: (Total Pieces Pay / Hours) × 0.25 × (# of Days Worked)
+        // 0.25 representa 15 minutos (1/4 de hora) de descanso pagado por día trabajado
         const daysWorked = sortedDays.length;
         const pieceworkRestBreaksPay = pieceworkRegularRate * 0.25 * daysWorked;
         
