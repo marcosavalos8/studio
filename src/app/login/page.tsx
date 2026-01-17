@@ -39,10 +39,10 @@ export default function LoginPage() {
       const trimmedPassword = password.trim();
 
       // First, try the hardcoded credentials for backward compatibility
-      if (trimmedInput === "David" && trimmedPassword === "1234") {
+      if (trimmedInput === "JMAG" && trimmedPassword === "2025") {
         localStorage.setItem("isAuthenticated", "true");
         localStorage.setItem("username", trimmedInput);
-        localStorage.setItem("userRole", "Admin"); // David is an admin
+        localStorage.setItem("userRole", "Admin"); // JMAG is an admin
         login(trimmedInput, "Admin");
         router.push("/dashboard");
         return;

@@ -79,15 +79,9 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       // Set up header section with styling
       worksheet.mergeCells(1, 1, 1, totalColumns);
       const titleCell = worksheet.getCell(1, 1);
-      titleCell.value = "J&M Agricultural Labor LLC";
-      titleCell.font = { size: 16, bold: true };
-      titleCell.alignment = { horizontal: "center" };
-
-      worksheet.mergeCells(2, 1, 2, totalColumns);
-      const subtitleCell = worksheet.getCell(2, 1);
-      subtitleCell.value = "Labor Report";
-      subtitleCell.font = { size: 14, bold: true };
-      subtitleCell.alignment = { horizontal: "center" };
+      titleCell.value = "Labor Report | J&M Agricultural Labor LLC";
+      titleCell.font = { size: 16, bold: true, color: { argb: "FF70AD47" } }; // Green color
+      titleCell.alignment = { horizontal: "left" }; // Left-aligned
 
       // Company info section
       const dateCell = worksheet.getCell(4, 1);
@@ -135,24 +129,34 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         console.warn("Could not add logo to Excel:", error);
       }
 
+      // Add green line above headers (row 6)
+      for (let col = 1; col <= totalColumns; col++) {
+        const borderCell = worksheet.getCell(6, col);
+        borderCell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FF70AD47" }, // Green color
+        };
+      }
+
       // Table headers starting at row 7
       const headerRow = 7;
       let currentCol = 1;
 
-      // Style for headers
+      // Style for headers with green background
       const headerStyle = {
         font: { bold: true, size: 10 },
         fill: {
           type: "pattern",
           pattern: "solid",
-          fgColor: { argb: "FFD4D4D4" },
+          fgColor: { argb: "FFE2EFDA" }, // Light green background
         },
         alignment: { horizontal: "center" },
         border: {
-          top: { style: "thin" },
-          left: { style: "thin" },
-          bottom: { style: "thin" },
-          right: { style: "thin" },
+          top: { style: "thin", color: { argb: "FF70AD47" } }, // Green border
+          left: { style: "thin", color: { argb: "FF70AD47" } },
+          bottom: { style: "thin", color: { argb: "FF000000" } }, // Black bottom
+          right: { style: "thin", color: { argb: "FF70AD47" } },
         },
       };
 
@@ -169,42 +173,17 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       uniqueTasks.forEach((taskName, idx) => {
         const label = String.fromCharCode(65 + idx);
 
-        // Colores alternados como en la imagen
-        const colors = ["FF70AD47", "FFE97132", "FFFFC000", "FF4472C4"]; // Verde, Naranja, Amarillo, Azul
-        const textColors = ["FFFFFFFF", "FFFFFFFF", "FF000000", "FFFFFFFF"]; // Blanco, Blanco, Negro, Blanco
-        const colorIndex = idx % 4;
-
-        const headerStyleColored = {
-          font: {
-            bold: true,
-            size: 10,
-            color: { argb: textColors[colorIndex] },
-          },
-          fill: {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: colors[colorIndex] },
-          },
-          alignment: { horizontal: "center" },
-          border: {
-            top: { style: "thick" },
-            left: { style: "thick" },
-            bottom: { style: "thick" },
-            right: { style: "thick" },
-          },
-        };
-
         const pieceHeader = worksheet.getCell(headerRow, currentCol++);
         pieceHeader.value = `Piece ${label}`;
-        pieceHeader.style = headerStyleColored;
+        pieceHeader.style = headerStyle;
 
         const rateHeader = worksheet.getCell(headerRow, currentCol++);
         rateHeader.value = `Rate ${label}`;
-        rateHeader.style = headerStyleColored;
+        rateHeader.style = headerStyle;
 
         const payHeader = worksheet.getCell(headerRow, currentCol++);
         payHeader.value = `Piece Pay ${label}`;
-        payHeader.style = headerStyleColored;
+        payHeader.style = headerStyle;
       });
 
       const totalPiecesHeader = worksheet.getCell(headerRow, currentCol++);
@@ -213,33 +192,17 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
 
       // Add overtime headers if there's overtime data
       if (hasOvertimeData) {
-        const overtimeHeaderStyle = {
-          font: { bold: true, size: 10, color: { argb: "FFFFFFFF" } },
-          fill: {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "FF9B59B6" }, // Purple color
-          },
-          alignment: { horizontal: "center" },
-          border: {
-            top: { style: "thick" },
-            left: { style: "thick" },
-            bottom: { style: "thick" },
-            right: { style: "thick" },
-          },
-        };
-
         const overtimeHoursHeader = worksheet.getCell(headerRow, currentCol++);
         overtimeHoursHeader.value = "Overtime Hours (over 40/week)";
-        overtimeHoursHeader.style = overtimeHeaderStyle;
+        overtimeHoursHeader.style = headerStyle;
 
         const regularRateHeader = worksheet.getCell(headerRow, currentCol++);
         regularRateHeader.value = "Regular Rate for OT Calculation";
-        regularRateHeader.style = overtimeHeaderStyle;
+        regularRateHeader.style = headerStyle;
 
         const overtimePremiumHeader = worksheet.getCell(headerRow, currentCol++);
         overtimePremiumHeader.value = "Overtime Premium (0.5x rate)";
-        overtimePremiumHeader.style = overtimeHeaderStyle;
+        overtimePremiumHeader.style = headerStyle;
       }
 
       // MIN PAY REQ and Diff Owed always at the end
@@ -254,6 +217,12 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       // Data rows
       let currentRow = headerRow + 1;
 
+      // Cell border style with only green left/right borders (no horizontal borders)
+      const cellBorderStyle = {
+        left: { style: "thin", color: { argb: "FF70AD47" } }, // Green
+        right: { style: "thin", color: { argb: "FF70AD47" } }, // Green
+      };
+
       report.employeeDetails.forEach((employee) => {
         currentCol = 1;
 
@@ -261,12 +230,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         const nameCell = worksheet.getCell(currentRow, currentCol++);
         nameCell.value = employee.employeeName;
         nameCell.style = {
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
+          border: cellBorderStyle,
           font: { size: 9 },
         };
 
@@ -274,12 +238,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         const hoursCell = worksheet.getCell(currentRow, currentCol++);
         hoursCell.value = parseFloat(employee.totalHours.toFixed(2));
         hoursCell.style = {
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
+          border: cellBorderStyle,
           numFmt: "0.00",
         };
 
@@ -295,36 +254,21 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
           const pieceCell = worksheet.getCell(currentRow, currentCol++);
           pieceCell.value = task ? parseFloat(task.quantity.toFixed(2)) : 0;
           pieceCell.style = {
-            border: {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            },
+            border: cellBorderStyle,
             numFmt: "0.00",
           };
 
           const rateCell = worksheet.getCell(currentRow, currentCol++);
           rateCell.value = task ? parseFloat(task.rate.toFixed(2)) : 0;
           rateCell.style = {
-            border: {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            },
+            border: cellBorderStyle,
             numFmt: '"$"0.00',
           };
 
           const payCell = worksheet.getCell(currentRow, currentCol++);
           payCell.value = task ? parseFloat(task.cost.toFixed(2)) : 0;
           payCell.style = {
-            border: {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            },
+            border: cellBorderStyle,
             numFmt: '"$"0.00',
           };
         });
@@ -347,12 +291,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         const totalPiecesCell = worksheet.getCell(currentRow, currentCol++);
         totalPiecesCell.value = parseFloat(totalPiecesPay.toFixed(2));
         totalPiecesCell.style = {
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
+          border: cellBorderStyle,
           numFmt: '"$"0.00',
           font: { bold: true },
         };
@@ -362,55 +301,25 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
           const overtimeHoursCell = worksheet.getCell(currentRow, currentCol++);
           overtimeHoursCell.value = parseFloat((employee.overtimeHours || 0).toFixed(2));
           overtimeHoursCell.style = {
-            border: {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            },
+            border: cellBorderStyle,
             numFmt: "0.00",
             font: { bold: true },
-            fill: {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: { argb: "FFE6D5F0" }, // Light purple
-            },
           };
 
           const regularRateCell = worksheet.getCell(currentRow, currentCol++);
           regularRateCell.value = parseFloat((employee.regularRate || 0).toFixed(2));
           regularRateCell.style = {
-            border: {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            },
+            border: cellBorderStyle,
             numFmt: '"$"0.00',
             font: { bold: true },
-            fill: {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: { argb: "FFE6D5F0" }, // Light purple
-            },
           };
 
           const overtimePremiumCell = worksheet.getCell(currentRow, currentCol++);
           overtimePremiumCell.value = parseFloat((employee.overtimePremium || 0).toFixed(2));
           overtimePremiumCell.style = {
-            border: {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            },
+            border: cellBorderStyle,
             numFmt: '"$"0.00',
             font: { bold: true },
-            fill: {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: { argb: "FFE6D5F0" }, // Light purple
-            },
           };
         }
 
@@ -418,12 +327,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         const minPayCell = worksheet.getCell(currentRow, currentCol++);
         minPayCell.value = parseFloat(minPayRequired.toFixed(2));
         minPayCell.style = {
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
+          border: cellBorderStyle,
           numFmt: '"$"0.00',
           font: { bold: true },
         };
@@ -431,12 +335,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         const diffCell = worksheet.getCell(currentRow, currentCol++);
         diffCell.value = parseFloat(diffOwed.toFixed(2));
         diffCell.style = {
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
+          border: cellBorderStyle,
           numFmt: '"$"0.00',
           font: { bold: true },
         };
@@ -623,36 +522,15 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
             size: landscape;
             margin: 0.3in;
           }
-
-          /* Colores específicos como en la imagen */
-          .header-blue {
-            background-color: #4472c4;
-            color: white;
-          }
-          .header-green {
-            background-color: #70ad47;
-            color: white;
-          }
-          .header-orange {
-            background-color: #e97132;
-            color: white;
-          }
-          .header-yellow {
-            background-color: #ffc000;
-            color: black;
-          }
         `}</style>
 
         {/* Header con logo */}
         <div className="mb-6 relative">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <h1 className="text-2xl font-bold text-center mb-1">
-                J&M Agricultural Labor LLC
+              <h1 className="text-2xl font-bold text-center mb-1 text-green-700">
+                Labor Report | J&M Agricultural Labor LLC
               </h1>
-              <h2 className="text-lg font-semibold text-center mb-4">
-                Labor Report
-              </h2>
             </div>
             <div className="absolute right-0 top-0">
               <img
@@ -691,67 +569,60 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
 
         {hasEmployeeDetails ? (
           <div className="overflow-x-auto">
+            {/* Green line above headers */}
+            <div className="h-1 bg-green-700 mb-0"></div>
             <table className="w-full border-collapse text-xs">
               <thead>
                 <tr>
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-blue-600 text-white">
+                  <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
                     Worker Name
                   </th>
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-blue-600 text-white">
+                  <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
                     Hours
                   </th>
                   {uniqueTasks.map((taskName, idx) => {
                     const label = String.fromCharCode(65 + idx);
-                    // Alternar colores como en la imagen
-                    const colorClass =
-                      idx % 4 === 0
-                        ? "bg-green-600 text-white"
-                        : idx % 4 === 1
-                        ? "bg-orange-500 text-white"
-                        : idx % 4 === 2
-                        ? "bg-yellow-400 text-black"
-                        : "bg-blue-500 text-white";
 
                     return (
                       <React.Fragment key={taskName}>
                         <th
-                          className={`border-2 border-black px-1 py-1 text-center font-bold ${colorClass}`}
+                          className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-1 py-1 text-center font-bold bg-green-100 text-black"
                         >
                           Piece {label}
                         </th>
                         <th
-                          className={`border-2 border-black px-1 py-1 text-center font-bold ${colorClass}`}
+                          className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-1 py-1 text-center font-bold bg-green-100 text-black"
                         >
                           Rate {label}
                         </th>
                         <th
-                          className={`border-2 border-black px-1 py-1 text-center font-bold ${colorClass}`}
+                          className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-1 py-1 text-center font-bold bg-green-100 text-black"
                         >
                           Piece Pay {label}
                         </th>
                       </React.Fragment>
                     );
                   })}
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-600 text-white">
+                  <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
                     Total Pieces Pay
                   </th>
                   {hasOvertimeData && (
                     <>
-                      <th className="border-2 border-black px-2 py-1 text-center font-bold bg-purple-600 text-white">
+                      <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
                         Overtime Hours (over 40/week)
                       </th>
-                      <th className="border-2 border-black px-2 py-1 text-center font-bold bg-purple-600 text-white">
+                      <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
                         Regular Rate for OT Calculation
                       </th>
-                      <th className="border-2 border-black px-2 py-1 text-center font-bold bg-purple-600 text-white">
+                      <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
                         Overtime Premium (0.5x rate)
                       </th>
                     </>
                   )}
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-600 text-white">
+                  <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
                     MIN PAY REQ
                   </th>
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-600 text-white">
+                  <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
                     Diff Owed
                   </th>
                 </tr>
@@ -781,48 +652,48 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                       key={employee.employeeId}
                       className={rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"}
                     >
-                      <td className="border border-black px-2 py-1 font-medium text-left">
+                      <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 font-medium text-left">
                         {employee.employeeName}
                       </td>
-                      <td className="border border-black px-2 py-1 text-center">
+                      <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
                         {employee.totalHours.toFixed(2)}
                       </td>
                       {uniqueTasks.map((taskName) => {
                         const task = taskMap.get(taskName);
                         return (
                           <React.Fragment key={taskName}>
-                            <td className="border border-black px-1 py-1 text-center">
+                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center">
                               {task ? task.quantity.toFixed(2) : "0.00"}
                             </td>
-                            <td className="border border-black px-1 py-1 text-center">
+                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center">
                               $ {task ? task.rate.toFixed(2) : "0.00"}
                             </td>
-                            <td className="border border-black px-1 py-1 text-center">
+                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center">
                               $ {task ? task.cost.toFixed(2) : "0.00"}
                             </td>
                           </React.Fragment>
                         );
                       })}
-                      <td className="border border-black px-2 py-1 text-center font-bold bg-yellow-100">
+                      <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                         {formatCurrency(totalPiecesPay)}
                       </td>
                       {hasOvertimeData && (
                         <>
-                          <td className="border border-black px-2 py-1 text-center font-bold bg-purple-100">
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                             {(employee.overtimeHours || 0).toFixed(2)} hrs
                           </td>
-                          <td className="border border-black px-2 py-1 text-center font-bold bg-purple-100">
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                             {formatCurrency(employee.regularRate || 0)}/hr
                           </td>
-                          <td className="border border-black px-2 py-1 text-center font-bold bg-purple-100">
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                             {formatCurrency(employee.overtimePremium || 0)}
                           </td>
                         </>
                       )}
-                      <td className="border border-black px-2 py-1 text-center font-bold bg-green-100">
+                      <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                         {formatCurrency(minPayRequired)}
                       </td>
-                      <td className="border border-black px-2 py-1 text-center font-bold bg-blue-100">
+                      <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                         {formatCurrency(diffOwed)}
                       </td>
                     </tr>
