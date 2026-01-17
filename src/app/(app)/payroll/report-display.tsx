@@ -178,6 +178,26 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                                                     <Table>
                                                         <TableBody>
                                                             <TableRow><TableCell>Total Hours Worked</TableCell><TableCell className="text-right">{week.totalHours.toFixed(2)}</TableCell></TableRow>
+                                                            {week.totalPieces !== undefined && week.totalPieces > 0 && (
+                                                              <>
+                                                                <TableRow className="bg-indigo-50 dark:bg-indigo-900/20">
+                                                                  <TableCell className="font-medium">Total Pieces Worked</TableCell>
+                                                                  <TableCell className="text-right text-indigo-600 font-medium">{week.totalPieces.toFixed(2)}</TableCell>
+                                                                </TableRow>
+                                                                {week.piecesByVariety && week.piecesByVariety.length > 1 && (
+                                                                  <>
+                                                                    {week.piecesByVariety.map((item, idx) => (
+                                                                      <TableRow key={idx} className="bg-indigo-50/50 dark:bg-indigo-900/10">
+                                                                        <TableCell className="pl-8 text-sm text-muted-foreground">
+                                                                          {item.taskName} - {item.variety}
+                                                                        </TableCell>
+                                                                        <TableCell className="text-right text-sm text-indigo-600">{item.totalPieces.toFixed(2)}</TableCell>
+                                                                      </TableRow>
+                                                                    ))}
+                                                                  </>
+                                                                )}
+                                                              </>
+                                                            )}
                                                             <TableRow><TableCell>Raw Task Earnings</TableCell><TableCell className="text-right">${week.totalEarnings.toFixed(2)}</TableCell></TableRow>
                                                             <TableRow><TableCell>Minimum Wage Top-Up</TableCell><TableCell className="text-right text-amber-600">+ ${week.minimumWageTopUp.toFixed(2)}</TableCell></TableRow>
                                                             <TableRow><TableCell>Paid Rest Breaks (10min / 4hr)</TableCell><TableCell className="text-right text-blue-600">+ ${week.paidRestBreaks.toFixed(2)}</TableCell></TableRow>
