@@ -7,7 +7,7 @@ let adminApp: admin.app.App | null = null;
  * For production, you should use a service account key file
  * For this implementation, we'll use application default credentials
  */
-export function getAdminApp(): admin.app.App {
+export function getAdminApp(): admin.app.App | null {
   if (adminApp) {
     return adminApp;
   }
@@ -26,9 +26,10 @@ export function getAdminApp(): admin.app.App {
     // For this sandbox environment, we'll use a simplified approach
     // The client-side Firebase SDK will handle authentication
     console.warn('Firebase Admin SDK not properly configured. User creation will use client-side SDK.');
+    return null;
   }
 
-  return adminApp!;
+  return adminApp;
 }
 
 export const adminAuth = () => {

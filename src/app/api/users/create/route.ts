@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Firebase Auth REST API endpoint
 const FIREBASE_AUTH_API = 'https://identitytoolkit.googleapis.com/v1/accounts:signUp';
-const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'AIzaSyABQpfZcj8_Wj2zSEeWWAzl7FtCVE_ZL6o';
+const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,6 +14,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
+      );
+    }
+
+    if (!API_KEY) {
+      console.error('Firebase API key not configured');
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
       );
     }
 
