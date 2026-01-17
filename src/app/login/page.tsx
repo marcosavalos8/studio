@@ -38,7 +38,8 @@ export default function LoginPage() {
       if (email === "David" && password === "1234") {
         localStorage.setItem("isAuthenticated", "true");
         localStorage.setItem("username", email);
-        login(email);
+        localStorage.setItem("userRole", "Admin"); // David is an admin
+        login(email, "Admin");
         router.push("/dashboard");
         return;
       }
@@ -62,10 +63,13 @@ export default function LoginPage() {
           }
 
           // Store user info and redirect
+          const displayName = userData.displayName || user.email || "User";
+          const role = userData.role || "User";
+          
           localStorage.setItem("isAuthenticated", "true");
-          localStorage.setItem("username", userData.displayName || user.email || "User");
-          localStorage.setItem("userRole", userData.role || "User");
-          login(userData.displayName || user.email || "User");
+          localStorage.setItem("username", displayName);
+          localStorage.setItem("userRole", role);
+          login(displayName, role);
           router.push("/dashboard");
         } else {
           setError("User not found in system. Please contact an administrator.");
@@ -75,7 +79,8 @@ export default function LoginPage() {
         // Firestore not available, allow login anyway
         localStorage.setItem("isAuthenticated", "true");
         localStorage.setItem("username", user.email || "User");
-        login(user.email || "User");
+        localStorage.setItem("userRole", "User");
+        login(user.email || "User", "User");
         router.push("/dashboard");
       }
     } catch (error: any) {
@@ -88,6 +93,8 @@ export default function LoginPage() {
         setError("Invalid email address");
       } else if (error.code === "auth/user-disabled") {
         setError("This account has been disabled");
+      } else if (error.code === "auth/invalid-credential") {
+        setError("Invalid email or password");
       } else {
         setError("Failed to login. Please try again.");
       }

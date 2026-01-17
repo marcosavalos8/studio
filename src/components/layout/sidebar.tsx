@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/contexts/auth-context";
 
 import {
   Sidebar,
@@ -28,19 +29,22 @@ import {
 } from "lucide-react";
 
 const menuItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/time-tracking", label: "Time Tracking", icon: QrCode },
-  { href: "/employees", label: "Employees", icon: Users },
-  { href: "/clients", label: "Clients", icon: Briefcase },
-  { href: "/tasks", label: "Tasks", icon: ClipboardList },
-  { href: "/payroll", label: "Payroll", icon: FileText },
-  // { href: "/invoicing", label: "Invoicing", icon: DollarSign },
-  { label: "Labor Report", href: "/labor-report", icon: Tag },
-  { href: "/users", label: "User Management", icon: UserCog },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, adminOnly: false },
+  { href: "/time-tracking", label: "Time Tracking", icon: QrCode, adminOnly: false },
+  { href: "/employees", label: "Employees", icon: Users, adminOnly: false },
+  { href: "/clients", label: "Clients", icon: Briefcase, adminOnly: false },
+  { href: "/tasks", label: "Tasks", icon: ClipboardList, adminOnly: false },
+  { href: "/payroll", label: "Payroll", icon: FileText, adminOnly: true },
+  { label: "Labor Report", href: "/labor-report", icon: Tag, adminOnly: true },
+  { href: "/users", label: "User Management", icon: UserCog, adminOnly: true },
 ];
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { isAdmin } = useAuth();
+
+  // Filter menu items based on user role
+  const visibleMenuItems = menuItems.filter(item => !item.adminOnly || isAdmin);
 
   return (
     <Sidebar className="border-r">
@@ -54,7 +58,7 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent className="py-2">
         <SidebarMenu>
-          {menuItems.map((item) => (
+          {visibleMenuItems.map((item) => (
             <SidebarMenuItem key={item.href}>
               <Link href={item.href} passHref>
                 <SidebarMenuButton

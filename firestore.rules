@@ -9,14 +9,31 @@
  * - /piecework/{pieceworkId}: Stores piecework records.
  * - /clients/{clientId}: Stores client data.
  * - /tasks/{taskId}: Stores task data.
+ * - /users/{userId}: Stores user account data with roles.
  *
  * Key Security Decisions:
  * - Role-based access control: only admins can write to the employees, clients and tasks collections.
  * - Public read access: time_entries and piecework collections can be read by any logged in user.
+ * - Admin check: verifies user role from the /users collection in Firestore.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    /**
+     * @description Manages user accounts for app access.
+     * @path /users/{userId}
+     * @allow (get, list) - Any authenticated user can read user data.
+     * @allow (create) - Any authenticated user can create a user (for initial setup).
+     * @allow (update, delete) - Only admins can update or delete users.
+     * @principle Allows users to view user list, but only admins can modify.
+     */
+    match /users/{userId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
 
     /**
      * @description Manages employee data.
@@ -96,31 +113,23 @@ service cloud.firestore {
       allow delete: if isAdmin() && resource != null;
     }
 
+    // --- Helper Functions ---
+    
     /**
-     * @description Manages user accounts for app access.
-     * @path /users/{userId}
-     * @allow (create) - Any authenticated user can create a user (for initial setup).
-     * @allow (get, list) - Any authenticated user can read user data.
-     * @allow (update, delete) - Any authenticated user can update or delete users (for testing).
-     * @principle Temporary open access for testing. Should be restricted to admins in production.
-     * @todo Add admin-only restrictions after first admin user is created.
+     * @description Check if user is signed in
      */
-    match /users/{userId} {
-      allow get, list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    // --- Funciones de Ayuda ---
-function isSignedIn() {
-  return request.auth != null;
-}
-
-function isAdmin() {
-  // 🎯 ARREGLO: Comprobar el reclamo personalizado 'admin' en el token del usuario.
-  // Solo será true si el reclamo fue establecido por un servidor usando el Admin SDK.
-  return request.auth != null && request.auth.token.admin == true;
-}
+    /**
+     * @description Check if user is an admin
+     * Checks the role field in the user's document in the /users collection
+     */
+    function isAdmin() {
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
   }
 }

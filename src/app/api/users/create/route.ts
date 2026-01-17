@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Firebase Admin SDK setup (server-side only)
-// Note: In production, you would use Firebase Admin SDK to create users
-// For this implementation, we'll use a simplified approach
+// Firebase Auth REST API endpoint
+const FIREBASE_AUTH_API = 'https://identitytoolkit.googleapis.com/v1/accounts:signUp';
+const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'AIzaSyABQpfZcj8_Wj2zSEeWWAzl7FtCVE_ZL6o';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,30 +17,47 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // In a real implementation, you would use Firebase Admin SDK:
-    // const admin = require('firebase-admin');
-    // const userRecord = await admin.auth().createUser({
-    //   email,
-    //   password,
-    //   displayName,
-    // });
+    // Create user using Firebase Auth REST API
+    const authResponse = await fetch(`${FIREBASE_AUTH_API}?key=${API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        password,
+        displayName,
+        returnSecureToken: true,
+      }),
+    });
 
-    // For now, we'll return a mock UID
-    // The client-side will handle creating the Firestore document
-    const mockUid = `user_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    if (!authResponse.ok) {
+      const errorData = await authResponse.json();
+      console.error('Firebase Auth error:', errorData);
+      
+      // Handle specific Firebase errors
+      if (errorData.error?.message === 'EMAIL_EXISTS') {
+        return NextResponse.json(
+          { error: 'Email already exists' },
+          { status: 400 }
+        );
+      }
+      
+      return NextResponse.json(
+        { error: errorData.error?.message || 'Failed to create user in Firebase Auth' },
+        { status: 400 }
+      );
+    }
 
-    // In production, you should:
-    // 1. Use Firebase Admin SDK to create the user
-    // 2. Set custom claims for roles
-    // 3. Send email verification
-    // 4. Return the actual UID from Firebase Auth
+    const authData = await authResponse.json();
+    const uid = authData.localId;
 
-    console.log('Creating user:', { email, displayName, role, status });
+    console.log('User created successfully:', { uid, email, displayName, role, status });
     
     return NextResponse.json(
       { 
         success: true, 
-        uid: mockUid,
+        uid,
         message: 'User created successfully'
       },
       { status: 200 }
