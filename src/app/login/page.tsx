@@ -34,18 +34,22 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      // Trim whitespace from email and password
+      const trimmedEmail = email.trim();
+      const trimmedPassword = password.trim();
+
       // First, try the hardcoded credentials for backward compatibility
-      if (email === "David" && password === "1234") {
+      if (trimmedEmail === "David" && trimmedPassword === "1234") {
         localStorage.setItem("isAuthenticated", "true");
-        localStorage.setItem("username", email);
+        localStorage.setItem("username", trimmedEmail);
         localStorage.setItem("userRole", "Admin"); // David is an admin
-        login(email, "Admin");
+        login(trimmedEmail, "Admin");
         router.push("/dashboard");
         return;
       }
 
       // Try Firebase Authentication
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
       const user = userCredential.user;
 
       // Check if user exists in Firestore and is active
@@ -90,11 +94,11 @@ export default function LoginPage() {
       if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
         setError("Invalid email or password");
       } else if (error.code === "auth/invalid-email") {
-        setError("Invalid email address");
+        setError("Please enter a valid email address");
       } else if (error.code === "auth/user-disabled") {
         setError("This account has been disabled");
       } else if (error.code === "auth/invalid-credential") {
-        setError("Invalid email or password");
+        setError("Invalid email or password. Please check your credentials.");
       } else {
         setError("Failed to login. Please try again.");
       }
@@ -117,15 +121,16 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email / Username</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="text"
-                placeholder="Enter email or username"
+                placeholder="Enter your email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className="w-full"
+                autoComplete="email"
               />
             </div>
             <div className="space-y-2">
