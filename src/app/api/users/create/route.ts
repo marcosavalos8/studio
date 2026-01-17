@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     // For now, we'll return a mock UID
     // The client-side will handle creating the Firestore document
-    const mockUid = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const mockUid = `user_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 
     // In production, you should:
     // 1. Use Firebase Admin SDK to create the user

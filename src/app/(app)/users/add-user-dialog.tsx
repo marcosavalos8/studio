@@ -29,7 +29,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useFirestore } from '@/firebase'
-import { collection, doc, setDoc } from 'firebase/firestore'
+import { collection, doc, setDoc, query, where, getDocs } from 'firebase/firestore'
 import { useToast } from '@/hooks/use-toast'
 import { Loader2 } from 'lucide-react'
 import { useState } from 'react'
@@ -76,6 +76,22 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
     setIsCreating(true)
 
     try {
+      // Check if user already exists in Firestore
+      if (firestore) {
+        const usersQuery = query(collection(firestore, 'users'), where('email', '==', values.email));
+        const existingUsers = await getDocs(usersQuery);
+        
+        if (!existingUsers.empty) {
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'A user with this email already exists.',
+          });
+          setIsCreating(false);
+          return;
+        }
+      }
+
       // Call server action to create user with Firebase Auth
       const response = await fetch('/api/users/create', {
         method: 'POST',

@@ -75,6 +75,10 @@ export function DeleteUserDialog({ open, onOpenChange, user }: DeleteUserDialogP
           <AlertDialogDescription>
             This will permanently delete <strong>{user.displayName}</strong> ({user.email}) from the system. 
             This action cannot be undone.
+            <br/><br/>
+            <strong>Note:</strong> This only removes the user from the management system. 
+            If the user was created with Firebase Authentication, their authentication account will remain active. 
+            For complete removal, use Firebase Console or implement Firebase Admin SDK on the server.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
