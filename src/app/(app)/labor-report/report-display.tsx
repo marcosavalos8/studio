@@ -31,7 +31,10 @@ const formatCurrency = (value: number | undefined | null): string => {
 
 // Helper function to truncate worker names to 2 names on small/medium screens
 const truncateWorkerName = (fullName: string): string => {
-  const nameParts = fullName.trim().split(/\s+/);
+  if (!fullName || typeof fullName !== 'string') {
+    return '';
+  }
+  const nameParts = fullName.trim().split(/\s+/).filter(part => part.length > 0);
   if (nameParts.length <= 2) {
     return fullName;
   }
