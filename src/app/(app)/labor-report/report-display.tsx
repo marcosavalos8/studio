@@ -139,13 +139,13 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       const headerRow = 7;
       let currentCol = 1;
 
-      // Style for headers
+      // Style for headers - all green
       const headerStyle = {
-        font: { bold: true, size: 10 },
+        font: { bold: true, size: 10, color: { argb: "FFFFFFFF" } },
         fill: {
           type: "pattern",
           pattern: "solid",
-          fgColor: { argb: "FFD4D4D4" },
+          fgColor: { argb: "FF70AD47" }, // Verde
         },
         alignment: { horizontal: "center" },
         border: {
@@ -169,21 +169,16 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       uniqueTasks.forEach((taskName, idx) => {
         const label = String.fromCharCode(65 + idx);
 
-        // Colores alternados como en la imagen
-        const colors = ["FF70AD47", "FFE97132", "FFFFC000", "FF4472C4"]; // Verde, Naranja, Amarillo, Azul
-        const textColors = ["FFFFFFFF", "FFFFFFFF", "FF000000", "FFFFFFFF"]; // Blanco, Blanco, Negro, Blanco
-        const colorIndex = idx % 4;
-
         const headerStyleColored = {
           font: {
             bold: true,
             size: 10,
-            color: { argb: textColors[colorIndex] },
+            color: { argb: "FFFFFFFF" },
           },
           fill: {
             type: "pattern",
             pattern: "solid",
-            fgColor: { argb: colors[colorIndex] },
+            fgColor: { argb: "FF70AD47" }, // Verde - solo verde para todos
           },
           alignment: { horizontal: "center" },
           border: {
@@ -694,45 +689,36 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
             <table className="w-full border-collapse text-xs">
               <thead>
                 <tr>
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-blue-600 text-white">
+                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-green-600 text-white">
                     Worker Name
                   </th>
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-blue-600 text-white">
+                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-green-600 text-white">
                     Hours
                   </th>
                   {uniqueTasks.map((taskName, idx) => {
                     const label = String.fromCharCode(65 + idx);
-                    // Alternar colores como en la imagen
-                    const colorClass =
-                      idx % 4 === 0
-                        ? "bg-green-600 text-white"
-                        : idx % 4 === 1
-                        ? "bg-orange-500 text-white"
-                        : idx % 4 === 2
-                        ? "bg-yellow-400 text-black"
-                        : "bg-blue-500 text-white";
 
                     return (
                       <React.Fragment key={taskName}>
                         <th
-                          className={`border-2 border-black px-1 py-1 text-center font-bold ${colorClass}`}
+                          className="border-2 border-black px-1 py-1 text-center font-bold bg-green-600 text-white"
                         >
                           Piece {label}
                         </th>
                         <th
-                          className={`border-2 border-black px-1 py-1 text-center font-bold ${colorClass}`}
+                          className="border-2 border-black px-1 py-1 text-center font-bold bg-green-600 text-white"
                         >
                           Rate {label}
                         </th>
                         <th
-                          className={`border-2 border-black px-1 py-1 text-center font-bold ${colorClass}`}
+                          className="border-2 border-black px-1 py-1 text-center font-bold bg-green-600 text-white"
                         >
                           Piece Pay {label}
                         </th>
                       </React.Fragment>
                     );
                   })}
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-600 text-white">
+                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-green-600 text-white">
                     Total Pieces Pay
                   </th>
                   {hasOvertimeData && (
@@ -748,10 +734,10 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                       </th>
                     </>
                   )}
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-600 text-white">
+                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-green-600 text-white">
                     MIN PAY REQ
                   </th>
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-600 text-white">
+                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-green-600 text-white">
                     Diff Owed
                   </th>
                 </tr>
