@@ -169,42 +169,17 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       uniqueTasks.forEach((taskName, idx) => {
         const label = String.fromCharCode(65 + idx);
 
-        // Colores alternados como en la imagen
-        const colors = ["FF70AD47", "FFE97132", "FFFFC000", "FF4472C4"]; // Verde, Naranja, Amarillo, Azul
-        const textColors = ["FFFFFFFF", "FFFFFFFF", "FF000000", "FFFFFFFF"]; // Blanco, Blanco, Negro, Blanco
-        const colorIndex = idx % 4;
-
-        const headerStyleColored = {
-          font: {
-            bold: true,
-            size: 10,
-            color: { argb: textColors[colorIndex] },
-          },
-          fill: {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: colors[colorIndex] },
-          },
-          alignment: { horizontal: "center" },
-          border: {
-            top: { style: "thick" },
-            left: { style: "thick" },
-            bottom: { style: "thick" },
-            right: { style: "thick" },
-          },
-        };
-
         const pieceHeader = worksheet.getCell(headerRow, currentCol++);
         pieceHeader.value = `Piece ${label}`;
-        pieceHeader.style = headerStyleColored;
+        pieceHeader.style = headerStyle;
 
         const rateHeader = worksheet.getCell(headerRow, currentCol++);
         rateHeader.value = `Rate ${label}`;
-        rateHeader.style = headerStyleColored;
+        rateHeader.style = headerStyle;
 
         const payHeader = worksheet.getCell(headerRow, currentCol++);
         payHeader.value = `Piece Pay ${label}`;
-        payHeader.style = headerStyleColored;
+        payHeader.style = headerStyle;
       });
 
       const totalPiecesHeader = worksheet.getCell(headerRow, currentCol++);
@@ -213,33 +188,17 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
 
       // Add overtime headers if there's overtime data
       if (hasOvertimeData) {
-        const overtimeHeaderStyle = {
-          font: { bold: true, size: 10, color: { argb: "FFFFFFFF" } },
-          fill: {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "FF9B59B6" }, // Purple color
-          },
-          alignment: { horizontal: "center" },
-          border: {
-            top: { style: "thick" },
-            left: { style: "thick" },
-            bottom: { style: "thick" },
-            right: { style: "thick" },
-          },
-        };
-
         const overtimeHoursHeader = worksheet.getCell(headerRow, currentCol++);
         overtimeHoursHeader.value = "Overtime Hours (over 40/week)";
-        overtimeHoursHeader.style = overtimeHeaderStyle;
+        overtimeHoursHeader.style = headerStyle;
 
         const regularRateHeader = worksheet.getCell(headerRow, currentCol++);
         regularRateHeader.value = "Regular Rate for OT Calculation";
-        regularRateHeader.style = overtimeHeaderStyle;
+        regularRateHeader.style = headerStyle;
 
         const overtimePremiumHeader = worksheet.getCell(headerRow, currentCol++);
         overtimePremiumHeader.value = "Overtime Premium (0.5x rate)";
-        overtimePremiumHeader.style = overtimeHeaderStyle;
+        overtimePremiumHeader.style = headerStyle;
       }
 
       // MIN PAY REQ and Diff Owed always at the end
@@ -370,11 +329,6 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
             },
             numFmt: "0.00",
             font: { bold: true },
-            fill: {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: { argb: "FFE6D5F0" }, // Light purple
-            },
           };
 
           const regularRateCell = worksheet.getCell(currentRow, currentCol++);
@@ -388,11 +342,6 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
             },
             numFmt: '"$"0.00',
             font: { bold: true },
-            fill: {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: { argb: "FFE6D5F0" }, // Light purple
-            },
           };
 
           const overtimePremiumCell = worksheet.getCell(currentRow, currentCol++);
@@ -406,11 +355,6 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
             },
             numFmt: '"$"0.00',
             font: { bold: true },
-            fill: {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: { argb: "FFE6D5F0" }, // Light purple
-            },
           };
         }
 
@@ -623,24 +567,6 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
             size: landscape;
             margin: 0.3in;
           }
-
-          /* Colores específicos como en la imagen */
-          .header-blue {
-            background-color: #4472c4;
-            color: white;
-          }
-          .header-green {
-            background-color: #70ad47;
-            color: white;
-          }
-          .header-orange {
-            background-color: #e97132;
-            color: white;
-          }
-          .header-yellow {
-            background-color: #ffc000;
-            color: black;
-          }
         `}</style>
 
         {/* Header con logo */}
@@ -694,64 +620,55 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
             <table className="w-full border-collapse text-xs">
               <thead>
                 <tr>
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-blue-600 text-white">
+                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-200 text-black">
                     Worker Name
                   </th>
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-blue-600 text-white">
+                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-200 text-black">
                     Hours
                   </th>
                   {uniqueTasks.map((taskName, idx) => {
                     const label = String.fromCharCode(65 + idx);
-                    // Alternar colores como en la imagen
-                    const colorClass =
-                      idx % 4 === 0
-                        ? "bg-green-600 text-white"
-                        : idx % 4 === 1
-                        ? "bg-orange-500 text-white"
-                        : idx % 4 === 2
-                        ? "bg-yellow-400 text-black"
-                        : "bg-blue-500 text-white";
 
                     return (
                       <React.Fragment key={taskName}>
                         <th
-                          className={`border-2 border-black px-1 py-1 text-center font-bold ${colorClass}`}
+                          className="border-2 border-black px-1 py-1 text-center font-bold bg-gray-200 text-black"
                         >
                           Piece {label}
                         </th>
                         <th
-                          className={`border-2 border-black px-1 py-1 text-center font-bold ${colorClass}`}
+                          className="border-2 border-black px-1 py-1 text-center font-bold bg-gray-200 text-black"
                         >
                           Rate {label}
                         </th>
                         <th
-                          className={`border-2 border-black px-1 py-1 text-center font-bold ${colorClass}`}
+                          className="border-2 border-black px-1 py-1 text-center font-bold bg-gray-200 text-black"
                         >
                           Piece Pay {label}
                         </th>
                       </React.Fragment>
                     );
                   })}
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-600 text-white">
+                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-200 text-black">
                     Total Pieces Pay
                   </th>
                   {hasOvertimeData && (
                     <>
-                      <th className="border-2 border-black px-2 py-1 text-center font-bold bg-purple-600 text-white">
+                      <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-200 text-black">
                         Overtime Hours (over 40/week)
                       </th>
-                      <th className="border-2 border-black px-2 py-1 text-center font-bold bg-purple-600 text-white">
+                      <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-200 text-black">
                         Regular Rate for OT Calculation
                       </th>
-                      <th className="border-2 border-black px-2 py-1 text-center font-bold bg-purple-600 text-white">
+                      <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-200 text-black">
                         Overtime Premium (0.5x rate)
                       </th>
                     </>
                   )}
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-600 text-white">
+                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-200 text-black">
                     MIN PAY REQ
                   </th>
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-600 text-white">
+                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-200 text-black">
                     Diff Owed
                   </th>
                 </tr>
@@ -803,26 +720,26 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                           </React.Fragment>
                         );
                       })}
-                      <td className="border border-black px-2 py-1 text-center font-bold bg-yellow-100">
+                      <td className="border border-black px-2 py-1 text-center font-bold">
                         {formatCurrency(totalPiecesPay)}
                       </td>
                       {hasOvertimeData && (
                         <>
-                          <td className="border border-black px-2 py-1 text-center font-bold bg-purple-100">
+                          <td className="border border-black px-2 py-1 text-center font-bold">
                             {(employee.overtimeHours || 0).toFixed(2)} hrs
                           </td>
-                          <td className="border border-black px-2 py-1 text-center font-bold bg-purple-100">
+                          <td className="border border-black px-2 py-1 text-center font-bold">
                             {formatCurrency(employee.regularRate || 0)}/hr
                           </td>
-                          <td className="border border-black px-2 py-1 text-center font-bold bg-purple-100">
+                          <td className="border border-black px-2 py-1 text-center font-bold">
                             {formatCurrency(employee.overtimePremium || 0)}
                           </td>
                         </>
                       )}
-                      <td className="border border-black px-2 py-1 text-center font-bold bg-green-100">
+                      <td className="border border-black px-2 py-1 text-center font-bold">
                         {formatCurrency(minPayRequired)}
                       </td>
-                      <td className="border border-black px-2 py-1 text-center font-bold bg-blue-100">
+                      <td className="border border-black px-2 py-1 text-center font-bold">
                         {formatCurrency(diffOwed)}
                       </td>
                     </tr>
