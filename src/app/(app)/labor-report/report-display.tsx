@@ -81,7 +81,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       const titleCell = worksheet.getCell(1, 1);
       titleCell.value = "Labor Report | J&M Agricultural Labor LLC";
       titleCell.font = { size: 16, bold: true, color: { argb: "FF70AD47" } }; // Green color
-      titleCell.alignment = { horizontal: "center" };
+      titleCell.alignment = { horizontal: "left" }; // Left-aligned
 
       // Company info section
       const dateCell = worksheet.getCell(4, 1);
@@ -217,11 +217,9 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       // Data rows
       let currentRow = headerRow + 1;
 
-      // Cell border style with green left/right borders
+      // Cell border style with only green left/right borders (no horizontal borders)
       const cellBorderStyle = {
-        top: { style: "thin", color: { argb: "FF000000" } },
         left: { style: "thin", color: { argb: "FF70AD47" } }, // Green
-        bottom: { style: "thin", color: { argb: "FF000000" } },
         right: { style: "thin", color: { argb: "FF70AD47" } }, // Green
       };
 
@@ -654,48 +652,48 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                       key={employee.employeeId}
                       className={rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"}
                     >
-                      <td className="border-t border-b border-black border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 font-medium text-left">
+                      <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 font-medium text-left">
                         {employee.employeeName}
                       </td>
-                      <td className="border-t border-b border-black border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                      <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
                         {employee.totalHours.toFixed(2)}
                       </td>
                       {uniqueTasks.map((taskName) => {
                         const task = taskMap.get(taskName);
                         return (
                           <React.Fragment key={taskName}>
-                            <td className="border-t border-b border-black border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center">
+                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center">
                               {task ? task.quantity.toFixed(2) : "0.00"}
                             </td>
-                            <td className="border-t border-b border-black border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center">
+                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center">
                               $ {task ? task.rate.toFixed(2) : "0.00"}
                             </td>
-                            <td className="border-t border-b border-black border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center">
+                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center">
                               $ {task ? task.cost.toFixed(2) : "0.00"}
                             </td>
                           </React.Fragment>
                         );
                       })}
-                      <td className="border-t border-b border-black border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
+                      <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                         {formatCurrency(totalPiecesPay)}
                       </td>
                       {hasOvertimeData && (
                         <>
-                          <td className="border-t border-b border-black border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                             {(employee.overtimeHours || 0).toFixed(2)} hrs
                           </td>
-                          <td className="border-t border-b border-black border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                             {formatCurrency(employee.regularRate || 0)}/hr
                           </td>
-                          <td className="border-t border-b border-black border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                             {formatCurrency(employee.overtimePremium || 0)}
                           </td>
                         </>
                       )}
-                      <td className="border-t border-b border-black border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
+                      <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                         {formatCurrency(minPayRequired)}
                       </td>
-                      <td className="border-t border-b border-black border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
+                      <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                         {formatCurrency(diffOwed)}
                       </td>
                     </tr>
