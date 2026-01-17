@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { firebaseConfig } from '@/firebase/config';
 
 // Firebase Auth REST API endpoint
 const FIREBASE_AUTH_API = 'https://identitytoolkit.googleapis.com/v1/accounts:signUp';
-const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+const API_KEY = firebaseConfig.apiKey;
 
 export async function POST(request: NextRequest) {
   try {
