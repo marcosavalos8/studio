@@ -16,7 +16,7 @@ import {
   startOfWeek,
 } from "date-fns";
 import { parseLocalDate, parseLocalDateOrDateTime } from "@/lib/utils";
-import { calculateOvertimePay } from "@/lib/calculations";
+import { calculateOvertimePay, roundToQuarterHour } from "@/lib/calculations";
 import type {
   Client,
   Task,
@@ -233,6 +233,9 @@ export async function generatePayrollReport({
             hours -= 0.5; // Deduct 30 minutes (0.5 hours)
           }
 
+          // Round hours to nearest quarter hour (0.25 increments) to match 15-minute billing requirement
+          hours = roundToQuarterHour(hours);
+
           if (!dailyWork[dayKey]) dailyWork[dayKey] = { tasks: {} };
           if (!dailyWork[dayKey].tasks[entry.taskId])
             dailyWork[dayKey].tasks[entry.taskId] = { hours: 0, pieces: 0 };
@@ -446,11 +449,12 @@ export async function generatePayrollReport({
         console.log("  Piecework regular rate:", pieceworkRegularRate.toFixed(2));
         
         // 2.2: Calcular descansos pagados SOLO para horas de piecework
-        // 10 minutos por cada 4 horas trabajadas en piecework
-        const pieceworkRestBreakHours = Math.floor(weeklyPieceworkHours / 4) * (10 / 60);
-        const pieceworkRestBreaksPay = pieceworkRestBreakHours * pieceworkRegularRate;
+        // Fórmula del cliente: (Total Pieces Pay / Hours) × 0.33 × (# of Days Worked)
+        // 0.33 es 1/3 de hora (20 minutos exactos) de descanso pagado por día trabajado
+        const daysWorked = sortedDays.length;
+        const pieceworkRestBreaksPay = pieceworkRegularRate * 0.33 * daysWorked;
         
-        console.log("  Rest break hours:", pieceworkRestBreakHours.toFixed(4));
+        console.log("  Days worked:", daysWorked);
         console.log("  Rest breaks pay:", pieceworkRestBreaksPay.toFixed(2));
         
         // 2.3: Sumar ganancias de piecework + descansos
