@@ -468,12 +468,12 @@ export async function generatePayrollReport({
         console.log("  Piecework regular rate:", pieceworkRegularRate.toFixed(2));
         
         // 2.2: Calcular descansos pagados SOLO para horas de piecework
-        // Fórmula del cliente: (Total Pieces Pay / Hours) × 0.33 × (# of Days Worked)
-        // 0.33 es 1/3 de hora (20 minutos exactos) de descanso pagado por día trabajado
-        // Round intermediate calculations to 2 decimals to match Excel behavior
+        // Fórmula del patrón (Excel): (Total Pieces Pay / Hours) × 0.33 × (# of Days Worked)
+        // IMPORTANTE: Excel NO redondea valores intermedios, solo el resultado final
+        // Ejemplo: (812.38 / 37.25) * 0.33 * 5 = 35.98 (no redondear la tasa intermedia)
         const daysWorked = sortedDays.length;
-        const roundedRate = parseFloat(pieceworkRegularRate.toFixed(2));
-        const pieceworkRestBreaksPay = parseFloat((roundedRate * 0.33 * daysWorked).toFixed(2));
+        // Calculate with full precision, round only the final result
+        const pieceworkRestBreaksPay = parseFloat((pieceworkRegularRate * 0.33 * daysWorked).toFixed(2));
         
         console.log("  Days worked:", daysWorked);
         console.log("  Rest breaks pay:", pieceworkRestBreaksPay.toFixed(2));
