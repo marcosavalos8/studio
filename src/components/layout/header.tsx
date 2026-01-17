@@ -36,7 +36,7 @@ const pageTitles: { [key: string]: string } = {
 
 export function AppHeader() {
   const pathname = usePathname()
-  const { logout, username } = useAuth()
+  const { logout, username, userRole } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
   const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar');
 
@@ -128,7 +128,7 @@ export function AppHeader() {
               <div className="flex flex-col space-y-1">
                 <p className="text-sm font-medium leading-none">{username || 'User'}</p>
                 <p className="text-xs leading-none text-muted-foreground">
-                  {username?.toLowerCase()}@fieldtack.com
+                  {userRole || 'User'}
                 </p>
               </div>
             </DropdownMenuLabel>
