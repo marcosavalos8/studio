@@ -79,15 +79,9 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       // Set up header section with styling
       worksheet.mergeCells(1, 1, 1, totalColumns);
       const titleCell = worksheet.getCell(1, 1);
-      titleCell.value = "J&M Agricultural Labor LLC";
-      titleCell.font = { size: 16, bold: true };
+      titleCell.value = "Labor Report | J&M Agricultural Labor LLC";
+      titleCell.font = { size: 16, bold: true, color: { argb: "FF70AD47" } }; // Green color
       titleCell.alignment = { horizontal: "center" };
-
-      worksheet.mergeCells(2, 1, 2, totalColumns);
-      const subtitleCell = worksheet.getCell(2, 1);
-      subtitleCell.value = "Labor Report";
-      subtitleCell.font = { size: 14, bold: true };
-      subtitleCell.alignment = { horizontal: "center" };
 
       // Company info section
       const dateCell = worksheet.getCell(4, 1);
@@ -135,24 +129,34 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         console.warn("Could not add logo to Excel:", error);
       }
 
+      // Add green line above headers (row 6)
+      for (let col = 1; col <= totalColumns; col++) {
+        const borderCell = worksheet.getCell(6, col);
+        borderCell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FF70AD47" }, // Green color
+        };
+      }
+
       // Table headers starting at row 7
       const headerRow = 7;
       let currentCol = 1;
 
-      // Style for headers
+      // Style for headers with green background
       const headerStyle = {
         font: { bold: true, size: 10 },
         fill: {
           type: "pattern",
           pattern: "solid",
-          fgColor: { argb: "FFD4D4D4" },
+          fgColor: { argb: "FFE2EFDA" }, // Light green background
         },
         alignment: { horizontal: "center" },
         border: {
-          top: { style: "thin" },
-          left: { style: "thin" },
-          bottom: { style: "thin" },
-          right: { style: "thin" },
+          top: { style: "thin", color: { argb: "FF70AD47" } }, // Green border
+          left: { style: "thin", color: { argb: "FF70AD47" } },
+          bottom: { style: "thin", color: { argb: "FF000000" } }, // Black bottom
+          right: { style: "thin", color: { argb: "FF70AD47" } },
         },
       };
 
@@ -213,6 +217,14 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       // Data rows
       let currentRow = headerRow + 1;
 
+      // Cell border style with green left/right borders
+      const cellBorderStyle = {
+        top: { style: "thin", color: { argb: "FF000000" } },
+        left: { style: "thin", color: { argb: "FF70AD47" } }, // Green
+        bottom: { style: "thin", color: { argb: "FF000000" } },
+        right: { style: "thin", color: { argb: "FF70AD47" } }, // Green
+      };
+
       report.employeeDetails.forEach((employee) => {
         currentCol = 1;
 
@@ -220,12 +232,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         const nameCell = worksheet.getCell(currentRow, currentCol++);
         nameCell.value = employee.employeeName;
         nameCell.style = {
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
+          border: cellBorderStyle,
           font: { size: 9 },
         };
 
@@ -233,12 +240,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         const hoursCell = worksheet.getCell(currentRow, currentCol++);
         hoursCell.value = parseFloat(employee.totalHours.toFixed(2));
         hoursCell.style = {
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
+          border: cellBorderStyle,
           numFmt: "0.00",
         };
 
@@ -254,36 +256,21 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
           const pieceCell = worksheet.getCell(currentRow, currentCol++);
           pieceCell.value = task ? parseFloat(task.quantity.toFixed(2)) : 0;
           pieceCell.style = {
-            border: {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            },
+            border: cellBorderStyle,
             numFmt: "0.00",
           };
 
           const rateCell = worksheet.getCell(currentRow, currentCol++);
           rateCell.value = task ? parseFloat(task.rate.toFixed(2)) : 0;
           rateCell.style = {
-            border: {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            },
+            border: cellBorderStyle,
             numFmt: '"$"0.00',
           };
 
           const payCell = worksheet.getCell(currentRow, currentCol++);
           payCell.value = task ? parseFloat(task.cost.toFixed(2)) : 0;
           payCell.style = {
-            border: {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            },
+            border: cellBorderStyle,
             numFmt: '"$"0.00',
           };
         });
@@ -306,12 +293,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         const totalPiecesCell = worksheet.getCell(currentRow, currentCol++);
         totalPiecesCell.value = parseFloat(totalPiecesPay.toFixed(2));
         totalPiecesCell.style = {
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
+          border: cellBorderStyle,
           numFmt: '"$"0.00',
           font: { bold: true },
         };
@@ -321,12 +303,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
           const overtimeHoursCell = worksheet.getCell(currentRow, currentCol++);
           overtimeHoursCell.value = parseFloat((employee.overtimeHours || 0).toFixed(2));
           overtimeHoursCell.style = {
-            border: {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            },
+            border: cellBorderStyle,
             numFmt: "0.00",
             font: { bold: true },
           };
@@ -334,12 +311,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
           const regularRateCell = worksheet.getCell(currentRow, currentCol++);
           regularRateCell.value = parseFloat((employee.regularRate || 0).toFixed(2));
           regularRateCell.style = {
-            border: {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            },
+            border: cellBorderStyle,
             numFmt: '"$"0.00',
             font: { bold: true },
           };
@@ -347,12 +319,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
           const overtimePremiumCell = worksheet.getCell(currentRow, currentCol++);
           overtimePremiumCell.value = parseFloat((employee.overtimePremium || 0).toFixed(2));
           overtimePremiumCell.style = {
-            border: {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            },
+            border: cellBorderStyle,
             numFmt: '"$"0.00',
             font: { bold: true },
           };
@@ -362,12 +329,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         const minPayCell = worksheet.getCell(currentRow, currentCol++);
         minPayCell.value = parseFloat(minPayRequired.toFixed(2));
         minPayCell.style = {
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
+          border: cellBorderStyle,
           numFmt: '"$"0.00',
           font: { bold: true },
         };
@@ -375,12 +337,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         const diffCell = worksheet.getCell(currentRow, currentCol++);
         diffCell.value = parseFloat(diffOwed.toFixed(2));
         diffCell.style = {
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
+          border: cellBorderStyle,
           numFmt: '"$"0.00',
           font: { bold: true },
         };
@@ -573,12 +530,9 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         <div className="mb-6 relative">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <h1 className="text-2xl font-bold text-center mb-1">
-                J&M Agricultural Labor LLC
+              <h1 className="text-2xl font-bold text-center mb-1 text-green-700">
+                Labor Report | J&M Agricultural Labor LLC
               </h1>
-              <h2 className="text-lg font-semibold text-center mb-4">
-                Labor Report
-              </h2>
             </div>
             <div className="absolute right-0 top-0">
               <img
@@ -617,13 +571,15 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
 
         {hasEmployeeDetails ? (
           <div className="overflow-x-auto">
+            {/* Green line above headers */}
+            <div className="h-1 bg-green-700 mb-0"></div>
             <table className="w-full border-collapse text-xs">
               <thead>
                 <tr>
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-200 text-black">
+                  <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
                     Worker Name
                   </th>
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-200 text-black">
+                  <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
                     Hours
                   </th>
                   {uniqueTasks.map((taskName, idx) => {
@@ -632,43 +588,43 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                     return (
                       <React.Fragment key={taskName}>
                         <th
-                          className="border-2 border-black px-1 py-1 text-center font-bold bg-gray-200 text-black"
+                          className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-1 py-1 text-center font-bold bg-green-100 text-black"
                         >
                           Piece {label}
                         </th>
                         <th
-                          className="border-2 border-black px-1 py-1 text-center font-bold bg-gray-200 text-black"
+                          className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-1 py-1 text-center font-bold bg-green-100 text-black"
                         >
                           Rate {label}
                         </th>
                         <th
-                          className="border-2 border-black px-1 py-1 text-center font-bold bg-gray-200 text-black"
+                          className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-1 py-1 text-center font-bold bg-green-100 text-black"
                         >
                           Piece Pay {label}
                         </th>
                       </React.Fragment>
                     );
                   })}
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-200 text-black">
+                  <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
                     Total Pieces Pay
                   </th>
                   {hasOvertimeData && (
                     <>
-                      <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-200 text-black">
+                      <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
                         Overtime Hours (over 40/week)
                       </th>
-                      <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-200 text-black">
+                      <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
                         Regular Rate for OT Calculation
                       </th>
-                      <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-200 text-black">
+                      <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
                         Overtime Premium (0.5x rate)
                       </th>
                     </>
                   )}
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-200 text-black">
+                  <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
                     MIN PAY REQ
                   </th>
-                  <th className="border-2 border-black px-2 py-1 text-center font-bold bg-gray-200 text-black">
+                  <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
                     Diff Owed
                   </th>
                 </tr>
@@ -698,48 +654,48 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                       key={employee.employeeId}
                       className={rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"}
                     >
-                      <td className="border border-black px-2 py-1 font-medium text-left">
+                      <td className="border-t border-b border-l-2 border-r-2 border-black border-l-green-700 border-r-green-700 px-2 py-1 font-medium text-left">
                         {employee.employeeName}
                       </td>
-                      <td className="border border-black px-2 py-1 text-center">
+                      <td className="border-t border-b border-l-2 border-r-2 border-black border-l-green-700 border-r-green-700 px-2 py-1 text-center">
                         {employee.totalHours.toFixed(2)}
                       </td>
                       {uniqueTasks.map((taskName) => {
                         const task = taskMap.get(taskName);
                         return (
                           <React.Fragment key={taskName}>
-                            <td className="border border-black px-1 py-1 text-center">
+                            <td className="border-t border-b border-l-2 border-r-2 border-black border-l-green-700 border-r-green-700 px-1 py-1 text-center">
                               {task ? task.quantity.toFixed(2) : "0.00"}
                             </td>
-                            <td className="border border-black px-1 py-1 text-center">
+                            <td className="border-t border-b border-l-2 border-r-2 border-black border-l-green-700 border-r-green-700 px-1 py-1 text-center">
                               $ {task ? task.rate.toFixed(2) : "0.00"}
                             </td>
-                            <td className="border border-black px-1 py-1 text-center">
+                            <td className="border-t border-b border-l-2 border-r-2 border-black border-l-green-700 border-r-green-700 px-1 py-1 text-center">
                               $ {task ? task.cost.toFixed(2) : "0.00"}
                             </td>
                           </React.Fragment>
                         );
                       })}
-                      <td className="border border-black px-2 py-1 text-center font-bold">
+                      <td className="border-t border-b border-l-2 border-r-2 border-black border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                         {formatCurrency(totalPiecesPay)}
                       </td>
                       {hasOvertimeData && (
                         <>
-                          <td className="border border-black px-2 py-1 text-center font-bold">
+                          <td className="border-t border-b border-l-2 border-r-2 border-black border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                             {(employee.overtimeHours || 0).toFixed(2)} hrs
                           </td>
-                          <td className="border border-black px-2 py-1 text-center font-bold">
+                          <td className="border-t border-b border-l-2 border-r-2 border-black border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                             {formatCurrency(employee.regularRate || 0)}/hr
                           </td>
-                          <td className="border border-black px-2 py-1 text-center font-bold">
+                          <td className="border-t border-b border-l-2 border-r-2 border-black border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                             {formatCurrency(employee.overtimePremium || 0)}
                           </td>
                         </>
                       )}
-                      <td className="border border-black px-2 py-1 text-center font-bold">
+                      <td className="border-t border-b border-l-2 border-r-2 border-black border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                         {formatCurrency(minPayRequired)}
                       </td>
-                      <td className="border border-black px-2 py-1 text-center font-bold">
+                      <td className="border-t border-b border-l-2 border-r-2 border-black border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                         {formatCurrency(diffOwed)}
                       </td>
                     </tr>
