@@ -40,6 +40,8 @@ import { DeleteUserDialog } from "./delete-user-dialog";
 export interface AppUser {
   id: string;
   email: string;
+  username?: string;
+  fullName?: string;
   displayName: string;
   role: "Admin" | "User";
   status: "Active" | "Inactive";

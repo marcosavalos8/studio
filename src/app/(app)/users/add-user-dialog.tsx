@@ -35,11 +35,16 @@ import { Loader2 } from 'lucide-react'
 import { useState } from 'react'
 
 const userSchema = z.object({
+  fullName: z.string().min(1, 'Full name is required'),
+  username: z.string().min(3, 'Username must be at least 3 characters').regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
-  displayName: z.string().min(1, 'Display name is required'),
+  confirmPassword: z.string().min(6, 'Please confirm your password'),
   role: z.enum(['Admin', 'User']),
   status: z.enum(['Active', 'Inactive']),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
 })
 
 type AddUserDialogProps = {
@@ -55,9 +60,11 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
   const form = useForm<z.infer<typeof userSchema>>({
     resolver: zodResolver(userSchema),
     defaultValues: {
+      fullName: '',
+      username: '',
       email: '',
       password: '',
-      displayName: '',
+      confirmPassword: '',
       role: 'User',
       status: 'Active',
     },
@@ -76,16 +83,29 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
     setIsCreating(true)
 
     try {
-      // Check if user already exists in Firestore
+      // Check if user already exists in Firestore (by email or username)
       if (firestore) {
-        const usersQuery = query(collection(firestore, 'users'), where('email', '==', values.email));
-        const existingUsers = await getDocs(usersQuery);
+        const emailQuery = query(collection(firestore, 'users'), where('email', '==', values.email));
+        const existingEmailUsers = await getDocs(emailQuery);
         
-        if (!existingUsers.empty) {
+        if (!existingEmailUsers.empty) {
           toast({
             variant: 'destructive',
             title: 'Error',
             description: 'A user with this email already exists.',
+          });
+          setIsCreating(false);
+          return;
+        }
+
+        const usernameQuery = query(collection(firestore, 'users'), where('username', '==', values.username));
+        const existingUsernameUsers = await getDocs(usernameQuery);
+        
+        if (!existingUsernameUsers.empty) {
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'A user with this username already exists.',
           });
           setIsCreating(false);
           return;
@@ -101,7 +121,7 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
         body: JSON.stringify({
           email: values.email,
           password: values.password,
-          displayName: values.displayName,
+          displayName: values.fullName,
           role: values.role,
           status: values.status,
         }),
@@ -117,7 +137,9 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
       const userDocRef = doc(firestore, 'users', result.uid)
       await setDoc(userDocRef, {
         email: values.email,
-        displayName: values.displayName,
+        username: values.username,
+        fullName: values.fullName,
+        displayName: values.fullName,
         role: values.role,
         status: values.status,
         createdAt: new Date(),
@@ -126,7 +148,7 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
 
       toast({
         title: 'User Created',
-        description: `${values.displayName} has been added successfully.`,
+        description: `${values.fullName} has been added successfully. They can now login with their email or username.`,
       })
       
       form.reset()
@@ -156,12 +178,25 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="displayName"
+              name="fullName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Display Name</FormLabel>
+                  <FormLabel>Full Name</FormLabel>
                   <FormControl>
                     <Input placeholder="John Doe" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="username"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Username</FormLabel>
+                  <FormControl>
+                    <Input placeholder="johndoe" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -186,6 +221,19 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Password</FormLabel>
+                  <FormControl>
+                    <Input type="password" placeholder="••••••" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="confirmPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Confirm Password</FormLabel>
                   <FormControl>
                     <Input type="password" placeholder="••••••" {...field} />
                   </FormControl>
