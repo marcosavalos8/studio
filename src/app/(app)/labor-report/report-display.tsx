@@ -663,10 +663,10 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                       className={rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"}
                     >
                       <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 font-medium text-left">
-                        <span className="md:hidden lg:hidden">
+                        <span className="lg:hidden">
                           {truncateWorkerName(employee.employeeName)}
                         </span>
-                        <span className="hidden md:inline">
+                        <span className="hidden lg:inline">
                           {employee.employeeName}
                         </span>
                       </td>
