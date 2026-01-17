@@ -29,6 +29,16 @@ const formatCurrency = (value: number | undefined | null): string => {
   return `$${value.toFixed(2)}`;
 };
 
+// Helper function to truncate worker names to 2 names on small/medium screens
+const truncateWorkerName = (fullName: string): string => {
+  const nameParts = fullName.trim().split(/\s+/);
+  if (nameParts.length <= 2) {
+    return fullName;
+  }
+  // Return first two names only
+  return `${nameParts[0]} ${nameParts[1]}`;
+};
+
 export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
   const handlePrint = () => {
     window.print();
@@ -528,7 +538,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         <div className="mb-6 relative">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <h1 className="text-2xl font-bold text-center mb-1 text-green-700">
+              <h1 className="text-2xl font-bold text-left mb-1 text-green-700">
                 Labor Report | J&M Agricultural Labor LLC
               </h1>
             </div>
@@ -653,7 +663,12 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                       className={rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"}
                     >
                       <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 font-medium text-left">
-                        {employee.employeeName}
+                        <span className="md:hidden lg:hidden">
+                          {truncateWorkerName(employee.employeeName)}
+                        </span>
+                        <span className="hidden md:inline">
+                          {employee.employeeName}
+                        </span>
                       </td>
                       <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
                         {employee.totalHours.toFixed(2)}
