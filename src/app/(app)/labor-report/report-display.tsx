@@ -169,21 +169,16 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       uniqueTasks.forEach((taskName, idx) => {
         const label = String.fromCharCode(65 + idx);
 
-        // Colores alternados como en la imagen
-        const colors = ["FF70AD47", "FFE97132", "FFFFC000", "FF4472C4"]; // Verde, Naranja, Amarillo, Azul
-        const textColors = ["FFFFFFFF", "FFFFFFFF", "FF000000", "FFFFFFFF"]; // Blanco, Blanco, Negro, Blanco
-        const colorIndex = idx % 4;
-
         const headerStyleColored = {
           font: {
             bold: true,
             size: 10,
-            color: { argb: textColors[colorIndex] },
+            color: { argb: "FFFFFFFF" },
           },
           fill: {
             type: "pattern",
             pattern: "solid",
-            fgColor: { argb: colors[colorIndex] },
+            fgColor: { argb: "FF808080" }, // Gray color for all tasks
           },
           alignment: { horizontal: "center" },
           border: {
@@ -623,24 +618,6 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
             size: landscape;
             margin: 0.3in;
           }
-
-          /* Colores específicos como en la imagen */
-          .header-blue {
-            background-color: #4472c4;
-            color: white;
-          }
-          .header-green {
-            background-color: #70ad47;
-            color: white;
-          }
-          .header-orange {
-            background-color: #e97132;
-            color: white;
-          }
-          .header-yellow {
-            background-color: #ffc000;
-            color: black;
-          }
         `}</style>
 
         {/* Header con logo */}
@@ -702,30 +679,21 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                   </th>
                   {uniqueTasks.map((taskName, idx) => {
                     const label = String.fromCharCode(65 + idx);
-                    // Alternar colores como en la imagen
-                    const colorClass =
-                      idx % 4 === 0
-                        ? "bg-green-600 text-white"
-                        : idx % 4 === 1
-                        ? "bg-orange-500 text-white"
-                        : idx % 4 === 2
-                        ? "bg-yellow-400 text-black"
-                        : "bg-blue-500 text-white";
 
                     return (
                       <React.Fragment key={taskName}>
                         <th
-                          className={`border-2 border-black px-1 py-1 text-center font-bold ${colorClass}`}
+                          className="border-2 border-black px-1 py-1 text-center font-bold bg-gray-600 text-white"
                         >
                           Piece {label}
                         </th>
                         <th
-                          className={`border-2 border-black px-1 py-1 text-center font-bold ${colorClass}`}
+                          className="border-2 border-black px-1 py-1 text-center font-bold bg-gray-600 text-white"
                         >
                           Rate {label}
                         </th>
                         <th
-                          className={`border-2 border-black px-1 py-1 text-center font-bold ${colorClass}`}
+                          className="border-2 border-black px-1 py-1 text-center font-bold bg-gray-600 text-white"
                         >
                           Piece Pay {label}
                         </th>
