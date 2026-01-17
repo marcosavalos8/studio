@@ -24,6 +24,7 @@ import {
   LifeBuoy,
   QrCode,
   Tag,
+  UserCog,
 } from "lucide-react";
 
 const menuItems = [
@@ -35,6 +36,7 @@ const menuItems = [
   { href: "/payroll", label: "Payroll", icon: FileText },
   // { href: "/invoicing", label: "Invoicing", icon: DollarSign },
   { label: "Labor Report", href: "/labor-report", icon: Tag },
+  { href: "/users", label: "User Management", icon: UserCog },
 ];
 
 export function AppSidebar() {
