@@ -28,6 +28,7 @@ import type {
   Employee,
   Piecework,
   TimeEntry,
+  PiecesByVariety,
 } from "@/lib/types";
 
 // Main input schema for the server action
@@ -266,6 +267,9 @@ export async function generatePayrollReport({
         let weeklyHourlyHours = 0; // Hours worked on hourly tasks
         let weeklyPieceworkEarnings = 0; // Earnings from piecework tasks
         let weeklyPieceworkHours = 0; // Hours worked on piecework tasks
+        
+        // Track pieces by task/variety for the week
+        const piecesByTaskVariety = new Map<string, { taskName: string; variety: string; totalPieces: number }>();
 
         const sortedDays = Object.keys(dailyWork).sort(
           (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime()
@@ -382,6 +386,21 @@ export async function generatePayrollReport({
               weeklyPieceworkEarnings += earningsForTask;
               weeklyPieceworkHours += hours;
             }
+            
+            // Track pieces by task/variety if this is a piecework task
+            if (pieces > 0 && task.clientRateType === "piece") {
+              const varietyKey = `${task.name}|${task.variety || "N/A"}`;
+              if (piecesByTaskVariety.has(varietyKey)) {
+                const existing = piecesByTaskVariety.get(varietyKey)!;
+                existing.totalPieces += pieces;
+              } else {
+                piecesByTaskVariety.set(varietyKey, {
+                  taskName: task.name,
+                  variety: task.variety || "N/A",
+                  totalPieces: pieces
+                });
+              }
+            }
 
             // Determine task type label and rate for display
             const taskTypeLabel =
@@ -449,10 +468,12 @@ export async function generatePayrollReport({
         console.log("  Piecework regular rate:", pieceworkRegularRate.toFixed(2));
         
         // 2.2: Calcular descansos pagados SOLO para horas de piecework
-        // Fórmula del cliente: (Total Pieces Pay / Hours) × 0.33 × (# of Days Worked)
-        // 0.33 es 1/3 de hora (20 minutos exactos) de descanso pagado por día trabajado
+        // Fórmula del patrón (Excel): (Total Pieces Pay / Hours) × 0.33 × (# of Days Worked)
+        // IMPORTANTE: Excel NO redondea valores intermedios, solo el resultado final
+        // Ejemplo: (812.38 / 37.25) * 0.33 * 5 = 35.98 (no redondear la tasa intermedia)
         const daysWorked = sortedDays.length;
-        const pieceworkRestBreaksPay = pieceworkRegularRate * 0.33 * daysWorked;
+        // Calculate with full precision, round only the final result
+        const pieceworkRestBreaksPay = parseFloat((pieceworkRegularRate * 0.33 * daysWorked).toFixed(2));
         
         console.log("  Days worked:", daysWorked);
         console.log("  Rest breaks pay:", pieceworkRestBreaksPay.toFixed(2));
@@ -555,6 +576,10 @@ export async function generatePayrollReport({
           },
         });
 
+        // Calculate total pieces and pieces by variety for the week
+        const piecesByVarietyArray = Array.from(piecesByTaskVariety.values());
+        const totalWeeklyPieces = piecesByVarietyArray.reduce((sum, item) => sum + item.totalPieces, 0);
+
         weeklySummaries.push({
           weekNumber,
           year,
@@ -569,6 +594,12 @@ export async function generatePayrollReport({
           finalPay: parseFloat(finalWeeklyPay.toFixed(2)),
           dailyBreakdown: dailyBreakdownsForWeek,
           sickHoursAccrued: parseFloat(sickHoursAccrued.toFixed(2)),
+          totalPieces: totalWeeklyPieces > 0 ? parseFloat(totalWeeklyPieces.toFixed(2)) : undefined,
+          piecesByVariety: piecesByVarietyArray.length > 0 ? piecesByVarietyArray.map(item => ({
+            taskName: item.taskName,
+            variety: item.variety,
+            totalPieces: parseFloat(item.totalPieces.toFixed(2))
+          })) : undefined,
         });
       }
 

@@ -14,11 +14,16 @@ import {
 } from "@/components/ui/card";
 import { Logo } from "@/components/icons/logo";
 import { useAuth } from "@/contexts/auth-context";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "@/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { useFirestore } from "@/firebase";
 
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
-  const [username, setUsername] = useState("");
+  const firestore = useFirestore();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,15 +33,64 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
-    // Simple credential check: David / 1234
-    if (username === "David" && password === "1234") {
-      // Store login state in localStorage and update context
-      localStorage.setItem("isAuthenticated", "true");
-      localStorage.setItem("username", username);
-      login(username);
-      router.push("/dashboard");
-    } else {
-      setError("Invalid credentials. Try David / 1234");
+    try {
+      // First, try the hardcoded credentials for backward compatibility
+      if (email === "David" && password === "1234") {
+        localStorage.setItem("isAuthenticated", "true");
+        localStorage.setItem("username", email);
+        login(email);
+        router.push("/dashboard");
+        return;
+      }
+
+      // Try Firebase Authentication
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Check if user exists in Firestore and is active
+      if (firestore) {
+        const userDocRef = doc(firestore, "users", user.uid);
+        const userDoc = await getDoc(userDocRef);
+
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          
+          if (userData.status === "Inactive") {
+            setError("Your account is inactive. Please contact an administrator.");
+            setLoading(false);
+            return;
+          }
+
+          // Store user info and redirect
+          localStorage.setItem("isAuthenticated", "true");
+          localStorage.setItem("username", userData.displayName || user.email || "User");
+          localStorage.setItem("userRole", userData.role || "User");
+          login(userData.displayName || user.email || "User");
+          router.push("/dashboard");
+        } else {
+          setError("User not found in system. Please contact an administrator.");
+          setLoading(false);
+        }
+      } else {
+        // Firestore not available, allow login anyway
+        localStorage.setItem("isAuthenticated", "true");
+        localStorage.setItem("username", user.email || "User");
+        login(user.email || "User");
+        router.push("/dashboard");
+      }
+    } catch (error: any) {
+      console.error("Login error:", error);
+      
+      // Handle specific Firebase Auth errors
+      if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
+        setError("Invalid email or password");
+      } else if (error.code === "auth/invalid-email") {
+        setError("Invalid email address");
+      } else if (error.code === "auth/user-disabled") {
+        setError("This account has been disabled");
+      } else {
+        setError("Failed to login. Please try again.");
+      }
       setLoading(false);
     }
   };
@@ -56,13 +110,13 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="email">Email / Username</Label>
               <Input
-                id="username"
+                id="email"
                 type="text"
-                placeholder="Enter username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter email or username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 className="w-full"
               />

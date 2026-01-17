@@ -96,6 +96,22 @@ service cloud.firestore {
       allow delete: if isAdmin() && resource != null;
     }
 
+    /**
+     * @description Manages user accounts for app access.
+     * @path /users/{userId}
+     * @allow (create) - Any authenticated user can create a user (for initial setup).
+     * @allow (get, list) - Any authenticated user can read user data.
+     * @allow (update, delete) - Any authenticated user can update or delete users (for testing).
+     * @principle Temporary open access for testing. Should be restricted to admins in production.
+     * @todo Add admin-only restrictions after first admin user is created.
+     */
+    match /users/{userId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
     // --- Funciones de Ayuda ---
 function isSignedIn() {
   return request.auth != null;

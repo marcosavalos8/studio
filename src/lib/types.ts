@@ -87,6 +87,12 @@ export type DailyBreakdown = {
   totalDailyEarnings: number;
 };
 
+export type PiecesByVariety = {
+  taskName: string;
+  variety: string;
+  totalPieces: number;
+};
+
 export type WeeklySummary = {
   weekNumber: number;
   year: number;
@@ -100,6 +106,8 @@ export type WeeklySummary = {
   finalPay: number; // totalEarnings + topUp + restBreaks + overtimePremium
   dailyBreakdown: DailyBreakdown[];
   sickHoursAccrued?: number; // Sick hours earned this week
+  totalPieces?: number; // Total pieces for the week
+  piecesByVariety?: PiecesByVariety[]; // Pieces broken down by task/variety
 };
 
 export type EmployeePayrollSummary = {
