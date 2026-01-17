@@ -16,14 +16,14 @@ import { Logo } from "@/components/icons/logo";
 import { useAuth } from "@/contexts/auth-context";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { useFirestore } from "@/firebase";
 
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
   const firestore = useFirestore();
-  const [email, setEmail] = useState("");
+  const [emailOrUsername, setEmailOrUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -34,17 +34,42 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      // Trim whitespace from email/username and password
+      const trimmedInput = emailOrUsername.trim();
+      const trimmedPassword = password.trim();
+
       // First, try the hardcoded credentials for backward compatibility
-      if (email === "David" && password === "1234") {
+      if (trimmedInput === "David" && trimmedPassword === "1234") {
         localStorage.setItem("isAuthenticated", "true");
-        localStorage.setItem("username", email);
-        login(email);
+        localStorage.setItem("username", trimmedInput);
+        localStorage.setItem("userRole", "Admin"); // David is an admin
+        login(trimmedInput, "Admin");
         router.push("/dashboard");
         return;
       }
 
-      // Try Firebase Authentication
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      // Determine if input is email or username
+      let userEmail = trimmedInput;
+      const isEmail = trimmedInput.includes('@');
+      
+      // If it's a username, look up the email in Firestore
+      if (!isEmail && firestore) {
+        const usersQuery = query(collection(firestore, 'users'), where('username', '==', trimmedInput));
+        const usersSnapshot = await getDocs(usersQuery);
+        
+        if (usersSnapshot.empty) {
+          setError("User not found. Please check your username.");
+          setLoading(false);
+          return;
+        }
+        
+        // Get the email from the user document
+        const userDoc = usersSnapshot.docs[0];
+        userEmail = userDoc.data().email;
+      }
+
+      // Try Firebase Authentication with email
+      const userCredential = await signInWithEmailAndPassword(auth, userEmail, trimmedPassword);
       const user = userCredential.user;
 
       // Check if user exists in Firestore and is active
@@ -62,10 +87,13 @@ export default function LoginPage() {
           }
 
           // Store user info and redirect
+          const displayName = userData.displayName || userData.fullName || user.email || "User";
+          const role = userData.role || "User";
+          
           localStorage.setItem("isAuthenticated", "true");
-          localStorage.setItem("username", userData.displayName || user.email || "User");
-          localStorage.setItem("userRole", userData.role || "User");
-          login(userData.displayName || user.email || "User");
+          localStorage.setItem("username", displayName);
+          localStorage.setItem("userRole", role);
+          login(displayName, role);
           router.push("/dashboard");
         } else {
           setError("User not found in system. Please contact an administrator.");
@@ -75,7 +103,8 @@ export default function LoginPage() {
         // Firestore not available, allow login anyway
         localStorage.setItem("isAuthenticated", "true");
         localStorage.setItem("username", user.email || "User");
-        login(user.email || "User");
+        localStorage.setItem("userRole", "User");
+        login(user.email || "User", "User");
         router.push("/dashboard");
       }
     } catch (error: any) {
@@ -83,11 +112,13 @@ export default function LoginPage() {
       
       // Handle specific Firebase Auth errors
       if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
-        setError("Invalid email or password");
+        setError("Invalid credentials. Please check your email/username and password.");
       } else if (error.code === "auth/invalid-email") {
-        setError("Invalid email address");
+        setError("Invalid email format. If using a username, make sure it's correct.");
       } else if (error.code === "auth/user-disabled") {
         setError("This account has been disabled");
+      } else if (error.code === "auth/invalid-credential") {
+        setError("Invalid credentials. Please check your email/username and password.");
       } else {
         setError("Failed to login. Please try again.");
       }
@@ -110,15 +141,16 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email / Username</Label>
+              <Label htmlFor="emailOrUsername">Email / Username</Label>
               <Input
-                id="email"
+                id="emailOrUsername"
                 type="text"
-                placeholder="Enter email or username"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email or username"
+                value={emailOrUsername}
+                onChange={(e) => setEmailOrUsername(e.target.value)}
                 required
                 className="w-full"
+                autoComplete="username"
               />
             </div>
             <div className="space-y-2">

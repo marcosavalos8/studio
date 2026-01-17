@@ -6,7 +6,9 @@ import { useRouter, usePathname } from 'next/navigation'
 interface AuthContextType {
   isAuthenticated: boolean
   username: string | null
-  login: (username: string) => void
+  userRole: string | null
+  isAdmin: boolean
+  login: (username: string, role?: string) => void
   logout: () => void
 }
 
@@ -15,6 +17,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [username, setUsername] = useState<string | null>(null)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
@@ -23,10 +26,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check if user is authenticated on mount
     const auth = localStorage.getItem('isAuthenticated')
     const savedUsername = localStorage.getItem('username')
+    const savedRole = localStorage.getItem('userRole')
     
     if (auth === 'true' && savedUsername) {
       setIsAuthenticated(true)
       setUsername(savedUsername)
+      setUserRole(savedRole || 'User')
     }
     setLoading(false)
   }, [])
@@ -42,25 +47,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, loading, pathname, router])
 
-  const login = (username: string) => {
+  const login = (username: string, role?: string) => {
     setIsAuthenticated(true)
     setUsername(username)
+    setUserRole(role || 'User')
   }
 
   const logout = () => {
     localStorage.removeItem('isAuthenticated')
     localStorage.removeItem('username')
+    localStorage.removeItem('userRole')
     setIsAuthenticated(false)
     setUsername(null)
+    setUserRole(null)
     router.push('/login')
   }
+
+  const isAdmin = userRole === 'Admin'
 
   if (loading) {
     return null
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, username, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, username, userRole, isAdmin, login, logout }}>
       {children}
     </AuthContext.Provider>
   )
