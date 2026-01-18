@@ -20,8 +20,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { PlaceHolderImages } from '@/lib/placeholder-images'
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useAuth } from '@/contexts/auth-context'
 
 const pageTitles: { [key: string]: string } = {
@@ -38,7 +37,6 @@ export function AppHeader() {
   const pathname = usePathname()
   const { logout, username, userRole } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
-  const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar');
 
   const getTitle = () => {
     for (const path in pageTitles) {
@@ -118,8 +116,7 @@ export function AppHeader() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
               <Avatar className="h-8 w-8">
-                {userAvatar && <AvatarImage src={userAvatar.imageUrl} alt="User avatar" />}
-                <AvatarFallback>{username?.substring(0, 2).toUpperCase() || 'JD'}</AvatarFallback>
+                <AvatarFallback>{username?.charAt(0).toUpperCase() || 'J'}</AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>

@@ -29,6 +29,19 @@ const formatCurrency = (value: number | undefined | null): string => {
   return `$${value.toFixed(2)}`;
 };
 
+// Helper function to truncate worker names to 2 names on small/medium screens
+const truncateWorkerName = (fullName: string): string => {
+  if (!fullName || typeof fullName !== 'string') {
+    return '';
+  }
+  const nameParts = fullName.trim().split(/\s+/).filter(part => part.length > 0);
+  if (nameParts.length <= 2) {
+    return fullName;
+  }
+  // Return first two names only
+  return `${nameParts[0]} ${nameParts[1]}`;
+};
+
 export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
   const handlePrint = () => {
     window.print();
@@ -110,6 +123,16 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       const ubiValueCell = worksheet.getCell(5, 3);
       ubiValueCell.value = "605 650 411";
 
+      // Add thick green bottom border to row 5 (below UBI# info)
+      for (let col = 1; col <= totalColumns; col++) {
+        const cell = worksheet.getCell(5, col);
+        if (!cell.border) cell.border = {};
+        cell.border = {
+          ...cell.border,
+          bottom: { style: "thick", color: { argb: "FF70AD47" } }, // Thick green bottom border
+        };
+      }
+
       // Try to add logo (optional)
       try {
         const logoResponse = await fetch("/logo.jpeg");
@@ -129,15 +152,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         console.warn("Could not add logo to Excel:", error);
       }
 
-      // Add green line above headers (row 6)
-      for (let col = 1; col <= totalColumns; col++) {
-        const borderCell = worksheet.getCell(6, col);
-        borderCell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: "FF70AD47" }, // Green color
-        };
-      }
+      // Row 6 is left blank (space between border and headers)
 
       // Table headers starting at row 7
       const headerRow = 7;
@@ -503,7 +518,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
             .report-container h1 {
               font-size: 16px;
               margin-bottom: 0.25rem;
-              text-align: center;
+              text-align: left;
             }
             .report-container h2 {
               font-size: 12px;
@@ -528,7 +543,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         <div className="mb-6 relative">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <h1 className="text-2xl font-bold text-center mb-1 text-green-700">
+              <h1 className="text-2xl font-bold text-left mb-1 text-green-700">
                 Labor Report | J&M Agricultural Labor LLC
               </h1>
             </div>
@@ -565,13 +580,13 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
               </p>
             </div>
           </div>
+          {/* Green bottom border after company info */}
+          <div className="border-b-4 border-green-700 mt-2"></div>
         </div>
 
         {hasEmployeeDetails ? (
           <div className="overflow-x-auto">
-            {/* Green line above headers */}
-            <div className="h-1 bg-green-700 mb-0"></div>
-            <table className="w-full border-collapse text-xs">
+            <table className="w-full border-collapse text-xs mt-4">
               <thead>
                 <tr>
                   <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
@@ -653,7 +668,12 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                       className={rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"}
                     >
                       <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 font-medium text-left">
-                        {employee.employeeName}
+                        <span className="lg:hidden">
+                          {truncateWorkerName(employee.employeeName)}
+                        </span>
+                        <span className="hidden lg:inline">
+                          {employee.employeeName}
+                        </span>
                       </td>
                       <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
                         {employee.totalHours.toFixed(2)}
