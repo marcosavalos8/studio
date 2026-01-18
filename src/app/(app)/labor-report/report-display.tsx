@@ -142,9 +142,11 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         console.warn("Could not add logo to Excel:", error);
       }
 
-      // Add green line above headers (row 6)
+      // Row 6 is left blank
+
+      // Add green line below company info (row 7)
       for (let col = 1; col <= totalColumns; col++) {
-        const borderCell = worksheet.getCell(6, col);
+        const borderCell = worksheet.getCell(7, col);
         borderCell.fill = {
           type: "pattern",
           pattern: "solid",
@@ -152,8 +154,8 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         };
       }
 
-      // Table headers starting at row 7
-      const headerRow = 7;
+      // Table headers starting at row 8
+      const headerRow = 8;
       let currentCol = 1;
 
       // Style for headers with green background
@@ -516,7 +518,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
             .report-container h1 {
               font-size: 16px;
               margin-bottom: 0.25rem;
-              text-align: center;
+              text-align: left;
             }
             .report-container h2 {
               font-size: 12px;
