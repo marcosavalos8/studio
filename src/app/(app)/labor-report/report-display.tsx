@@ -123,6 +123,16 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       const ubiValueCell = worksheet.getCell(5, 3);
       ubiValueCell.value = "605 650 411";
 
+      // Add thick green bottom border to row 5 (below UBI# info)
+      for (let col = 1; col <= totalColumns; col++) {
+        const cell = worksheet.getCell(5, col);
+        if (!cell.border) cell.border = {};
+        cell.border = {
+          ...cell.border,
+          bottom: { style: "thick", color: { argb: "FF70AD47" } }, // Thick green bottom border
+        };
+      }
+
       // Try to add logo (optional)
       try {
         const logoResponse = await fetch("/logo.jpeg");
@@ -142,20 +152,10 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         console.warn("Could not add logo to Excel:", error);
       }
 
-      // Add green line right after UBI# info (row 6) - as a thick border
-      for (let col = 1; col <= totalColumns; col++) {
-        const borderCell = worksheet.getCell(6, col);
-        borderCell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: "FF70AD47" }, // Green color
-        };
-      }
+      // Row 6 is left blank (space between border and headers)
 
-      // Row 7 is left blank (space between green line and headers)
-
-      // Table headers starting at row 8
-      const headerRow = 8;
+      // Table headers starting at row 7
+      const headerRow = 7;
       let currentCol = 1;
 
       // Style for headers with green background
@@ -580,13 +580,13 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
               </p>
             </div>
           </div>
+          {/* Green bottom border after company info */}
+          <div className="border-b-4 border-green-700 mt-2"></div>
         </div>
 
         {hasEmployeeDetails ? (
           <div className="overflow-x-auto">
-            {/* Green line above headers */}
-            <div className="h-1 bg-green-700 mb-0"></div>
-            <table className="w-full border-collapse text-xs">
+            <table className="w-full border-collapse text-xs mt-4">
               <thead>
                 <tr>
                   <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
