@@ -142,17 +142,17 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         console.warn("Could not add logo to Excel:", error);
       }
 
-      // Row 6 is left blank
-
-      // Add green line below company info (row 7)
+      // Add green line right after UBI# info (row 6) - as a thick border
       for (let col = 1; col <= totalColumns; col++) {
-        const borderCell = worksheet.getCell(7, col);
+        const borderCell = worksheet.getCell(6, col);
         borderCell.fill = {
           type: "pattern",
           pattern: "solid",
           fgColor: { argb: "FF70AD47" }, // Green color
         };
       }
+
+      // Row 7 is left blank (space between green line and headers)
 
       // Table headers starting at row 8
       const headerRow = 8;
