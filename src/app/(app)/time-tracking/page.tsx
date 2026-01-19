@@ -2931,6 +2931,17 @@ function TimeTrackingPage() {
   const handleDeleteAllMovements = async () => {
     if (!firestore) return;
 
+    // Check if offline before attempting delete
+    if (!isOnline) {
+      toast({
+        variant: "destructive",
+        title: "Offline Mode",
+        description: "Cannot delete records while offline. Please connect to the internet and try again.",
+      });
+      setIsDeletingAll(false);
+      return;
+    }
+
     // Check if filters are applied
     const hasFilters = historyStartDate || historyEndDate || historyNameFilter;
 
