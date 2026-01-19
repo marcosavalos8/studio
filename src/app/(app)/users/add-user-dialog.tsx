@@ -86,7 +86,9 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
 
     try {
       // Check for duplicate email/username only when online
-      // Offline users won't have validation but will sync when back online
+      // Note: Offline users bypass validation - Firestore security rules will
+      // catch duplicates during sync and the operation will fail silently,
+      // requiring the user to retry with a different email/username when online
       if (firestore && isOnline) {
         const emailQuery = query(collection(firestore, 'users'), where('email', '==', values.email));
         const existingEmailUsers = await getDocs(emailQuery);

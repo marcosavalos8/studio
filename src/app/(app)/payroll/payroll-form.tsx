@@ -69,12 +69,8 @@ export function PayrollForm() {
         }
 
         // Check if offline before attempting data fetch
+        // Note: When user comes back online, this will automatically refetch (which is desired)
         if (!isOnline) {
-            toast({
-                variant: "destructive",
-                title: "Offline Mode",
-                description: "Cannot fetch payroll data while offline. Please connect to the internet and try again.",
-            });
             setAllData(null);
             setEmployeesInRange([]);
             setSelectedEmployeeIds(new Set());
