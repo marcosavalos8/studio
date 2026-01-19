@@ -2454,61 +2454,15 @@ function TimeTrackingPage() {
     }
 
     setIsBulkClockingOut(true);
+    const timeLogsRef = collection(firestore, "time_entries");
+    const q = query(
+      timeLogsRef,
+      where("taskId", "==", selectedBulkTask),
+      where("endTime", "==", null)
+    );
 
     try {
-      const timestamp =
-        useBulkClockOutManualDateTime && bulkClockOutDate
-          ? roundToNearestQuarterHour(bulkClockOutDate)
-          : roundToNearestQuarterHour(new Date());
-
-      // When offline, show success immediately and queue operation in background
-      // Firestore persistence will sync when connection is restored
-      if (!isOnline) {
-        toast({
-          title: "Bulk Clock Out Successful",
-          description: addOfflineIndicator(
-            `Successfully clocked out employee(s) from the task.`,
-            isOnline
-          ),
-        });
-        setIsBulkClockingOut(false);
-        
-        // Queue the operation in background without awaiting
-        (async () => {
-          try {
-            const timeLogsRef = collection(firestore, "time_entries");
-            const q = query(
-              timeLogsRef,
-              where("taskId", "==", selectedBulkTask),
-              where("endTime", "==", null)
-            );
-            const querySnapshot = await getDocs(q);
-            
-            if (!querySnapshot.empty) {
-              const updatedData = { endTime: timestamp };
-              const batch = writeBatch(firestore);
-              querySnapshot.forEach((doc) => {
-                batch.update(doc.ref, updatedData);
-              });
-              await batch.commit();
-            }
-          } catch (error) {
-            console.warn("Background bulk clock-out failed, will retry when online:", error);
-          }
-        })();
-        
-        return;
-      }
-
-      // Online flow - wait for operation to complete
-      const timeLogsRef = collection(firestore, "time_entries");
-      const q = query(
-        timeLogsRef,
-        where("taskId", "==", selectedBulkTask),
-        where("endTime", "==", null)
-      );
       const querySnapshot = await getDocs(q);
-      
       if (querySnapshot.empty) {
         toast({
           title: "No one to clock out",
@@ -2517,6 +2471,10 @@ function TimeTrackingPage() {
         return;
       }
 
+      const timestamp =
+        useBulkClockOutManualDateTime && bulkClockOutDate
+          ? roundToNearestQuarterHour(bulkClockOutDate)
+          : roundToNearestQuarterHour(new Date());
       const updatedData = { endTime: timestamp };
       const batch = writeBatch(firestore);
       querySnapshot.forEach((doc) => {
@@ -2568,6 +2526,7 @@ function TimeTrackingPage() {
     setIsBulkClockingIn(true);
 
     try {
+      const batch = writeBatch(firestore);
       const clockInTimestamp =
         useBulkClockInManualDateTime && bulkClockInDate
           ? roundToNearestQuarterHour(bulkClockInDate)
@@ -2576,66 +2535,6 @@ function TimeTrackingPage() {
       // Clock out any active sessions at the same rounded timestamp as the new clock-in
       // This is consistent with the regular clockInEmployee behavior
       const clockOutTimestamp = clockInTimestamp;
-
-      // When offline, show success immediately and queue operation in background
-      // Firestore persistence will sync when connection is restored
-      if (!isOnline) {
-        const employeeCount = selectedBulkInEmployees.size;
-        const employeeIds = Array.from(selectedBulkInEmployees);
-        const taskId = selectedBulkInTask;
-        
-        toast({
-          title: "Bulk Clock In Successful",
-          description: addOfflineIndicator(
-            `Successfully clocked in ${employeeCount} employee(s).`,
-            isOnline
-          ),
-        });
-        setSelectedBulkInEmployees(new Set()); // Clear selection immediately
-        setIsBulkClockingIn(false);
-        
-        // Queue the operation in background without awaiting
-        (async () => {
-          try {
-            const batch = writeBatch(firestore);
-            
-            // Sub-query for currently active entries of the selected employees
-            const activeEntriesQuery = query(
-              collection(firestore, "time_entries"),
-              where("employeeId", "in", employeeIds),
-              where("endTime", "==", null)
-            );
-            const activeEntriesSnap = await getDocs(activeEntriesQuery);
-
-            // Clock out any active sessions for the selected employees
-            activeEntriesSnap.forEach((doc) => {
-              batch.update(doc.ref, { endTime: clockOutTimestamp });
-            });
-
-            // Clock in all selected employees for the new task
-            employeeIds.forEach((employeeId) => {
-              const newTimeEntryRef = doc(collection(firestore, "time_entries"));
-              const newTimeEntry: Omit<TimeEntry, "id"> = {
-                employeeId: employeeId,
-                taskId: taskId,
-                timestamp: clockInTimestamp,
-                endTime: null,
-                isBreak: false,
-              };
-              batch.set(newTimeEntryRef, newTimeEntry);
-            });
-
-            await batch.commit();
-          } catch (error) {
-            console.warn("Background bulk clock-in failed, will retry when online:", error);
-          }
-        })();
-        
-        return;
-      }
-
-      // Online flow - wait for operation to complete
-      const batch = writeBatch(firestore);
 
       // Sub-query for currently active entries of the selected employees
       const activeEntriesQuery = query(
@@ -2930,17 +2829,6 @@ function TimeTrackingPage() {
 
   const handleDeleteAllMovements = async () => {
     if (!firestore) return;
-
-    // Check if offline before attempting delete
-    if (!isOnline) {
-      toast({
-        variant: "destructive",
-        title: "Offline Mode",
-        description: "Cannot delete records while offline. Please connect to the internet and try again.",
-      });
-      setIsDeletingAll(false);
-      return;
-    }
 
     // Check if filters are applied
     const hasFilters = historyStartDate || historyEndDate || historyNameFilter;

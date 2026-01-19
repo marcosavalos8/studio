@@ -34,7 +34,6 @@ import { useToast } from "@/hooks/use-toast";
 import { type DetailedInvoiceData } from "./page";
 import { InvoiceReportDisplay } from "./report-display";
 import { generatePayrollReport } from "@/ai/flows/generate-payroll-report";
-import { useNetworkStatus } from "@/hooks/use-network-status";
 
 type InvoicingFormProps = {
   clients: Client[];
@@ -43,7 +42,6 @@ type InvoicingFormProps = {
 export function InvoicingForm({ clients }: InvoicingFormProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
-  const { isOnline } = useNetworkStatus();
   const [date, setDate] = React.useState<DateRange | undefined>();
   const [selectedClient, setSelectedClient] = React.useState<
     Client | undefined
@@ -61,17 +59,6 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
       });
       return;
     }
-
-    // Check if offline before attempting data fetch
-    if (!isOnline) {
-      toast({
-        variant: "destructive",
-        title: "Offline Mode",
-        description: "Cannot generate invoice while offline. Please connect to the internet and try again.",
-      });
-      return;
-    }
-
     setIsGenerating(true);
     setInvoiceData(null);
 
