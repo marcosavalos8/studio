@@ -23,6 +23,7 @@ import { Client, Employee, Piecework, Task, TimeEntry, ProcessedPayrollData } fr
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PayrollReportDisplay } from "./report-display"
+import { useNetworkStatus } from "@/hooks/use-network-status"
 
 const initialState = {
   report: undefined,
@@ -36,6 +37,7 @@ export function PayrollForm() {
   const [isFetchingData, setIsFetchingData] = React.useState(false);
   const { toast } = useToast()
   const firestore = useFirestore();
+  const { isOnline } = useNetworkStatus();
 
   const [allData, setAllData] = React.useState<any>(null);
   const [employeesInRange, setEmployeesInRange] = React.useState<Employee[]>([]);
@@ -63,6 +65,16 @@ export function PayrollForm() {
             setAllData(null);
             setEmployeesInRange([]);
             setSelectedEmployeeIds(new Set());
+            return;
+        }
+
+        // Check if offline before attempting data fetch
+        // Note: When user comes back online, this will automatically refetch (which is desired)
+        if (!isOnline) {
+            setAllData(null);
+            setEmployeesInRange([]);
+            setSelectedEmployeeIds(new Set());
+            setIsFetchingData(false);
             return;
         }
 
@@ -155,7 +167,7 @@ export function PayrollForm() {
     };
     
     fetchPayrollData();
-  }, [date, firestore, toast]);
+  }, [date, firestore, toast, isOnline]);
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
