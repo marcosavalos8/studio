@@ -2493,7 +2493,7 @@ function TimeTrackingPage() {
               await batch.commit();
             }
           } catch (error) {
-            console.warn("Background bulk clock-out sync queued:", error);
+            console.warn("Background bulk clock-out failed, will retry when online:", error);
           }
         })();
         
@@ -2627,7 +2627,7 @@ function TimeTrackingPage() {
 
             await batch.commit();
           } catch (error) {
-            console.warn("Background bulk clock-in sync queued:", error);
+            console.warn("Background bulk clock-in failed, will retry when online:", error);
           }
         })();
         
