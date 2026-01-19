@@ -33,7 +33,6 @@ import { collection, doc, setDoc, query, where, getDocs } from 'firebase/firesto
 import { useToast } from '@/hooks/use-toast'
 import { Loader2 } from 'lucide-react'
 import { useState } from 'react'
-import { useNetworkStatus } from '@/hooks/use-network-status'
 
 const userSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
@@ -56,7 +55,6 @@ type AddUserDialogProps = {
 export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
   const firestore = useFirestore()
   const { toast } = useToast()
-  const { isOnline } = useNetworkStatus()
   const [isCreating, setIsCreating] = useState(false)
   
   const form = useForm<z.infer<typeof userSchema>>({
@@ -85,11 +83,8 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
     setIsCreating(true)
 
     try {
-      // Check for duplicate email/username only when online
-      // Note: Offline users bypass validation - Firestore security rules will
-      // catch duplicates during sync and the operation will fail silently,
-      // requiring the user to retry with a different email/username when online
-      if (firestore && isOnline) {
+      // Check if user already exists in Firestore (by email or username)
+      if (firestore) {
         const emailQuery = query(collection(firestore, 'users'), where('email', '==', values.email));
         const existingEmailUsers = await getDocs(emailQuery);
         

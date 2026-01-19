@@ -33,7 +33,6 @@ import { useToast } from "@/hooks/use-toast";
 import { type DetailedLabelReportData } from "./page";
 import { LabelReportDisplay } from "./report-display";
 import { generatePayrollReport } from "@/ai/flows/generate-payroll-report";
-import { useNetworkStatus } from "@/hooks/use-network-status";
 
 type LabelReportFormProps = {
   clients: Client[];
@@ -42,7 +41,6 @@ type LabelReportFormProps = {
 export function LabelReportForm({ clients }: LabelReportFormProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
-  const { isOnline } = useNetworkStatus();
   const [date, setDate] = React.useState<DateRange | undefined>();
   const [selectedClient, setSelectedClient] = React.useState<
     Client | undefined
@@ -59,17 +57,6 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
       });
       return;
     }
-
-    // Check if offline before attempting data fetch
-    if (!isOnline) {
-      toast({
-        variant: "destructive",
-        title: "Offline Mode",
-        description: "Cannot generate report while offline. Please connect to the internet and try again.",
-      });
-      return;
-    }
-
     setIsGenerating(true);
     setReportData(null);
 
