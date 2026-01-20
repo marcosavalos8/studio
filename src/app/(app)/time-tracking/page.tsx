@@ -2508,16 +2508,9 @@ function TimeTrackingPage() {
           },
         });
         errorEmitter.emit("permission-error", permissionError);
-      } else {
-        // When offline, show a user-friendly message instead of throwing
-        console.warn("Bulk clock-out operation failed offline:", serverError);
-        toast({
-          variant: "destructive",
-          title: "Bulk Clock Out Error",
-          description:
-            "Unable to complete bulk clock-out. Please try again or check your data when back online.",
-        });
       }
+      // When offline, operations are queued automatically by Firestore persistence
+      // No error message is shown to maintain consistency with offline behavior
     } finally {
       setIsBulkClockingOut(false);
     }
@@ -2597,16 +2590,9 @@ function TimeTrackingPage() {
           },
         });
         errorEmitter.emit("permission-error", permissionError);
-      } else {
-        // When offline, show a user-friendly message instead of throwing
-        console.warn("Bulk clock-in operation failed offline:", serverError);
-        toast({
-          variant: "destructive",
-          title: "Bulk Clock In Error",
-          description:
-            "Unable to complete bulk clock-in. Please try again or check your data when back online.",
-        });
       }
+      // When offline, operations are queued automatically by Firestore persistence
+      // No error message is shown to maintain consistency with offline behavior
     } finally {
       setIsBulkClockingIn(false);
     }
