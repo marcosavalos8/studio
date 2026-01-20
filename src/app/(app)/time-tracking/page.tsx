@@ -2514,7 +2514,7 @@ function TimeTrackingPage() {
         toast({
           title: "Bulk Clock Out Queued",
           description: addOfflineIndicator(
-            "Bulk clock out operation has been saved and will sync when online.",
+            "Bulk clock out completed.",
             false
           ),
         });
@@ -2603,7 +2603,7 @@ function TimeTrackingPage() {
         toast({
           title: "Bulk Clock In Queued",
           description: addOfflineIndicator(
-            `Bulk clock in for ${selectedBulkInEmployees.size} employee(s) has been saved and will sync when online.`,
+            `Bulk clock in completed for ${selectedBulkInEmployees.size} employee(s).`,
             false
           ),
         });
