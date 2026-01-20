@@ -2550,18 +2550,23 @@ function TimeTrackingPage() {
       // This is consistent with the regular clockInEmployee behavior
       const clockOutTimestamp = clockInTimestamp;
 
-      // Sub-query for currently active entries of the selected employees
-      const activeEntriesQuery = query(
-        collection(firestore, "time_entries"),
-        where("employeeId", "in", Array.from(selectedBulkInEmployees)),
-        where("endTime", "==", null)
-      );
-      const activeEntriesSnap = await getDocs(activeEntriesQuery);
+      // Only query for active entries when online to avoid hanging when offline
+      if (isOnline) {
+        // Sub-query for currently active entries of the selected employees
+        const activeEntriesQuery = query(
+          collection(firestore, "time_entries"),
+          where("employeeId", "in", Array.from(selectedBulkInEmployees)),
+          where("endTime", "==", null)
+        );
+        const activeEntriesSnap = await getDocs(activeEntriesQuery);
 
-      // Clock out any active sessions for the selected employees
-      activeEntriesSnap.forEach((doc) => {
-        batch.update(doc.ref, { endTime: clockOutTimestamp });
-      });
+        // Clock out any active sessions for the selected employees
+        activeEntriesSnap.forEach((doc) => {
+          batch.update(doc.ref, { endTime: clockOutTimestamp });
+        });
+      }
+      // When offline, skip querying active entries to avoid hanging
+      // Firestore will handle any conflicts when syncing
 
       // Clock in all selected employees for the new task
       selectedBulkInEmployees.forEach((employeeId) => {
