@@ -220,14 +220,14 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         overtimePremiumHeader.style = headerStyle;
       }
 
-      // MIN PAY REQ and Diff Owed always at the end
-      const minPayHeader = worksheet.getCell(headerRow, currentCol++);
-      minPayHeader.value = "MIN PAY REQ";
-      minPayHeader.style = headerStyle;
-
+      // Diff Owed/Break and PAY REQ always at the end
       const diffOwedHeader = worksheet.getCell(headerRow, currentCol++);
-      diffOwedHeader.value = "Diff Owed";
+      diffOwedHeader.value = "Diff Owed/Break";
       diffOwedHeader.style = headerStyle;
+
+      const minPayHeader = worksheet.getCell(headerRow, currentCol++);
+      minPayHeader.value = "PAY REQ";
+      minPayHeader.style = headerStyle;
 
       // Data rows
       let currentRow = headerRow + 1;
@@ -338,18 +338,18 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
           };
         }
 
-        // MIN PAY REQ and Diff Owed always at the end
-        const minPayCell = worksheet.getCell(currentRow, currentCol++);
-        minPayCell.value = parseFloat(minPayRequired.toFixed(2));
-        minPayCell.style = {
+        // Diff Owed/Break and PAY REQ always at the end
+        const diffCell = worksheet.getCell(currentRow, currentCol++);
+        diffCell.value = parseFloat(diffOwed.toFixed(2));
+        diffCell.style = {
           border: cellBorderStyle,
           numFmt: '"$"0.00',
           font: { bold: true },
         };
 
-        const diffCell = worksheet.getCell(currentRow, currentCol++);
-        diffCell.value = parseFloat(diffOwed.toFixed(2));
-        diffCell.style = {
+        const minPayCell = worksheet.getCell(currentRow, currentCol++);
+        minPayCell.value = parseFloat(minPayRequired.toFixed(2));
+        minPayCell.style = {
           border: cellBorderStyle,
           numFmt: '"$"0.00',
           font: { bold: true },
@@ -393,9 +393,9 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         worksheet.getColumn(colIndex++).width = 18; // Overtime Premium
       }
 
-      // MIN PAY REQ and Diff Owed always at the end
-      worksheet.getColumn(colIndex++).width = 12; // MIN PAY REQ
-      worksheet.getColumn(colIndex++).width = 12; // Diff Owed
+      // Diff Owed/Break and PAY REQ always at the end
+      worksheet.getColumn(colIndex++).width = 15; // Diff Owed/Break
+      worksheet.getColumn(colIndex++).width = 12; // PAY REQ
 
       // Generate and save file
       const filename = `labor_report_${report.client.name.replace(
@@ -635,10 +635,10 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                     </>
                   )}
                   <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
-                    MIN PAY REQ
+                    Diff Owed/Break
                   </th>
                   <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
-                    Diff Owed
+                    PAY REQ
                   </th>
                 </tr>
               </thead>
@@ -711,10 +711,10 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                         </>
                       )}
                       <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
-                        {formatCurrency(minPayRequired)}
+                        {formatCurrency(diffOwed)}
                       </td>
                       <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
-                        {formatCurrency(diffOwed)}
+                        {formatCurrency(minPayRequired)}
                       </td>
                     </tr>
                   );
