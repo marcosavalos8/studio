@@ -2515,7 +2515,7 @@ function TimeTrackingPage() {
           title: "Bulk Clock Out Queued",
           description: addOfflineIndicator(
             "Bulk clock out operation has been saved and will sync when online.",
-            isOnline
+            false
           ),
         });
       }
@@ -2604,7 +2604,7 @@ function TimeTrackingPage() {
           title: "Bulk Clock In Queued",
           description: addOfflineIndicator(
             `Bulk clock in for ${selectedBulkInEmployees.size} employee(s) has been saved and will sync when online.`,
-            isOnline
+            false
           ),
         });
         setSelectedBulkInEmployees(new Set()); // Clear selection after queuing
