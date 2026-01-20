@@ -2566,7 +2566,7 @@ function TimeTrackingPage() {
         });
       }
       // When offline, skip querying active entries to avoid hanging
-      // Firestore will handle any conflicts when syncing
+      // Any duplicate active sessions will be handled by business logic when data syncs
 
       // Clock in all selected employees for the new task
       selectedBulkInEmployees.forEach((employeeId) => {
