@@ -2491,20 +2491,26 @@ function TimeTrackingPage() {
         ),
       });
     } catch (serverError) {
-      const permissionError = new FirestorePermissionError({
-        path: "time_entries", // Simplification
-        operation: "update",
-        requestResourceData: {
-          message: `Bulk clock out`,
-          data: {
-            endTime:
-              useBulkClockOutManualDateTime && bulkClockOutDate
-                ? bulkClockOutDate
-                : new Date(),
+      // When offline, Firestore operations are queued for sync
+      // Only emit errors if we're online (actual permission/validation errors)
+      if (isOnline) {
+        const permissionError = new FirestorePermissionError({
+          path: "time_entries", // Simplification
+          operation: "update",
+          requestResourceData: {
+            message: `Bulk clock out`,
+            data: {
+              endTime:
+                useBulkClockOutManualDateTime && bulkClockOutDate
+                  ? bulkClockOutDate
+                  : new Date(),
+            },
           },
-        },
-      });
-      errorEmitter.emit("permission-error", permissionError);
+        });
+        errorEmitter.emit("permission-error", permissionError);
+      }
+      // When offline, operations are queued automatically by Firestore persistence
+      // No error message is shown to maintain consistency with offline behavior
     } finally {
       setIsBulkClockingOut(false);
     }
@@ -2573,14 +2579,20 @@ function TimeTrackingPage() {
       });
       setSelectedBulkInEmployees(new Set()); // Clear selection after success
     } catch (serverError) {
-      const permissionError = new FirestorePermissionError({
-        path: "time_entries", // Simplification for batch write
-        operation: "write",
-        requestResourceData: {
-          message: `Bulk clock in for ${selectedBulkInEmployees.size} employees`,
-        },
-      });
-      errorEmitter.emit("permission-error", permissionError);
+      // When offline, Firestore operations are queued for sync
+      // Only emit errors if we're online (actual permission/validation errors)
+      if (isOnline) {
+        const permissionError = new FirestorePermissionError({
+          path: "time_entries", // Simplification for batch write
+          operation: "write",
+          requestResourceData: {
+            message: `Bulk clock in for ${selectedBulkInEmployees.size} employees`,
+          },
+        });
+        errorEmitter.emit("permission-error", permissionError);
+      }
+      // When offline, operations are queued automatically by Firestore persistence
+      // No error message is shown to maintain consistency with offline behavior
     } finally {
       setIsBulkClockingIn(false);
     }
