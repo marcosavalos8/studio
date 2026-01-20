@@ -2491,7 +2491,9 @@ function TimeTrackingPage() {
           isOnline
         ),
       });
+      setIsBulkClockingOut(false);
     } catch (serverError) {
+      setIsBulkClockingOut(false);
       // When offline, Firestore operations are queued for sync
       // Only emit errors if we're online (actual permission/validation errors)
       if (isOnline) {
@@ -2510,17 +2512,15 @@ function TimeTrackingPage() {
         });
         errorEmitter.emit("permission-error", permissionError);
       } else {
-        // When offline, show success message as operation is queued
+        // When offline, show a user-friendly message instead of throwing
+        console.warn("Bulk clock-out operation failed offline:", serverError);
         toast({
-          title: "Bulk Clock Out Queued",
-          description: addOfflineIndicator(
-            "Bulk clock out queued for sync.",
-            isOnline
-          ),
+          variant: "destructive",
+          title: "Bulk Clock Out Error",
+          description:
+            "Unable to complete bulk clock-out. Please try again or check your data when back online.",
         });
       }
-    } finally {
-      setIsBulkClockingOut(false);
     }
   };
 
@@ -2539,34 +2539,30 @@ function TimeTrackingPage() {
     }
     setIsBulkClockingIn(true);
 
+    const batch = writeBatch(firestore);
+    const clockInTimestamp =
+      useBulkClockInManualDateTime && bulkClockInDate
+        ? roundToNearestQuarterHour(bulkClockInDate)
+        : roundToNearestQuarterHour(new Date());
+
+    // Clock out any active sessions at the same rounded timestamp as the new clock-in
+    // This is consistent with the regular clockInEmployee behavior
+    const clockOutTimestamp = clockInTimestamp;
+
+    // Sub-query for currently active entries of the selected employees
+    const activeEntriesQuery = query(
+      collection(firestore, "time_entries"),
+      where("employeeId", "in", Array.from(selectedBulkInEmployees)),
+      where("endTime", "==", null)
+    );
+
     try {
-      const batch = writeBatch(firestore);
-      const clockInTimestamp =
-        useBulkClockInManualDateTime && bulkClockInDate
-          ? roundToNearestQuarterHour(bulkClockInDate)
-          : roundToNearestQuarterHour(new Date());
+      const activeEntriesSnap = await getDocs(activeEntriesQuery);
 
-      // Clock out any active sessions at the same rounded timestamp as the new clock-in
-      // This is consistent with the regular clockInEmployee behavior
-      const clockOutTimestamp = clockInTimestamp;
-
-      // Only query for active entries when online to avoid hanging when offline
-      if (isOnline) {
-        // Sub-query for currently active entries of the selected employees
-        const activeEntriesQuery = query(
-          collection(firestore, "time_entries"),
-          where("employeeId", "in", Array.from(selectedBulkInEmployees)),
-          where("endTime", "==", null)
-        );
-        const activeEntriesSnap = await getDocs(activeEntriesQuery);
-
-        // Clock out any active sessions for the selected employees
-        activeEntriesSnap.forEach((doc) => {
-          batch.update(doc.ref, { endTime: clockOutTimestamp });
-        });
-      }
-      // When offline, skip querying active entries to avoid hanging
-      // Any duplicate active sessions will be handled by business logic when data syncs
+      // Clock out any active sessions for the selected employees
+      activeEntriesSnap.forEach((doc) => {
+        batch.update(doc.ref, { endTime: clockOutTimestamp });
+      });
 
       // Clock in all selected employees for the new task
       selectedBulkInEmployees.forEach((employeeId) => {
@@ -2591,7 +2587,9 @@ function TimeTrackingPage() {
         ),
       });
       setSelectedBulkInEmployees(new Set()); // Clear selection after success
+      setIsBulkClockingIn(false);
     } catch (serverError) {
+      setIsBulkClockingIn(false);
       // When offline, Firestore operations are queued for sync
       // Only emit errors if we're online (actual permission/validation errors)
       if (isOnline) {
@@ -2604,18 +2602,15 @@ function TimeTrackingPage() {
         });
         errorEmitter.emit("permission-error", permissionError);
       } else {
-        // When offline, show success message as operation is queued
+        // When offline, show a user-friendly message instead of throwing
+        console.warn("Bulk clock-in operation failed offline:", serverError);
         toast({
-          title: "Bulk Clock In Queued",
-          description: addOfflineIndicator(
-            `Bulk clock in for ${selectedBulkInEmployees.size} employee(s) queued for sync.`,
-            isOnline
-          ),
+          variant: "destructive",
+          title: "Bulk Clock In Error",
+          description:
+            "Unable to complete bulk clock-in. Please try again or check your data when back online.",
         });
-        setSelectedBulkInEmployees(new Set()); // Clear selection after queuing
       }
-    } finally {
-      setIsBulkClockingIn(false);
     }
   };
 
