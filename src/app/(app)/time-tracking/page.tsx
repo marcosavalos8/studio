@@ -2482,6 +2482,24 @@ function TimeTrackingPage() {
         batch.update(doc.ref, updatedData);
       });
 
+      // When offline, don't await - just queue the operation and update UI immediately
+      if (!isOnline) {
+        batch.commit().catch((err) => {
+          console.warn("Bulk clock out queued for sync:", err);
+        });
+
+        toast({
+          title: "Bulk Clock Out Queued",
+          description: addOfflineIndicator(
+            `Clock out queued for ${querySnapshot.size} employee(s).`,
+            isOnline
+          ),
+        });
+
+        setIsBulkClockingOut(false);
+        return;
+      }
+
       await batch.commit();
 
       toast({
@@ -2576,6 +2594,25 @@ function TimeTrackingPage() {
         };
         batch.set(newTimeEntryRef, newTimeEntry);
       });
+
+      // When offline, don't await - just queue the operation and update UI immediately
+      if (!isOnline) {
+        batch.commit().catch((err) => {
+          console.warn("Bulk clock in queued for sync:", err);
+        });
+
+        toast({
+          title: "Bulk Clock In Queued",
+          description: addOfflineIndicator(
+            `Clock in queued for ${selectedBulkInEmployees.size} employee(s).`,
+            isOnline
+          ),
+        });
+
+        setSelectedBulkInEmployees(new Set()); // Clear selection after queuing
+        setIsBulkClockingIn(false);
+        return;
+      }
 
       await batch.commit();
 
