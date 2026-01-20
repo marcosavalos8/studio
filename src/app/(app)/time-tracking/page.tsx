@@ -2491,20 +2491,33 @@ function TimeTrackingPage() {
         ),
       });
     } catch (serverError) {
-      const permissionError = new FirestorePermissionError({
-        path: "time_entries", // Simplification
-        operation: "update",
-        requestResourceData: {
-          message: `Bulk clock out`,
-          data: {
-            endTime:
-              useBulkClockOutManualDateTime && bulkClockOutDate
-                ? bulkClockOutDate
-                : new Date(),
+      // When offline, Firestore operations are queued for sync
+      // Only emit errors if we're online (actual permission/validation errors)
+      if (isOnline) {
+        const permissionError = new FirestorePermissionError({
+          path: "time_entries", // Simplification
+          operation: "update",
+          requestResourceData: {
+            message: `Bulk clock out`,
+            data: {
+              endTime:
+                useBulkClockOutManualDateTime && bulkClockOutDate
+                  ? bulkClockOutDate
+                  : new Date(),
+            },
           },
-        },
-      });
-      errorEmitter.emit("permission-error", permissionError);
+        });
+        errorEmitter.emit("permission-error", permissionError);
+      } else {
+        // When offline, show a user-friendly message instead of throwing
+        console.warn("Bulk clock-out operation failed offline:", serverError);
+        toast({
+          variant: "destructive",
+          title: "Bulk Clock Out Error",
+          description:
+            "Unable to complete bulk clock-out. Please try again or check your data when back online.",
+        });
+      }
     } finally {
       setIsBulkClockingOut(false);
     }
@@ -2573,14 +2586,27 @@ function TimeTrackingPage() {
       });
       setSelectedBulkInEmployees(new Set()); // Clear selection after success
     } catch (serverError) {
-      const permissionError = new FirestorePermissionError({
-        path: "time_entries", // Simplification for batch write
-        operation: "write",
-        requestResourceData: {
-          message: `Bulk clock in for ${selectedBulkInEmployees.size} employees`,
-        },
-      });
-      errorEmitter.emit("permission-error", permissionError);
+      // When offline, Firestore operations are queued for sync
+      // Only emit errors if we're online (actual permission/validation errors)
+      if (isOnline) {
+        const permissionError = new FirestorePermissionError({
+          path: "time_entries", // Simplification for batch write
+          operation: "write",
+          requestResourceData: {
+            message: `Bulk clock in for ${selectedBulkInEmployees.size} employees`,
+          },
+        });
+        errorEmitter.emit("permission-error", permissionError);
+      } else {
+        // When offline, show a user-friendly message instead of throwing
+        console.warn("Bulk clock-in operation failed offline:", serverError);
+        toast({
+          variant: "destructive",
+          title: "Bulk Clock In Error",
+          description:
+            "Unable to complete bulk clock-in. Please try again or check your data when back online.",
+        });
+      }
     } finally {
       setIsBulkClockingIn(false);
     }
