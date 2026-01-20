@@ -110,7 +110,7 @@ const QrScanner = dynamic(
         <VideoOff className="h-10 w-10 text-muted-foreground" />
       </Skeleton>
     ),
-  }
+  },
 );
 
 type ScanMode = "clock-in" | "clock-out" | "piece";
@@ -143,7 +143,7 @@ const CLEAR_SELECTION_VALUE = "none";
  * Rules:
  * - Minutes 0-7: round down to current quarter (e.g., 7:04 → 7:00, 7:37 → 7:30)
  * - Minutes 8-14: round up to next quarter (e.g., 7:08 → 7:15, 7:38 → 7:45)
- * 
+ *
  * Examples:
  * - 7:04 → 7:00
  * - 7:08 → 7:15
@@ -154,7 +154,7 @@ function roundToNearestQuarterHour(date: Date): Date {
   const rounded = new Date(date);
   const minutes = rounded.getMinutes();
   const remainder = minutes % 15;
-  
+
   if (remainder <= 7) {
     // Round down to current quarter
     rounded.setMinutes(minutes - remainder);
@@ -162,18 +162,18 @@ function roundToNearestQuarterHour(date: Date): Date {
     // Round up to next quarter
     rounded.setMinutes(minutes + (15 - remainder));
   }
-  
+
   // Reset seconds and milliseconds to 0
   rounded.setSeconds(0);
   rounded.setMilliseconds(0);
-  
+
   return rounded;
 }
 
 function TimeTrackingPage() {
   const { username } = useAuth();
   const [soundSettings, setSoundSettings] = useState<SoundSettings | null>(
-    null
+    null,
   );
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -196,7 +196,7 @@ function TimeTrackingPage() {
   const [useBulkClockOutManualDateTime, setUseBulkClockOutManualDateTime] =
     useState(false);
   const [bulkClockOutDate, setBulkClockOutDate] = useState<Date | undefined>(
-    undefined
+    undefined,
   );
   // Independent client selector for bulk clock-out
   const [selectedBulkClient, setSelectedBulkClient] = useState<string>("");
@@ -212,7 +212,7 @@ function TimeTrackingPage() {
   const [useBulkClockInManualDateTime, setUseBulkClockInManualDateTime] =
     useState(false);
   const [bulkClockInDate, setBulkClockInDate] = useState<Date | undefined>(
-    undefined
+    undefined,
   );
 
   // Load persisted selections from sessionStorage on mount
@@ -307,7 +307,7 @@ function TimeTrackingPage() {
       if (pieceWorkClient) {
         sessionStorage.setItem(
           "time_tracking_piecework_client",
-          pieceWorkClient
+          pieceWorkClient,
         );
       } else {
         sessionStorage.removeItem("time_tracking_piecework_client");
@@ -339,7 +339,7 @@ function TimeTrackingPage() {
   // Manual Date/Time Selection State
   const [useManualDateTime, setUseManualDateTime] = useState(false);
   const [manualClockInDate, setManualClockInDate] = useState<Date | undefined>(
-    undefined
+    undefined,
   );
   const [manualClockOutDate, setManualClockOutDate] = useState<
     Date | undefined
@@ -350,7 +350,7 @@ function TimeTrackingPage() {
 
   // QR Scanner piecework state - for entering pieces completed when clocking in to piecework task
   const [qrPiecesCompleted, setQrPiecesCompleted] = useState<number | string>(
-    ""
+    "",
   );
 
   // Past records state - for creating both clock-in and clock-out at once
@@ -362,7 +362,7 @@ function TimeTrackingPage() {
     Date | undefined
   >(undefined);
   const [pastRecordDate, setPastRecordDate] = useState<Date | undefined>(
-    undefined
+    undefined,
   );
   const [pastRecordClockInTime, setPastRecordClockInTime] =
     useState<string>("");
@@ -374,10 +374,10 @@ function TimeTrackingPage() {
 
   // History filtering state
   const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>(
-    undefined
+    undefined,
   );
   const [historyEndDate, setHistoryEndDate] = useState<Date | undefined>(
-    undefined
+    undefined,
   );
   const [historyNameFilter, setHistoryNameFilter] = useState<string>("");
 
@@ -400,7 +400,7 @@ function TimeTrackingPage() {
     entry: TimeEntry | Piecework;
   } | null>(null);
   const [editTimestamp, setEditTimestamp] = useState<Date | undefined>(
-    undefined
+    undefined,
   );
   const [editEndTime, setEditEndTime] = useState<Date | undefined>(undefined);
   const [editPiecesWorked, setEditPiecesWorked] = useState<number | string>(0);
@@ -413,7 +413,7 @@ function TimeTrackingPage() {
   const [editRanch, setEditRanch] = useState<string>("");
   const [editBlock, setEditBlock] = useState<string>("");
   const [editRelatedPiecework, setEditRelatedPiecework] = useState<Piecework[]>(
-    []
+    [],
   );
 
   // Debounce state
@@ -448,7 +448,7 @@ function TimeTrackingPage() {
     if (!firestore) return null;
     return query(
       collection(firestore, "tasks"),
-      where("status", "==", "Active")
+      where("status", "==", "Active"),
     );
   }, [firestore]);
   const { data: allTasks } = useCollection<Task>(tasksQuery);
@@ -457,7 +457,7 @@ function TimeTrackingPage() {
     if (!firestore) return null;
     return query(
       collection(firestore, "employees"),
-      where("status", "==", "Active")
+      where("status", "==", "Active"),
     );
   }, [firestore]);
   const { data: activeEmployees } = useCollection<Employee>(employeesQuery);
@@ -489,14 +489,14 @@ function TimeTrackingPage() {
         a.timestamp instanceof Date
           ? a.timestamp
           : (a.timestamp as any)?.toDate?.()
-          ? (a.timestamp as any).toDate()
-          : new Date(a.timestamp as any);
+            ? (a.timestamp as any).toDate()
+            : new Date(a.timestamp as any);
       const bTime =
         b.timestamp instanceof Date
           ? b.timestamp
           : (b.timestamp as any)?.toDate?.()
-          ? (b.timestamp as any).toDate()
-          : new Date(b.timestamp as any);
+            ? (b.timestamp as any).toDate()
+            : new Date(b.timestamp as any);
       return bTime.getTime() - aTime.getTime();
     });
   }, [allTimeEntriesRaw]);
@@ -527,14 +527,14 @@ function TimeTrackingPage() {
         a.timestamp instanceof Date
           ? a.timestamp
           : (a.timestamp as any)?.toDate?.()
-          ? (a.timestamp as any).toDate()
-          : new Date(a.timestamp as any);
+            ? (a.timestamp as any).toDate()
+            : new Date(a.timestamp as any);
       const bTime =
         b.timestamp instanceof Date
           ? b.timestamp
           : (b.timestamp as any)?.toDate?.()
-          ? (b.timestamp as any).toDate()
-          : new Date(b.timestamp as any);
+            ? (b.timestamp as any).toDate()
+            : new Date(b.timestamp as any);
       return bTime.getTime() - aTime.getTime();
     });
   }, [allPieceworkRaw]);
@@ -563,14 +563,14 @@ function TimeTrackingPage() {
         a.data.timestamp instanceof Date
           ? a.data.timestamp
           : (a.data.timestamp as any)?.toDate?.()
-          ? (a.data.timestamp as any).toDate()
-          : new Date(a.data.timestamp as any);
+            ? (a.data.timestamp as any).toDate()
+            : new Date(a.data.timestamp as any);
       const bTime =
         b.data.timestamp instanceof Date
           ? b.data.timestamp
           : (b.data.timestamp as any)?.toDate?.()
-          ? (b.data.timestamp as any).toDate()
-          : new Date(b.data.timestamp as any);
+            ? (b.data.timestamp as any).toDate()
+            : new Date(b.data.timestamp as any);
       return bTime.getTime() - aTime.getTime();
     });
   }, [allTimeEntries, allPiecework]);
@@ -586,7 +586,7 @@ function TimeTrackingPage() {
     return mergedRecords.filter((record) => {
       if (record.type === "time") {
         const employee = activeEmployees?.find(
-          (e) => e.id === record.data.employeeId
+          (e) => e.id === record.data.employeeId,
         );
         return employee?.name.toLowerCase().includes(searchTerm);
       } else {
@@ -595,11 +595,12 @@ function TimeTrackingPage() {
         const employeeNames = employeeIds
           .map(
             (id) =>
-              activeEmployees?.find((e) => e.id === id || e.qrCode === id)?.name
+              activeEmployees?.find((e) => e.id === id || e.qrCode === id)
+                ?.name,
           )
           .filter(Boolean);
         return employeeNames.some((name) =>
-          name?.toLowerCase().includes(searchTerm)
+          name?.toLowerCase().includes(searchTerm),
         );
       }
     });
@@ -610,11 +611,11 @@ function TimeTrackingPage() {
     if (!firestore) return null;
     return query(
       collection(firestore, "time_entries"),
-      where("endTime", "==", null)
+      where("endTime", "==", null),
     );
   }, [firestore]);
   const { data: activeTimeEntriesRaw } = useCollection<TimeEntry>(
-    activeTimeEntriesQuery
+    activeTimeEntriesQuery,
   );
 
   // Sort active time entries in memory by timestamp descending
@@ -625,14 +626,14 @@ function TimeTrackingPage() {
         a.timestamp instanceof Date
           ? a.timestamp
           : (a.timestamp as any)?.toDate?.()
-          ? (a.timestamp as any).toDate()
-          : new Date(a.timestamp as any);
+            ? (a.timestamp as any).toDate()
+            : new Date(a.timestamp as any);
       const bTime =
         b.timestamp instanceof Date
           ? b.timestamp
           : (b.timestamp as any)?.toDate?.()
-          ? (b.timestamp as any).toDate()
-          : new Date(b.timestamp as any);
+            ? (b.timestamp as any).toDate()
+            : new Date(b.timestamp as any);
       return bTime.getTime() - aTime.getTime();
     });
   }, [activeTimeEntriesRaw]);
@@ -668,7 +669,7 @@ function TimeTrackingPage() {
 
     // Find all unique task IDs from active time entries
     const activeTaskIds = new Set(
-      activeTimeEntries.map((entry) => entry.taskId)
+      activeTimeEntries.map((entry) => entry.taskId),
     );
 
     // Filter tasks that are:
@@ -679,7 +680,7 @@ function TimeTrackingPage() {
       (task) =>
         task.clientRateType === "piece" &&
         activeTaskIds.has(task.id) &&
-        task.clientId === pieceWorkClient
+        task.clientId === pieceWorkClient,
     );
   }, [activeTimeEntries, allTasks, pieceWorkClient]);
 
@@ -694,7 +695,7 @@ function TimeTrackingPage() {
     if (!clients || !activeTimeEntries || !allTasks) return [];
 
     const activeTaskIds = new Set(
-      activeTimeEntries.map((entry) => entry.taskId)
+      activeTimeEntries.map((entry) => entry.taskId),
     );
 
     return clients
@@ -703,7 +704,7 @@ function TimeTrackingPage() {
           (task) =>
             task.clientRateType === "piece" &&
             activeTaskIds.has(task.id) &&
-            task.clientId === client.id
+            task.clientId === client.id,
         ).length;
 
         return {
@@ -733,7 +734,7 @@ function TimeTrackingPage() {
         tasksForClient
           .filter((t) => t.ranch === selectedRanch)
           .map((t) => t.block)
-          .filter(Boolean)
+          .filter(Boolean),
       ),
     ] as string[];
   }, [tasksForClient, selectedRanch]);
@@ -756,7 +757,7 @@ function TimeTrackingPage() {
 
     // Get unique task IDs from active time entries
     const activeTaskIds = new Set(
-      activeTimeEntries.map((entry) => entry.taskId)
+      activeTimeEntries.map((entry) => entry.taskId),
     );
 
     // Filter to only include tasks that:
@@ -764,7 +765,7 @@ function TimeTrackingPage() {
     // 2. Have active clock-ins
     // 3. Are active status
     return filteredTasks.filter(
-      (task) => task.status === "Active" && activeTaskIds.has(task.id)
+      (task) => task.status === "Active" && activeTaskIds.has(task.id),
     );
   }, [filteredTasks, activeTimeEntries]);
 
@@ -788,7 +789,7 @@ function TimeTrackingPage() {
         bulkTasksForClient
           .filter((t) => t.ranch === selectedBulkRanch)
           .map((t) => t.block)
-          .filter(Boolean)
+          .filter(Boolean),
       ),
     ] as string[];
   }, [bulkTasksForClient, selectedBulkRanch]);
@@ -811,7 +812,7 @@ function TimeTrackingPage() {
 
     // Get unique task IDs from active time entries
     const activeTaskIds = new Set(
-      activeTimeEntries.map((entry) => entry.taskId)
+      activeTimeEntries.map((entry) => entry.taskId),
     );
 
     // Filter to only include tasks that:
@@ -819,7 +820,7 @@ function TimeTrackingPage() {
     // 2. Have active clock-ins
     // 3. Are active status
     return bulkFilteredTasks.filter(
-      (task) => task.status === "Active" && activeTaskIds.has(task.id)
+      (task) => task.status === "Active" && activeTaskIds.has(task.id),
     );
   }, [bulkFilteredTasks, activeTimeEntries]);
 
@@ -843,7 +844,7 @@ function TimeTrackingPage() {
         editTasksForClient
           .filter((t) => t.ranch === editRanch)
           .map((t) => t.block)
-          .filter(Boolean)
+          .filter(Boolean),
       ),
     ] as string[];
   }, [editTasksForClient, editRanch]);
@@ -864,7 +865,7 @@ function TimeTrackingPage() {
     if (!activeEmployees) return [];
     if (!manualEmployeeSearch) return [];
     return activeEmployees.filter((emp) =>
-      emp.name.toLowerCase().includes(manualEmployeeSearch.toLowerCase())
+      emp.name.toLowerCase().includes(manualEmployeeSearch.toLowerCase()),
     );
   }, [activeEmployees, manualEmployeeSearch]);
 
@@ -904,7 +905,7 @@ function TimeTrackingPage() {
       // Función helper para crear osciladores
       const createOscillator = (
         frequency: number,
-        waveType: OscillatorType = "sine"
+        waveType: OscillatorType = "sine",
       ) => {
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
@@ -914,7 +915,7 @@ function TimeTrackingPage() {
 
         oscillator.frequency.setValueAtTime(
           frequency,
-          audioContext.currentTime
+          audioContext.currentTime,
         );
         oscillator.type = waveType;
 
@@ -922,7 +923,7 @@ function TimeTrackingPage() {
         gainNode.gain.setValueAtTime(0, audioContext.currentTime);
         gainNode.gain.linearRampToValueAtTime(
           volume,
-          audioContext.currentTime + 0.01
+          audioContext.currentTime + 0.01,
         );
 
         return { oscillator, gainNode };
@@ -934,7 +935,7 @@ function TimeTrackingPage() {
       soundOption.frequencies.forEach((freq, index) => {
         const { oscillator, gainNode } = createOscillator(
           freq,
-          soundOption.waveType
+          soundOption.waveType,
         );
         const duration = soundOption.durations[index] || 0.2;
         const gap = soundOption.gaps[index] || 0.1;
@@ -943,7 +944,7 @@ function TimeTrackingPage() {
         oscillator.stop(currentTime + duration);
         gainNode.gain.exponentialRampToValueAtTime(
           0.001,
-          currentTime + duration
+          currentTime + duration,
         );
 
         currentTime += duration + gap;
@@ -963,7 +964,7 @@ function TimeTrackingPage() {
         }
       }
     },
-    [audioContext, soundSettings]
+    [audioContext, soundSettings],
   );
 
   /*   // Reset selections when client changes
@@ -1010,7 +1011,7 @@ function TimeTrackingPage() {
           hours,
           minutes,
           0,
-          0
+          0,
         );
         setPastRecordClockInDate(dateWithTime);
       }
@@ -1030,7 +1031,7 @@ function TimeTrackingPage() {
           hours,
           minutes,
           0,
-          0
+          0,
         );
         setPastRecordClockOutDate(dateWithTime);
       }
@@ -1066,7 +1067,7 @@ function TimeTrackingPage() {
     } else {
       // If the previously selected client no longer has active tasks, clear it
       const selectedClientStillActive = clientsWithActiveTasks.some(
-        (client) => client.id === pieceWorkClient
+        (client) => client.id === pieceWorkClient,
       );
       if (pieceWorkClient && !selectedClientStillActive) {
         setPieceWorkClient("");
@@ -1076,7 +1077,7 @@ function TimeTrackingPage() {
       // If the previously selected task is no longer active, clear it
       if (pieceWorkTask) {
         const taskStillActive = activePieceworkTasksByClient.some(
-          (task) => task.id === pieceWorkTask
+          (task) => task.id === pieceWorkTask,
         );
         if (!taskStillActive) {
           setPieceWorkTask("");
@@ -1096,7 +1097,7 @@ function TimeTrackingPage() {
       taskId: string,
       customTimestamp?: Date,
       useSickHours?: boolean,
-      piecesWorked?: number
+      piecesWorked?: number,
     ): Promise<boolean> => {
       if (!firestore) return false;
       const batch = writeBatch(firestore);
@@ -1104,7 +1105,7 @@ function TimeTrackingPage() {
       const activeEntriesQuery = query(
         collection(firestore, "time_entries"),
         where("employeeId", "==", employee.id),
-        where("endTime", "==", null)
+        where("endTime", "==", null),
       );
 
       try {
@@ -1112,7 +1113,7 @@ function TimeTrackingPage() {
 
         // Check if employee is already clocked into the same task
         const alreadyInSameTask = activeEntriesSnap.docs.some(
-          (docSnap) => (docSnap.data() as TimeEntry).taskId === taskId
+          (docSnap) => (docSnap.data() as TimeEntry).taskId === taskId,
         );
 
         if (alreadyInSameTask) {
@@ -1129,7 +1130,9 @@ function TimeTrackingPage() {
         const isNewTaskHourly = newTask?.clientRateType === "hourly";
 
         // Round timestamp to nearest quarter hour
-        const timestamp = roundToNearestQuarterHour(customTimestamp || new Date());
+        const timestamp = roundToNearestQuarterHour(
+          customTimestamp || new Date(),
+        );
 
         // Auto-close any active entries when switching tasks (different task)
         activeEntriesSnap.forEach((docSnap) => {
@@ -1186,7 +1189,7 @@ function TimeTrackingPage() {
         return false;
       }
     },
-    [firestore, toast, playSound, allTasks, isOnline]
+    [firestore, toast, playSound, allTasks, isOnline],
   );
 
   const clockOutEmployee = useCallback(
@@ -1196,7 +1199,7 @@ function TimeTrackingPage() {
       const q = query(
         collection(firestore, "time_entries"),
         where("employeeId", "==", employee.id),
-        where("endTime", "==", null) // Only clock out active entries
+        where("endTime", "==", null), // Only clock out active entries
       );
       try {
         const querySnapshot = await getDocs(q);
@@ -1208,7 +1211,9 @@ function TimeTrackingPage() {
           });
         } else {
           // Round timestamp to nearest quarter hour
-          const clockOutTime = roundToNearestQuarterHour(customTimestamp || new Date());
+          const clockOutTime = roundToNearestQuarterHour(
+            customTimestamp || new Date(),
+          );
 
           // Validate that clock-out is not before clock-in
           let hasInvalidClockOut = false;
@@ -1221,8 +1226,8 @@ function TimeTrackingPage() {
               entry.timestamp instanceof Date
                 ? entry.timestamp
                 : (entry.timestamp as any)?.toDate?.()
-                ? (entry.timestamp as any).toDate()
-                : new Date(entry.timestamp as any);
+                  ? (entry.timestamp as any).toDate()
+                  : new Date(entry.timestamp as any);
 
             if (clockOutTime < clockInTime) {
               hasInvalidClockOut = true;
@@ -1273,7 +1278,7 @@ function TimeTrackingPage() {
                 variant: "destructive",
                 title: "Insufficient Sick Hours",
                 description: `Employee only has ${currentSickBalance.toFixed(
-                  2
+                  2,
                 )} sick hours available. Cannot use sick hours for payment.`,
               });
               return;
@@ -1299,11 +1304,11 @@ function TimeTrackingPage() {
           }. Worked ${totalHoursForThisSession.toFixed(2)} hrs.`;
           if (usingSickHours) {
             description += ` Used sick hours for payment. New balance: ${newSickBalance.toFixed(
-              2
+              2,
             )} hrs.`;
           } else {
             description += ` Accrued ${sickHoursAccrued.toFixed(
-              2
+              2,
             )} sick hrs. New balance: ${newSickBalance.toFixed(2)} hrs.`;
           }
 
@@ -1334,7 +1339,7 @@ function TimeTrackingPage() {
         }
       }
     },
-    [firestore, toast, playSound, isOnline]
+    [firestore, toast, playSound, isOnline],
   );
 
   const recordPiecework = useCallback(
@@ -1342,7 +1347,7 @@ function TimeTrackingPage() {
       employeeIds: string[],
       taskId: string,
       binQr: string,
-      customTimestamp?: Date
+      customTimestamp?: Date,
     ) => {
       if (!firestore) return;
 
@@ -1359,7 +1364,7 @@ function TimeTrackingPage() {
         const employeeNames = employeeIds
           .map(
             (id) =>
-              activeEmployees?.find((e) => e.qrCode === id)?.name || "Unknown"
+              activeEmployees?.find((e) => e.qrCode === id)?.name || "Unknown",
           )
           .join(", ");
 
@@ -1367,7 +1372,7 @@ function TimeTrackingPage() {
           title: "Piecework Recorded",
           description: addOfflineIndicator(
             `1 piece recorded for ${employeeNames}.`,
-            isOnline
+            isOnline,
           ),
         });
       } catch (serverError) {
@@ -1379,7 +1384,7 @@ function TimeTrackingPage() {
         errorEmitter.emit("permission-error", permissionError);
       }
     },
-    [firestore, toast, activeEmployees, playSound, isOnline]
+    [firestore, toast, activeEmployees, playSound, isOnline],
   );
 
   // New function to record piecework with quantity (no bin scanning required)
@@ -1388,7 +1393,7 @@ function TimeTrackingPage() {
       employeeIds: string[],
       taskId: string,
       quantity: number,
-      customTimestamp?: Date
+      customTimestamp?: Date,
     ) => {
       if (!firestore) return false;
 
@@ -1424,7 +1429,7 @@ function TimeTrackingPage() {
           const employeeNames = employeeIds
             .map(
               (id) =>
-                activeEmployees?.find((e) => e.id === id)?.name || "Unknown"
+                activeEmployees?.find((e) => e.id === id)?.name || "Unknown",
             )
             .join(", ");
 
@@ -1436,7 +1441,7 @@ function TimeTrackingPage() {
                   ? ` (${pieceCountPerEmployee.toFixed(2)} each)`
                   : ""
               }`,
-              isOnline
+              isOnline,
             ),
           });
         }
@@ -1465,7 +1470,7 @@ function TimeTrackingPage() {
         }
       }
     },
-    [firestore, toast, activeEmployees, playSound, isOnline, isSharedPiece]
+    [firestore, toast, activeEmployees, playSound, isOnline, isSharedPiece],
   );
 
   const createPastRecord = useCallback(
@@ -1474,7 +1479,7 @@ function TimeTrackingPage() {
       taskId: string,
       clockInTime: Date,
       clockOutTime: Date,
-      piecesCount?: number
+      piecesCount?: number,
     ) => {
       if (!firestore) return;
 
@@ -1499,7 +1504,7 @@ function TimeTrackingPage() {
         const activeEntriesQuery = query(
           collection(firestore, "time_entries"),
           where("employeeId", "==", employee.id),
-          where("endTime", "==", null)
+          where("endTime", "==", null),
         );
         const activeEntriesSnap = await getDocs(activeEntriesQuery);
         activeEntriesSnap.forEach((docSnap) => {
@@ -1526,7 +1531,8 @@ function TimeTrackingPage() {
 
         // Update employee's totalHoursWorked and sickHoursBalance
         let hoursWorked =
-          (roundedClockOutTime.getTime() - roundedClockInTime.getTime()) / (1000 * 60 * 60);
+          (roundedClockOutTime.getTime() - roundedClockInTime.getTime()) /
+          (1000 * 60 * 60);
 
         // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (0.5 hours) unpaid meal break
         if (hoursWorked > 5) {
@@ -1553,7 +1559,7 @@ function TimeTrackingPage() {
           employee.name
         }. Worked ${hoursWorked.toFixed(2)} hrs.`;
         description += ` Accrued ${sickHoursAccrued.toFixed(
-          2
+          2,
         )} sick hrs. New balance: ${newSickBalance.toFixed(2)} hrs.`;
         if (piecesCount && piecesCount > 0) {
           description += ` Pieces worked: ${piecesCount}.`;
@@ -1572,7 +1578,7 @@ function TimeTrackingPage() {
         errorEmitter.emit("permission-error", permissionError);
       }
     },
-    [firestore, toast, playSound, isOnline]
+    [firestore, toast, playSound, isOnline],
   );
 
   const handleScanResult = useCallback(
@@ -1598,7 +1604,7 @@ function TimeTrackingPage() {
         (scan) =>
           now - scan.timestamp < DEBOUNCE_MS &&
           scan.scanData === scannedData &&
-          scan.mode === scanMode
+          scan.mode === scanMode,
       );
 
       if (isDebounced) {
@@ -1611,7 +1617,7 @@ function TimeTrackingPage() {
       ]);
 
       const scannedEmployee = activeEmployees?.find(
-        (e) => e.qrCode === scannedData
+        (e) => e.qrCode === scannedData,
       );
 
       if (scannedEmployee) {
@@ -1648,10 +1654,10 @@ function TimeTrackingPage() {
                   entry.timestamp instanceof Date
                     ? entry.timestamp
                     : (entry.timestamp as any)?.toDate?.()
-                    ? (entry.timestamp as any).toDate()
-                    : new Date(entry.timestamp as any);
+                      ? (entry.timestamp as any).toDate()
+                      : new Date(entry.timestamp as any);
                 const timeDiffIn = Math.abs(
-                  entryClockIn.getTime() - pastRecordClockInDate.getTime()
+                  entryClockIn.getTime() - pastRecordClockInDate.getTime(),
                 );
 
                 // Check if clock-out times match (within 1 minute tolerance)
@@ -1660,10 +1666,10 @@ function TimeTrackingPage() {
                     entry.endTime instanceof Date
                       ? entry.endTime
                       : (entry.endTime as any)?.toDate?.()
-                      ? (entry.endTime as any).toDate()
-                      : new Date(entry.endTime as any);
+                        ? (entry.endTime as any).toDate()
+                        : new Date(entry.endTime as any);
                   const timeDiffOut = Math.abs(
-                    entryClockOut.getTime() - pastRecordClockOutDate.getTime()
+                    entryClockOut.getTime() - pastRecordClockOutDate.getTime(),
                   );
 
                   // If both clock-in and clock-out times match within 1 minute, it's a duplicate
@@ -1683,7 +1689,7 @@ function TimeTrackingPage() {
                     scannedEmployee.name
                   } on ${format(
                     pastRecordClockInDate,
-                    "PPP"
+                    "PPP",
                   )} with the same clock-in and clock-out times for ${
                     task?.name || "this task"
                   } (${client?.name || "this client"}).`,
@@ -1705,7 +1711,7 @@ function TimeTrackingPage() {
               selectedTask,
               pastRecordClockInDate,
               pastRecordClockOutDate,
-              piecesCount > 0 ? piecesCount : undefined
+              piecesCount > 0 ? piecesCount : undefined,
             );
           } else if (scanMode === "clock-in") {
             // When offline, show toast immediately to match Manual Entry UX pattern
@@ -1721,7 +1727,7 @@ function TimeTrackingPage() {
                       ? " (Using sick hours for payment)"
                       : ""
                   }`,
-                  isOnline
+                  isOnline,
                 ),
               });
             }
@@ -1732,7 +1738,7 @@ function TimeTrackingPage() {
               scannedEmployee,
               selectedTask,
               timestamp,
-              useSickHoursForPayment
+              useSickHoursForPayment,
             );
           } else if (scanMode === "clock-out") {
             // When offline, show toast immediately to match Manual Entry behavior
@@ -1741,7 +1747,7 @@ function TimeTrackingPage() {
                 title: "Clock Out Successful",
                 description: addOfflineIndicator(
                   `Clocked out ${scannedEmployee.name}.`,
-                  isOnline
+                  isOnline,
                 ),
               });
             }
@@ -1794,7 +1800,7 @@ function TimeTrackingPage() {
             employeeQrCodes,
             selectedTask,
             scannedData,
-            timestamp
+            timestamp,
           );
           if (!isSharedPiece) {
             setScannedSharedEmployees([]);
@@ -1839,7 +1845,7 @@ function TimeTrackingPage() {
       isOnline,
       allTimeEntries,
       clients,
-    ]
+    ],
   );
 
   const handlePieceworkScanResult = useCallback(
@@ -1859,7 +1865,7 @@ function TimeTrackingPage() {
         (scan) =>
           now - scan.timestamp < DEBOUNCE_MS &&
           scan.scanData === scannedData &&
-          scan.mode === "piece"
+          scan.mode === "piece",
       );
 
       if (isDebounced) {
@@ -1872,7 +1878,7 @@ function TimeTrackingPage() {
       ]);
 
       const scannedEmployee = activeEmployees?.find(
-        (e) => e.qrCode === scannedData
+        (e) => e.qrCode === scannedData,
       );
 
       if (scannedEmployee) {
@@ -1912,7 +1918,7 @@ function TimeTrackingPage() {
             employeeQrCodes,
             selectedPieceworkTask.id,
             scannedData,
-            timestamp
+            timestamp,
           );
           if (!isSharedPiece) {
             setScannedSharedEmployees([]);
@@ -1937,7 +1943,7 @@ function TimeTrackingPage() {
       scannedSharedEmployees,
       useManualDateTime,
       manualPieceworkDate,
-    ]
+    ],
   );
 
   // New handler for piece-work tab QR scanner (validates employee is active in task)
@@ -1961,7 +1967,7 @@ function TimeTrackingPage() {
 
       // Find the scanned employee first
       const scannedEmployee = activeEmployees?.find(
-        (e) => e.qrCode === scannedData
+        (e) => e.qrCode === scannedData,
       );
 
       if (!scannedEmployee) {
@@ -1979,17 +1985,17 @@ function TimeTrackingPage() {
         (scan) =>
           now - scan.timestamp < PIECEWORK_DEBOUNCE_MS &&
           scan.scanData === employeeTaskKey &&
-          scan.mode === "piecework-tab"
+          scan.mode === "piecework-tab",
       );
 
       if (isDebounced) {
         const lastScan = recentScans.find(
           (scan) =>
-            scan.scanData === employeeTaskKey && scan.mode === "piecework-tab"
+            scan.scanData === employeeTaskKey && scan.mode === "piecework-tab",
         );
         const timeRemaining = lastScan
           ? Math.ceil(
-              (PIECEWORK_DEBOUNCE_MS - (now - lastScan.timestamp)) / 60000
+              (PIECEWORK_DEBOUNCE_MS - (now - lastScan.timestamp)) / 60000,
             )
           : 3;
 
@@ -2006,7 +2012,7 @@ function TimeTrackingPage() {
         (entry) =>
           entry.employeeId === scannedEmployee.id &&
           entry.taskId === pieceWorkSelectedTask.id &&
-          entry.endTime === null
+          entry.endTime === null,
       );
 
       if (!isEmployeeActiveInTask) {
@@ -2056,7 +2062,7 @@ function TimeTrackingPage() {
               title: "Piecework Recorded",
               description: addOfflineIndicator(
                 `1 piece recorded for ${scannedEmployee.name}.`,
-                isOnline
+                isOnline,
               ),
             });
           }
@@ -2066,7 +2072,7 @@ function TimeTrackingPage() {
             employeeIds,
             pieceWorkSelectedTask.id,
             1,
-            undefined
+            undefined,
           );
 
           if (success) {
@@ -2099,7 +2105,7 @@ function TimeTrackingPage() {
       addOfflineIndicator,
       pieceEntryMode,
       isPieceworkQrProcessing,
-    ]
+    ],
   );
 
   const handleManualSubmit = async () => {
@@ -2142,10 +2148,10 @@ function TimeTrackingPage() {
             entry.timestamp instanceof Date
               ? entry.timestamp
               : (entry.timestamp as any)?.toDate?.()
-              ? (entry.timestamp as any).toDate()
-              : new Date(entry.timestamp as any);
+                ? (entry.timestamp as any).toDate()
+                : new Date(entry.timestamp as any);
           const timeDiffIn = Math.abs(
-            entryClockIn.getTime() - pastRecordClockInDate.getTime()
+            entryClockIn.getTime() - pastRecordClockInDate.getTime(),
           );
 
           // Check if clock-out times match (within 1 minute tolerance)
@@ -2154,10 +2160,10 @@ function TimeTrackingPage() {
               entry.endTime instanceof Date
                 ? entry.endTime
                 : (entry.endTime as any)?.toDate?.()
-                ? (entry.endTime as any).toDate()
-                : new Date(entry.endTime as any);
+                  ? (entry.endTime as any).toDate()
+                  : new Date(entry.endTime as any);
             const timeDiffOut = Math.abs(
-              entryClockOut.getTime() - pastRecordClockOutDate.getTime()
+              entryClockOut.getTime() - pastRecordClockOutDate.getTime(),
             );
 
             // If both clock-in and clock-out times match within 1 minute, it's a duplicate
@@ -2177,7 +2183,7 @@ function TimeTrackingPage() {
               manualSelectedEmployee.name
             } on ${format(
               pastRecordClockInDate,
-              "PPP"
+              "PPP",
             )} with the same clock-in and clock-out times for ${
               task?.name || "this task"
             } (${client?.name || "this client"}).`,
@@ -2193,7 +2199,7 @@ function TimeTrackingPage() {
           title: "Past Record Created",
           description: addOfflineIndicator(
             `Created past record for ${manualSelectedEmployee.name}.`,
-            isOnline
+            isOnline,
           ),
         });
         setIsManualSubmitting(false);
@@ -2212,7 +2218,7 @@ function TimeTrackingPage() {
         selectedTask,
         pastRecordClockInDate,
         pastRecordClockOutDate,
-        piecesCount > 0 ? piecesCount : undefined
+        piecesCount > 0 ? piecesCount : undefined,
       );
 
       // Reset form after Firestore operation
@@ -2239,7 +2245,7 @@ function TimeTrackingPage() {
             `Clocked in ${manualSelectedEmployee.name}.${
               useSickHoursForPayment ? " (Using sick hours for payment)" : ""
             }`,
-            isOnline
+            isOnline,
           ),
         });
         setIsManualSubmitting(false);
@@ -2250,7 +2256,7 @@ function TimeTrackingPage() {
         manualSelectedEmployee,
         selectedTask,
         timestamp,
-        useSickHoursForPayment
+        useSickHoursForPayment,
       );
 
       // Reset form after Firestore operation
@@ -2269,7 +2275,7 @@ function TimeTrackingPage() {
           title: "Clock Out Successful",
           description: addOfflineIndicator(
             `Clocked out ${manualSelectedEmployee.name}.`,
-            isOnline
+            isOnline,
           ),
         });
         setIsManualSubmitting(false);
@@ -2333,7 +2339,7 @@ function TimeTrackingPage() {
           employeeQrCodes,
           selectedPieceworkTask.id,
           "manual_entry",
-          pieceTimestamp
+          pieceTimestamp,
         );
       }
     }
@@ -2361,8 +2367,8 @@ function TimeTrackingPage() {
       typeof overrideQuantity === "number"
         ? overrideQuantity
         : typeof manualPieceQuantity === "number"
-        ? manualPieceQuantity
-        : parseFloat(String(manualPieceQuantity));
+          ? manualPieceQuantity
+          : parseFloat(String(manualPieceQuantity));
 
     if (isNaN(pieceCount) || pieceCount <= 0) {
       toast({
@@ -2381,7 +2387,8 @@ function TimeTrackingPage() {
       if (!isOnline) {
         const employeeNames = scannedSharedEmployees
           .map(
-            (id) => activeEmployees?.find((e) => e.id === id)?.name || "Unknown"
+            (id) =>
+              activeEmployees?.find((e) => e.id === id)?.name || "Unknown",
           )
           .join(", ");
 
@@ -2395,7 +2402,7 @@ function TimeTrackingPage() {
             `${pieceCount} piece(s) recorded for ${employeeNames}.${
               isSharedPiece ? ` (${pieceCountPerEmployee.toFixed(2)} each)` : ""
             }`,
-            isOnline
+            isOnline,
           ),
         });
 
@@ -2405,7 +2412,7 @@ function TimeTrackingPage() {
           employeeIdsToRecord,
           pieceWorkSelectedTask.id,
           pieceCount,
-          undefined
+          undefined,
         ).catch((error) => {
           console.warn("Background piecework sync queued for later:", error);
         });
@@ -2423,7 +2430,7 @@ function TimeTrackingPage() {
         scannedSharedEmployees,
         pieceWorkSelectedTask.id,
         pieceCount,
-        undefined
+        undefined,
       );
 
       if (success) {
@@ -2458,7 +2465,7 @@ function TimeTrackingPage() {
     const q = query(
       timeLogsRef,
       where("taskId", "==", selectedBulkTask),
-      where("endTime", "==", null)
+      where("endTime", "==", null),
     );
 
     try {
@@ -2468,6 +2475,7 @@ function TimeTrackingPage() {
           title: "No one to clock out",
           description: "No employees are currently clocked in for this task.",
         });
+        setIsBulkClockingOut(false);
         return;
       }
 
@@ -2481,21 +2489,37 @@ function TimeTrackingPage() {
         batch.update(doc.ref, updatedData);
       });
 
+      // ✅ OFFLINE: mostrar toast y terminar UI sin esperar
+      if (!isOnline) {
+        batch.commit().catch((err) => {
+          console.warn("Bulk clock out queued for sync:", err);
+        });
+
+        toast({
+          title: "Bulk Clock Out Queued",
+          description: addOfflineIndicator(
+            `Clock out queued for ${querySnapshot.size} employee(s).`,
+            isOnline,
+          ),
+        });
+
+        setIsBulkClockingOut(false);
+        return;
+      }
+
       await batch.commit();
 
       toast({
         title: "Bulk Clock Out Successful",
         description: addOfflineIndicator(
           `Successfully clocked out ${querySnapshot.size} employee(s) from the task.`,
-          isOnline
+          isOnline,
         ),
       });
     } catch (serverError) {
-      // When offline, Firestore operations are queued for sync
-      // Only emit errors if we're online (actual permission/validation errors)
       if (isOnline) {
         const permissionError = new FirestorePermissionError({
-          path: "time_entries", // Simplification
+          path: "time_entries",
           operation: "update",
           requestResourceData: {
             message: `Bulk clock out`,
@@ -2509,8 +2533,6 @@ function TimeTrackingPage() {
         });
         errorEmitter.emit("permission-error", permissionError);
       }
-      // When offline, operations are queued automatically by Firestore persistence
-      // No error message is shown to maintain consistency with offline behavior
     } finally {
       setIsBulkClockingOut(false);
     }
@@ -2538,24 +2560,19 @@ function TimeTrackingPage() {
           ? roundToNearestQuarterHour(bulkClockInDate)
           : roundToNearestQuarterHour(new Date());
 
-      // Clock out any active sessions at the same rounded timestamp as the new clock-in
-      // This is consistent with the regular clockInEmployee behavior
       const clockOutTimestamp = clockInTimestamp;
 
-      // Sub-query for currently active entries of the selected employees
       const activeEntriesQuery = query(
         collection(firestore, "time_entries"),
         where("employeeId", "in", Array.from(selectedBulkInEmployees)),
-        where("endTime", "==", null)
+        where("endTime", "==", null),
       );
       const activeEntriesSnap = await getDocs(activeEntriesQuery);
 
-      // Clock out any active sessions for the selected employees
       activeEntriesSnap.forEach((doc) => {
         batch.update(doc.ref, { endTime: clockOutTimestamp });
       });
 
-      // Clock in all selected employees for the new task
       selectedBulkInEmployees.forEach((employeeId) => {
         const newTimeEntryRef = doc(collection(firestore, "time_entries"));
         const newTimeEntry: Omit<TimeEntry, "id"> = {
@@ -2568,22 +2585,39 @@ function TimeTrackingPage() {
         batch.set(newTimeEntryRef, newTimeEntry);
       });
 
+      // ✅ OFFLINE: mostrar toast y terminar UI sin esperar
+      if (!isOnline) {
+        batch.commit().catch((err) => {
+          console.warn("Bulk clock in queued for sync:", err);
+        });
+
+        toast({
+          title: "Bulk Clock In Queued",
+          description: addOfflineIndicator(
+            `Clock in queued for ${selectedBulkInEmployees.size} employee(s).`,
+            isOnline,
+          ),
+        });
+
+        setSelectedBulkInEmployees(new Set());
+        setIsBulkClockingIn(false);
+        return;
+      }
+
       await batch.commit();
 
       toast({
         title: "Bulk Clock In Successful",
         description: addOfflineIndicator(
           `Successfully clocked in ${selectedBulkInEmployees.size} employee(s).`,
-          isOnline
+          isOnline,
         ),
       });
-      setSelectedBulkInEmployees(new Set()); // Clear selection after success
+      setSelectedBulkInEmployees(new Set());
     } catch (serverError) {
-      // When offline, Firestore operations are queued for sync
-      // Only emit errors if we're online (actual permission/validation errors)
       if (isOnline) {
         const permissionError = new FirestorePermissionError({
-          path: "time_entries", // Simplification for batch write
+          path: "time_entries",
           operation: "write",
           requestResourceData: {
             message: `Bulk clock in for ${selectedBulkInEmployees.size} employees`,
@@ -2591,8 +2625,6 @@ function TimeTrackingPage() {
         });
         errorEmitter.emit("permission-error", permissionError);
       }
-      // When offline, operations are queued automatically by Firestore persistence
-      // No error message is shown to maintain consistency with offline behavior
     } finally {
       setIsBulkClockingIn(false);
     }
@@ -2608,7 +2640,7 @@ function TimeTrackingPage() {
         title: "Entry Deleted",
         description: addOfflineIndicator(
           "Time entry has been successfully deleted.",
-          isOnline
+          isOnline,
         ),
       });
       setDeleteConfirmOpen(false);
@@ -2638,7 +2670,7 @@ function TimeTrackingPage() {
         title: "Piecework Deleted",
         description: addOfflineIndicator(
           "Piecework record has been successfully deleted.",
-          isOnline
+          isOnline,
         ),
       });
       setDeleteConfirmOpen(false);
@@ -2708,7 +2740,7 @@ function TimeTrackingPage() {
       // Update the time entry
       await updateDoc(
         doc(firestore, "time_entries", editTarget.entry.id),
-        updateData
+        updateData,
       );
 
       // Update all related piecework records
@@ -2728,7 +2760,7 @@ function TimeTrackingPage() {
         title: "Entry Updated",
         description: addOfflineIndicator(
           "Time entry and all pieces have been successfully updated.",
-          isOnline
+          isOnline,
         ),
       });
       setEditDialogOpen(false);
@@ -2803,7 +2835,7 @@ function TimeTrackingPage() {
         title: "Piecework Updated",
         description: addOfflineIndicator(
           "Piecework record has been successfully updated.",
-          isOnline
+          isOnline,
         ),
       });
       setEditDialogOpen(false);
@@ -2889,7 +2921,7 @@ function TimeTrackingPage() {
             `Successfully deleted ${deleteCount} record(s).${
               hasFilters ? " (Filtered records only)" : " (All records)"
             }`,
-            isOnline
+            isOnline,
           ),
         });
       } else {
@@ -2948,7 +2980,7 @@ function TimeTrackingPage() {
         variant: "destructive",
         title: "Insufficient Sick Hours",
         description: `Employee only has ${availableHours.toFixed(
-          2
+          2,
         )} sick hours available.`,
       });
       return;
@@ -3011,7 +3043,7 @@ function TimeTrackingPage() {
           `${hours} sick hours logged for ${
             manualSelectedEmployee.name
           }. New balance: ${newBalance.toFixed(2)} hrs`,
-          isOnline
+          isOnline,
         ),
       });
 
@@ -3306,7 +3338,7 @@ function TimeTrackingPage() {
                             onChange={(e) => {
                               const value = e.target.value;
                               setPastRecordPiecesCount(
-                                value === "" ? "" : parseFloat(value)
+                                value === "" ? "" : parseFloat(value),
                               );
                             }}
                           />
@@ -3567,7 +3599,7 @@ function TimeTrackingPage() {
                             onChange={(e) => {
                               const value = e.target.value;
                               setPastRecordPiecesCount(
-                                value === "" ? "" : parseFloat(value)
+                                value === "" ? "" : parseFloat(value),
                               );
                             }}
                           />
@@ -3818,7 +3850,7 @@ function TimeTrackingPage() {
                         onCheckedChange={(checked: boolean) => {
                           if (checked) {
                             setSelectedBulkInEmployees(
-                              new Set(activeEmployees.map((e) => e.id))
+                              new Set(activeEmployees.map((e) => e.id)),
                             );
                           } else {
                             setSelectedBulkInEmployees(new Set());
@@ -3931,7 +3963,7 @@ function TimeTrackingPage() {
                   value={selectedBulkClient || ""}
                   onValueChange={(value) => {
                     setSelectedBulkClient(
-                      value === CLEAR_SELECTION_VALUE ? "" : value
+                      value === CLEAR_SELECTION_VALUE ? "" : value,
                     );
                     setSelectedBulkRanch("");
                     setSelectedBulkBlock("");
@@ -3960,7 +3992,7 @@ function TimeTrackingPage() {
                   value={selectedBulkRanch || ""}
                   onValueChange={(value) => {
                     setSelectedBulkRanch(
-                      value === CLEAR_SELECTION_VALUE ? "" : value
+                      value === CLEAR_SELECTION_VALUE ? "" : value,
                     );
                     setSelectedBulkBlock("");
                     setSelectedBulkTask("");
@@ -3989,7 +4021,7 @@ function TimeTrackingPage() {
                   value={selectedBulkBlock || ""}
                   onValueChange={(value) => {
                     setSelectedBulkBlock(
-                      value === CLEAR_SELECTION_VALUE ? "" : value
+                      value === CLEAR_SELECTION_VALUE ? "" : value,
                     );
                     setSelectedBulkTask("");
                   }}
@@ -4024,9 +4056,9 @@ function TimeTrackingPage() {
                         !selectedBulkClient
                           ? "Select a client first to view tasks"
                           : bulkClockOutFilteredTasks &&
-                            bulkClockOutFilteredTasks.length > 0
-                          ? "Select a task to bulk clock out"
-                          : "No active tasks with clock-ins available"
+                              bulkClockOutFilteredTasks.length > 0
+                            ? "Select a task to bulk clock out"
+                            : "No active tasks with clock-ins available"
                       }
                     />
                   </SelectTrigger>
@@ -4124,7 +4156,7 @@ function TimeTrackingPage() {
                   value={sickHoursToUse}
                   onChange={(e) =>
                     setSickHoursToUse(
-                      e.target.value === "" ? 0 : parseFloat(e.target.value)
+                      e.target.value === "" ? 0 : parseFloat(e.target.value),
                     )
                   }
                   disabled={!manualSelectedEmployee}
@@ -4308,7 +4340,7 @@ function TimeTrackingPage() {
                           <span className="font-medium">Client:</span>
                           <span>
                             {clients?.find(
-                              (c) => c.id === pieceWorkSelectedTask.clientId
+                              (c) => c.id === pieceWorkSelectedTask.clientId,
                             )?.name || "Unknown"}
                           </span>
                         </div>
@@ -4425,7 +4457,7 @@ function TimeTrackingPage() {
                               onChange={(e) => {
                                 const value = e.target.value;
                                 setManualPieceQuantity(
-                                  value === "" ? "" : parseFloat(value)
+                                  value === "" ? "" : parseFloat(value),
                                 );
                               }}
                               min="0"
@@ -4580,7 +4612,7 @@ function TimeTrackingPage() {
                                           entry.employeeId === employee.id &&
                                           entry.taskId ===
                                             pieceWorkSelectedTask.id &&
-                                          entry.endTime === null
+                                          entry.endTime === null,
                                       );
 
                                     return (
@@ -4593,7 +4625,7 @@ function TimeTrackingPage() {
                                           if (isActiveInTask) {
                                             setManualSelectedEmployee(employee);
                                             setManualEmployeeSearch(
-                                              employee.name
+                                              employee.name,
                                             );
                                           }
                                         }}
@@ -4633,7 +4665,7 @@ function TimeTrackingPage() {
                           onChange={(e) => {
                             const value = e.target.value;
                             setManualPieceQuantity(
-                              value === "" ? "" : parseFloat(value)
+                              value === "" ? "" : parseFloat(value),
                             );
                           }}
                           min="0"
@@ -4697,7 +4729,7 @@ function TimeTrackingPage() {
 
                             await addDoc(
                               collection(firestore, "piecework"),
-                              newPiecework
+                              newPiecework,
                             );
 
                             playSound("piece");
@@ -4706,7 +4738,7 @@ function TimeTrackingPage() {
                               title: "Piecework Recorded",
                               description: addOfflineIndicator(
                                 `${pieceCount} piece(s) recorded for ${manualSelectedEmployee.name}.`,
-                                isOnline
+                                isOnline,
                               ),
                             });
                             setManualSelectedEmployee(null);
@@ -4724,7 +4756,7 @@ function TimeTrackingPage() {
                               });
                             errorEmitter.emit(
                               "permission-error",
-                              permissionError
+                              permissionError,
                             );
                           }
                           setIsManualSubmitting(false);
@@ -4883,26 +4915,26 @@ function TimeTrackingPage() {
                       if (record.type === "time") {
                         const entry = record.data;
                         const employee = activeEmployees?.find(
-                          (e) => e.id === entry.employeeId
+                          (e) => e.id === entry.employeeId,
                         );
                         const task = allTasks?.find(
-                          (t) => t.id === entry.taskId
+                          (t) => t.id === entry.taskId,
                         );
                         const client = clients?.find(
-                          (c) => c.id === task?.clientId
+                          (c) => c.id === task?.clientId,
                         );
                         const clockInTime =
                           entry.timestamp instanceof Date
                             ? entry.timestamp
                             : (entry.timestamp as any)?.toDate
-                            ? (entry.timestamp as any).toDate()
-                            : new Date(entry.timestamp as any);
+                              ? (entry.timestamp as any).toDate()
+                              : new Date(entry.timestamp as any);
                         const clockOutTime = entry.endTime
                           ? entry.endTime instanceof Date
                             ? entry.endTime
                             : (entry.endTime as any)?.toDate
-                            ? (entry.endTime as any).toDate()
-                            : new Date(entry.endTime as any)
+                              ? (entry.endTime as any).toDate()
+                              : new Date(entry.endTime as any)
                           : null;
 
                         return (
@@ -4928,7 +4960,7 @@ function TimeTrackingPage() {
                                 {/* Payment Type Badge */}
                                 {(() => {
                                   const taskForEntry = allTasks?.find(
-                                    (t) => t.id === entry.taskId
+                                    (t) => t.id === entry.taskId,
                                   );
                                   const paymentType =
                                     entry.paymentModality ||
@@ -4988,16 +5020,20 @@ function TimeTrackingPage() {
                                           p.timestamp instanceof Date
                                             ? p.timestamp
                                             : (p.timestamp as any)?.toDate
-                                            ? (p.timestamp as any).toDate()
-                                            : new Date(p.timestamp as any);
+                                              ? (p.timestamp as any).toDate()
+                                              : new Date(p.timestamp as any);
                                         // Show pieces that fall within the time entry period, or within same day if no end time
                                         if (entry.endTime) {
                                           const endTime =
                                             entry.endTime instanceof Date
                                               ? entry.endTime
                                               : (entry.endTime as any)?.toDate
-                                              ? (entry.endTime as any).toDate()
-                                              : new Date(entry.endTime as any);
+                                                ? (
+                                                    entry.endTime as any
+                                                  ).toDate()
+                                                : new Date(
+                                                    entry.endTime as any,
+                                                  );
                                           return (
                                             pieceTime.getTime() >=
                                               clockInTime.getTime() &&
@@ -5011,7 +5047,7 @@ function TimeTrackingPage() {
                                             clockInTime.toDateString()
                                           );
                                         }
-                                      })()
+                                      })(),
                                   ) || [];
 
                                 const hasPieces =
@@ -5026,7 +5062,7 @@ function TimeTrackingPage() {
                                   (entry.piecesWorked || 0) +
                                   relatedPiecework.reduce(
                                     (sum, p) => sum + p.pieceCount,
-                                    0
+                                    0,
                                   );
 
                                 return (
@@ -5054,8 +5090,12 @@ function TimeTrackingPage() {
                                           piece.timestamp instanceof Date
                                             ? piece.timestamp
                                             : (piece.timestamp as any)?.toDate
-                                            ? (piece.timestamp as any).toDate()
-                                            : new Date(piece.timestamp as any);
+                                              ? (
+                                                  piece.timestamp as any
+                                                ).toDate()
+                                              : new Date(
+                                                  piece.timestamp as any,
+                                                );
                                         return (
                                           <li
                                             key={piece.id}
@@ -5090,7 +5130,7 @@ function TimeTrackingPage() {
                                 size="sm"
                                 onClick={() => {
                                   const taskForEntry = allTasks?.find(
-                                    (t) => t.id === entry.taskId
+                                    (t) => t.id === entry.taskId,
                                   );
                                   // Initialize payment modality based on task type or entry's paymentModality
                                   const initialModality =
@@ -5110,19 +5150,19 @@ function TimeTrackingPage() {
                                             p.timestamp instanceof Date
                                               ? p.timestamp
                                               : (p.timestamp as any)?.toDate
-                                              ? (p.timestamp as any).toDate()
-                                              : new Date(p.timestamp as any);
+                                                ? (p.timestamp as any).toDate()
+                                                : new Date(p.timestamp as any);
                                           if (entry.endTime) {
                                             const endTime =
                                               entry.endTime instanceof Date
                                                 ? entry.endTime
                                                 : (entry.endTime as any)?.toDate
-                                                ? (
-                                                    entry.endTime as any
-                                                  ).toDate()
-                                                : new Date(
-                                                    entry.endTime as any
-                                                  );
+                                                  ? (
+                                                      entry.endTime as any
+                                                    ).toDate()
+                                                  : new Date(
+                                                      entry.endTime as any,
+                                                    );
                                             return (
                                               pieceTime.getTime() >=
                                                 clockInTime.getTime() &&
@@ -5135,7 +5175,7 @@ function TimeTrackingPage() {
                                               clockInTime.toDateString()
                                             );
                                           }
-                                        })()
+                                        })(),
                                     ) || [];
 
                                   setEditTarget({ type: "time", entry: entry });
@@ -5183,8 +5223,8 @@ function TimeTrackingPage() {
                           piece.timestamp instanceof Date
                             ? piece.timestamp
                             : (piece.timestamp as any)?.toDate
-                            ? (piece.timestamp as any).toDate()
-                            : new Date(piece.timestamp as any);
+                              ? (piece.timestamp as any).toDate()
+                              : new Date(piece.timestamp as any);
 
                         const isIncludedInTimeEntry = allTimeEntries?.some(
                           (entry) => {
@@ -5198,16 +5238,16 @@ function TimeTrackingPage() {
                               entry.timestamp instanceof Date
                                 ? entry.timestamp
                                 : (entry.timestamp as any)?.toDate
-                                ? (entry.timestamp as any).toDate()
-                                : new Date(entry.timestamp as any);
+                                  ? (entry.timestamp as any).toDate()
+                                  : new Date(entry.timestamp as any);
 
                             if (entry.endTime) {
                               const clockOutTime =
                                 entry.endTime instanceof Date
                                   ? entry.endTime
                                   : (entry.endTime as any)?.toDate
-                                  ? (entry.endTime as any).toDate()
-                                  : new Date(entry.endTime as any);
+                                    ? (entry.endTime as any).toDate()
+                                    : new Date(entry.endTime as any);
                               return (
                                 pieceTime.getTime() >= clockInTime.getTime() &&
                                 pieceTime.getTime() <= clockOutTime.getTime()
@@ -5219,7 +5259,7 @@ function TimeTrackingPage() {
                                 clockInTime.toDateString()
                               );
                             }
-                          }
+                          },
                         );
 
                         // Skip this piecework if it's already shown in a time entry
@@ -5234,16 +5274,16 @@ function TimeTrackingPage() {
                             .map(
                               (id) =>
                                 activeEmployees?.find(
-                                  (e) => e.id === id || e.qrCode === id
-                                )?.name
+                                  (e) => e.id === id || e.qrCode === id,
+                                )?.name,
                             )
                             .filter(Boolean)
                             .join(", ") || "Unknown Employee(s)";
                         const task = allTasks?.find(
-                          (t) => t.id === piece.taskId
+                          (t) => t.id === piece.taskId,
                         );
                         const client = clients?.find(
-                          (c) => c.id === task?.clientId
+                          (c) => c.id === task?.clientId,
                         );
 
                         return (
@@ -5312,7 +5352,7 @@ function TimeTrackingPage() {
                                 size="sm"
                                 onClick={() => {
                                   const taskForPiece = allTasks?.find(
-                                    (t) => t.id === piece.taskId
+                                    (t) => t.id === piece.taskId,
                                   );
 
                                   setEditTarget({
@@ -5360,14 +5400,18 @@ function TimeTrackingPage() {
           </Card>
         </TabsContent>
         <TabsContent value="test">
-          <SoundTestTab 
+          <SoundTestTab
             audioContext={audioContext}
             username={username}
             onSettingsSaved={() => {
               // Reload sound settings when saved
-              console.log("onSettingsSaved callback triggered, username:", username);
+              console.log(
+                "onSettingsSaved callback triggered, username:",
+                username,
+              );
               if (username) {
-                const settings = SoundSettingsService.getSoundSettings(username);
+                const settings =
+                  SoundSettingsService.getSoundSettings(username);
                 console.log("Reloading settings from localStorage:", settings);
                 setSoundSettings(settings);
               }
@@ -5432,10 +5476,10 @@ function TimeTrackingPage() {
                   historyStartDate || historyEndDate || historyNameFilter;
                 const totalRecords = filteredMergedRecords.length;
                 const totalTimeEntries = filteredMergedRecords.filter(
-                  (r) => r.type === "time"
+                  (r) => r.type === "time",
                 ).length;
                 const totalPiecework = filteredMergedRecords.filter(
-                  (r) => r.type === "piecework"
+                  (r) => r.type === "piecework",
                 ).length;
 
                 return (
@@ -5686,8 +5730,8 @@ function TimeTrackingPage() {
                         piece.timestamp instanceof Date
                           ? piece.timestamp
                           : (piece.timestamp as any)?.toDate
-                          ? (piece.timestamp as any).toDate()
-                          : new Date(piece.timestamp as any);
+                            ? (piece.timestamp as any).toDate()
+                            : new Date(piece.timestamp as any);
                       return (
                         <div key={piece.id} className="space-y-2">
                           <Label htmlFor={`edit-piece-${index}`}>
@@ -5767,8 +5811,8 @@ function TimeTrackingPage() {
                             editPiecesWorked === "" || editPiecesWorked === 0
                               ? 0
                               : typeof editPiecesWorked === "string"
-                              ? parseFloat(editPiecesWorked) || 0
-                              : editPiecesWorked || 0;
+                                ? parseFloat(editPiecesWorked) || 0
+                                : editPiecesWorked || 0;
 
                           const relatedPieces = editRelatedPiecework.reduce(
                             (sum, p) => {
@@ -5781,7 +5825,7 @@ function TimeTrackingPage() {
                                   : parseFloat(String(p.pieceCount)) || 0)
                               );
                             },
-                            0
+                            0,
                           );
 
                           return (mainPieces + relatedPieces).toFixed(2);
