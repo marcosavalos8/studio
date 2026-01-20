@@ -2464,6 +2464,7 @@ function TimeTrackingPage() {
     try {
       const querySnapshot = await getDocs(q);
       if (querySnapshot.empty) {
+        setIsBulkClockingOut(false);
         toast({
           title: "No one to clock out",
           description: "No employees are currently clocked in for this task.",
@@ -2508,9 +2509,16 @@ function TimeTrackingPage() {
           },
         });
         errorEmitter.emit("permission-error", permissionError);
+      } else {
+        // When offline, show success message as operation is queued
+        toast({
+          title: "Bulk Clock Out Queued",
+          description: addOfflineIndicator(
+            "Bulk clock out operation has been saved and will sync when online.",
+            isOnline
+          ),
+        });
       }
-      // When offline, operations are queued automatically by Firestore persistence
-      // No error message is shown to maintain consistency with offline behavior
     } finally {
       setIsBulkClockingOut(false);
     }
@@ -2590,9 +2598,17 @@ function TimeTrackingPage() {
           },
         });
         errorEmitter.emit("permission-error", permissionError);
+      } else {
+        // When offline, show success message as operation is queued
+        toast({
+          title: "Bulk Clock In Queued",
+          description: addOfflineIndicator(
+            `Bulk clock in for ${selectedBulkInEmployees.size} employee(s) has been saved and will sync when online.`,
+            isOnline
+          ),
+        });
+        setSelectedBulkInEmployees(new Set()); // Clear selection after queuing
       }
-      // When offline, operations are queued automatically by Firestore persistence
-      // No error message is shown to maintain consistency with offline behavior
     } finally {
       setIsBulkClockingIn(false);
     }
