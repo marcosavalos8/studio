@@ -4715,17 +4715,43 @@ function TimeTrackingPage() {
                           }
 
                           setIsManualSubmitting(true);
-
                           try {
-                            // Create a single piecework record with the total quantity
                             const newPiecework: Omit<Piecework, "id"> = {
                               employeeId: manualSelectedEmployee.id,
                               taskId: pieceWorkSelectedTask.id,
                               timestamp: new Date(),
-                              pieceCount: pieceCount, // Store the total quantity in one record
+                              pieceCount: pieceCount,
                               pieceQrCode: "manual_entry",
                               qcNote: manualNotes,
                             };
+
+                            // ✅ OFFLINE: cola y salida inmediata
+                            if (!isOnline) {
+                              addDoc(
+                                collection(firestore, "piecework"),
+                                newPiecework,
+                              ).catch((error) => {
+                                console.warn(
+                                  "Manual piecework queued for sync:",
+                                  error,
+                                );
+                              });
+
+                              toast({
+                                title: "Piecework Queued",
+                                description: addOfflineIndicator(
+                                  `${pieceCount} piece(s) queued for ${manualSelectedEmployee.name}.`,
+                                  isOnline,
+                                ),
+                              });
+
+                              setManualSelectedEmployee(null);
+                              setManualEmployeeSearch("");
+                              setManualPieceQuantity("");
+                              setManualNotes("");
+                              setIsManualSubmitting(false);
+                              return;
+                            }
 
                             await addDoc(
                               collection(firestore, "piecework"),
@@ -4741,6 +4767,7 @@ function TimeTrackingPage() {
                                 isOnline,
                               ),
                             });
+
                             setManualSelectedEmployee(null);
                             setManualEmployeeSearch("");
                             setManualPieceQuantity("");
@@ -4758,8 +4785,9 @@ function TimeTrackingPage() {
                               "permission-error",
                               permissionError,
                             );
+                          } finally {
+                            setIsManualSubmitting(false);
                           }
-                          setIsManualSubmitting(false);
                         }}
                         disabled={
                           isManualSubmitting ||
