@@ -10,7 +10,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Settings as SettingsIcon, Palette, Moon, Sun, Info } from "lucide-react";
+import { Settings as SettingsIcon, Palette, Moon, Sun, Info, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -19,8 +19,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useSettings } from "@/contexts/settings-context";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SettingsPage() {
+  const { settings, updateSetting, resetSettings } = useSettings();
+  const { toast } = useToast();
+
+  const handleSave = () => {
+    toast({
+      title: "Configuración guardada",
+      description: "Tus preferencias han sido actualizadas exitosamente.",
+    });
+  };
+
+  const handleReset = () => {
+    resetSettings();
+    toast({
+      title: "Configuración restablecida",
+      description: "Se han restaurado los valores predeterminados.",
+    });
+  };
+
   return (
     <div className="grid gap-3 md:gap-4">
       <Card>
@@ -32,7 +52,7 @@ export default function SettingsPage() {
             </CardTitle>
           </div>
           <CardDescription className="text-sm">
-            Personaliza tu experiencia en la aplicación (funcionalidades en desarrollo)
+            Personaliza tu experiencia en la aplicación
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -54,7 +74,12 @@ export default function SettingsPage() {
                   Selecciona el tema de color de la aplicación
                 </p>
               </div>
-              <Select defaultValue="light" disabled>
+              <Select
+                value={settings.themeMode}
+                onValueChange={(value) =>
+                  updateSetting("themeMode", value as "light" | "dark" | "system")
+                }
+              >
                 <SelectTrigger id="theme-mode" className="w-[180px]">
                   <SelectValue placeholder="Seleccionar tema" />
                 </SelectTrigger>
@@ -81,19 +106,6 @@ export default function SettingsPage() {
               </Select>
             </div>
 
-            {/* Dark Mode Toggle */}
-            <div className="flex items-center justify-between space-x-4">
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="dark-mode" className="text-sm font-medium">
-                  Modo Oscuro
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Activa el modo oscuro para reducir el brillo de la pantalla
-                </p>
-              </div>
-              <Switch id="dark-mode" disabled />
-            </div>
-
             {/* Color Scheme */}
             <div className="flex items-center justify-between space-x-4">
               <div className="flex-1 space-y-1">
@@ -104,7 +116,12 @@ export default function SettingsPage() {
                   Personaliza los colores principales de la interfaz
                 </p>
               </div>
-              <Select defaultValue="blue" disabled>
+              <Select
+                value={settings.colorScheme}
+                onValueChange={(value) =>
+                  updateSetting("colorScheme", value as "blue" | "green" | "purple" | "orange")
+                }
+              >
                 <SelectTrigger id="color-scheme" className="w-[180px]">
                   <SelectValue placeholder="Seleccionar color" />
                 </SelectTrigger>
@@ -112,7 +129,7 @@ export default function SettingsPage() {
                   <SelectItem value="blue">
                     <div className="flex items-center gap-2">
                       <div className="h-4 w-4 rounded-full bg-blue-600" />
-                      Azul (Predeterminado)
+                      Azul
                     </div>
                   </SelectItem>
                   <SelectItem value="green">
@@ -147,7 +164,13 @@ export default function SettingsPage() {
                   Aumenta el contraste para mejor visibilidad
                 </p>
               </div>
-              <Switch id="high-contrast" disabled />
+              <Switch
+                id="high-contrast"
+                checked={settings.highContrast}
+                onCheckedChange={(checked) =>
+                  updateSetting("highContrast", checked)
+                }
+              />
             </div>
 
             {/* Font Size */}
@@ -160,7 +183,12 @@ export default function SettingsPage() {
                   Ajusta el tamaño del texto en la aplicación
                 </p>
               </div>
-              <Select defaultValue="medium" disabled>
+              <Select
+                value={settings.fontSize}
+                onValueChange={(value) =>
+                  updateSetting("fontSize", value as "small" | "medium" | "large" | "xlarge")
+                }
+              >
                 <SelectTrigger id="font-size" className="w-[180px]">
                   <SelectValue placeholder="Seleccionar tamaño" />
                 </SelectTrigger>
@@ -192,7 +220,13 @@ export default function SettingsPage() {
                   Reduce el espaciado entre elementos para ver más información
                 </p>
               </div>
-              <Switch id="compact-mode" disabled />
+              <Switch
+                id="compact-mode"
+                checked={settings.compactMode}
+                onCheckedChange={(checked) =>
+                  updateSetting("compactMode", checked)
+                }
+              />
             </div>
 
             {/* Show Animations */}
@@ -205,7 +239,13 @@ export default function SettingsPage() {
                   Activa o desactiva las animaciones de la interfaz
                 </p>
               </div>
-              <Switch id="animations" defaultChecked disabled />
+              <Switch
+                id="animations"
+                checked={settings.animations}
+                onCheckedChange={(checked) =>
+                  updateSetting("animations", checked)
+                }
+              />
             </div>
 
             {/* Sidebar Position */}
@@ -218,7 +258,12 @@ export default function SettingsPage() {
                   Cambia la posición del menú lateral
                 </p>
               </div>
-              <Select defaultValue="left" disabled>
+              <Select
+                value={settings.sidebarPosition}
+                onValueChange={(value) =>
+                  updateSetting("sidebarPosition", value as "left" | "right")
+                }
+              >
                 <SelectTrigger id="sidebar-position" className="w-[180px]">
                   <SelectValue placeholder="Seleccionar posición" />
                 </SelectTrigger>
@@ -248,7 +293,12 @@ export default function SettingsPage() {
                   Selecciona el idioma de la interfaz
                 </p>
               </div>
-              <Select defaultValue="es" disabled>
+              <Select
+                value={settings.language}
+                onValueChange={(value) =>
+                  updateSetting("language", value as "es" | "en")
+                }
+              >
                 <SelectTrigger id="language" className="w-[180px]">
                   <SelectValue placeholder="Seleccionar idioma" />
                 </SelectTrigger>
@@ -269,7 +319,12 @@ export default function SettingsPage() {
                   Cambia cómo se muestran las fechas
                 </p>
               </div>
-              <Select defaultValue="mm-dd-yyyy" disabled>
+              <Select
+                value={settings.dateFormat}
+                onValueChange={(value) =>
+                  updateSetting("dateFormat", value as "mm-dd-yyyy" | "dd-mm-yyyy" | "yyyy-mm-dd")
+                }
+              >
                 <SelectTrigger id="date-format" className="w-[180px]">
                   <SelectValue placeholder="Seleccionar formato" />
                 </SelectTrigger>
@@ -283,29 +338,27 @@ export default function SettingsPage() {
           </div>
 
           {/* Info Banner */}
-          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4">
             <div className="flex gap-3">
-              <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+              <Check className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
               <div className="space-y-1">
-                <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100">
-                  Funcionalidad en Desarrollo
+                <h4 className="text-sm font-semibold text-green-900 dark:text-green-100">
+                  Configuración Activa
                 </h4>
-                <p className="text-sm text-blue-700 dark:text-blue-300">
-                  Las opciones de configuración mostradas aquí están actualmente deshabilitadas
-                  y serán implementadas en futuras actualizaciones. Estas incluirán personalización
-                  de temas, modo oscuro, esquemas de colores personalizados, tamaños de fuente,
-                  y más opciones de visualización para mejorar tu experiencia.
+                <p className="text-sm text-green-700 dark:text-green-300">
+                  Todas las opciones de configuración están ahora activas y funcionales.
+                  Los cambios se aplican inmediatamente y se guardan automáticamente en tu navegador.
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Save Button (disabled for now) */}
+          {/* Action Buttons */}
           <div className="flex justify-end gap-3">
-            <Button variant="outline" disabled>
+            <Button variant="outline" onClick={handleReset}>
               Restablecer
             </Button>
-            <Button disabled>
+            <Button onClick={handleSave}>
               Guardar Cambios
             </Button>
           </div>

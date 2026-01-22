@@ -12,9 +12,11 @@ import { auth } from '@/firebase'
 import { NetworkStatusIndicator } from '@/components/network-status-indicator'
 import { PagePrecacher } from '@/components/page-precacher'
 import { DataPrecacher } from '@/components/data-precacher'
+import { useSettings } from '@/contexts/settings-context'
 
 function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { user, loading } = useUser()
+  const { settings } = useSettings()
 
   useEffect(() => {
     if (!loading && !user) {
@@ -32,16 +34,20 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
     );
   }
 
+  const isRightSidebar = settings.sidebarPosition === 'right';
+
   return (
     <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <AppHeader />
-        <NetworkStatusIndicator />
-        <PagePrecacher />
-        <DataPrecacher />
-        <div className="p-3 sm:p-4 md:p-6 lg:p-8">{children}</div>
-      </SidebarInset>
+      <div className={`flex w-full ${isRightSidebar ? 'flex-row-reverse' : ''}`}>
+        <AppSidebar />
+        <SidebarInset className="flex-1">
+          <AppHeader />
+          <NetworkStatusIndicator />
+          <PagePrecacher />
+          <DataPrecacher />
+          <div className="p-3 sm:p-4 md:p-6 lg:p-8">{children}</div>
+        </SidebarInset>
+      </div>
     </SidebarProvider>
   );
 }
