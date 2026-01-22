@@ -53,20 +53,22 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   // Load settings from localStorage on mount
   useEffect(() => {
     setMounted(true);
-    const savedSettings = localStorage.getItem("app-settings");
-    if (savedSettings) {
-      try {
+    if (typeof window === "undefined") return;
+    
+    try {
+      const savedSettings = localStorage.getItem("app-settings");
+      if (savedSettings) {
         const parsed = JSON.parse(savedSettings);
         setSettings({ ...defaultSettings, ...parsed });
-      } catch (error) {
-        console.error("Failed to parse saved settings:", error);
       }
+    } catch (error) {
+      console.error("Failed to parse saved settings:", error);
     }
   }, []);
 
   // Apply theme changes to document
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || typeof window === "undefined") return;
 
     const root = document.documentElement;
 
@@ -163,14 +165,26 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   ) => {
     setSettings((prev) => {
       const newSettings = { ...prev, [key]: value };
-      localStorage.setItem("app-settings", JSON.stringify(newSettings));
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("app-settings", JSON.stringify(newSettings));
+        } catch (error) {
+          console.error("Failed to save settings:", error);
+        }
+      }
       return newSettings;
     });
   };
 
   const resetSettings = () => {
     setSettings(defaultSettings);
-    localStorage.setItem("app-settings", JSON.stringify(defaultSettings));
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("app-settings", JSON.stringify(defaultSettings));
+      } catch (error) {
+        console.error("Failed to reset settings:", error);
+      }
+    }
   };
 
   return (

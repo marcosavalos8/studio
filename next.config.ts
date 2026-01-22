@@ -4,7 +4,6 @@ import withPWA from "@ducanh2912/next-pwa";
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  turbopack: {}, // Add empty turbopack config to silence the error
   // sin experimental.trace
   typescript: {
     ignoreBuildErrors: true, // 👈 Ignora errores de tipos al compilar
