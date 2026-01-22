@@ -373,6 +373,100 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         currentRow++;
       });
 
+      // Add Total Base Labor Cost section
+      currentRow += 1;
+      const totalLaborCostCell = worksheet.getCell(currentRow, 5);
+      totalLaborCostCell.value = "Total Base Labor Cost";
+      totalLaborCostCell.font = { bold: true, size: 12 };
+      currentRow++;
+
+      // Headers for Total Base Labor Cost table
+      const piecesHeaderCell = worksheet.getCell(currentRow, 5);
+      piecesHeaderCell.value = "Pieces";
+      piecesHeaderCell.font = { bold: true, size: 10 };
+
+      const totalPiecesHeaderCell = worksheet.getCell(currentRow, 6);
+      totalPiecesHeaderCell.value = "Total Pieces";
+      totalPiecesHeaderCell.font = { bold: true, size: 10 };
+
+      const rateHeaderCell = worksheet.getCell(currentRow, 7);
+      rateHeaderCell.value = "Rate";
+      rateHeaderCell.font = { bold: true, size: 10 };
+
+      const totalPayHeaderCell = worksheet.getCell(currentRow, 8);
+      totalPayHeaderCell.value = "Total Pay";
+      totalPayHeaderCell.font = { bold: true, size: 10 };
+      currentRow++;
+
+      // Add data for each task
+      uniqueTasks.forEach((taskName, idx) => {
+        const label = String.fromCharCode(65 + idx);
+        
+        // Calculate totals for this task across all employees
+        let totalPieces = 0;
+        let rate = 0;
+        let totalPay = 0;
+        
+        report.employeeDetails.forEach((employee) => {
+          const task = employee.tasksSummary.find(
+            (t) => t.taskName === taskName
+          );
+          if (task) {
+            totalPieces += task.quantity;
+            rate = task.rate;
+            totalPay += task.cost;
+          }
+        });
+
+        const pieceCell = worksheet.getCell(currentRow, 5);
+        pieceCell.value = `Piece ${label}`;
+        pieceCell.font = { size: 10 };
+
+        const totalPiecesCell = worksheet.getCell(currentRow, 6);
+        totalPiecesCell.value = parseFloat(totalPieces.toFixed(2));
+        totalPiecesCell.numFmt = "0.00";
+
+        const rateCell = worksheet.getCell(currentRow, 7);
+        rateCell.value = parseFloat(rate.toFixed(2));
+        rateCell.numFmt = '"$"0.00';
+
+        const totalPayCell = worksheet.getCell(currentRow, 8);
+        totalPayCell.value = parseFloat(totalPay.toFixed(2));
+        totalPayCell.numFmt = '"$"0.00';
+
+        currentRow++;
+      });
+
+      // Add Paid Rest Breaks row
+      const restBreaksLabelCell = worksheet.getCell(currentRow, 5);
+      restBreaksLabelCell.value = "Paid Rest Breaks";
+      restBreaksLabelCell.font = { size: 10 };
+
+      const restBreaksValueCell = worksheet.getCell(currentRow, 8);
+      restBreaksValueCell.value = parseFloat(report.paidRestBreaks.toFixed(2));
+      restBreaksValueCell.numFmt = '"$"0.00';
+      currentRow++;
+
+      // Add Minimum Wage Adjustments row
+      const minWageLabelCell = worksheet.getCell(currentRow, 5);
+      minWageLabelCell.value = "Minimum Wage Adjustments";
+      minWageLabelCell.font = { size: 10 };
+
+      const minWageValueCell = worksheet.getCell(currentRow, 8);
+      minWageValueCell.value = parseFloat(report.minimumWageTopUp.toFixed(2));
+      minWageValueCell.numFmt = '"$"0.00';
+      currentRow++;
+
+      // Add Total Amount row
+      const totalAmountLabelCell = worksheet.getCell(currentRow, 5);
+      totalAmountLabelCell.value = "Total Amount:";
+      totalAmountLabelCell.font = { bold: true, size: 10 };
+
+      const totalAmountValueCell = worksheet.getCell(currentRow, 8);
+      totalAmountValueCell.value = parseFloat(report.laborCost.toFixed(2));
+      totalAmountValueCell.numFmt = '"$"0.00';
+      totalAmountValueCell.font = { bold: true };
+
       // Set column widths
       worksheet.getColumn(1).width = 20; // Worker Name
       worksheet.getColumn(2).width = 8; // Hours
@@ -728,19 +822,85 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
           </div>
         )}
 
-        {/* Task Legend */}
+        {/* Task Legend and Total Base Labor Cost */}
         {uniqueTasks.length > 0 && (
           <div className="mt-8 pt-4 border-t">
-            <h3 className="font-bold mb-2 text-lg">Task Legend:</h3>
-            <div className="text-sm grid grid-cols-2 gap-1">
-              {uniqueTasks.map((taskName, idx) => {
-                const label = String.fromCharCode(65 + idx);
-                return (
-                  <p key={taskName} className="text-xs">
-                    <strong>PIECE {label}</strong> = {taskName}
-                  </p>
-                );
-              })}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Task Legend Section */}
+              <div>
+                <h3 className="font-bold mb-2 text-lg">Task Legend:</h3>
+                <div className="text-sm space-y-1">
+                  {uniqueTasks.map((taskName, idx) => {
+                    const label = String.fromCharCode(65 + idx);
+                    return (
+                      <p key={taskName} className="text-xs">
+                        <strong>PIECE {label}</strong> = {taskName}
+                      </p>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Total Base Labor Cost Section */}
+              <div>
+                <h3 className="font-bold mb-2 text-lg">Total Base Labor Cost</h3>
+                <div className="text-xs">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-1">Pieces</th>
+                        <th className="text-right py-1">Total Pieces</th>
+                        <th className="text-right py-1">Rate</th>
+                        <th className="text-right py-1">Total Pay</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {uniqueTasks.map((taskName, idx) => {
+                        const label = String.fromCharCode(65 + idx);
+                        
+                        // Calculate totals for this task across all employees
+                        let totalPieces = 0;
+                        let rate = 0;
+                        let totalPay = 0;
+                        
+                        if (report.employeeDetails) {
+                          report.employeeDetails.forEach((employee) => {
+                            const task = employee.tasksSummary.find(
+                              (t) => t.taskName === taskName
+                            );
+                            if (task) {
+                              totalPieces += task.quantity;
+                              rate = task.rate; // Same rate for all employees on the same task
+                              totalPay += task.cost;
+                            }
+                          });
+                        }
+                        
+                        return (
+                          <tr key={taskName}>
+                            <td className="py-1">Piece {label}</td>
+                            <td className="text-right py-1">{totalPieces.toFixed(2)}</td>
+                            <td className="text-right py-1">{formatCurrency(rate)}</td>
+                            <td className="text-right py-1">{formatCurrency(totalPay)}</td>
+                          </tr>
+                        );
+                      })}
+                      <tr>
+                        <td className="py-1" colSpan={3}>Paid Rest Breaks</td>
+                        <td className="text-right py-1">{formatCurrency(report.paidRestBreaks)}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-1" colSpan={3}>Minimum Wage Adjustments</td>
+                        <td className="text-right py-1">{formatCurrency(report.minimumWageTopUp)}</td>
+                      </tr>
+                      <tr className="border-t font-bold">
+                        <td className="py-1" colSpan={3}>Total Amount:</td>
+                        <td className="text-right py-1">{formatCurrency(report.laborCost)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
         )}
