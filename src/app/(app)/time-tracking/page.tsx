@@ -1371,6 +1371,35 @@ function TimeTrackingPage() {
         pieceQrCode: binQr,
       };
       try {
+        // ✅ OFFLINE: no esperar, evitar “processing” pegado
+        if (!isOnline) {
+          addDoc(collection(firestore, "piecework"), newPiecework).catch(
+            (error) => {
+              console.warn("Piecework queued for sync:", error);
+            },
+          );
+
+          playSound("piece");
+
+          const employeeNames = employeeIds
+            .map(
+              (id) =>
+                activeEmployees?.find((e) => e.qrCode === id)?.name ||
+                "Unknown",
+            )
+            .join(", ");
+
+          toast({
+            title: "Piecework Recorded",
+            description: addOfflineIndicator(
+              `1 piece recorded for ${employeeNames}.`,
+              isOnline,
+            ),
+          });
+
+          return;
+        }
+
         await addDoc(collection(firestore, "piecework"), newPiecework);
         playSound("piece");
         const employeeNames = employeeIds
@@ -1399,6 +1428,7 @@ function TimeTrackingPage() {
     [firestore, toast, activeEmployees, playSound, isOnline],
   );
 
+  // New function to record piecework with quantity (no bin scanning required)
   // New function to record piecework with quantity (no bin scanning required)
   const recordPieceworkWithQuantity = useCallback(
     async (
@@ -1429,6 +1459,16 @@ function TimeTrackingPage() {
           };
           const docRef = doc(collection(firestore, "piecework"));
           batch.set(docRef, newPiecework);
+        }
+
+        // ✅ OFFLINE: no esperar commit, evitar “processing” pegado
+        if (!isOnline) {
+          batch.commit().catch((error) => {
+            console.warn("Piecework batch queued for sync:", error);
+          });
+
+          playSound("piece");
+          return true;
         }
 
         // Commit all records at once
@@ -2064,13 +2104,12 @@ function TimeTrackingPage() {
         });
       } else if (pieceEntryMode === "scan") {
         // Single employee mode + Scan Employees - auto-submit with 1 piece
-        // Set processing state to show loading overlay
         setIsPieceworkQrProcessing(true);
 
         try {
           const employeeIds = [scannedEmployee.id];
 
-          // Show toast immediately when offline
+          // ✅ OFFLINE: no esperar, salir rápido y apagar processing
           if (!isOnline) {
             toast({
               title: "Piecework Recorded",
@@ -2079,9 +2118,20 @@ function TimeTrackingPage() {
                 isOnline,
               ),
             });
+
+            recordPieceworkWithQuantity(
+              employeeIds,
+              pieceWorkSelectedTask.id,
+              1,
+              undefined,
+            ).catch((error) => {
+              console.warn("Piecework queued for sync:", error);
+            });
+
+            setIsPieceworkQrProcessing(false);
+            return;
           }
 
-          // Record the piecework
           const success = await recordPieceworkWithQuantity(
             employeeIds,
             pieceWorkSelectedTask.id,
@@ -2093,7 +2143,6 @@ function TimeTrackingPage() {
             playSound("piece");
           }
         } finally {
-          // Reset processing state after operation completes
           setIsPieceworkQrProcessing(false);
         }
       } else {
