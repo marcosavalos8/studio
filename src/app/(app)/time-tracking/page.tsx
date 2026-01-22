@@ -1150,7 +1150,12 @@ function TimeTrackingPage() {
           ...(piecesWorked && piecesWorked > 0 ? { piecesWorked } : {}),
         };
         batch.set(newTimeEntryRef, newTimeEntry);
-
+        if (!isOnline) {
+          batch.commit().catch((err) => {
+            console.warn("Clock-in queued for sync:", err);
+          });
+          return true;
+        }
         await batch.commit();
         playSound("clock-in");
 
@@ -1295,7 +1300,12 @@ function TimeTrackingPage() {
             totalHoursWorked: newTotalHours,
             sickHoursBalance: newSickBalance,
           });
-
+          if (!isOnline) {
+            batch.commit().catch((err) => {
+              console.warn("Clock-out queued for sync:", err);
+            });
+            return;
+          }
           await batch.commit();
           playSound("clock-out");
 
