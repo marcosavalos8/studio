@@ -393,45 +393,48 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         currentRow++;
       });
 
-      // Add task legend
+      // Add task legend and Total Base Labor Cost side by side
       currentRow += 2;
-      const legendCell = worksheet.getCell(currentRow, 1);
+      const legendStartRow = currentRow;
+      
+      // Task Legend (left side - column 1)
+      const legendCell = worksheet.getCell(legendStartRow, 1);
       legendCell.value = "Task Legend:";
       legendCell.font = { bold: true, size: 12 };
-      currentRow++;
 
+      let legendRow = legendStartRow + 1;
       uniqueTasks.forEach((taskName, idx) => {
         const label = String.fromCharCode(65 + idx);
-        const taskLegendCell = worksheet.getCell(currentRow, 1);
+        const taskLegendCell = worksheet.getCell(legendRow, 1);
         taskLegendCell.value = `PIECE ${label} = ${taskName}`;
         taskLegendCell.font = { size: 10 };
-        currentRow++;
+        legendRow++;
       });
 
-      // Add Total Base Labor Cost section
-      currentRow++;
-      const totalLaborCostCell = worksheet.getCell(currentRow, 5);
+      // Total Base Labor Cost (right side - columns 5-8)
+      const laborCostStartRow = legendStartRow;
+      const totalLaborCostCell = worksheet.getCell(laborCostStartRow, 5);
       totalLaborCostCell.value = "Total Base Labor Cost";
       totalLaborCostCell.font = { bold: true, size: 12 };
-      currentRow++;
 
       // Headers for Total Base Labor Cost table
-      const piecesHeaderCell = worksheet.getCell(currentRow, 5);
+      let laborCostRow = laborCostStartRow + 1;
+      const piecesHeaderCell = worksheet.getCell(laborCostRow, 5);
       piecesHeaderCell.value = "Pieces";
       piecesHeaderCell.font = { bold: true, size: 10 };
 
-      const totalPiecesHeaderCell = worksheet.getCell(currentRow, 6);
+      const totalPiecesHeaderCell = worksheet.getCell(laborCostRow, 6);
       totalPiecesHeaderCell.value = "Total Pieces";
       totalPiecesHeaderCell.font = { bold: true, size: 10 };
 
-      const rateHeaderCell = worksheet.getCell(currentRow, 7);
+      const rateHeaderCell = worksheet.getCell(laborCostRow, 7);
       rateHeaderCell.value = "Rate";
       rateHeaderCell.font = { bold: true, size: 10 };
 
-      const totalPayHeaderCell = worksheet.getCell(currentRow, 8);
+      const totalPayHeaderCell = worksheet.getCell(laborCostRow, 8);
       totalPayHeaderCell.value = "Total Pay";
       totalPayHeaderCell.font = { bold: true, size: 10 };
-      currentRow++;
+      laborCostRow++;
 
       // Add data for each task
       uniqueTasks.forEach((taskName, idx) => {
@@ -441,54 +444,57 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
           report.employeeDetails
         );
 
-        const pieceCell = worksheet.getCell(currentRow, 5);
+        const pieceCell = worksheet.getCell(laborCostRow, 5);
         pieceCell.value = `Piece ${label}`;
         pieceCell.font = { size: 10 };
 
-        const totalPiecesCell = worksheet.getCell(currentRow, 6);
+        const totalPiecesCell = worksheet.getCell(laborCostRow, 6);
         totalPiecesCell.value = parseFloat(totalPieces.toFixed(2));
         totalPiecesCell.numFmt = "0.00";
 
-        const rateCell = worksheet.getCell(currentRow, 7);
+        const rateCell = worksheet.getCell(laborCostRow, 7);
         rateCell.value = parseFloat(rate.toFixed(2));
         rateCell.numFmt = '"$"0.00';
 
-        const totalPayCell = worksheet.getCell(currentRow, 8);
+        const totalPayCell = worksheet.getCell(laborCostRow, 8);
         totalPayCell.value = parseFloat(totalPay.toFixed(2));
         totalPayCell.numFmt = '"$"0.00';
 
-        currentRow++;
+        laborCostRow++;
       });
 
       // Add Paid Rest Breaks row
-      const restBreaksLabelCell = worksheet.getCell(currentRow, 5);
+      const restBreaksLabelCell = worksheet.getCell(laborCostRow, 5);
       restBreaksLabelCell.value = "Paid Rest Breaks";
       restBreaksLabelCell.font = { size: 10 };
 
-      const restBreaksValueCell = worksheet.getCell(currentRow, 8);
+      const restBreaksValueCell = worksheet.getCell(laborCostRow, 8);
       restBreaksValueCell.value = parseFloat(report.paidRestBreaks.toFixed(2));
       restBreaksValueCell.numFmt = '"$"0.00';
-      currentRow++;
+      laborCostRow++;
 
       // Add Minimum Wage Adjustments row
-      const minWageLabelCell = worksheet.getCell(currentRow, 5);
+      const minWageLabelCell = worksheet.getCell(laborCostRow, 5);
       minWageLabelCell.value = "Minimum Wage Adjustments";
       minWageLabelCell.font = { size: 10 };
 
-      const minWageValueCell = worksheet.getCell(currentRow, 8);
+      const minWageValueCell = worksheet.getCell(laborCostRow, 8);
       minWageValueCell.value = parseFloat(report.minimumWageTopUp.toFixed(2));
       minWageValueCell.numFmt = '"$"0.00';
-      currentRow++;
+      laborCostRow++;
 
       // Add Total Amount row
-      const totalAmountLabelCell = worksheet.getCell(currentRow, 5);
+      const totalAmountLabelCell = worksheet.getCell(laborCostRow, 5);
       totalAmountLabelCell.value = "Total Amount:";
       totalAmountLabelCell.font = { bold: true, size: 10 };
 
-      const totalAmountValueCell = worksheet.getCell(currentRow, 8);
+      const totalAmountValueCell = worksheet.getCell(laborCostRow, 8);
       totalAmountValueCell.value = parseFloat(report.laborCost.toFixed(2));
       totalAmountValueCell.numFmt = '"$"0.00';
       totalAmountValueCell.font = { bold: true };
+      
+      // Update currentRow to be the maximum of both sections
+      currentRow = Math.max(legendRow, laborCostRow);
 
       // Set column widths
       worksheet.getColumn(1).width = 20; // Worker Name
