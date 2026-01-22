@@ -1151,6 +1151,14 @@ function TimeTrackingPage() {
         };
         batch.set(newTimeEntryRef, newTimeEntry);
 
+        // When offline, don't await commit to avoid blocking UI
+        if (!isOnline) {
+          batch.commit().catch((err) => {
+            console.warn("Clock-in queued for sync:", err);
+          });
+          return true;
+        }
+
         await batch.commit();
         playSound("clock-in");
 
@@ -1295,6 +1303,14 @@ function TimeTrackingPage() {
             totalHoursWorked: newTotalHours,
             sickHoursBalance: newSickBalance,
           });
+
+          // When offline, don't await commit to avoid blocking UI
+          if (!isOnline) {
+            batch.commit().catch((err) => {
+              console.warn("Clock-out queued for sync:", err);
+            });
+            return;
+          }
 
           await batch.commit();
           playSound("clock-out");
@@ -1552,6 +1568,14 @@ function TimeTrackingPage() {
           sickHoursBalance: newSickBalance,
         });
 
+        // When offline, don't await commit to avoid blocking UI
+        if (!isOnline) {
+          batch.commit().catch((err) => {
+            console.warn("Past record queued for sync:", err);
+          });
+          return;
+        }
+
         await batch.commit();
         playSound("clock-in");
 
@@ -1722,24 +1746,6 @@ function TimeTrackingPage() {
               piecesCount > 0 ? piecesCount : undefined,
             );
           } else if (scanMode === "clock-in") {
-            // When offline, show toast immediately to match Manual Entry UX pattern
-            // This provides instant feedback and prevents UI from appearing frozen
-            // Note: Validation (same-task check) still occurs - if it fails, error toast will also appear
-            // This trade-off prioritizes responsive UX over avoiding potential dual toasts
-            if (!isOnline) {
-              toast({
-                title: "Clock In Successful",
-                description: addOfflineIndicator(
-                  `Clocked in ${scannedEmployee.name}.${
-                    useSickHoursForPayment
-                      ? " (Using sick hours for payment)"
-                      : ""
-                  }`,
-                  isOnline,
-                ),
-              });
-            }
-
             const timestamp = useManualDateTime ? manualClockInDate : undefined;
 
             await clockInEmployee(
@@ -1749,17 +1755,6 @@ function TimeTrackingPage() {
               useSickHoursForPayment,
             );
           } else if (scanMode === "clock-out") {
-            // When offline, show toast immediately to match Manual Entry behavior
-            if (!isOnline) {
-              toast({
-                title: "Clock Out Successful",
-                description: addOfflineIndicator(
-                  `Clocked out ${scannedEmployee.name}.`,
-                  isOnline,
-                ),
-              });
-            }
-
             const timestamp = useManualDateTime
               ? manualClockOutDate
               : undefined;
@@ -2201,18 +2196,6 @@ function TimeTrackingPage() {
         }
       }
 
-      // Show toast and stop loading immediately when offline to allow user to continue working
-      if (!isOnline) {
-        toast({
-          title: "Past Record Created",
-          description: addOfflineIndicator(
-            `Created past record for ${manualSelectedEmployee.name}.`,
-            isOnline,
-          ),
-        });
-        setIsManualSubmitting(false);
-      }
-
       const task = allTasks?.find((t) => t.id === selectedTask);
       const piecesCount =
         task?.clientRateType === "piece"
@@ -2240,25 +2223,9 @@ function TimeTrackingPage() {
       setPastRecordClockOutTime("");
       setPastRecordPiecesCount("");
 
-      // Only update loading state if online (offline already set to false)
-      if (isOnline) {
-        setIsManualSubmitting(false);
-      }
+      // Reset loading state
+      setIsManualSubmitting(false);
     } else if (manualLogType === "clock-in") {
-      // Show toast and stop loading immediately when offline to allow user to continue working
-      if (!isOnline) {
-        toast({
-          title: "Clock In Successful",
-          description: addOfflineIndicator(
-            `Clocked in ${manualSelectedEmployee.name}.${
-              useSickHoursForPayment ? " (Using sick hours for payment)" : ""
-            }`,
-            isOnline,
-          ),
-        });
-        setIsManualSubmitting(false);
-      }
-
       const timestamp = useManualDateTime ? manualClockInDate : undefined;
       await clockInEmployee(
         manualSelectedEmployee,
@@ -2272,23 +2239,9 @@ function TimeTrackingPage() {
       setManualEmployeeSearch("");
       setUseSickHoursForPayment(false);
 
-      // Only update loading state if online (offline already set to false)
-      if (isOnline) {
-        setIsManualSubmitting(false);
-      }
+      // Reset loading state
+      setIsManualSubmitting(false);
     } else if (manualLogType === "clock-out") {
-      // Show toast and stop loading immediately when offline to allow user to continue working
-      if (!isOnline) {
-        toast({
-          title: "Clock Out Successful",
-          description: addOfflineIndicator(
-            `Clocked out ${manualSelectedEmployee.name}.`,
-            isOnline,
-          ),
-        });
-        setIsManualSubmitting(false);
-      }
-
       const timestamp = useManualDateTime ? manualClockOutDate : undefined;
       await clockOutEmployee(manualSelectedEmployee, selectedTask, timestamp);
 
@@ -2297,10 +2250,8 @@ function TimeTrackingPage() {
       setManualEmployeeSearch("");
       setUseSickHoursForPayment(false);
 
-      // Only update loading state if online (offline already set to false)
-      if (isOnline) {
-        setIsManualSubmitting(false);
-      }
+      // Reset loading state
+      setIsManualSubmitting(false);
     }
   };
 
