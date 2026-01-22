@@ -868,13 +868,13 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
               <div>
                 <h3 className="font-bold mb-2 text-lg">Total Base Labor Cost</h3>
                 <div className="text-xs">
-                  <table className="w-full">
+                  <table className="w-full border-collapse">
                     <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-1">Pieces</th>
-                        <th className="text-right py-1">Total Pieces</th>
-                        <th className="text-right py-1">Rate</th>
-                        <th className="text-right py-1">Total Pay</th>
+                      <tr>
+                        <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-left font-bold bg-green-100 text-black">Pieces</th>
+                        <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">Total Pieces</th>
+                        <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">Rate</th>
+                        <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">Total Pay</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -887,24 +887,24 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                         
                         return (
                           <tr key={taskName}>
-                            <td className="py-1">Piece {label}</td>
-                            <td className="text-right py-1">{totalPieces.toFixed(2)}</td>
-                            <td className="text-right py-1">{formatCurrency(rate)}</td>
-                            <td className="text-right py-1">{formatCurrency(totalPay)}</td>
+                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1">Piece {label}</td>
+                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">{totalPieces.toFixed(2)}</td>
+                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">{formatCurrency(rate)}</td>
+                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">{formatCurrency(totalPay)}</td>
                           </tr>
                         );
                       })}
                       <tr>
-                        <td className="py-1" colSpan={3}>Paid Rest Breaks</td>
-                        <td className="text-right py-1">{formatCurrency(report.paidRestBreaks)}</td>
+                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1" colSpan={3}>Paid Rest Breaks</td>
+                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">{formatCurrency(report.paidRestBreaks)}</td>
                       </tr>
                       <tr>
-                        <td className="py-1" colSpan={3}>Minimum Wage Adjustments</td>
-                        <td className="text-right py-1">{formatCurrency(report.minimumWageTopUp)}</td>
+                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1" colSpan={3}>Minimum Wage Adjustments</td>
+                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">{formatCurrency(report.minimumWageTopUp)}</td>
                       </tr>
                       <tr className="border-t font-bold">
-                        <td className="py-1" colSpan={3}>Total Amount:</td>
-                        <td className="text-right py-1">{formatCurrency(report.laborCost)}</td>
+                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1" colSpan={3}>Total Amount:</td>
+                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">{formatCurrency(report.laborCost)}</td>
                       </tr>
                     </tbody>
                   </table>
