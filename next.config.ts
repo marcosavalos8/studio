@@ -8,9 +8,6 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true, // 👈 Ignora errores de tipos al compilar
   },
-  eslint: {
-    ignoreDuringBuilds: true, // 👈 Ignora errores de ESLint en el build
-  },
 };
 
 export default withPWA({
