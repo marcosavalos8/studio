@@ -29,6 +29,41 @@ const formatCurrency = (value: number | undefined | null): string => {
   return `$${value.toFixed(2)}`;
 };
 
+// Helper function to calculate task totals across all employees
+const calculateTaskTotals = (
+  taskName: string,
+  employeeDetails?: Array<{
+    tasksSummary: Array<{
+      taskName: string;
+      quantity: number;
+      rate: number;
+      cost: number;
+    }>;
+  }>
+): { totalPieces: number; rate: number; totalPay: number } => {
+  let totalPieces = 0;
+  let rate = 0;
+  let totalPay = 0;
+
+  if (employeeDetails) {
+    employeeDetails.forEach((employee) => {
+      const task = employee.tasksSummary.find(
+        (t) => t.taskName === taskName
+      );
+      if (task) {
+        totalPieces += task.quantity;
+        // Use the first encountered rate (all employees should have the same rate for a task)
+        if (rate === 0) {
+          rate = task.rate;
+        }
+        totalPay += task.cost;
+      }
+    });
+  }
+
+  return { totalPieces, rate, totalPay };
+};
+
 // Helper function to truncate worker names to 2 names on small/medium screens
 const truncateWorkerName = (fullName: string): string => {
   if (!fullName || typeof fullName !== 'string') {
@@ -401,22 +436,10 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       // Add data for each task
       uniqueTasks.forEach((taskName, idx) => {
         const label = String.fromCharCode(65 + idx);
-        
-        // Calculate totals for this task across all employees
-        let totalPieces = 0;
-        let rate = 0;
-        let totalPay = 0;
-        
-        report.employeeDetails.forEach((employee) => {
-          const task = employee.tasksSummary.find(
-            (t) => t.taskName === taskName
-          );
-          if (task) {
-            totalPieces += task.quantity;
-            rate = task.rate;
-            totalPay += task.cost;
-          }
-        });
+        const { totalPieces, rate, totalPay } = calculateTaskTotals(
+          taskName,
+          report.employeeDetails
+        );
 
         const pieceCell = worksheet.getCell(currentRow, 5);
         pieceCell.value = `Piece ${label}`;
@@ -857,24 +880,10 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                     <tbody>
                       {uniqueTasks.map((taskName, idx) => {
                         const label = String.fromCharCode(65 + idx);
-                        
-                        // Calculate totals for this task across all employees
-                        let totalPieces = 0;
-                        let rate = 0;
-                        let totalPay = 0;
-                        
-                        if (report.employeeDetails) {
-                          report.employeeDetails.forEach((employee) => {
-                            const task = employee.tasksSummary.find(
-                              (t) => t.taskName === taskName
-                            );
-                            if (task) {
-                              totalPieces += task.quantity;
-                              rate = task.rate; // Same rate for all employees on the same task
-                              totalPay += task.cost;
-                            }
-                          });
-                        }
+                        const { totalPieces, rate, totalPay } = calculateTaskTotals(
+                          taskName,
+                          report.employeeDetails
+                        );
                         
                         return (
                           <tr key={taskName}>
