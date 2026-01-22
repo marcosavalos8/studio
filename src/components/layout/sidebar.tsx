@@ -80,15 +80,29 @@ export function AppSidebar() {
       <SidebarFooter className="border-t py-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Support" className="px-3 py-2">
-              <LifeBuoy className="flex-shrink-0" />
-              <span className="truncate">Support</span>
+            <SidebarMenuButton
+              tooltip="Support"
+              className="px-3 py-2"
+              asChild
+              isActive={pathname === "/support"}
+            >
+              <Link href="/support">
+                <LifeBuoy className="flex-shrink-0" />
+                <span className="truncate">Support</span>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Settings" className="px-3 py-2">
-              <Settings className="flex-shrink-0" />
-              <span className="truncate">Settings</span>
+            <SidebarMenuButton
+              tooltip="Settings"
+              className="px-3 py-2"
+              asChild
+              isActive={pathname === "/settings"}
+            >
+              <Link href="/settings">
+                <Settings className="flex-shrink-0" />
+                <span className="truncate">Settings</span>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
