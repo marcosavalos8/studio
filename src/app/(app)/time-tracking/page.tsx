@@ -1636,6 +1636,10 @@ function TimeTrackingPage() {
                 description:
                   "Please set both clock-in and clock-out times for past records.",
               });
+              // Reset processing state before early return
+              if (scanMode === "clock-in" || scanMode === "clock-out") {
+                setIsQrProcessing(false);
+              }
               return;
             }
 
@@ -1694,6 +1698,10 @@ function TimeTrackingPage() {
                     task?.name || "this task"
                   } (${client?.name || "this client"}).`,
                 });
+                // Reset processing state before early return
+                if (scanMode === "clock-in" || scanMode === "clock-out") {
+                  setIsQrProcessing(false);
+                }
                 return;
               }
             }
@@ -2324,28 +2332,87 @@ function TimeTrackingPage() {
     }
 
     setIsManualSubmitting(true);
-    const employeeQrCodes = scannedSharedEmployees
-      .map((id) => activeEmployees?.find((e) => e.id === id)?.qrCode)
-      .filter(Boolean) as string[];
-    if (employeeQrCodes.length > 0) {
-      const timestamp = useManualDateTime ? manualPieceworkDate : undefined;
 
-      // Create individual records for each piece
-      const baseTimestamp = timestamp || new Date();
-      for (let i = 0; i < pieceCount; i++) {
-        // Add a small time offset (1 second) between each piece to maintain order
-        const pieceTimestamp = new Date(baseTimestamp.getTime() + i * 1000);
-        await recordPiecework(
-          employeeQrCodes,
-          selectedPieceworkTask.id,
-          "manual_entry",
-          pieceTimestamp,
-        );
+    try {
+      const employeeQrCodes = scannedSharedEmployees
+        .map((id) => activeEmployees?.find((e) => e.id === id)?.qrCode)
+        .filter(Boolean) as string[];
+
+      if (employeeQrCodes.length > 0) {
+        // When offline, show success feedback immediately and reset UI to allow user to continue
+        // The Firestore writes will be queued for sync when connection is restored
+        if (!isOnline) {
+          const employeeNames = scannedSharedEmployees
+            .map(
+              (id) =>
+                activeEmployees?.find((e) => e.id === id)?.name || "Unknown",
+            )
+            .join(", ");
+
+          toast({
+            title: "Piecework Recorded",
+            description: addOfflineIndicator(
+              `${pieceCount} piece(s) recorded for ${employeeNames}.`,
+              isOnline,
+            ),
+          });
+
+          // Queue the Firestore writes in the background before clearing state
+          const timestamp = useManualDateTime ? manualPieceworkDate : undefined;
+          const baseTimestamp = timestamp || new Date();
+          const employeeQrCodesToRecord = [...employeeQrCodes];
+          const taskId = selectedPieceworkTask.id;
+
+          // Queue all writes asynchronously
+          (async () => {
+            for (let i = 0; i < pieceCount; i++) {
+              const pieceTimestamp = new Date(baseTimestamp.getTime() + i * 1000);
+              await recordPiecework(
+                employeeQrCodesToRecord,
+                taskId,
+                "manual_entry",
+                pieceTimestamp,
+              ).catch((error) => {
+                console.warn("Background piecework sync queued for later:", error);
+              });
+            }
+          })();
+
+          // Clear form immediately when offline to allow continued use
+          setScannedSharedEmployees([]);
+          setManualPieceQuantity("");
+          setIsManualSubmitting(false);
+
+          return;
+        }
+
+        // Online flow: wait for operations to complete
+        const timestamp = useManualDateTime ? manualPieceworkDate : undefined;
+        const baseTimestamp = timestamp || new Date();
+        for (let i = 0; i < pieceCount; i++) {
+          // Add a small time offset (1 second) between each piece to maintain order
+          const pieceTimestamp = new Date(baseTimestamp.getTime() + i * 1000);
+          await recordPiecework(
+            employeeQrCodes,
+            selectedPieceworkTask.id,
+            "manual_entry",
+            pieceTimestamp,
+          );
+        }
       }
+
+      setScannedSharedEmployees([]);
+      setManualPieceQuantity("");
+      setIsManualSubmitting(false);
+    } catch (error) {
+      console.error("Error in handleManualPieceSubmit:", error);
+      toast({
+        variant: "destructive",
+        title: "Submission Error",
+        description: "An unexpected error occurred. Please try again.",
+      });
+      setIsManualSubmitting(false);
     }
-    setScannedSharedEmployees([]);
-    setManualPieceQuantity("");
-    setIsManualSubmitting(false);
   };
 
   // Handler for piece-work tab piece submission
