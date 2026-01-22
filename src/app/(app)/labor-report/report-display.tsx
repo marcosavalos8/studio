@@ -42,7 +42,7 @@ const calculateTaskTotals = (
   }>
 ): { totalPieces: number; rate: number; totalPay: number } => {
   let totalPieces = 0;
-  let rate = 0;
+  let rate: number | undefined = undefined;
   let totalPay = 0;
 
   if (employeeDetails) {
@@ -53,7 +53,7 @@ const calculateTaskTotals = (
       if (task) {
         totalPieces += task.quantity;
         // Use the first encountered rate (all employees should have the same rate for a task)
-        if (rate === 0) {
+        if (rate === undefined) {
           rate = task.rate;
         }
         totalPay += task.cost;
@@ -61,7 +61,7 @@ const calculateTaskTotals = (
     });
   }
 
-  return { totalPieces, rate, totalPay };
+  return { totalPieces, rate: rate ?? 0, totalPay };
 };
 
 // Helper function to truncate worker names to 2 names on small/medium screens
@@ -409,7 +409,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       });
 
       // Add Total Base Labor Cost section
-      currentRow += 1;
+      currentRow++;
       const totalLaborCostCell = worksheet.getCell(currentRow, 5);
       totalLaborCostCell.value = "Total Base Labor Cost";
       totalLaborCostCell.font = { bold: true, size: 12 };
