@@ -10,7 +10,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Settings as SettingsIcon, Palette, Moon, Sun, Info, Check } from "lucide-react";
+import { Settings as SettingsIcon, Palette, Moon, Sun, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -270,68 +270,6 @@ export default function SettingsPage() {
                 <SelectContent>
                   <SelectItem value="left">Izquierda</SelectItem>
                   <SelectItem value="right">Derecha</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Language Section */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Info className="h-5 w-5 text-green-500" />
-              <h3 className="text-base font-semibold">Idioma y Región</h3>
-            </div>
-            <Separator />
-
-            {/* Language */}
-            <div className="flex items-center justify-between space-x-4">
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="language" className="text-sm font-medium">
-                  Idioma
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Selecciona el idioma de la interfaz
-                </p>
-              </div>
-              <Select
-                value={settings.language}
-                onValueChange={(value) =>
-                  updateSetting("language", value as "es" | "en")
-                }
-              >
-                <SelectTrigger id="language" className="w-[180px]">
-                  <SelectValue placeholder="Seleccionar idioma" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="es">Español</SelectItem>
-                  <SelectItem value="en">English</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Date Format */}
-            <div className="flex items-center justify-between space-x-4">
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="date-format" className="text-sm font-medium">
-                  Formato de Fecha
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Cambia cómo se muestran las fechas
-                </p>
-              </div>
-              <Select
-                value={settings.dateFormat}
-                onValueChange={(value) =>
-                  updateSetting("dateFormat", value as "mm-dd-yyyy" | "dd-mm-yyyy" | "yyyy-mm-dd")
-                }
-              >
-                <SelectTrigger id="date-format" className="w-[180px]">
-                  <SelectValue placeholder="Seleccionar formato" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="mm-dd-yyyy">MM/DD/YYYY</SelectItem>
-                  <SelectItem value="dd-mm-yyyy">DD/MM/YYYY</SelectItem>
-                  <SelectItem value="yyyy-mm-dd">YYYY-MM-DD</SelectItem>
                 </SelectContent>
               </Select>
             </div>
