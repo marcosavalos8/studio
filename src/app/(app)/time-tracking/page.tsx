@@ -1154,6 +1154,7 @@ function TimeTrackingPage() {
           batch.commit().catch((err) => {
             console.warn("Clock-in queued for sync:", err);
           });
+          playSound("clock-in");
           return true;
         }
         await batch.commit();
@@ -1304,6 +1305,7 @@ function TimeTrackingPage() {
             batch.commit().catch((err) => {
               console.warn("Clock-out queued for sync:", err);
             });
+            playSound("clock-out");
             return;
           }
           await batch.commit();
@@ -1740,6 +1742,7 @@ function TimeTrackingPage() {
                   isOnline,
                 ),
               });
+              setIsQrProcessing(false);
             }
 
             const timestamp = useManualDateTime ? manualClockInDate : undefined;
@@ -1760,6 +1763,7 @@ function TimeTrackingPage() {
                   isOnline,
                 ),
               });
+              setIsQrProcessing(false);
             }
 
             const timestamp = useManualDateTime
