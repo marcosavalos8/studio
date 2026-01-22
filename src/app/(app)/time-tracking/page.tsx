@@ -1154,7 +1154,7 @@ function TimeTrackingPage() {
         // When offline, don't await commit to avoid blocking UI
         if (!isOnline) {
           batch.commit().catch((err) => {
-            console.warn("Clock-in queued for sync:", err);
+            console.warn("Offline clock-in queued for sync:", err);
           });
           return true;
         }
@@ -1307,7 +1307,7 @@ function TimeTrackingPage() {
           // When offline, don't await commit to avoid blocking UI
           if (!isOnline) {
             batch.commit().catch((err) => {
-              console.warn("Clock-out queued for sync:", err);
+              console.warn("Offline clock-out queued for sync:", err);
             });
             return;
           }
@@ -1571,7 +1571,7 @@ function TimeTrackingPage() {
         // When offline, don't await commit to avoid blocking UI
         if (!isOnline) {
           batch.commit().catch((err) => {
-            console.warn("Past record queued for sync:", err);
+            console.warn("Offline past record queued for sync:", err);
           });
           return;
         }
