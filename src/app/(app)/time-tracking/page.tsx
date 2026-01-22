@@ -2363,7 +2363,8 @@ function TimeTrackingPage() {
           const employeeQrCodesToRecord = [...employeeQrCodes];
           const taskId = selectedPieceworkTask.id;
 
-          // Queue all writes asynchronously
+          // Queue all writes asynchronously using fire-and-forget pattern
+          // Firestore's built-in offline queue will handle retries when connection is restored
           (async () => {
             for (let i = 0; i < pieceCount; i++) {
               const pieceTimestamp = new Date(baseTimestamp.getTime() + i * 1000);
@@ -2373,7 +2374,9 @@ function TimeTrackingPage() {
                 "manual_entry",
                 pieceTimestamp,
               ).catch((error) => {
-                console.warn("Background piecework sync queued for later:", error);
+                // Firestore automatically queues writes when offline
+                // This catch prevents unhandled promise rejection warnings
+                console.warn("Piecework write queued for offline sync:", error);
               });
             }
           })();
