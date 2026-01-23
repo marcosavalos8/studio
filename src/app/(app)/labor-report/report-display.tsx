@@ -39,7 +39,7 @@ const calculateTaskTotals = (
       rate: number;
       cost: number;
     }>;
-  }>
+  }>,
 ): { totalPieces: number; rate: number; totalPay: number } => {
   let totalPieces = 0;
   let rate: number | undefined = undefined;
@@ -47,9 +47,7 @@ const calculateTaskTotals = (
 
   if (employeeDetails) {
     employeeDetails.forEach((employee) => {
-      const task = employee.tasksSummary.find(
-        (t) => t.taskName === taskName
-      );
+      const task = employee.tasksSummary.find((t) => t.taskName === taskName);
       if (task) {
         totalPieces += task.quantity;
         // Use the first encountered rate (all employees should have the same rate for a task)
@@ -66,10 +64,13 @@ const calculateTaskTotals = (
 
 // Helper function to truncate worker names to 2 names on small/medium screens
 const truncateWorkerName = (fullName: string): string => {
-  if (!fullName || typeof fullName !== 'string') {
-    return '';
+  if (!fullName || typeof fullName !== "string") {
+    return "";
   }
-  const nameParts = fullName.trim().split(/\s+/).filter(part => part.length > 0);
+  const nameParts = fullName
+    .trim()
+    .split(/\s+/)
+    .filter((part) => part.length > 0);
   if (nameParts.length <= 2) {
     return fullName;
   }
@@ -103,12 +104,12 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
 
       // Check if any employee has overtime
       const hasOvertimeData = report.employeeDetails.some(
-        (employee) => (employee.overtimeHours || 0) > 0
+        (employee) => (employee.overtimeHours || 0) > 0,
       );
 
       // Prepare date range
       const sortedDates = Object.keys(report.dailyBreakdown).sort(
-        (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime()
+        (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime(),
       );
       let dateRangeStr = "";
       if (sortedDates.length > 0) {
@@ -250,7 +251,10 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         regularRateHeader.value = "Regular Rate for OT Calculation";
         regularRateHeader.style = headerStyle;
 
-        const overtimePremiumHeader = worksheet.getCell(headerRow, currentCol++);
+        const overtimePremiumHeader = worksheet.getCell(
+          headerRow,
+          currentCol++,
+        );
         overtimePremiumHeader.value = "Overtime Premium (0.5x rate)";
         overtimePremiumHeader.style = headerStyle;
       }
@@ -294,7 +298,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
 
         // Create task map
         const taskMap = new Map(
-          employee.tasksSummary.map((task) => [task.taskName, task])
+          employee.tasksSummary.map((task) => [task.taskName, task]),
         );
 
         // Task data
@@ -326,7 +330,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         // Totals
         const totalPiecesPay = employee.tasksSummary.reduce(
           (sum, task) => sum + task.cost,
-          0
+          0,
         );
         const minPayRequired =
           totalPiecesPay +
@@ -349,7 +353,9 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         // Add overtime cells if there's overtime data
         if (hasOvertimeData) {
           const overtimeHoursCell = worksheet.getCell(currentRow, currentCol++);
-          overtimeHoursCell.value = parseFloat((employee.overtimeHours || 0).toFixed(2));
+          overtimeHoursCell.value = parseFloat(
+            (employee.overtimeHours || 0).toFixed(2),
+          );
           overtimeHoursCell.style = {
             border: cellBorderStyle,
             numFmt: "0.00",
@@ -357,15 +363,22 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
           };
 
           const regularRateCell = worksheet.getCell(currentRow, currentCol++);
-          regularRateCell.value = parseFloat((employee.regularRate || 0).toFixed(2));
+          regularRateCell.value = parseFloat(
+            (employee.regularRate || 0).toFixed(2),
+          );
           regularRateCell.style = {
             border: cellBorderStyle,
             numFmt: '"$"0.00',
             font: { bold: true },
           };
 
-          const overtimePremiumCell = worksheet.getCell(currentRow, currentCol++);
-          overtimePremiumCell.value = parseFloat((employee.overtimePremium || 0).toFixed(2));
+          const overtimePremiumCell = worksheet.getCell(
+            currentRow,
+            currentCol++,
+          );
+          overtimePremiumCell.value = parseFloat(
+            (employee.overtimePremium || 0).toFixed(2),
+          );
           overtimePremiumCell.style = {
             border: cellBorderStyle,
             numFmt: '"$"0.00',
@@ -396,44 +409,74 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       // Add task legend and Total Base Labor Cost side by side
       currentRow += 2;
       const legendStartRow = currentRow;
-      
-      // Task Legend (left side - column 1)
+
+      // Styles
+      const legendTitleStyle = { font: { bold: true, size: 12 } };
+      const legendItemStyle = { font: { size: 10 } };
+      const miniHeaderStyle = {
+        font: { bold: true, size: 10 },
+        fill: {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFE2EFDA" },
+        },
+        alignment: { horizontal: "center" },
+        border: {
+          top: { style: "thin", color: { argb: "FF70AD47" } },
+          left: { style: "thin", color: { argb: "FF70AD47" } },
+          bottom: { style: "thin", color: { argb: "FF000000" } },
+          right: { style: "thin", color: { argb: "FF70AD47" } },
+        },
+      };
+      const miniCellBorder = {
+        left: { style: "thin", color: { argb: "FF70AD47" } },
+        right: { style: "thin", color: { argb: "FF70AD47" } },
+        top: { style: "thin", color: { argb: "FF70AD47" } },
+        bottom: { style: "thin", color: { argb: "FF70AD47" } },
+      };
+
+      // Task Legend (left side - columns 1-4)
+      worksheet.mergeCells(legendStartRow, 1, legendStartRow, 4);
       const legendCell = worksheet.getCell(legendStartRow, 1);
       legendCell.value = "Task Legend:";
-      legendCell.font = { bold: true, size: 12 };
+      legendCell.style = legendTitleStyle;
 
       let legendRow = legendStartRow + 1;
       uniqueTasks.forEach((taskName, idx) => {
         const label = String.fromCharCode(65 + idx);
+        worksheet.mergeCells(legendRow, 1, legendRow, 4);
         const taskLegendCell = worksheet.getCell(legendRow, 1);
         taskLegendCell.value = `PIECE ${label} = ${taskName}`;
-        taskLegendCell.font = { size: 10 };
+        taskLegendCell.style = legendItemStyle;
         legendRow++;
       });
 
-      // Total Base Labor Cost (right side - columns 5-8)
+      // Total Base Labor Cost (right side - columns 6-9)
       const laborCostStartRow = legendStartRow;
-      const totalLaborCostCell = worksheet.getCell(laborCostStartRow, 5);
+      worksheet.mergeCells(laborCostStartRow, 6, laborCostStartRow, 9);
+      const totalLaborCostCell = worksheet.getCell(laborCostStartRow, 6);
       totalLaborCostCell.value = "Total Base Labor Cost";
-      totalLaborCostCell.font = { bold: true, size: 12 };
+      totalLaborCostCell.style = legendTitleStyle;
 
       // Headers for Total Base Labor Cost table
       let laborCostRow = laborCostStartRow + 1;
-      const piecesHeaderCell = worksheet.getCell(laborCostRow, 5);
+
+      const piecesHeaderCell = worksheet.getCell(laborCostRow, 6);
       piecesHeaderCell.value = "Pieces";
-      piecesHeaderCell.font = { bold: true, size: 10 };
+      piecesHeaderCell.style = miniHeaderStyle;
 
-      const totalPiecesHeaderCell = worksheet.getCell(laborCostRow, 6);
+      const totalPiecesHeaderCell = worksheet.getCell(laborCostRow, 7);
       totalPiecesHeaderCell.value = "Total Pieces";
-      totalPiecesHeaderCell.font = { bold: true, size: 10 };
+      totalPiecesHeaderCell.style = miniHeaderStyle;
 
-      const rateHeaderCell = worksheet.getCell(laborCostRow, 7);
+      const rateHeaderCell = worksheet.getCell(laborCostRow, 8);
       rateHeaderCell.value = "Rate";
-      rateHeaderCell.font = { bold: true, size: 10 };
+      rateHeaderCell.style = miniHeaderStyle;
 
-      const totalPayHeaderCell = worksheet.getCell(laborCostRow, 8);
+      const totalPayHeaderCell = worksheet.getCell(laborCostRow, 9);
       totalPayHeaderCell.value = "Total Pay";
-      totalPayHeaderCell.font = { bold: true, size: 10 };
+      totalPayHeaderCell.style = miniHeaderStyle;
+
       laborCostRow++;
 
       // Add data for each task
@@ -441,58 +484,75 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         const label = String.fromCharCode(65 + idx);
         const { totalPieces, rate, totalPay } = calculateTaskTotals(
           taskName,
-          report.employeeDetails
+          report.employeeDetails,
         );
 
-        const pieceCell = worksheet.getCell(laborCostRow, 5);
+        const pieceCell = worksheet.getCell(laborCostRow, 6);
         pieceCell.value = `Piece ${label}`;
-        pieceCell.font = { size: 10 };
+        pieceCell.style = { border: miniCellBorder, font: { size: 10 } };
 
-        const totalPiecesCell = worksheet.getCell(laborCostRow, 6);
+        const totalPiecesCell = worksheet.getCell(laborCostRow, 7);
         totalPiecesCell.value = parseFloat(totalPieces.toFixed(2));
         totalPiecesCell.numFmt = "0.00";
+        totalPiecesCell.style = { border: miniCellBorder };
 
-        const rateCell = worksheet.getCell(laborCostRow, 7);
+        const rateCell = worksheet.getCell(laborCostRow, 8);
         rateCell.value = parseFloat(rate.toFixed(2));
         rateCell.numFmt = '"$"0.00';
+        rateCell.style = { border: miniCellBorder };
 
-        const totalPayCell = worksheet.getCell(laborCostRow, 8);
+        const totalPayCell = worksheet.getCell(laborCostRow, 9);
         totalPayCell.value = parseFloat(totalPay.toFixed(2));
         totalPayCell.numFmt = '"$"0.00';
+        totalPayCell.style = { border: miniCellBorder };
 
         laborCostRow++;
       });
 
       // Add Paid Rest Breaks row
-      const restBreaksLabelCell = worksheet.getCell(laborCostRow, 5);
+      worksheet.mergeCells(laborCostRow, 6, laborCostRow, 8);
+      const restBreaksLabelCell = worksheet.getCell(laborCostRow, 6);
       restBreaksLabelCell.value = "Paid Rest Breaks";
-      restBreaksLabelCell.font = { size: 10 };
+      restBreaksLabelCell.style = {
+        border: miniCellBorder,
+        font: { size: 10 },
+      };
 
-      const restBreaksValueCell = worksheet.getCell(laborCostRow, 8);
+      const restBreaksValueCell = worksheet.getCell(laborCostRow, 9);
       restBreaksValueCell.value = parseFloat(report.paidRestBreaks.toFixed(2));
       restBreaksValueCell.numFmt = '"$"0.00';
+      restBreaksValueCell.style = { border: miniCellBorder };
       laborCostRow++;
 
       // Add Minimum Wage Adjustments row
-      const minWageLabelCell = worksheet.getCell(laborCostRow, 5);
+      worksheet.mergeCells(laborCostRow, 6, laborCostRow, 8);
+      const minWageLabelCell = worksheet.getCell(laborCostRow, 6);
       minWageLabelCell.value = "Minimum Wage Adjustments";
-      minWageLabelCell.font = { size: 10 };
+      minWageLabelCell.style = { border: miniCellBorder, font: { size: 10 } };
 
-      const minWageValueCell = worksheet.getCell(laborCostRow, 8);
+      const minWageValueCell = worksheet.getCell(laborCostRow, 9);
       minWageValueCell.value = parseFloat(report.minimumWageTopUp.toFixed(2));
       minWageValueCell.numFmt = '"$"0.00';
+      minWageValueCell.style = { border: miniCellBorder };
       laborCostRow++;
 
       // Add Total Amount row
-      const totalAmountLabelCell = worksheet.getCell(laborCostRow, 5);
+      worksheet.mergeCells(laborCostRow, 6, laborCostRow, 8);
+      const totalAmountLabelCell = worksheet.getCell(laborCostRow, 6);
       totalAmountLabelCell.value = "Total Amount:";
-      totalAmountLabelCell.font = { bold: true, size: 10 };
+      totalAmountLabelCell.style = {
+        border: miniCellBorder,
+        font: { bold: true, size: 10 },
+      };
 
-      const totalAmountValueCell = worksheet.getCell(laborCostRow, 8);
+      const totalAmountValueCell = worksheet.getCell(laborCostRow, 9);
       totalAmountValueCell.value = parseFloat(report.laborCost.toFixed(2));
       totalAmountValueCell.numFmt = '"$"0.00';
-      totalAmountValueCell.font = { bold: true };
-      
+      totalAmountValueCell.style = {
+        border: miniCellBorder,
+        font: { bold: true, size: 10 },
+      };
+
       // Update currentRow to be the maximum of both sections
       currentRow = Math.max(legendRow, laborCostRow);
 
@@ -523,7 +583,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       // Generate and save file
       const filename = `labor_report_${report.client.name.replace(
         /[^a-zA-Z0-9]/g,
-        "_"
+        "_",
       )}_${dateRangeStr.replace(/[^a-zA-Z0-9]/g, "_")}.xlsx`;
 
       const buffer = await workbook.xlsx.writeBuffer();
@@ -539,7 +599,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
   };
 
   const sortedDates = Object.keys(report.dailyBreakdown).sort(
-    (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime()
+    (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime(),
   );
 
   const hasEmployeeDetails =
@@ -581,9 +641,10 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
   const uniqueTasks = Array.from(allTaskNames);
 
   // Check if any employee has overtime
-  const hasOvertimeData = report.employeeDetails?.some(
-    (employee) => (employee.overtimeHours || 0) > 0
-  ) || false;
+  const hasOvertimeData =
+    report.employeeDetails?.some(
+      (employee) => (employee.overtimeHours || 0) > 0,
+    ) || false;
 
   return (
     <div>
@@ -686,7 +747,9 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                 <strong>{formatDateRange()}</strong>
               </p>
               <p>
-                <strong>$ {(report.client.minimumWage || 19.82).toFixed(2)} :Min Wage</strong>
+                <strong>
+                  $ {(report.client.minimumWage || 19.82).toFixed(2)} :Min Wage
+                </strong>
               </p>
             </div>
             <div>
@@ -723,19 +786,13 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
 
                     return (
                       <React.Fragment key={taskName}>
-                        <th
-                          className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-1 py-1 text-center font-bold bg-green-100 text-black"
-                        >
+                        <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-1 py-1 text-center font-bold bg-green-100 text-black">
                           Piece {label}
                         </th>
-                        <th
-                          className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-1 py-1 text-center font-bold bg-green-100 text-black"
-                        >
+                        <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-1 py-1 text-center font-bold bg-green-100 text-black">
                           Rate {label}
                         </th>
-                        <th
-                          className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-1 py-1 text-center font-bold bg-green-100 text-black"
-                        >
+                        <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-1 py-1 text-center font-bold bg-green-100 text-black">
                           Piece Pay {label}
                         </th>
                       </React.Fragment>
@@ -768,12 +825,12 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
               <tbody>
                 {report.employeeDetails?.map((employee, rowIndex) => {
                   const taskMap = new Map(
-                    employee.tasksSummary.map((task) => [task.taskName, task])
+                    employee.tasksSummary.map((task) => [task.taskName, task]),
                   );
 
                   const totalPiecesPay = employee.tasksSummary.reduce(
                     (sum, task) => sum + task.cost,
-                    0
+                    0,
                   );
                   const minPayRequired =
                     totalPiecesPay +
@@ -854,7 +911,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         {/* Task Legend and Total Base Labor Cost */}
         {uniqueTasks.length > 0 && (
           <div className="mt-8 pt-4 border-t">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-2 gap-8 items-start">
               {/* Task Legend Section */}
               <div>
                 <h3 className="font-bold mb-2 text-lg">Task Legend:</h3>
@@ -872,45 +929,82 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
 
               {/* Total Base Labor Cost Section */}
               <div>
-                <h3 className="font-bold mb-2 text-lg">Total Base Labor Cost</h3>
+                <h3 className="font-bold mb-2 text-lg">
+                  Total Base Labor Cost
+                </h3>
                 <div className="text-xs">
                   <table className="w-full border-collapse">
                     <thead>
                       <tr>
-                        <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-left font-bold bg-green-100 text-black">Pieces</th>
-                        <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">Total Pieces</th>
-                        <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">Rate</th>
-                        <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">Total Pay</th>
+                        <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-left font-bold bg-green-100 text-black">
+                          Pieces
+                        </th>
+                        <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
+                          Total Pieces
+                        </th>
+                        <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
+                          Rate
+                        </th>
+                        <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
+                          Total Pay
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
                       {uniqueTasks.map((taskName, idx) => {
                         const label = String.fromCharCode(65 + idx);
-                        const { totalPieces, rate, totalPay } = calculateTaskTotals(
-                          taskName,
-                          report.employeeDetails
-                        );
-                        
+                        const { totalPieces, rate, totalPay } =
+                          calculateTaskTotals(taskName, report.employeeDetails);
+
                         return (
                           <tr key={taskName}>
-                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1">Piece {label}</td>
-                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">{totalPieces.toFixed(2)}</td>
-                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">{formatCurrency(rate)}</td>
-                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">{formatCurrency(totalPay)}</td>
+                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1">
+                              Piece {label}
+                            </td>
+                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                              {totalPieces.toFixed(2)}
+                            </td>
+                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                              {formatCurrency(rate)}
+                            </td>
+                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                              {formatCurrency(totalPay)}
+                            </td>
                           </tr>
                         );
                       })}
                       <tr>
-                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1" colSpan={3}>Paid Rest Breaks</td>
-                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">{formatCurrency(report.paidRestBreaks)}</td>
+                        <td
+                          className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1"
+                          colSpan={3}
+                        >
+                          Paid Rest Breaks
+                        </td>
+                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                          {formatCurrency(report.paidRestBreaks)}
+                        </td>
                       </tr>
                       <tr>
-                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1" colSpan={3}>Minimum Wage Adjustments</td>
-                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">{formatCurrency(report.minimumWageTopUp)}</td>
+                        <td
+                          className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1"
+                          colSpan={3}
+                        >
+                          Minimum Wage Adjustments
+                        </td>
+                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                          {formatCurrency(report.minimumWageTopUp)}
+                        </td>
                       </tr>
                       <tr className="border-t font-bold">
-                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1" colSpan={3}>Total Amount:</td>
-                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">{formatCurrency(report.laborCost)}</td>
+                        <td
+                          className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1"
+                          colSpan={3}
+                        >
+                          Total Amount:
+                        </td>
+                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                          {formatCurrency(report.laborCost)}
+                        </td>
                       </tr>
                     </tbody>
                   </table>
