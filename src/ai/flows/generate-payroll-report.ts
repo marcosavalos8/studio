@@ -471,7 +471,7 @@ export async function generatePayrollReport({
         // Nueva fórmula correcta: Break Pay = (Piece Earnings / Piece Hours) * (Piece Hours / 4) * 0.1667
         // Simplificado: Break Pay = (Piece Earnings / 4) * 0.1667
         // Esto calcula 10 minutos de descanso por cada 4 horas trabajadas a destajo
-        // Ejemplo: $102 earnings / 3.5 hrs = $29.14/hr → (3.5/4)*0.1667 = 0.1458 hrs → $29.14 * 0.1458 = $4.25
+        // Ejemplo: $102 earnings → $102 / 4 = $25.50 → $25.50 * 0.1667 = $4.25
         const pieceworkRestBreaksPay = weeklyPieceworkHours > 0
           ? parseFloat(((weeklyPieceworkEarnings / 4) * 0.1667).toFixed(2))
           : 0;
