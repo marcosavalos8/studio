@@ -468,14 +468,13 @@ export async function generatePayrollReport({
         console.log("  Piecework regular rate:", pieceworkRegularRate.toFixed(2));
         
         // 2.2: Calcular descansos pagados SOLO para horas de piecework
-        // Fórmula del patrón (Excel): (Total Pieces Pay / Hours) × 0.33 × (# of Days Worked)
-        // IMPORTANTE: Excel NO redondea valores intermedios, solo el resultado final
-        // Ejemplo: (812.38 / 37.25) * 0.33 * 5 = 35.98 (no redondear la tasa intermedia)
-        const daysWorked = sortedDays.length;
-        // Calculate with full precision, round only the final result
-        const pieceworkRestBreaksPay = parseFloat((pieceworkRegularRate * 0.33 * daysWorked).toFixed(2));
-        
-        console.log("  Days worked:", daysWorked);
+        // Nueva fórmula correcta: Break Pay = (Piece Earnings / Piece Hours) * (Piece Hours / 4) * 0.1667
+        // Simplificado: Break Pay = (Piece Earnings / 4) * 0.1667
+        // Esto calcula 10 minutos de descanso por cada 4 horas trabajadas a destajo
+        // Ejemplo: $102 earnings → $102 / 4 = $25.50 → $25.50 * 0.1667 = $4.25
+        const pieceworkRestBreaksPay = weeklyPieceworkHours > 0
+          ? parseFloat(((weeklyPieceworkEarnings / 4) * 0.1667).toFixed(2))
+          : 0;
         console.log("  Rest breaks pay:", pieceworkRestBreaksPay.toFixed(2));
         
         // 2.3: Sumar ganancias de piecework + descansos
