@@ -546,7 +546,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       };
 
       const totalAmountValueCell = worksheet.getCell(laborCostRow, 9);
-      totalAmountValueCell.value = parseFloat(report.laborCost.toFixed(2));
+      totalAmountValueCell.value = parseFloat(report.subtotal.toFixed(2));
       totalAmountValueCell.numFmt = '"$"0.00';
       totalAmountValueCell.style = {
         border: miniCellBorder,
@@ -1003,7 +1003,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                           Total Amount:
                         </td>
                         <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
-                          {formatCurrency(report.laborCost)}
+                          {formatCurrency(report.subtotal)}
                         </td>
                       </tr>
                     </tbody>

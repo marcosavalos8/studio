@@ -271,6 +271,9 @@ export async function generatePayrollReport({
         // Track pieces by task/variety for the week
         const piecesByTaskVariety = new Map<string, { taskName: string; variety: string; totalPieces: number }>();
 
+        // Accumulator for weekly break pay (computed per day)
+        let weeklyRestBreaksPay = 0;
+
         const sortedDays = Object.keys(dailyWork).sort(
           (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime()
         );
@@ -279,6 +282,11 @@ export async function generatePayrollReport({
           let dailyTotalHours = 0;
           let dailyTotalRawEarnings = 0; // Ganancia bruta por tareas, sin ajustes
           const taskDetailsForDay: DailyTaskDetail[] = [];
+
+          // Per-day accumulators for break calculation
+          let dailyPieceworkHours = 0;
+          let dailyHourlyHours = 0;
+          let dailyPieceworkEarnings = 0;
 
           for (const taskId in dailyWork[dayKey].tasks) {
             const task = taskMap.get(taskId);
@@ -378,13 +386,16 @@ export async function generatePayrollReport({
             dailyTotalHours += hours;
             dailyTotalRawEarnings += earningsForTask;
 
-            // Track separately by task type for weekly calculation
+            // Track separately by task type for weekly and daily calculation
             if (isHourlyTask) {
               weeklyHourlyEarnings += earningsForTask;
               weeklyHourlyHours += hours;
+              dailyHourlyHours += hours;
             } else {
               weeklyPieceworkEarnings += earningsForTask;
               weeklyPieceworkHours += hours;
+              dailyPieceworkHours += hours;
+              dailyPieceworkEarnings += earningsForTask;
             }
             
             // Track pieces by task/variety if this is a piecework task
@@ -432,6 +443,20 @@ export async function generatePayrollReport({
 
           weeklyTotalHours += dailyTotalHours;
 
+          // Compute daily break pay using the dynamic formula:
+          // IF(AND(piece_hours>0, piece_earn>piece_hours*minWage, piece_hours>=hourly_hours, piece_hours+hourly_hours>=4),
+          //   ((piece_earn/piece_hours)*(10/60))*MAX(1,FLOOR(piece_hours/4)), 0)
+          const requiredPayForPieceHours = dailyPieceworkHours * applicableMinWage;
+          const dailyBreakPay =
+            dailyPieceworkHours > 0 &&
+            dailyPieceworkEarnings > requiredPayForPieceHours &&
+            dailyPieceworkHours >= dailyHourlyHours &&
+            dailyPieceworkHours + dailyHourlyHours >= 4
+              ? ((dailyPieceworkEarnings / dailyPieceworkHours) * (10 / 60)) *
+                Math.max(1, Math.floor(dailyPieceworkHours / 4))
+              : 0;
+          weeklyRestBreaksPay += dailyBreakPay;
+
           dailyBreakdownsForWeek.push({
             date: dayKey,
             tasks: taskDetailsForDay,
@@ -468,13 +493,10 @@ export async function generatePayrollReport({
         console.log("  Piecework regular rate:", pieceworkRegularRate.toFixed(2));
         
         // 2.2: Calcular descansos pagados SOLO para horas de piecework
-        // Nueva fórmula correcta: Break Pay = (Piece Earnings / Piece Hours) * (Piece Hours / 4) * 0.1667
-        // Simplificado: Break Pay = (Piece Earnings / 4) * 0.1667
-        // Esto calcula 10 minutos de descanso por cada 4 horas trabajadas a destajo
-        // Ejemplo: $102 earnings → $102 / 4 = $25.50 → $25.50 * 0.1667 = $4.25
-        const pieceworkRestBreaksPay = weeklyPieceworkHours > 0
-          ? parseFloat(((weeklyPieceworkEarnings / 4) * 0.1667).toFixed(2))
-          : 0;
+        // Fórmula dinámica por día: se aplica solo cuando se cumplen las condiciones
+        // (piece_hours>0, piece_earn>piece_hours*minWage, piece_hours>=hourly_hours, piece_hours+hourly_hours>=4)
+        // ((piece_earn/piece_hours)*(10/60))*MAX(1,FLOOR(piece_hours/4))
+        const pieceworkRestBreaksPay = parseFloat(weeklyRestBreaksPay.toFixed(2));
         console.log("  Rest breaks pay:", pieceworkRestBreaksPay.toFixed(2));
         
         // 2.3: Sumar ganancias de piecework + descansos
