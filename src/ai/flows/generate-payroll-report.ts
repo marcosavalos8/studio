@@ -444,14 +444,14 @@ export async function generatePayrollReport({
           weeklyTotalHours += dailyTotalHours;
 
           // Compute daily break pay using the dynamic formula:
-          // IF(AND(piece_hours>0, piece_earn>piece_hours*minWage, piece_hours>hourly_hours, piece_hours+hourly_hours>=4),
+          // IF(AND(piece_hours>0, piece_earn>piece_hours*minWage, piece_hours>=hourly_hours, piece_hours+hourly_hours>4),
           //   ((piece_earn/piece_hours)*(10/60))*MAX(1,FLOOR(piece_hours/4)), 0)
           const requiredPayForPieceHours = dailyPieceworkHours * applicableMinWage;
           const dailyBreakPay =
             dailyPieceworkHours > 0 &&
             dailyPieceworkEarnings > requiredPayForPieceHours &&
-            dailyPieceworkHours > dailyHourlyHours &&
-            dailyPieceworkHours + dailyHourlyHours >= 4
+            dailyPieceworkHours >= dailyHourlyHours &&
+            dailyPieceworkHours + dailyHourlyHours > 4
               ? ((dailyPieceworkEarnings / dailyPieceworkHours) * (10 / 60)) *
                 Math.max(1, Math.floor(dailyPieceworkHours / 4))
               : 0;
