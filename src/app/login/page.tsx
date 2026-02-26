@@ -28,6 +28,15 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  /** Applies the hardcoded JMAG fallback login when Firebase Auth is unavailable. */
+  const applyJmagFallback = (username: string) => {
+    localStorage.setItem("isAuthenticated", "true");
+    localStorage.setItem("username", username);
+    localStorage.setItem("userRole", "Admin");
+    login(username, "Admin");
+    router.push("/dashboard");
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -37,16 +46,6 @@ export default function LoginPage() {
       // Trim whitespace from email/username and password
       const trimmedInput = emailOrUsername.trim();
       const trimmedPassword = password.trim();
-
-      // First, try the hardcoded credentials for backward compatibility
-      if (trimmedInput === "JMAG" && trimmedPassword === "2025") {
-        localStorage.setItem("isAuthenticated", "true");
-        localStorage.setItem("username", trimmedInput);
-        localStorage.setItem("userRole", "Admin"); // JMAG is an admin
-        login(trimmedInput, "Admin");
-        router.push("/dashboard");
-        return;
-      }
 
       // Determine if input is email or username
       let userEmail = trimmedInput;
@@ -58,6 +57,11 @@ export default function LoginPage() {
         const usersSnapshot = await getDocs(usersQuery);
         
         if (usersSnapshot.empty) {
+          // Fall back to hardcoded JMAG credentials if not found in Firestore
+          if (trimmedInput === "JMAG" && trimmedPassword === "2025") {
+            applyJmagFallback(trimmedInput);
+            return;
+          }
           setError("User not found. Please check your username.");
           setLoading(false);
           return;
@@ -66,6 +70,12 @@ export default function LoginPage() {
         // Get the email from the user document
         const userDoc = usersSnapshot.docs[0];
         userEmail = userDoc.data().email;
+      } else if (!isEmail && !firestore) {
+        // Firestore not available – fall back to hardcoded JMAG
+        if (trimmedInput === "JMAG" && trimmedPassword === "2025") {
+          applyJmagFallback(trimmedInput);
+          return;
+        }
       }
 
       // Try Firebase Authentication with email
@@ -109,6 +119,14 @@ export default function LoginPage() {
       }
     } catch (error: any) {
       console.error("Login error:", error);
+
+      // If Firebase Auth fails for JMAG, fall back to hardcoded credentials
+      const trimmedInput = emailOrUsername.trim();
+      const trimmedPassword = password.trim();
+      if (trimmedInput === "JMAG" && trimmedPassword === "2025") {
+        applyJmagFallback(trimmedInput);
+        return;
+      }
       
       // Handle specific Firebase Auth errors
       if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import { format, startOfDay, endOfDay } from "date-fns";
 import {
@@ -168,6 +168,19 @@ function roundToNearestQuarterHour(date: Date): Date {
   rounded.setMilliseconds(0);
 
   return rounded;
+}
+
+/** Runs an effect after the initial mount only (skips the first render). */
+function useEffectAfterMount(callback: () => void, deps: React.DependencyList) {
+  const mounted = useRef(false);
+  useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+    callback();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
 }
 
 function TimeTrackingPage() {
@@ -742,14 +755,15 @@ function TimeTrackingPage() {
   const filteredTasks = useMemo(() => {
     if (!tasksForClient) return [];
     let filtered = tasksForClient;
-    if (selectedRanch) {
+    // Only filter by ranch/block when the value is valid for the current client
+    if (selectedRanch && ranches.includes(selectedRanch)) {
       filtered = filtered.filter((t) => t.ranch === selectedRanch);
     }
-    if (selectedBlock) {
+    if (selectedBlock && blocks.includes(selectedBlock)) {
       filtered = filtered.filter((t) => t.block === selectedBlock);
     }
     return filtered;
-  }, [tasksForClient, selectedRanch, selectedBlock]);
+  }, [tasksForClient, selectedRanch, selectedBlock, ranches, blocks]);
 
   // Filtered tasks for bulk clock out - only shows tasks with active clock-ins
   const bulkClockOutTasks = useMemo(() => {
@@ -852,14 +866,14 @@ function TimeTrackingPage() {
   const editFilteredTasks = useMemo(() => {
     if (!editTasksForClient) return [];
     let filtered = editTasksForClient;
-    if (editRanch) {
+    if (editRanch && editRanches.includes(editRanch)) {
       filtered = filtered.filter((t) => t.ranch === editRanch);
     }
-    if (editBlock) {
+    if (editBlock && editBlocks.includes(editBlock)) {
       filtered = filtered.filter((t) => t.block === editBlock);
     }
     return filtered;
-  }, [editTasksForClient, editRanch, editBlock]);
+  }, [editTasksForClient, editRanch, editBlock, editRanches, editBlocks]);
 
   const filteredManualEmployees = useMemo(() => {
     if (!activeEmployees) return [];
@@ -967,37 +981,37 @@ function TimeTrackingPage() {
     [audioContext, soundSettings],
   );
 
-  /*   // Reset selections when client changes
-  useEffect(() => {
+  // Reset dependent selections when client/ranch/block change (skip initial mount)
+  useEffectAfterMount(() => {
     setSelectedRanch("");
     setSelectedBlock("");
     setSelectedTask("");
   }, [selectedClient]);
 
-  useEffect(() => {
+  useEffectAfterMount(() => {
     setSelectedBlock("");
     setSelectedTask("");
   }, [selectedRanch]);
 
-  useEffect(() => {
+  useEffectAfterMount(() => {
     setSelectedTask("");
   }, [selectedBlock]);
 
-  // Reset edit selections when edit client changes
-  useEffect(() => {
+  // Reset edit selections when edit client/ranch/block change (skip initial mount)
+  useEffectAfterMount(() => {
     setEditRanch("");
     setEditBlock("");
     setEditTaskId("");
   }, [editClient]);
 
-  useEffect(() => {
+  useEffectAfterMount(() => {
     setEditBlock("");
     setEditTaskId("");
   }, [editRanch]);
 
-  useEffect(() => {
+  useEffectAfterMount(() => {
     setEditTaskId("");
-  }, [editBlock]); */
+  }, [editBlock]);
 
   // Synchronize past record date and time states
   useEffect(() => {
