@@ -64,6 +64,8 @@ import {
   Calendar as CalendarIcon,
   Filter,
   Edit,
+  Plus,
+  X,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
@@ -330,6 +332,12 @@ function TimeTrackingPage() {
   const [manualEmployeeSearch, setManualEmployeeSearch] = useState("");
   const [manualSelectedEmployee, setManualSelectedEmployee] =
     useState<Employee | null>(null);
+  // Multi-employee list for manual entry: each entry has the employee and their individual PC count
+  const [manualEmployees, setManualEmployees] = useState<
+    Array<{ employee: Employee; pieces: number | string }>
+  >([]);
+  const [manualAddEmployeeSearch, setManualAddEmployeeSearch] = useState("");
+  const [showAddEmployeeSearch, setShowAddEmployeeSearch] = useState(false);
   const [manualPieceQuantity, setManualPieceQuantity] = useState<
     number | string
   >("");
@@ -868,6 +876,73 @@ function TimeTrackingPage() {
       emp.name.toLowerCase().includes(manualEmployeeSearch.toLowerCase()),
     );
   }, [activeEmployees, manualEmployeeSearch]);
+
+  // Filtered employees for adding to multi-employee list (excludes already added)
+  const filteredAddEmployees = useMemo(() => {
+    if (!activeEmployees) return [];
+    if (!manualAddEmployeeSearch) return [];
+    const addedIds = new Set(manualEmployees.map((e) => e.employee.id));
+    return activeEmployees.filter(
+      (emp) =>
+        emp.name
+          .toLowerCase()
+          .includes(manualAddEmployeeSearch.toLowerCase()) &&
+        !addedIds.has(emp.id),
+    );
+  }, [activeEmployees, manualAddEmployeeSearch, manualEmployees]);
+
+  // Validation for the Manual Entry submit button
+  const manualSubmitIssues = useMemo(() => {
+    const issues: string[] = [];
+    const hasEmployees =
+      manualEmployees.length > 0 || manualSelectedEmployee !== null;
+    if (!hasEmployees) {
+      issues.push("Add at least one employee");
+    }
+    if (!selectedTask) {
+      issues.push("Select a task");
+    }
+    const isPieceTask =
+      selectedTask &&
+      allTasks?.find((t) => t.id === selectedTask)?.clientRateType === "piece";
+
+    // When using multi-employee list with a piecework task, every employee must have pieces filled
+    if (isPieceTask && manualEmployees.length > 0) {
+      const missingPieces = manualEmployees.some(
+        (e) =>
+          e.pieces === null ||
+          e.pieces === "" ||
+          e.pieces === undefined ||
+          Number(e.pieces) <= 0,
+      );
+      if (missingPieces) {
+        issues.push("Enter P.C. (pieces completed) for all employees");
+      }
+    }
+
+    // When past records mode is active, date and times are required
+    if (usePastRecords) {
+      if (!pastRecordDate) {
+        issues.push("Select a date");
+      }
+      if (!pastRecordClockInTime) {
+        issues.push("Set Clock-In Time");
+      }
+      if (!pastRecordClockOutTime) {
+        issues.push("Set Clock-Out Time");
+      }
+    }
+    return issues;
+  }, [
+    manualEmployees,
+    manualSelectedEmployee,
+    selectedTask,
+    allTasks,
+    usePastRecords,
+    pastRecordDate,
+    pastRecordClockInTime,
+    pastRecordClockOutTime,
+  ]);
 
   useEffect(() => {
     // Creating AudioContext on user interaction is best practice
@@ -2172,7 +2247,15 @@ function TimeTrackingPage() {
   );
 
   const handleManualSubmit = async () => {
-    if (!firestore || !selectedTask || !manualSelectedEmployee) {
+    // Determine the effective employee list: use manualEmployees if populated, fall back to manualSelectedEmployee
+    const employeesToProcess =
+      manualEmployees.length > 0
+        ? manualEmployees
+        : manualSelectedEmployee
+          ? [{ employee: manualSelectedEmployee, pieces: pastRecordPiecesCount }]
+          : [];
+
+    if (!firestore || !selectedTask || employeesToProcess.length === 0) {
       toast({
         variant: "destructive",
         title: "Missing Information",
@@ -2196,97 +2279,106 @@ function TimeTrackingPage() {
         return;
       }
 
-      // Check for duplicate time entries (same employee, task, clock-in and clock-out times)
+      const task = allTasks?.find((t) => t.id === selectedTask);
+      const isPiece = task?.clientRateType === "piece";
+
+      // Check for duplicate time entries for each employee
       if (allTimeEntries) {
-        const duplicate = allTimeEntries.find((entry) => {
-          if (
-            entry.employeeId !== manualSelectedEmployee.id ||
-            entry.taskId !== selectedTask
-          ) {
-            return false;
-          }
+        for (const { employee: empToCheck } of employeesToProcess) {
+          const duplicate = allTimeEntries.find((entry) => {
+            if (
+              entry.employeeId !== empToCheck.id ||
+              entry.taskId !== selectedTask
+            ) {
+              return false;
+            }
 
-          // Check if clock-in times match (within 1 minute tolerance)
-          const entryClockIn =
-            entry.timestamp instanceof Date
-              ? entry.timestamp
-              : (entry.timestamp as any)?.toDate?.()
-                ? (entry.timestamp as any).toDate()
-                : new Date(entry.timestamp as any);
-          const timeDiffIn = Math.abs(
-            entryClockIn.getTime() - pastRecordClockInDate.getTime(),
-          );
-
-          // Check if clock-out times match (within 1 minute tolerance)
-          if (entry.endTime) {
-            const entryClockOut =
-              entry.endTime instanceof Date
-                ? entry.endTime
-                : (entry.endTime as any)?.toDate?.()
-                  ? (entry.endTime as any).toDate()
-                  : new Date(entry.endTime as any);
-            const timeDiffOut = Math.abs(
-              entryClockOut.getTime() - pastRecordClockOutDate.getTime(),
+            // Check if clock-in times match (within 1 minute tolerance)
+            const entryClockIn =
+              entry.timestamp instanceof Date
+                ? entry.timestamp
+                : (entry.timestamp as any)?.toDate?.()
+                  ? (entry.timestamp as any).toDate()
+                  : new Date(entry.timestamp as any);
+            const timeDiffIn = Math.abs(
+              entryClockIn.getTime() - pastRecordClockInDate.getTime(),
             );
 
-            // If both clock-in and clock-out times match within 1 minute, it's a duplicate
-            return timeDiffIn < 60000 && timeDiffOut < 60000;
-          }
+            // Check if clock-out times match (within 1 minute tolerance)
+            if (entry.endTime) {
+              const entryClockOut =
+                entry.endTime instanceof Date
+                  ? entry.endTime
+                  : (entry.endTime as any)?.toDate?.()
+                    ? (entry.endTime as any).toDate()
+                    : new Date(entry.endTime as any);
+              const timeDiffOut = Math.abs(
+                entryClockOut.getTime() - pastRecordClockOutDate.getTime(),
+              );
 
-          return false;
-        });
+              // If both clock-in and clock-out times match within 1 minute, it's a duplicate
+              return timeDiffIn < 60000 && timeDiffOut < 60000;
+            }
 
-        if (duplicate) {
-          const task = allTasks?.find((t) => t.id === selectedTask);
-          const client = clients?.find((c) => c.id === task?.clientId);
-          toast({
-            variant: "destructive",
-            title: "Duplicate Entry Detected",
-            description: `A time entry already exists for ${
-              manualSelectedEmployee.name
-            } on ${format(
-              pastRecordClockInDate,
-              "PPP",
-            )} with the same clock-in and clock-out times for ${
-              task?.name || "this task"
-            } (${client?.name || "this client"}).`,
+            return false;
           });
-          setIsManualSubmitting(false);
-          return;
+
+          if (duplicate) {
+            const client = clients?.find((c) => c.id === task?.clientId);
+            toast({
+              variant: "destructive",
+              title: "Duplicate Entry Detected",
+              description: `A time entry already exists for ${
+                empToCheck.name
+              } on ${format(
+                pastRecordClockInDate,
+                "PPP",
+              )} with the same clock-in and clock-out times for ${
+                task?.name || "this task"
+              } (${client?.name || "this client"}).`,
+            });
+            setIsManualSubmitting(false);
+            return;
+          }
         }
       }
 
       // Show toast and stop loading immediately when offline to allow user to continue working
       if (!isOnline) {
+        const names = employeesToProcess.map((e) => e.employee.name).join(", ");
         toast({
           title: "Past Record Created",
           description: addOfflineIndicator(
-            `Created past record for ${manualSelectedEmployee.name}.`,
+            `Created past record for ${names}.`,
             isOnline,
           ),
         });
         setIsManualSubmitting(false);
       }
 
-      const task = allTasks?.find((t) => t.id === selectedTask);
-      const piecesCount =
-        task?.clientRateType === "piece"
-          ? typeof pastRecordPiecesCount === "number"
-            ? pastRecordPiecesCount
-            : parseFloat(String(pastRecordPiecesCount))
+      // Submit for each employee
+      for (const entry of employeesToProcess) {
+        const piecesCount = isPiece
+          ? typeof entry.pieces === "number"
+            ? entry.pieces
+            : parseFloat(String(entry.pieces))
           : 0;
 
-      await createPastRecord(
-        manualSelectedEmployee,
-        selectedTask,
-        pastRecordClockInDate,
-        pastRecordClockOutDate,
-        piecesCount > 0 ? piecesCount : undefined,
-      );
+        await createPastRecord(
+          entry.employee,
+          selectedTask,
+          pastRecordClockInDate,
+          pastRecordClockOutDate,
+          piecesCount > 0 ? piecesCount : undefined,
+        );
+      }
 
       // Reset form after Firestore operation
       setManualSelectedEmployee(null);
       setManualEmployeeSearch("");
+      setManualEmployees([]);
+      setManualAddEmployeeSearch("");
+      setShowAddEmployeeSearch(false);
       setUseSickHoursForPayment(false);
       setPastRecordClockInDate(undefined);
       setPastRecordClockOutDate(undefined);
@@ -2300,31 +2392,37 @@ function TimeTrackingPage() {
         setIsManualSubmitting(false);
       }
     } else if (manualLogType === "clock-in") {
-      // Show toast and stop loading immediately when offline to allow user to continue working
-      if (!isOnline) {
-        toast({
-          title: "Clock In Successful",
-          description: addOfflineIndicator(
-            `Clocked in ${manualSelectedEmployee.name}.${
-              useSickHoursForPayment ? " (Using sick hours for payment)" : ""
-            }`,
-            isOnline,
-          ),
-        });
-        setIsManualSubmitting(false);
-      }
+      // Process each employee
+      for (const entry of employeesToProcess) {
+        // Show toast and stop loading immediately when offline to allow user to continue working
+        if (!isOnline) {
+          toast({
+            title: "Clock In Successful",
+            description: addOfflineIndicator(
+              `Clocked in ${entry.employee.name}.${
+                useSickHoursForPayment ? " (Using sick hours for payment)" : ""
+              }`,
+              isOnline,
+            ),
+          });
+          setIsManualSubmitting(false);
+        }
 
-      const timestamp = useManualDateTime ? manualClockInDate : undefined;
-      await clockInEmployee(
-        manualSelectedEmployee,
-        selectedTask,
-        timestamp,
-        useSickHoursForPayment,
-      );
+        const timestamp = useManualDateTime ? manualClockInDate : undefined;
+        await clockInEmployee(
+          entry.employee,
+          selectedTask,
+          timestamp,
+          useSickHoursForPayment,
+        );
+      }
 
       // Reset form after Firestore operation
       setManualSelectedEmployee(null);
       setManualEmployeeSearch("");
+      setManualEmployees([]);
+      setManualAddEmployeeSearch("");
+      setShowAddEmployeeSearch(false);
       setUseSickHoursForPayment(false);
 
       // Only update loading state if online (offline already set to false)
@@ -2332,24 +2430,30 @@ function TimeTrackingPage() {
         setIsManualSubmitting(false);
       }
     } else if (manualLogType === "clock-out") {
-      // Show toast and stop loading immediately when offline to allow user to continue working
-      if (!isOnline) {
-        toast({
-          title: "Clock Out Successful",
-          description: addOfflineIndicator(
-            `Clocked out ${manualSelectedEmployee.name}.`,
-            isOnline,
-          ),
-        });
-        setIsManualSubmitting(false);
-      }
+      // Process each employee
+      for (const entry of employeesToProcess) {
+        // Show toast and stop loading immediately when offline to allow user to continue working
+        if (!isOnline) {
+          toast({
+            title: "Clock Out Successful",
+            description: addOfflineIndicator(
+              `Clocked out ${entry.employee.name}.`,
+              isOnline,
+            ),
+          });
+          setIsManualSubmitting(false);
+        }
 
-      const timestamp = useManualDateTime ? manualClockOutDate : undefined;
-      await clockOutEmployee(manualSelectedEmployee, selectedTask, timestamp);
+        const timestamp = useManualDateTime ? manualClockOutDate : undefined;
+        await clockOutEmployee(entry.employee, selectedTask, timestamp);
+      }
 
       // Reset form after Firestore operation
       setManualSelectedEmployee(null);
       setManualEmployeeSearch("");
+      setManualEmployees([]);
+      setManualAddEmployeeSearch("");
+      setShowAddEmployeeSearch(false);
       setUseSickHoursForPayment(false);
 
       // Only update loading state if online (offline already set to false)
@@ -3645,29 +3749,6 @@ function TimeTrackingPage() {
                       />
                     </div>
 
-                    {selectedTask &&
-                      allTasks?.find((t) => t.id === selectedTask)
-                        ?.clientRateType === "piece" && (
-                        <div className="space-y-2">
-                          <Label htmlFor="past-pieces-count-manual">
-                            Pieces Completed
-                          </Label>
-                          <Input
-                            id="past-pieces-count-manual"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="Enter number of pieces"
-                            value={pastRecordPiecesCount}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              setPastRecordPiecesCount(
-                                value === "" ? "" : parseFloat(value),
-                              );
-                            }}
-                          />
-                        </div>
-                      )}
                   </div>
                 )}
               </div>
@@ -3770,43 +3851,122 @@ function TimeTrackingPage() {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="employee-search">Employee</Label>
-                {manualSelectedEmployee ? (
-                  <div className="flex items-center gap-2 rounded-md border p-2 bg-muted">
-                    <User className="h-4 w-4" />
-                    <span>{manualSelectedEmployee.name}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="ml-auto"
-                      onClick={() => {
-                        setManualSelectedEmployee(null);
-                        setManualEmployeeSearch("");
-                      }}
-                    >
-                      Change
-                    </Button>
+                <div className="flex items-center justify-between">
+                  <Label>Employee</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-1"
+                    onClick={() => {
+                      setShowAddEmployeeSearch(true);
+                      setManualAddEmployeeSearch("");
+                    }}
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add employee
+                  </Button>
+                </div>
+
+                {/* List of added employees */}
+                {manualEmployees.length > 0 && (
+                  <div className="space-y-1">
+                    {manualEmployees.map((entry, idx) => (
+                      <div
+                        key={entry.employee.id}
+                        className="flex items-center gap-2 rounded-md border p-2 bg-muted"
+                      >
+                        <User className="h-4 w-4 shrink-0" />
+                        <span className="flex-1 text-sm font-medium truncate">
+                          {entry.employee.name}
+                        </span>
+                        {selectedTask &&
+                          allTasks?.find((t) => t.id === selectedTask)
+                            ?.clientRateType === "piece" && (
+                            <div className="flex items-center gap-1">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="P.C."
+                                className="w-20 h-7 text-xs"
+                                value={entry.pieces}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setManualEmployees((prev) =>
+                                    prev.map((item, i) =>
+                                      i === idx
+                                        ? {
+                                            ...item,
+                                            pieces:
+                                              value === ""
+                                                ? ""
+                                                : parseFloat(value),
+                                          }
+                                        : item,
+                                    ),
+                                  );
+                                }}
+                              />
+                            </div>
+                          )}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 shrink-0"
+                          onClick={() => {
+                            setManualEmployees((prev) =>
+                              prev.filter((_, i) => i !== idx),
+                            );
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
-                ) : (
-                  <>
-                    <Input
-                      id="employee-search"
-                      placeholder="Search for an active employee..."
-                      value={manualEmployeeSearch}
-                      onChange={(e) => setManualEmployeeSearch(e.target.value)}
-                    />
-                    {manualEmployeeSearch &&
-                      filteredManualEmployees &&
-                      filteredManualEmployees.length > 0 && (
+                )}
+
+                {/* Add employee search */}
+                {showAddEmployeeSearch && (
+                  <div className="space-y-1">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Search for an active employee..."
+                        value={manualAddEmployeeSearch}
+                        autoFocus
+                        onChange={(e) =>
+                          setManualAddEmployeeSearch(e.target.value)
+                        }
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setShowAddEmployeeSearch(false);
+                          setManualAddEmployeeSearch("");
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {manualAddEmployeeSearch &&
+                      filteredAddEmployees.length > 0 && (
                         <div className="border rounded-md max-h-48 overflow-y-auto">
-                          {filteredManualEmployees.map((employee) => (
+                          {filteredAddEmployees.map((employee) => (
                             <Button
                               key={employee.id}
                               variant="ghost"
                               className="w-full justify-start"
                               onClick={() => {
-                                setManualSelectedEmployee(employee);
-                                setManualEmployeeSearch(employee.name);
+                                setManualEmployees((prev) => [
+                                  ...prev,
+                                  { employee, pieces: "" },
+                                ]);
+                                setManualAddEmployeeSearch("");
+                                setShowAddEmployeeSearch(false);
                               }}
                             >
                               {employee.name}
@@ -3814,23 +3974,116 @@ function TimeTrackingPage() {
                           ))}
                         </div>
                       )}
-                    {manualEmployeeSearch &&
-                      filteredManualEmployees &&
-                      filteredManualEmployees.length === 0 && (
+                    {manualAddEmployeeSearch &&
+                      filteredAddEmployees.length === 0 && (
                         <p className="p-4 text-sm text-muted-foreground">
                           No employees found.
                         </p>
                       )}
+                  </div>
+                )}
+
+                {/* Legacy single-employee fallback (shown when manualEmployees is empty and not using new flow) */}
+                {manualEmployees.length === 0 && !showAddEmployeeSearch && (
+                  <>
+                    {manualSelectedEmployee ? (
+                      <div className="flex items-center gap-2 rounded-md border p-2 bg-muted">
+                        <User className="h-4 w-4 shrink-0" />
+                        <span className="flex-1">{manualSelectedEmployee.name}</span>
+                        {selectedTask &&
+                          allTasks?.find((t) => t.id === selectedTask)
+                            ?.clientRateType === "piece" && (
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="P.C."
+                              className="w-20 h-7 text-xs"
+                              value={pastRecordPiecesCount}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setPastRecordPiecesCount(
+                                  value === "" ? "" : parseFloat(value),
+                                );
+                              }}
+                            />
+                          )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setManualSelectedEmployee(null);
+                            setManualEmployeeSearch("");
+                            setPastRecordPiecesCount("");
+                          }}
+                        >
+                          Change
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <Input
+                          id="employee-search"
+                          placeholder="Search for an active employee..."
+                          value={manualEmployeeSearch}
+                          onChange={(e) =>
+                            setManualEmployeeSearch(e.target.value)
+                          }
+                        />
+                        {manualEmployeeSearch &&
+                          filteredManualEmployees &&
+                          filteredManualEmployees.length > 0 && (
+                            <div className="border rounded-md max-h-48 overflow-y-auto">
+                              {filteredManualEmployees.map((employee) => (
+                                <Button
+                                  key={employee.id}
+                                  variant="ghost"
+                                  className="w-full justify-start"
+                                  onClick={() => {
+                                    setManualSelectedEmployee(employee);
+                                    setManualEmployeeSearch(employee.name);
+                                  }}
+                                >
+                                  {employee.name}
+                                </Button>
+                              ))}
+                            </div>
+                          )}
+                        {manualEmployeeSearch &&
+                          filteredManualEmployees &&
+                          filteredManualEmployees.length === 0 && (
+                            <p className="p-4 text-sm text-muted-foreground">
+                              No employees found.
+                            </p>
+                          )}
+                      </>
+                    )}
                   </>
                 )}
               </div>
 
+              {manualSubmitIssues.length > 0 && (
+                <div className="rounded-md border border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950/30 px-3 py-2">
+                  <p className="text-xs font-semibold text-yellow-800 dark:text-yellow-300 mb-1">
+                    To submit, please complete the following:
+                  </p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    {manualSubmitIssues.map((issue, index) => (
+                      <li
+                        key={index}
+                        className="text-xs text-yellow-700 dark:text-yellow-400"
+                      >
+                        {issue}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <Button
                 className="w-full"
                 onClick={handleManualSubmit}
-                disabled={
-                  isManualSubmitting || !manualSelectedEmployee || !selectedTask
-                }
+                disabled={isManualSubmitting || manualSubmitIssues.length > 0}
               >
                 {isManualSubmitting && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
