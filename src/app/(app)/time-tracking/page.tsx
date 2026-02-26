@@ -891,6 +891,59 @@ function TimeTrackingPage() {
     );
   }, [activeEmployees, manualAddEmployeeSearch, manualEmployees]);
 
+  // Validation for the Manual Entry submit button
+  const manualSubmitIssues = useMemo(() => {
+    const issues: string[] = [];
+    const hasEmployees =
+      manualEmployees.length > 0 || manualSelectedEmployee !== null;
+    if (!hasEmployees) {
+      issues.push("Add at least one employee");
+    }
+    if (!selectedTask) {
+      issues.push("Select a task");
+    }
+    const isPieceTask =
+      selectedTask &&
+      allTasks?.find((t) => t.id === selectedTask)?.clientRateType === "piece";
+
+    // When using multi-employee list with a piecework task, every employee must have pieces filled
+    if (isPieceTask && manualEmployees.length > 0) {
+      const missingPieces = manualEmployees.some(
+        (e) =>
+          e.pieces === null ||
+          e.pieces === "" ||
+          e.pieces === undefined ||
+          Number(e.pieces) <= 0,
+      );
+      if (missingPieces) {
+        issues.push("Enter P.C. (pieces completed) for all employees");
+      }
+    }
+
+    // When past records mode is active, date and times are required
+    if (usePastRecords) {
+      if (!pastRecordDate) {
+        issues.push("Select a date");
+      }
+      if (!pastRecordClockInTime) {
+        issues.push("Set Clock-In Time");
+      }
+      if (!pastRecordClockOutTime) {
+        issues.push("Set Clock-Out Time");
+      }
+    }
+    return issues;
+  }, [
+    manualEmployees,
+    manualSelectedEmployee,
+    selectedTask,
+    allTasks,
+    usePastRecords,
+    pastRecordDate,
+    pastRecordClockInTime,
+    pastRecordClockOutTime,
+  ]);
+
   useEffect(() => {
     // Creating AudioContext on user interaction is best practice
     const initializeAudio = () => {
@@ -4009,14 +4062,28 @@ function TimeTrackingPage() {
                 )}
               </div>
 
+              {manualSubmitIssues.length > 0 && (
+                <div className="rounded-md border border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950/30 px-3 py-2">
+                  <p className="text-xs font-semibold text-yellow-800 dark:text-yellow-300 mb-1">
+                    To submit, please complete the following:
+                  </p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    {manualSubmitIssues.map((issue, index) => (
+                      <li
+                        key={index}
+                        className="text-xs text-yellow-700 dark:text-yellow-400"
+                      >
+                        {issue}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <Button
                 className="w-full"
                 onClick={handleManualSubmit}
-                disabled={
-                  isManualSubmitting ||
-                  (manualEmployees.length === 0 && !manualSelectedEmployee) ||
-                  !selectedTask
-                }
+                disabled={isManualSubmitting || manualSubmitIssues.length > 0}
               >
                 {isManualSubmitting && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
