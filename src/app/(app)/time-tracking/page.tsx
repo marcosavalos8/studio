@@ -3850,6 +3850,7 @@ function TimeTrackingPage() {
                 </>
               )}
 
+              {usePastRecords && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>Employee</Label>
@@ -4061,8 +4062,9 @@ function TimeTrackingPage() {
                   </>
                 )}
               </div>
+              )}
 
-              {manualSubmitIssues.length > 0 && (
+              {usePastRecords && manualSubmitIssues.length > 0 && (
                 <div className="rounded-md border border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950/30 px-3 py-2">
                   <p className="text-xs font-semibold text-yellow-800 dark:text-yellow-300 mb-1">
                     To submit, please complete the following:
@@ -4080,6 +4082,7 @@ function TimeTrackingPage() {
                 </div>
               )}
 
+              {usePastRecords && (
               <Button
                 className="w-full"
                 onClick={handleManualSubmit}
@@ -4090,6 +4093,7 @@ function TimeTrackingPage() {
                 )}
                 Submit Log
               </Button>
+              )}
             </CardContent>
           </Card>
           <Card className="mt-4">
