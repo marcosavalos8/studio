@@ -3800,19 +3800,50 @@ function TimeTrackingPage() {
                 <div className="flex items-center justify-between">
                   <Label>Employee</Label>
                   {usePastRecords && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-1"
-                    onClick={() => {
-                      setShowAddEmployeeSearch(true);
-                      setManualAddEmployeeSearch("");
-                    }}
-                  >
-                    <Plus className="h-3 w-3" />
-                    Add employee
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    {manualEmployees.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="flex items-center gap-1 text-destructive hover:text-destructive"
+                        onClick={() => {
+                          setManualEmployees([]);
+                          setShowAddEmployeeSearch(false);
+                          setManualAddEmployeeSearch("");
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Clear all
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-1"
+                      onClick={() => {
+                        // If legacy employee was selected, migrate into multi-employee list
+                        if (manualSelectedEmployee) {
+                          setManualEmployees((prev) => {
+                            const alreadyAdded = prev.some(
+                              (e) => e.employee.id === manualSelectedEmployee!.id,
+                            );
+                            return alreadyAdded
+                              ? prev
+                              : [...prev, { employee: manualSelectedEmployee!, pieces: "" }];
+                          });
+                          setManualSelectedEmployee(null);
+                          setManualEmployeeSearch("");
+                        }
+                        setShowAddEmployeeSearch(true);
+                        setManualAddEmployeeSearch("");
+                      }}
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add employee
+                    </Button>
+                  </div>
                   )}
                 </div>
 
@@ -3914,7 +3945,7 @@ function TimeTrackingPage() {
                                   { employee, pieces: "" },
                                 ]);
                                 setManualAddEmployeeSearch("");
-                                setShowAddEmployeeSearch(false);
+                                // Keep search open so user can add more employees immediately
                               }}
                             >
                               {employee.name}
@@ -3938,7 +3969,7 @@ function TimeTrackingPage() {
                       <div className="flex items-center gap-2 rounded-md border p-2 bg-muted">
                         <User className="h-4 w-4 shrink-0" />
                         <span className="flex-1">{manualSelectedEmployee.name}</span>
-                        {selectedTask &&
+                        {usePastRecords && selectedTask &&
                           allTasks?.find((t) => t.id === selectedTask)
                             ?.clientRateType === "piece" && (
                             <Input
