@@ -3669,6 +3669,9 @@ function TimeTrackingPage() {
                         setPastRecordClockInTime("");
                         setPastRecordClockOutTime("");
                         setPastRecordPiecesCount("");
+                        setManualEmployees([]);
+                        setShowAddEmployeeSearch(false);
+                        setManualAddEmployeeSearch("");
                       }
                       // Reset other modes when enabling past records
                       if (checked) {
@@ -3775,102 +3778,77 @@ function TimeTrackingPage() {
                   </p>
                 )}
               </div>
-              {!usePastRecords && (
-                <>
-                  {/*  <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="manual-datetime-checkbox-entry"
-                        checked={useManualDateTime}
-                        onCheckedChange={(checked: boolean) => {
-                          setUseManualDateTime(checked);
-                          if (!checked) {
-                            setManualClockInDate(undefined);
-                            setManualClockOutDate(undefined);
-                            setManualPieceworkDate(undefined);
-                          }
-                        }}
-                      />
-                      <Label
-                        htmlFor="manual-datetime-checkbox-entry"
-                        className="font-semibold"
-                      >
-                        Use Manual Date/Time
-                      </Label>
-                    </div>
-                    {useManualDateTime && (
-                      <div className="space-y-3 pt-2">
-                        {manualLogType === "clock-in" && (
-                          <DateTimePicker
-                            date={manualClockInDate}
-                            setDate={setManualClockInDate}
-                            label="Clock-In Date & Time"
-                            placeholder="Select date and time for clock-in"
-                          />
-                        )}
-                        {manualLogType === "clock-out" && (
-                          <DateTimePicker
-                            date={manualClockOutDate}
-                            setDate={setManualClockOutDate}
-                            label="Clock-Out Date & Time"
-                            placeholder="Select date and time for clock-out"
-                          />
-                        )}
-                        {manualLogType === "piecework" && (
-                          <DateTimePicker
-                            date={manualPieceworkDate}
-                            setDate={setManualPieceworkDate}
-                            label="Piecework Date & Time"
-                            placeholder="Select date and time for piecework"
-                          />
-                        )}
-                      </div>
-                    )}
-                  </div> */}
+              <div className="space-y-2">
+                <Label htmlFor="log-type">Log Type</Label>
+                <Select
+                  value={manualLogType}
+                  onValueChange={(v: string) =>
+                    setManualLogType(v as ManualLogType)
+                  }
+                >
+                  <SelectTrigger id="log-type">
+                    <SelectValue placeholder="Select log type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="clock-in">Clock In</SelectItem>
+                    <SelectItem value="clock-out">Clock Out</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-                  {!usePastRecords && (
-                    <div className="space-y-2">
-                      <Label htmlFor="log-type">Log Type</Label>
-                      <Select
-                        value={manualLogType}
-                        onValueChange={(v: string) =>
-                          setManualLogType(v as ManualLogType)
-                        }
-                      >
-                        <SelectTrigger id="log-type">
-                          <SelectValue placeholder="Select log type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="clock-in">Clock In</SelectItem>
-                          <SelectItem value="clock-out">Clock Out</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {usePastRecords && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>Employee</Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-1"
-                    onClick={() => {
-                      setShowAddEmployeeSearch(true);
-                      setManualAddEmployeeSearch("");
-                    }}
-                  >
-                    <Plus className="h-3 w-3" />
-                    Add employee
-                  </Button>
+                  {usePastRecords && (
+                  <div className="flex items-center gap-1">
+                    {manualEmployees.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="flex items-center gap-1 text-destructive hover:text-destructive"
+                        onClick={() => {
+                          setManualEmployees([]);
+                          setShowAddEmployeeSearch(false);
+                          setManualAddEmployeeSearch("");
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Clear all
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-1"
+                      onClick={() => {
+                        // If legacy employee was selected, migrate into multi-employee list
+                        if (manualSelectedEmployee) {
+                          setManualEmployees((prev) => {
+                            const alreadyAdded = prev.some(
+                              (e) => e.employee.id === manualSelectedEmployee!.id,
+                            );
+                            return alreadyAdded
+                              ? prev
+                              : [...prev, { employee: manualSelectedEmployee!, pieces: "" }];
+                          });
+                          setManualSelectedEmployee(null);
+                          setManualEmployeeSearch("");
+                        }
+                        setShowAddEmployeeSearch(true);
+                        setManualAddEmployeeSearch("");
+                      }}
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add employee
+                    </Button>
+                  </div>
+                  )}
                 </div>
 
                 {/* List of added employees */}
-                {manualEmployees.length > 0 && (
+                {usePastRecords && manualEmployees.length > 0 && (
                   <div className="space-y-1">
                     {manualEmployees.map((entry, idx) => (
                       <div
@@ -3930,7 +3908,7 @@ function TimeTrackingPage() {
                 )}
 
                 {/* Add employee search */}
-                {showAddEmployeeSearch && (
+                {usePastRecords && showAddEmployeeSearch && (
                   <div className="space-y-1">
                     <div className="flex gap-2">
                       <Input
@@ -3967,7 +3945,7 @@ function TimeTrackingPage() {
                                   { employee, pieces: "" },
                                 ]);
                                 setManualAddEmployeeSearch("");
-                                setShowAddEmployeeSearch(false);
+                                // Keep search open so user can add more employees immediately
                               }}
                             >
                               {employee.name}
@@ -3991,7 +3969,7 @@ function TimeTrackingPage() {
                       <div className="flex items-center gap-2 rounded-md border p-2 bg-muted">
                         <User className="h-4 w-4 shrink-0" />
                         <span className="flex-1">{manualSelectedEmployee.name}</span>
-                        {selectedTask &&
+                        {usePastRecords && selectedTask &&
                           allTasks?.find((t) => t.id === selectedTask)
                             ?.clientRateType === "piece" && (
                             <Input
@@ -4062,9 +4040,8 @@ function TimeTrackingPage() {
                   </>
                 )}
               </div>
-              )}
 
-              {usePastRecords && manualSubmitIssues.length > 0 && (
+              {manualSubmitIssues.length > 0 && (
                 <div className="rounded-md border border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950/30 px-3 py-2">
                   <p className="text-xs font-semibold text-yellow-800 dark:text-yellow-300 mb-1">
                     To submit, please complete the following:
@@ -4082,7 +4059,6 @@ function TimeTrackingPage() {
                 </div>
               )}
 
-              {usePastRecords && (
               <Button
                 className="w-full"
                 onClick={handleManualSubmit}
@@ -4093,7 +4069,6 @@ function TimeTrackingPage() {
                 )}
                 Submit Log
               </Button>
-              )}
             </CardContent>
           </Card>
           <Card className="mt-4">
