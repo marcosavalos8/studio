@@ -3778,6 +3778,7 @@ function TimeTrackingPage() {
                   </p>
                 )}
               </div>
+              {!usePastRecords && (
               <div className="space-y-2">
                 <Label htmlFor="log-type">Log Type</Label>
                 <Select
@@ -3795,6 +3796,7 @@ function TimeTrackingPage() {
                   </SelectContent>
                 </Select>
               </div>
+              )}
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
