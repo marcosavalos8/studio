@@ -429,6 +429,33 @@ function TimeTrackingPage() {
     [],
   );
 
+  // Bulk selection state (History tab)
+  const [selectedRecords, setSelectedRecords] = useState<Set<string>>(
+    new Set(),
+  );
+
+  // Bulk edit dialog state
+  const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false);
+  const [bulkEditUpdateClockIn, setBulkEditUpdateClockIn] = useState(false);
+  const [bulkEditClockIn, setBulkEditClockIn] = useState<Date | undefined>(
+    undefined,
+  );
+  const [bulkEditUpdateClockOut, setBulkEditUpdateClockOut] = useState(false);
+  const [bulkEditClockOut, setBulkEditClockOut] = useState<Date | undefined>(
+    undefined,
+  );
+  const [bulkEditClient, setBulkEditClient] = useState<string>("");
+  const [bulkEditRanch, setBulkEditRanch] = useState<string>("");
+  const [bulkEditBlock, setBulkEditBlock] = useState<string>("");
+  const [bulkEditTaskId, setBulkEditTaskId] = useState<string>("");
+  const [bulkEditPaymentModality, setBulkEditPaymentModality] = useState<
+    "Hourly" | "Piecework"
+  >("Hourly");
+  const [bulkEditPieceCounts, setBulkEditPieceCounts] = useState<
+    Record<string, number | string>
+  >({});
+  const [isBulkEditing, setIsBulkEditing] = useState(false);
+
   // Debounce state
   const [recentScans, setRecentScans] = useState<
     { scanData: string; mode: ScanMode; timestamp: number }[]
@@ -873,6 +900,70 @@ function TimeTrackingPage() {
     }
     return filtered;
   }, [editTasksForClient, editRanch, editBlock]);
+
+  // Bulk edit computed values
+  const selectedRecordsList = useMemo(() => {
+    if (selectedRecords.size === 0) return [];
+    const records: Array<
+      | { type: "time"; data: TimeEntry }
+      | { type: "piecework"; data: Piecework }
+    > = [];
+    for (const key of selectedRecords) {
+      const dashIdx = key.indexOf("-");
+      const type = key.substring(0, dashIdx);
+      const id = key.substring(dashIdx + 1);
+      if (type === "time") {
+        const entry = allTimeEntries?.find((e) => e.id === id);
+        if (entry) records.push({ type: "time", data: entry });
+      } else {
+        const piece = allPiecework?.find((p) => p.id === id);
+        if (piece) records.push({ type: "piecework", data: piece });
+      }
+    }
+    return records;
+  }, [selectedRecords, allTimeEntries, allPiecework]);
+
+  const canBulkEdit = useMemo(() => {
+    if (selectedRecordsList.length < 2) return false;
+    const clientIds = new Set(
+      selectedRecordsList.map((r) => {
+        const task = allTasks?.find((t) => t.id === r.data.taskId);
+        return task?.clientId;
+      }),
+    );
+    return clientIds.size === 1 && !clientIds.has(undefined);
+  }, [selectedRecordsList, allTasks]);
+
+  // Filtered tasks for bulk edit dialog
+  const bulkEditTasksForClient = useMemo(() => {
+    if (!allTasks || !bulkEditClient) return [];
+    return allTasks.filter((t) => t.clientId === bulkEditClient);
+  }, [allTasks, bulkEditClient]);
+
+  const bulkEditRanches = useMemo(() => {
+    return [
+      ...new Set(bulkEditTasksForClient.map((t) => t.ranch).filter(Boolean)),
+    ] as string[];
+  }, [bulkEditTasksForClient]);
+
+  const bulkEditBlocks = useMemo(() => {
+    if (!bulkEditRanch) return [];
+    return [
+      ...new Set(
+        bulkEditTasksForClient
+          .filter((t) => t.ranch === bulkEditRanch)
+          .map((t) => t.block)
+          .filter(Boolean),
+      ),
+    ] as string[];
+  }, [bulkEditTasksForClient, bulkEditRanch]);
+
+  const bulkEditFilteredTasks = useMemo(() => {
+    let filtered = bulkEditTasksForClient;
+    if (bulkEditRanch) filtered = filtered.filter((t) => t.ranch === bulkEditRanch);
+    if (bulkEditBlock) filtered = filtered.filter((t) => t.block === bulkEditBlock);
+    return filtered;
+  }, [bulkEditTasksForClient, bulkEditRanch, bulkEditBlock]);
 
   const filteredManualEmployees = useMemo(() => {
     if (!activeEmployees) return [];
@@ -3061,6 +3152,137 @@ function TimeTrackingPage() {
         title: "Update Failed",
         description: "Failed to update the piecework record.",
       });
+    }
+  };
+
+  const resetBulkEditDialog = () => {
+    setBulkEditDialogOpen(false);
+    setBulkEditUpdateClockIn(false);
+    setBulkEditClockIn(undefined);
+    setBulkEditUpdateClockOut(false);
+    setBulkEditClockOut(undefined);
+    setBulkEditClient("");
+    setBulkEditRanch("");
+    setBulkEditBlock("");
+    setBulkEditTaskId("");
+    setBulkEditPaymentModality("Hourly");
+    setBulkEditPieceCounts({});
+  };
+
+  const handleBulkEdit = async () => {
+    if (!firestore || selectedRecordsList.length < 2) return;
+
+    if (!bulkEditTaskId) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Data",
+        description: "Task is required.",
+      });
+      return;
+    }
+
+    if (bulkEditUpdateClockIn && !bulkEditClockIn) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Data",
+        description: "Clock-in time is required when the checkbox is checked.",
+      });
+      return;
+    }
+
+    if (bulkEditUpdateClockOut && !bulkEditClockOut) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Data",
+        description: "Clock-out time is required when the checkbox is checked.",
+      });
+      return;
+    }
+
+    if (
+      bulkEditUpdateClockIn &&
+      bulkEditUpdateClockOut &&
+      bulkEditClockIn &&
+      bulkEditClockOut &&
+      bulkEditClockOut < bulkEditClockIn
+    ) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Data",
+        description: "Clock-out time cannot be before clock-in time.",
+      });
+      return;
+    }
+
+    setIsBulkEditing(true);
+
+    try {
+      const updatePromises = selectedRecordsList.map((record) => {
+        if (record.type === "time") {
+          const updateData: Record<string, unknown> = {
+            taskId: bulkEditTaskId,
+            paymentModality: bulkEditPaymentModality,
+          };
+          if (bulkEditUpdateClockIn && bulkEditClockIn) {
+            updateData.timestamp = bulkEditClockIn;
+          }
+          if (bulkEditUpdateClockOut && bulkEditClockOut) {
+            updateData.endTime = bulkEditClockOut;
+          }
+          const recordKey = `time-${record.data.id}`;
+          if (bulkEditPieceCounts[recordKey] !== undefined) {
+            const pieces =
+              typeof bulkEditPieceCounts[recordKey] === "string"
+                ? parseFloat(bulkEditPieceCounts[recordKey] as string) || 0
+                : (bulkEditPieceCounts[recordKey] as number);
+            updateData.piecesWorked = pieces;
+          }
+          return updateDoc(
+            doc(firestore, "time_entries", record.data.id),
+            updateData,
+          );
+        } else {
+          const updateData: Record<string, unknown> = {
+            taskId: bulkEditTaskId,
+          };
+          if (bulkEditUpdateClockIn && bulkEditClockIn) {
+            updateData.timestamp = bulkEditClockIn;
+          }
+          const recordKey = `piece-${record.data.id}`;
+          if (bulkEditPieceCounts[recordKey] !== undefined) {
+            const pieces =
+              typeof bulkEditPieceCounts[recordKey] === "string"
+                ? parseFloat(bulkEditPieceCounts[recordKey] as string) || 0
+                : (bulkEditPieceCounts[recordKey] as number);
+            updateData.pieceCount = pieces;
+          }
+          return updateDoc(
+            doc(firestore, "piecework", record.data.id),
+            updateData,
+          );
+        }
+      });
+
+      await Promise.all(updatePromises);
+
+      toast({
+        title: "Records Updated",
+        description: addOfflineIndicator(
+          `${selectedRecordsList.length} records have been successfully updated.`,
+          isOnline,
+        ),
+      });
+
+      setSelectedRecords(new Set());
+      resetBulkEditDialog();
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: "Failed to update some records. Please try again.",
+      });
+    } finally {
+      setIsBulkEditing(false);
     }
   };
 
@@ -5389,10 +5611,50 @@ function TimeTrackingPage() {
 
               {/* Unified Records Section */}
               <div>
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <History className="h-5 w-5 text-blue-600" />
-                  All Records (Clock-In/Clock-Out & Piecework)
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <History className="h-5 w-5 text-blue-600" />
+                    All Records (Clock-In/Clock-Out &amp; Piecework)
+                  </h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!canBulkEdit}
+                    onClick={() => {
+                      // Initialize bulk edit dialog with common client
+                      const firstTask = allTasks?.find(
+                        (t) => t.id === selectedRecordsList[0]?.data.taskId,
+                      );
+                      const commonClientId = firstTask?.clientId || "";
+                      setBulkEditClient(commonClientId);
+                      setBulkEditRanch("");
+                      setBulkEditBlock("");
+                      setBulkEditTaskId("");
+                      setBulkEditPaymentModality("Hourly");
+                      setBulkEditUpdateClockIn(false);
+                      setBulkEditClockIn(undefined);
+                      setBulkEditUpdateClockOut(false);
+                      setBulkEditClockOut(undefined);
+                      // Pre-populate piece counts from selected records
+                      const counts: Record<string, number | string> = {};
+                      for (const r of selectedRecordsList) {
+                        if (r.type === "time") {
+                          counts[`time-${r.data.id}`] =
+                            (r.data as TimeEntry).piecesWorked || 0;
+                        } else {
+                          counts[`piece-${r.data.id}`] =
+                            (r.data as Piecework).pieceCount || 0;
+                        }
+                      }
+                      setBulkEditPieceCounts(counts);
+                      setBulkEditDialogOpen(true);
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <Edit className="h-4 w-4" />
+                    Edit ({selectedRecords.size} selected)
+                  </Button>
+                </div>
                 {!filteredMergedRecords ||
                 filteredMergedRecords.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground border rounded-lg">
@@ -5436,9 +5698,36 @@ function TimeTrackingPage() {
                         return (
                           <div
                             key={`time-${entry.id}`}
-                            className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
+                            className={`flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors cursor-pointer ${selectedRecords.has(`time-${entry.id}`) ? "ring-2 ring-primary border-primary bg-accent/30" : ""}`}
+                            onClick={(e) => {
+                              // Toggle selection on card click (not on buttons)
+                              const target = e.target as HTMLElement;
+                              if (target.closest("button")) return;
+                              const key = `time-${entry.id}`;
+                              setSelectedRecords((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(key)) next.delete(key);
+                                else next.add(key);
+                                return next;
+                              });
+                            }}
                           >
-                            <div className="flex-1 space-y-2">
+                            <div className="flex items-start gap-3 flex-1">
+                              <Checkbox
+                                checked={selectedRecords.has(`time-${entry.id}`)}
+                                onCheckedChange={(checked) => {
+                                  const key = `time-${entry.id}`;
+                                  setSelectedRecords((prev) => {
+                                    const next = new Set(prev);
+                                    if (checked) next.add(key);
+                                    else next.delete(key);
+                                    return next;
+                                  });
+                                }}
+                                className="mt-1"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <div className="flex-1 space-y-2">
                               <div className="flex items-center gap-2">
                                 <User className="h-4 w-4 text-muted-foreground" />
                                 <p className="font-semibold">
@@ -5619,6 +5908,7 @@ function TimeTrackingPage() {
                                   </div>
                                 );
                               })()}
+                              </div>
                             </div>
                             <div className="flex gap-2 ml-4">
                               <Button
@@ -5785,9 +6075,37 @@ function TimeTrackingPage() {
                         return (
                           <div
                             key={`piece-${piece.id}`}
-                            className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
+                            className={`flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors cursor-pointer ${selectedRecords.has(`piece-${piece.id}`) ? "ring-2 ring-primary border-primary bg-accent/30" : ""}`}
+                            onClick={(e) => {
+                              const target = e.target as HTMLElement;
+                              if (target.closest("button")) return;
+                              const key = `piece-${piece.id}`;
+                              setSelectedRecords((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(key)) next.delete(key);
+                                else next.add(key);
+                                return next;
+                              });
+                            }}
                           >
-                            <div className="flex-1 space-y-2">
+                            <div className="flex items-start gap-3 flex-1">
+                              <Checkbox
+                                checked={selectedRecords.has(
+                                  `piece-${piece.id}`,
+                                )}
+                                onCheckedChange={(checked) => {
+                                  const key = `piece-${piece.id}`;
+                                  setSelectedRecords((prev) => {
+                                    const next = new Set(prev);
+                                    if (checked) next.add(key);
+                                    else next.delete(key);
+                                    return next;
+                                  });
+                                }}
+                                className="mt-1"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <div className="flex-1 space-y-2">
                               <div className="flex items-center gap-2">
                                 <User className="h-4 w-4 text-muted-foreground" />
                                 <p className="font-semibold">{employeeNames}</p>
@@ -5841,6 +6159,7 @@ function TimeTrackingPage() {
                                   Note: {piece.qcNote}
                                 </div>
                               )}
+                              </div>
                             </div>
                             <div className="flex gap-2 ml-4">
                               <Button
@@ -6398,6 +6717,280 @@ function TimeTrackingPage() {
                   : handleEditPiecework
               }
             >
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Edit Dialog */}
+      <Dialog
+        open={bulkEditDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) resetBulkEditDialog();
+          else setBulkEditDialogOpen(true);
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Bulk Edit Records ({selectedRecordsList.length} records)
+            </DialogTitle>
+            <DialogDescription>
+              Update the fields below to apply changes to all selected records.
+              Clock-In and Clock-Out will only be updated if their checkboxes are
+              checked.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Clock-In */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="bulk-update-clockin"
+                  checked={bulkEditUpdateClockIn}
+                  onCheckedChange={(checked) =>
+                    setBulkEditUpdateClockIn(!!checked)
+                  }
+                />
+                <Label htmlFor="bulk-update-clockin">
+                  Update Clock-In Time
+                </Label>
+              </div>
+              {bulkEditUpdateClockIn && (
+                <DateTimePicker
+                  date={bulkEditClockIn}
+                  setDate={setBulkEditClockIn}
+                  label=""
+                  placeholder="Select clock-in date and time"
+                />
+              )}
+            </div>
+
+            {/* Clock-Out */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="bulk-update-clockout"
+                  checked={bulkEditUpdateClockOut}
+                  onCheckedChange={(checked) =>
+                    setBulkEditUpdateClockOut(!!checked)
+                  }
+                />
+                <Label htmlFor="bulk-update-clockout">
+                  Update Clock-Out Time
+                </Label>
+              </div>
+              {bulkEditUpdateClockOut && (
+                <DateTimePicker
+                  date={bulkEditClockOut}
+                  setDate={setBulkEditClockOut}
+                  label=""
+                  placeholder="Select clock-out date and time"
+                />
+              )}
+            </div>
+
+            {/* Task Selection */}
+            <div className="space-y-4 p-4 border rounded-md bg-muted/30">
+              <div className="space-y-2">
+                <Label htmlFor="bulk-edit-client">Client</Label>
+                <Select
+                  value={bulkEditClient || ""}
+                  onValueChange={(value) =>
+                    setBulkEditClient(
+                      value === CLEAR_SELECTION_VALUE ? "" : value,
+                    )
+                  }
+                >
+                  <SelectTrigger id="bulk-edit-client">
+                    <SelectValue placeholder="Select a client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
+                    {clients?.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bulk-edit-ranch">Ranch</Label>
+                <Select
+                  value={bulkEditRanch || ""}
+                  onValueChange={(value) =>
+                    setBulkEditRanch(
+                      value === CLEAR_SELECTION_VALUE ? "" : value,
+                    )
+                  }
+                  disabled={!bulkEditClient || bulkEditRanches.length === 0}
+                >
+                  <SelectTrigger id="bulk-edit-ranch">
+                    <SelectValue placeholder="Select a ranch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
+                    {bulkEditRanches.map((ranch) => (
+                      <SelectItem key={ranch} value={ranch}>
+                        {ranch}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bulk-edit-block">Block</Label>
+                <Select
+                  value={bulkEditBlock || ""}
+                  onValueChange={(value) =>
+                    setBulkEditBlock(
+                      value === CLEAR_SELECTION_VALUE ? "" : value,
+                    )
+                  }
+                  disabled={!bulkEditRanch || bulkEditBlocks.length === 0}
+                >
+                  <SelectTrigger id="bulk-edit-block">
+                    <SelectValue placeholder="Select a block" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
+                    {bulkEditBlocks.map((block) => (
+                      <SelectItem key={block} value={block}>
+                        {block}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bulk-edit-task">Task</Label>
+                <Select
+                  value={bulkEditTaskId || ""}
+                  onValueChange={(value) =>
+                    setBulkEditTaskId(
+                      value === CLEAR_SELECTION_VALUE ? "" : value,
+                    )
+                  }
+                  disabled={bulkEditFilteredTasks.length === 0}
+                >
+                  <SelectTrigger id="bulk-edit-task">
+                    <SelectValue placeholder="Select a task" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
+                    {bulkEditFilteredTasks.map((task) => (
+                      <SelectItem key={task.id} value={task.id}>
+                        {task.name} ({task.variety})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Payment Modality */}
+            <div className="space-y-2">
+              <Label htmlFor="bulk-edit-modality">Payment Modality</Label>
+              <Select
+                value={bulkEditPaymentModality}
+                onValueChange={(value: "Hourly" | "Piecework") =>
+                  setBulkEditPaymentModality(value)
+                }
+              >
+                <SelectTrigger id="bulk-edit-modality">
+                  <SelectValue placeholder="Select payment type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Hourly">Hourly</SelectItem>
+                  <SelectItem value="Piecework">Piecework</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Pieces per worker - shown for piecework payment modality */}
+            {bulkEditPaymentModality === "Piecework" && (
+              <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+                <p className="font-medium text-sm">Pieces per Worker:</p>
+                {selectedRecordsList.map((record) => {
+                  const recordKey =
+                    record.type === "time"
+                      ? `time-${record.data.id}`
+                      : `piece-${record.data.id}`;
+                  const empId =
+                    record.type === "time"
+                      ? (record.data as TimeEntry).employeeId
+                      : (record.data as Piecework).employeeId;
+                  const employeeNames = empId
+                    .split(",")
+                    .map(
+                      (id) =>
+                        activeEmployees?.find(
+                          (e) => e.id === id.trim() || e.qrCode === id.trim(),
+                        )?.name,
+                    )
+                    .filter(Boolean)
+                    .join(", ");
+                  return (
+                    <div key={recordKey} className="space-y-1">
+                      <Label htmlFor={`bulk-piece-${recordKey}`}>
+                        {employeeNames || "Unknown Employee"}{" "}
+                        <span className="text-xs text-muted-foreground">
+                          (
+                          {record.type === "time"
+                            ? "Time Entry"
+                            : "Piecework"}
+                          )
+                        </span>
+                      </Label>
+                      <Input
+                        id={`bulk-piece-${recordKey}`}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="Enter number of pieces"
+                        value={
+                          // Show empty string when value is 0 or undefined so the field appears blank
+                          !bulkEditPieceCounts[recordKey]
+                            ? ""
+                            : String(bulkEditPieceCounts[recordKey])
+                        }
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setBulkEditPieceCounts((prev) => ({
+                            ...prev,
+                            [recordKey]:
+                              value === "" ? "" : parseFloat(value) || 0,
+                          }));
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={resetBulkEditDialog}
+              disabled={isBulkEditing}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleBulkEdit} disabled={isBulkEditing}>
+              {isBulkEditing && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
               Save Changes
             </Button>
           </DialogFooter>
