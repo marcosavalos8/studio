@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import { format, startOfDay, endOfDay } from "date-fns";
 import {
@@ -339,6 +339,8 @@ function TimeTrackingPage() {
   const [manualAddEmployeeSearch, setManualAddEmployeeSearch] = useState("");
   const [showAddEmployeeSearch, setShowAddEmployeeSearch] = useState(false);
   const [focusedAddEmployeeIdx, setFocusedAddEmployeeIdx] = useState(-1);
+  const addEmployeeInputRef = useRef<HTMLInputElement>(null);
+  const addEmployeeListRef = useRef<HTMLDivElement>(null);
   const [manualPieceQuantity, setManualPieceQuantity] = useState<
     number | string
   >("");
@@ -1129,6 +1131,14 @@ function TimeTrackingPage() {
       setManualSelectedEmployee(null);
     }
   }, [manualEmployeeSearch]);
+
+  // Auto-scroll the focused employee item into view during keyboard navigation
+  useEffect(() => {
+    if (focusedAddEmployeeIdx >= 0 && addEmployeeListRef.current) {
+      const item = addEmployeeListRef.current.children[focusedAddEmployeeIdx] as HTMLElement | undefined;
+      item?.scrollIntoView({ block: "nearest" });
+    }
+  }, [focusedAddEmployeeIdx]);
 
   // Clear piecework selections when no active tasks remain
   useEffect(() => {
@@ -3934,6 +3944,7 @@ function TimeTrackingPage() {
                   <div className="space-y-1">
                     <div className="flex gap-2">
                       <Input
+                        ref={addEmployeeInputRef}
                         placeholder="Search for an active employee..."
                         value={manualAddEmployeeSearch}
                         autoFocus
@@ -3947,11 +3958,13 @@ function TimeTrackingPage() {
                             setFocusedAddEmployeeIdx((prev) =>
                               Math.min(prev + 1, filteredAddEmployees.length - 1),
                             );
+                            addEmployeeInputRef.current?.focus();
                           } else if (e.key === "ArrowUp") {
                             e.preventDefault();
                             setFocusedAddEmployeeIdx((prev) =>
                               Math.max(prev - 1, -1),
                             );
+                            addEmployeeInputRef.current?.focus();
                           } else if (e.key === "Enter" && focusedAddEmployeeIdx >= 0) {
                             e.preventDefault();
                             const emp = filteredAddEmployees[focusedAddEmployeeIdx];
@@ -3985,12 +3998,17 @@ function TimeTrackingPage() {
                     </div>
                     {manualAddEmployeeSearch &&
                       filteredAddEmployees.length > 0 && (
-                        <div className="border rounded-md max-h-48 overflow-y-auto">
+                        <div ref={addEmployeeListRef} className="border rounded-md max-h-48 overflow-y-auto">
                           {filteredAddEmployees.map((employee, idx) => (
                             <Button
                               key={employee.id}
+                              tabIndex={-1}
                               variant={idx === focusedAddEmployeeIdx ? "secondary" : "ghost"}
                               className="w-full justify-start"
+                              onMouseDown={(e) => {
+                                // Prevent input blur before click registers
+                                e.preventDefault();
+                              }}
                               onClick={() => {
                                 setManualEmployees((prev) => [
                                   ...prev,
@@ -3998,6 +4016,7 @@ function TimeTrackingPage() {
                                 ]);
                                 setManualAddEmployeeSearch("");
                                 setFocusedAddEmployeeIdx(-1);
+                                addEmployeeInputRef.current?.focus();
                                 // Keep search open so user can add more employees immediately
                               }}
                             >
