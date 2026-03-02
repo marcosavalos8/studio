@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import { format, startOfDay, endOfDay } from "date-fns";
 import {
@@ -338,6 +338,11 @@ function TimeTrackingPage() {
   >([]);
   const [manualAddEmployeeSearch, setManualAddEmployeeSearch] = useState("");
   const [showAddEmployeeSearch, setShowAddEmployeeSearch] = useState(false);
+  const [focusedAddEmployeeIdx, setFocusedAddEmployeeIdx] = useState(-1);
+  const addEmployeeInputRef = useRef<HTMLInputElement>(null);
+  const addEmployeeListRef = useRef<HTMLDivElement>(null);
+  const [focusedManualEmployeeIdx, setFocusedManualEmployeeIdx] = useState(-1);
+  const manualEmployeeListRef = useRef<HTMLDivElement>(null);
   const [manualPieceQuantity, setManualPieceQuantity] = useState<
     number | string
   >("");
@@ -1127,7 +1132,24 @@ function TimeTrackingPage() {
     if (manualEmployeeSearch === "") {
       setManualSelectedEmployee(null);
     }
+    setFocusedManualEmployeeIdx(-1);
   }, [manualEmployeeSearch]);
+
+  // Auto-scroll the focused legacy employee item into view during keyboard navigation
+  useEffect(() => {
+    if (focusedManualEmployeeIdx >= 0 && manualEmployeeListRef.current) {
+      const item = manualEmployeeListRef.current.children[focusedManualEmployeeIdx] as HTMLElement | undefined;
+      item?.scrollIntoView({ block: "nearest" });
+    }
+  }, [focusedManualEmployeeIdx]);
+
+  // Auto-scroll the focused employee item into view during keyboard navigation
+  useEffect(() => {
+    if (focusedAddEmployeeIdx >= 0 && addEmployeeListRef.current) {
+      const item = addEmployeeListRef.current.children[focusedAddEmployeeIdx] as HTMLElement | undefined;
+      item?.scrollIntoView({ block: "nearest" });
+    }
+  }, [focusedAddEmployeeIdx]);
 
   // Clear piecework selections when no active tasks remain
   useEffect(() => {
@@ -2343,6 +2365,19 @@ function TimeTrackingPage() {
         }
       }
 
+      // Validate clock-in/clock-out order before processing (so form data is preserved on error)
+      const roundedClockIn = roundToNearestQuarterHour(pastRecordClockInDate);
+      const roundedClockOut = roundToNearestQuarterHour(pastRecordClockOutDate);
+      if (roundedClockOut <= roundedClockIn) {
+        toast({
+          variant: "destructive",
+          title: "Invalid Times",
+          description: "Clock-out time must be after clock-in time.",
+        });
+        setIsManualSubmitting(false);
+        return;
+      }
+
       // Show toast and stop loading immediately when offline to allow user to continue working
       if (!isOnline) {
         const names = employeesToProcess.map((e) => e.employee.name).join(", ");
@@ -2379,6 +2414,7 @@ function TimeTrackingPage() {
       setManualEmployees([]);
       setManualAddEmployeeSearch("");
       setShowAddEmployeeSearch(false);
+      setFocusedAddEmployeeIdx(-1);
       setUseSickHoursForPayment(false);
       setPastRecordClockInDate(undefined);
       setPastRecordClockOutDate(undefined);
@@ -3470,6 +3506,7 @@ function TimeTrackingPage() {
                         }
                         placeholder="Select clock-in time"
                       />
+                      <p className="text-xs text-muted-foreground">Click the field and type the time directly (HH:MM)</p>
                     </div>
 
                     {/* Clock-Out Time */}
@@ -3486,6 +3523,7 @@ function TimeTrackingPage() {
                         }
                         placeholder="Select clock-out time"
                       />
+                      <p className="text-xs text-muted-foreground">Click the field and type the time directly (HH:MM)</p>
                     </div>
 
                     {selectedTask &&
@@ -3672,6 +3710,7 @@ function TimeTrackingPage() {
                         setManualEmployees([]);
                         setShowAddEmployeeSearch(false);
                         setManualAddEmployeeSearch("");
+                        setFocusedAddEmployeeIdx(-1);
                       }
                       // Reset other modes when enabling past records
                       if (checked) {
@@ -3813,6 +3852,7 @@ function TimeTrackingPage() {
                           setManualEmployees([]);
                           setShowAddEmployeeSearch(false);
                           setManualAddEmployeeSearch("");
+                          setFocusedAddEmployeeIdx(-1);
                         }}
                       >
                         <Trash2 className="h-3 w-3" />
@@ -3833,13 +3873,14 @@ function TimeTrackingPage() {
                             );
                             return alreadyAdded
                               ? prev
-                              : [...prev, { employee: manualSelectedEmployee!, pieces: "" }];
+                              : [...prev, { employee: manualSelectedEmployee!, pieces: pastRecordPiecesCount }];
                           });
                           setManualSelectedEmployee(null);
                           setManualEmployeeSearch("");
                         }
                         setShowAddEmployeeSearch(true);
                         setManualAddEmployeeSearch("");
+                        setFocusedAddEmployeeIdx(-1);
                       }}
                     >
                       <Plus className="h-3 w-3" />
@@ -3914,12 +3955,44 @@ function TimeTrackingPage() {
                   <div className="space-y-1">
                     <div className="flex gap-2">
                       <Input
+                        ref={addEmployeeInputRef}
                         placeholder="Search for an active employee..."
                         value={manualAddEmployeeSearch}
                         autoFocus
-                        onChange={(e) =>
-                          setManualAddEmployeeSearch(e.target.value)
-                        }
+                        onChange={(e) => {
+                          setManualAddEmployeeSearch(e.target.value);
+                          setFocusedAddEmployeeIdx(-1);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "ArrowDown") {
+                            e.preventDefault();
+                            setFocusedAddEmployeeIdx((prev) =>
+                              Math.min(prev + 1, filteredAddEmployees.length - 1),
+                            );
+                            addEmployeeInputRef.current?.focus();
+                          } else if (e.key === "ArrowUp") {
+                            e.preventDefault();
+                            setFocusedAddEmployeeIdx((prev) =>
+                              Math.max(prev - 1, -1),
+                            );
+                            addEmployeeInputRef.current?.focus();
+                          } else if (e.key === "Enter" && focusedAddEmployeeIdx >= 0) {
+                            e.preventDefault();
+                            const emp = filteredAddEmployees[focusedAddEmployeeIdx];
+                            if (emp) {
+                              setManualEmployees((prev) => [
+                                ...prev,
+                                { employee: emp, pieces: "" },
+                              ]);
+                              setManualAddEmployeeSearch("");
+                              setFocusedAddEmployeeIdx(-1);
+                            }
+                          } else if (e.key === "Escape") {
+                            setShowAddEmployeeSearch(false);
+                            setManualAddEmployeeSearch("");
+                            setFocusedAddEmployeeIdx(-1);
+                          }
+                        }}
                       />
                       <Button
                         type="button"
@@ -3928,6 +4001,7 @@ function TimeTrackingPage() {
                         onClick={() => {
                           setShowAddEmployeeSearch(false);
                           setManualAddEmployeeSearch("");
+                          setFocusedAddEmployeeIdx(-1);
                         }}
                       >
                         <X className="h-4 w-4" />
@@ -3935,18 +4009,25 @@ function TimeTrackingPage() {
                     </div>
                     {manualAddEmployeeSearch &&
                       filteredAddEmployees.length > 0 && (
-                        <div className="border rounded-md max-h-48 overflow-y-auto">
-                          {filteredAddEmployees.map((employee) => (
+                        <div ref={addEmployeeListRef} className="border rounded-md max-h-48 overflow-y-auto">
+                          {filteredAddEmployees.map((employee, idx) => (
                             <Button
                               key={employee.id}
-                              variant="ghost"
+                              tabIndex={-1}
+                              variant={idx === focusedAddEmployeeIdx ? "secondary" : "ghost"}
                               className="w-full justify-start"
+                              onMouseDown={(e) => {
+                                // Prevent input blur before click registers
+                                e.preventDefault();
+                              }}
                               onClick={() => {
                                 setManualEmployees((prev) => [
                                   ...prev,
                                   { employee, pieces: "" },
                                 ]);
                                 setManualAddEmployeeSearch("");
+                                setFocusedAddEmployeeIdx(-1);
+                                addEmployeeInputRef.current?.focus();
                                 // Keep search open so user can add more employees immediately
                               }}
                             >
@@ -4010,19 +4091,47 @@ function TimeTrackingPage() {
                           onChange={(e) =>
                             setManualEmployeeSearch(e.target.value)
                           }
+                          onKeyDown={(e) => {
+                            if (!filteredManualEmployees?.length) return;
+                            if (e.key === "ArrowDown") {
+                              e.preventDefault();
+                              setFocusedManualEmployeeIdx((prev) =>
+                                Math.min(prev + 1, filteredManualEmployees.length - 1),
+                              );
+                            } else if (e.key === "ArrowUp") {
+                              e.preventDefault();
+                              setFocusedManualEmployeeIdx((prev) =>
+                                Math.max(prev - 1, -1),
+                              );
+                            } else if (e.key === "Enter" && focusedManualEmployeeIdx >= 0) {
+                              e.preventDefault();
+                              const emp = filteredManualEmployees[focusedManualEmployeeIdx];
+                              if (emp) {
+                                setManualSelectedEmployee(emp);
+                                setManualEmployeeSearch(emp.name);
+                                setFocusedManualEmployeeIdx(-1);
+                              }
+                            } else if (e.key === "Escape") {
+                              setManualEmployeeSearch("");
+                              setFocusedManualEmployeeIdx(-1);
+                            }
+                          }}
                         />
                         {manualEmployeeSearch &&
                           filteredManualEmployees &&
                           filteredManualEmployees.length > 0 && (
-                            <div className="border rounded-md max-h-48 overflow-y-auto">
-                              {filteredManualEmployees.map((employee) => (
+                            <div ref={manualEmployeeListRef} className="border rounded-md max-h-48 overflow-y-auto">
+                              {filteredManualEmployees.map((employee, idx) => (
                                 <Button
                                   key={employee.id}
-                                  variant="ghost"
+                                  tabIndex={-1}
+                                  variant={idx === focusedManualEmployeeIdx ? "secondary" : "ghost"}
                                   className="w-full justify-start"
+                                  onMouseDown={(e) => e.preventDefault()}
                                   onClick={() => {
                                     setManualSelectedEmployee(employee);
                                     setManualEmployeeSearch(employee.name);
+                                    setFocusedManualEmployeeIdx(-1);
                                   }}
                                 >
                                   {employee.name}
@@ -4400,19 +4509,47 @@ function TimeTrackingPage() {
                   placeholder="Search for an active employee..."
                   value={manualEmployeeSearch}
                   onChange={(e) => setManualEmployeeSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (!filteredManualEmployees?.length) return;
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setFocusedManualEmployeeIdx((prev) =>
+                        Math.min(prev + 1, filteredManualEmployees.length - 1),
+                      );
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setFocusedManualEmployeeIdx((prev) =>
+                        Math.max(prev - 1, -1),
+                      );
+                    } else if (e.key === "Enter" && focusedManualEmployeeIdx >= 0) {
+                      e.preventDefault();
+                      const emp = filteredManualEmployees[focusedManualEmployeeIdx];
+                      if (emp) {
+                        setManualSelectedEmployee(emp);
+                        setManualEmployeeSearch(emp.name);
+                        setFocusedManualEmployeeIdx(-1);
+                      }
+                    } else if (e.key === "Escape") {
+                      setManualEmployeeSearch("");
+                      setFocusedManualEmployeeIdx(-1);
+                    }
+                  }}
                 />
                 {manualEmployeeSearch &&
                   filteredManualEmployees &&
                   filteredManualEmployees.length > 0 && (
                     <div className="border rounded-md max-h-48 overflow-y-auto">
-                      {filteredManualEmployees.map((employee) => (
+                      {filteredManualEmployees.map((employee, idx) => (
                         <Button
                           key={employee.id}
-                          variant="ghost"
+                          tabIndex={-1}
+                          variant={idx === focusedManualEmployeeIdx ? "secondary" : "ghost"}
                           className="w-full justify-start"
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
                             setManualSelectedEmployee(employee);
                             setManualEmployeeSearch(employee.name);
+                            setFocusedManualEmployeeIdx(-1);
                           }}
                         >
                           {employee.name} -{" "}
@@ -4896,12 +5033,43 @@ function TimeTrackingPage() {
                               onChange={(e) =>
                                 setManualEmployeeSearch(e.target.value)
                               }
+                              onKeyDown={(e) => {
+                                if (!filteredManualEmployees?.length) return;
+                                if (e.key === "ArrowDown") {
+                                  e.preventDefault();
+                                  setFocusedManualEmployeeIdx((prev) =>
+                                    Math.min(prev + 1, filteredManualEmployees.length - 1),
+                                  );
+                                } else if (e.key === "ArrowUp") {
+                                  e.preventDefault();
+                                  setFocusedManualEmployeeIdx((prev) =>
+                                    Math.max(prev - 1, -1),
+                                  );
+                                } else if (e.key === "Enter" && focusedManualEmployeeIdx >= 0) {
+                                  e.preventDefault();
+                                  const emp = filteredManualEmployees[focusedManualEmployeeIdx];
+                                  const isActiveInTask = emp && activeTimeEntries?.some(
+                                    (entry) =>
+                                      entry.employeeId === emp.id &&
+                                      entry.taskId === pieceWorkSelectedTask?.id &&
+                                      entry.endTime === null,
+                                  );
+                                  if (emp && isActiveInTask) {
+                                    setManualSelectedEmployee(emp);
+                                    setManualEmployeeSearch(emp.name);
+                                    setFocusedManualEmployeeIdx(-1);
+                                  }
+                                } else if (e.key === "Escape") {
+                                  setManualEmployeeSearch("");
+                                  setFocusedManualEmployeeIdx(-1);
+                                }
+                              }}
                             />
                             {manualEmployeeSearch &&
                               filteredManualEmployees &&
                               filteredManualEmployees.length > 0 && (
                                 <div className="border rounded-md max-h-48 overflow-y-auto">
-                                  {filteredManualEmployees.map((employee) => {
+                                  {filteredManualEmployees.map((employee, idx) => {
                                     // Check if employee is active in selected task
                                     const isActiveInTask =
                                       activeTimeEntries?.some(
@@ -4915,15 +5083,18 @@ function TimeTrackingPage() {
                                     return (
                                       <Button
                                         key={employee.id}
-                                        variant="ghost"
+                                        tabIndex={-1}
+                                        variant={idx === focusedManualEmployeeIdx && isActiveInTask ? "secondary" : "ghost"}
                                         className="w-full justify-start"
                                         disabled={!isActiveInTask}
+                                        onMouseDown={(e) => e.preventDefault()}
                                         onClick={() => {
                                           if (isActiveInTask) {
                                             setManualSelectedEmployee(employee);
                                             setManualEmployeeSearch(
                                               employee.name,
                                             );
+                                            setFocusedManualEmployeeIdx(-1);
                                           }
                                         }}
                                       >
