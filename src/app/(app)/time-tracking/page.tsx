@@ -6415,9 +6415,12 @@ function TimeTrackingPage() {
                 <Label htmlFor="edit-client">Client</Label>
                 <Select
                   value={editClient || ""}
-                  onValueChange={(value) =>
-                    setEditClient(value === CLEAR_SELECTION_VALUE ? "" : value)
-                  }
+                  onValueChange={(value) => {
+                    setEditClient(value === CLEAR_SELECTION_VALUE ? "" : value);
+                    setEditRanch("");
+                    setEditBlock("");
+                    setEditTaskId("");
+                  }}
                 >
                   <SelectTrigger id="edit-client">
                     <SelectValue placeholder="Select a client" />
@@ -6438,9 +6441,11 @@ function TimeTrackingPage() {
                 <Label htmlFor="edit-ranch">Ranch</Label>
                 <Select
                   value={editRanch || ""}
-                  onValueChange={(value) =>
-                    setEditRanch(value === CLEAR_SELECTION_VALUE ? "" : value)
-                  }
+                  onValueChange={(value) => {
+                    setEditRanch(value === CLEAR_SELECTION_VALUE ? "" : value);
+                    setEditBlock("");
+                    setEditTaskId("");
+                  }}
                   disabled={!editClient || editRanches.length === 0}
                 >
                   <SelectTrigger id="edit-ranch">
@@ -6462,9 +6467,10 @@ function TimeTrackingPage() {
                 <Label htmlFor="edit-block">Block</Label>
                 <Select
                   value={editBlock || ""}
-                  onValueChange={(value) =>
-                    setEditBlock(value === CLEAR_SELECTION_VALUE ? "" : value)
-                  }
+                  onValueChange={(value) => {
+                    setEditBlock(value === CLEAR_SELECTION_VALUE ? "" : value);
+                    setEditTaskId("");
+                  }}
                   disabled={!editRanch || editBlocks.length === 0}
                 >
                   <SelectTrigger id="edit-block">
