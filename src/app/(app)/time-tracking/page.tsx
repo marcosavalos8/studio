@@ -3172,15 +3172,6 @@ function TimeTrackingPage() {
   const handleBulkEdit = async () => {
     if (!firestore || selectedRecordsList.length < 2) return;
 
-    if (!bulkEditTaskId) {
-      toast({
-        variant: "destructive",
-        title: "Invalid Data",
-        description: "Task is required.",
-      });
-      return;
-    }
-
     if (bulkEditUpdateClockIn && !bulkEditClockIn) {
       toast({
         variant: "destructive",
@@ -3219,10 +3210,11 @@ function TimeTrackingPage() {
     try {
       const updatePromises = selectedRecordsList.map((record) => {
         if (record.type === "time") {
-          const updateData: Record<string, unknown> = {
-            taskId: bulkEditTaskId,
-            paymentModality: bulkEditPaymentModality,
-          };
+          const updateData: Record<string, unknown> = {};
+          if (bulkEditTaskId) {
+            updateData.taskId = bulkEditTaskId;
+            updateData.paymentModality = bulkEditPaymentModality;
+          }
           if (bulkEditUpdateClockIn && bulkEditClockIn) {
             updateData.timestamp = bulkEditClockIn;
           }
@@ -3237,14 +3229,17 @@ function TimeTrackingPage() {
                 : (bulkEditPieceCounts[recordKey] as number);
             updateData.piecesWorked = pieces;
           }
-          return updateDoc(
-            doc(firestore, "time_entries", record.data.id),
-            updateData,
-          );
+          return Object.keys(updateData).length > 0
+            ? updateDoc(
+                doc(firestore, "time_entries", record.data.id),
+                updateData,
+              )
+            : Promise.resolve();
         } else {
-          const updateData: Record<string, unknown> = {
-            taskId: bulkEditTaskId,
-          };
+          const updateData: Record<string, unknown> = {};
+          if (bulkEditTaskId) {
+            updateData.taskId = bulkEditTaskId;
+          }
           if (bulkEditUpdateClockIn && bulkEditClockIn) {
             updateData.timestamp = bulkEditClockIn;
           }
@@ -3256,10 +3251,12 @@ function TimeTrackingPage() {
                 : (bulkEditPieceCounts[recordKey] as number);
             updateData.pieceCount = pieces;
           }
-          return updateDoc(
-            doc(firestore, "piecework", record.data.id),
-            updateData,
-          );
+          return Object.keys(updateData).length > 0
+            ? updateDoc(
+                doc(firestore, "piecework", record.data.id),
+                updateData,
+              )
+            : Promise.resolve();
         }
       });
 
@@ -5644,10 +5641,16 @@ function TimeTrackingPage() {
                               : "Hourly";
                         }
                       }
+                      // Pre-select task only when all selected records share the same task
+                      const allSameTask = selectedRecordsList.every(
+                        (r) => r.data.taskId === firstRecord?.data.taskId,
+                      );
+                      const commonTaskId =
+                        allSameTask && firstTask ? firstTask.id : "";
                       setBulkEditClient(commonClientId);
                       setBulkEditRanch("");
                       setBulkEditBlock("");
-                      setBulkEditTaskId("");
+                      setBulkEditTaskId(commonTaskId);
                       setBulkEditPaymentModality(detectedModality);
                       setBulkEditUpdateClockIn(false);
                       setBulkEditClockIn(undefined);
