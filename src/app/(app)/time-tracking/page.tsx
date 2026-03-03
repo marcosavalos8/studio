@@ -5989,12 +5989,12 @@ function TimeTrackingPage() {
                                   setEditPaymentModality(initialModality);
                                   setEditRelatedPiecework(relatedPieces);
 
-                                  // Initialize task selection
+                                  // Initialize task selection (don't pre-set ranch/block so all client tasks are visible)
                                   setEditTaskId(entry.taskId);
                                   if (taskForEntry) {
                                     setEditClient(taskForEntry.clientId);
-                                    setEditRanch(taskForEntry.ranch || "");
-                                    setEditBlock(taskForEntry.block || "");
+                                    setEditRanch("");
+                                    setEditBlock("");
                                   }
 
                                   setEditDialogOpen(true);
@@ -6195,12 +6195,12 @@ function TimeTrackingPage() {
                                   setEditTimestamp(pieceTime);
                                   setEditPieceCount(piece.pieceCount || 1);
 
-                                  // Inicializar selección de tarea COMPLETA
+                                  // Inicializar selección de tarea COMPLETA (don't pre-set ranch/block so all client tasks are visible)
                                   setEditTaskId(piece.taskId);
                                   if (taskForPiece) {
                                     setEditClient(taskForPiece.clientId);
-                                    setEditRanch(taskForPiece.ranch || "");
-                                    setEditBlock(taskForPiece.block || ""); // <- Esto ya estaba
+                                    setEditRanch("");
+                                    setEditBlock("");
                                   }
 
                                   setEditDialogOpen(true);
