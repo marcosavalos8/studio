@@ -5622,15 +5622,33 @@ function TimeTrackingPage() {
                     disabled={!canBulkEdit}
                     onClick={() => {
                       // Initialize bulk edit dialog with common client
+                      const firstRecord = selectedRecordsList[0];
                       const firstTask = allTasks?.find(
-                        (t) => t.id === selectedRecordsList[0]?.data.taskId,
+                        (t) => t.id === firstRecord?.data.taskId,
                       );
                       const commonClientId = firstTask?.clientId || "";
+                      // Detect payment modality from the first selected record
+                      let detectedModality: "Hourly" | "Piecework" = "Hourly";
+                      if (firstRecord) {
+                        if (firstRecord.type === "time") {
+                          const te = firstRecord.data as TimeEntry;
+                          detectedModality =
+                            te.paymentModality ||
+                            (firstTask?.clientRateType === "piece"
+                              ? "Piecework"
+                              : "Hourly");
+                        } else {
+                          detectedModality =
+                            firstTask?.clientRateType === "piece"
+                              ? "Piecework"
+                              : "Hourly";
+                        }
+                      }
                       setBulkEditClient(commonClientId);
                       setBulkEditRanch("");
                       setBulkEditBlock("");
                       setBulkEditTaskId("");
-                      setBulkEditPaymentModality("Hourly");
+                      setBulkEditPaymentModality(detectedModality);
                       setBulkEditUpdateClockIn(false);
                       setBulkEditClockIn(undefined);
                       setBulkEditUpdateClockOut(false);
