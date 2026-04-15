@@ -481,6 +481,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           to: format(endDate, "yyyy-MM-dd"),
         },
         invoiceNumber,
+        invoiceDate: format(new Date(), "MM/dd/yyyy"),
         dailyBreakdown,
         laborCost,
         minimumWageTopUp: totalTopUp,

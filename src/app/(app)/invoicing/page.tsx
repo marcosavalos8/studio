@@ -39,6 +39,7 @@ export type DetailedInvoiceData = {
     to: string;
   };
   invoiceNumber: string;
+  invoiceDate: string;
   dailyBreakdown: DailyBreakdown;
   laborCost: number;
   minimumWageTopUp: number;

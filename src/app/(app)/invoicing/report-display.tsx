@@ -123,10 +123,7 @@ export function InvoiceReportDisplay({
 
   const invoiceSubtotal = subtotalRows.reduce((sum, row) => sum + row.total, 0);
   const contractorsFee = report.commission;
-  const totalFieldCharges = report.total;
   const invoiceTotal = report.total;
-
-  const invoiceDate = format(new Date(), "MM/dd/yyyy");
 
   return (
     <div>
@@ -249,7 +246,7 @@ export function InvoiceReportDisplay({
                 </tr>
                 <tr>
                   <td style={{ fontWeight: "bold", paddingRight: "8px", whiteSpace: "nowrap" }}>Invoice Date:</td>
-                  <td>{invoiceDate}</td>
+                  <td>{report.invoiceDate}</td>
                 </tr>
                 <tr>
                   <td style={{ fontWeight: "bold", paddingRight: "8px", whiteSpace: "nowrap" }}>Terms:</td>
@@ -355,7 +352,7 @@ export function InvoiceReportDisplay({
                 <tr>
                   <td style={{ border: "1px solid #e5e7eb", padding: "6px 12px" }}>Total Field Charges</td>
                   <td style={{ border: "1px solid #e5e7eb", padding: "6px 12px", textAlign: "right" }}>
-                    {formatCurrency(totalFieldCharges)}
+                    {formatCurrency(invoiceTotal)}
                   </td>
                 </tr>
                 <tr style={{ backgroundColor: "#f3f4f6" }}>
