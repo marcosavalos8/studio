@@ -23,8 +23,8 @@ export function PagePrecacher() {
       "/tasks",
       "/time-tracking",
       "/payroll",
+      "/invoicing",
       "/labor-report",
-      // '/invoicing',
     ];
 
     const precachePages = async () => {
