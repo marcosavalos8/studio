@@ -35,6 +35,7 @@ const menuItems = [
   { href: "/clients", label: "Clients", icon: Briefcase, adminOnly: false },
   { href: "/tasks", label: "Tasks", icon: ClipboardList, adminOnly: false },
   { href: "/payroll", label: "Payroll", icon: FileText, adminOnly: true },
+  { href: "/invoicing", label: "Invoicing", icon: DollarSign, adminOnly: true },
   { label: "Labor Report", href: "/labor-report", icon: Tag, adminOnly: true },
   { href: "/users", label: "User Management", icon: UserCog, adminOnly: true },
 ];
