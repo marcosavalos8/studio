@@ -14,6 +14,7 @@ export type Client = {
   billingAddress: string;
   paymentTerms: string;
   email?: string;
+  phone?: string;
   commissionRate?: number;
   minimumWage?: number;
   contractType?: "Standard" | "H2A";

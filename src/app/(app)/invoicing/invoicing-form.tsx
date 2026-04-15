@@ -29,6 +29,8 @@ import {
   query,
   where,
   Timestamp,
+  doc,
+  runTransaction,
 } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { type DetailedInvoiceData } from "./page";
@@ -313,6 +315,34 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         : 0;
       const total = subtotal + commission;
 
+      // Generate consecutive invoice number
+      const counterRef = doc(firestore, "settings", "invoiceCounter");
+      let invoiceNumber = "00001";
+      try {
+        await runTransaction(firestore, async (transaction) => {
+          const counterSnap = await transaction.get(counterRef);
+          const lastNumber = counterSnap.exists()
+            ? (counterSnap.data().lastNumber as number) || 0
+            : 0;
+          const nextNumber = lastNumber + 1;
+          invoiceNumber = String(nextNumber).padStart(5, "0");
+          transaction.set(counterRef, { lastNumber: nextNumber });
+        });
+      } catch (counterErr) {
+        console.warn("Could not generate invoice number:", counterErr);
+      }
+
+      // Collect overtime hours from payroll summaries
+      const totalOvertimeHours = filteredSummaries.reduce((acc, emp) => {
+        return (
+          acc +
+          emp.weeklySummaries.reduce(
+            (weekAcc, week) => weekAcc + (week.overtimeHours || 0),
+            0
+          )
+        );
+      }, 0);
+
       // Build employee details for the optional second page
       const employeeDetails = filteredSummaries.map((emp) => {
         const employee = allEmployees.find((e) => e.id === emp.employeeId);
@@ -450,11 +480,13 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           from: format(startDate, "yyyy-MM-dd"),
           to: format(endDate, "yyyy-MM-dd"),
         },
+        invoiceNumber,
         dailyBreakdown,
         laborCost,
         minimumWageTopUp: totalTopUp,
         paidRestBreaks: totalRestBreaks,
         overtimePremium: totalOvertimePremium,
+        overtimeHours: totalOvertimeHours,
         subtotal,
         commission,
         total,

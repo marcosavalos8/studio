@@ -44,6 +44,7 @@ const clientSchema = z.object({
   billingAddress: z.string().min(1, 'Billing address is required'),
   paymentTerms: z.string().min(1, 'Payment terms are required'),
   email: z.string().email('Invalid email address').optional().or(z.literal('')),
+  phone: z.string().optional().or(z.literal('')),
   commissionRate: z.coerce.number().min(0, 'Commission must be a positive number.').optional(),
   minimumWage: z.coerce.number().min(0, 'Minimum wage must be a positive number.').optional(),
   contractType: z.enum(['Standard', 'H2A']).optional(),
@@ -159,6 +160,19 @@ export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDia
                   <FormLabel>Contact Email</FormLabel>
                   <FormControl>
                     <Input placeholder="e.g., accounting@gvfarms.com" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="phone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., 509-000-1111" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

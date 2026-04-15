@@ -6,17 +6,9 @@ import { format } from "date-fns";
 import { parseLocalDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Printer, ArrowLeft } from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableFooter,
-} from "@/components/ui/table";
 import logo from "../../../components/images/logo.jpeg";
 import Image from "next/image";
+
 interface ReportDisplayProps {
   report: DetailedInvoiceData;
   onBack: () => void;
@@ -30,12 +22,17 @@ const formatCurrency = (value: number | undefined | null): string => {
   return `$${value.toFixed(2)}`;
 };
 
+const formatNumber = (value: number): string => {
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
+
 export function InvoiceReportDisplay({
   report,
   onBack,
-  isGrouped = false,
 }: ReportDisplayProps) {
-  const [showEmployeeDetails, setShowEmployeeDetails] = React.useState(false);
   const handlePrint = () => {
     window.print();
   };
@@ -44,32 +41,93 @@ export function InvoiceReportDisplay({
     (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime()
   );
 
-  const hasEmployeeDetails =
-    report.employeeDetails && report.employeeDetails.length > 0;
-  const formatDateRange = () => {
-    if (sortedDates.length === 0) return "";
-    const firstDate = parseLocalDate(sortedDates[0]);
-    const lastDate = parseLocalDate(sortedDates[sortedDates.length - 1]);
-
-    if (sortedDates.length === 1) {
-      return format(firstDate, "EEEE, LLL dd, yyyy");
-    }
-
-    // Format as "Tuesday - Friday, Oct 21-24, 2025"
-    const startDay = format(firstDate, "EEEE");
-    const endDay = format(lastDate, "EEEE");
-    const startMonth = format(firstDate, "LLL");
-    const endMonth = format(lastDate, "LLL");
-    const startDayNum = format(firstDate, "dd");
-    const endDayNum = format(lastDate, "dd");
-    const year = format(lastDate, "yyyy");
-
-    if (startMonth === endMonth) {
-      return `${startDay} - ${endDay}, ${startMonth} ${startDayNum}-${endDayNum}, ${year}`;
-    } else {
-      return `${startDay}, ${startMonth} ${startDayNum} - ${endDay}, ${endMonth} ${endDayNum}, ${year}`;
-    }
+  // Build flat table rows: one row per task per date
+  type TableRow = {
+    date: string;
+    description: string;
+    quantity: number;
+    unit: string;
+    price: number;
+    total: number;
   };
+
+  const tableRows: TableRow[] = [];
+  sortedDates.forEach((date) => {
+    Object.values(report.dailyBreakdown[date].tasks).forEach((task) => {
+      const isHourly = task.clientRateType === "hourly";
+      const quantity = isHourly ? task.hours : task.pieces;
+      const unit = isHourly ? "Hrs" : "Pcs";
+      tableRows.push({
+        date,
+        description: task.taskName,
+        quantity,
+        unit,
+        price: task.clientRate,
+        total: task.cost,
+      });
+    });
+  });
+
+  // Labor Subtotal: aggregate by unit
+  const subtotalByUnit = new Map<string, { quantity: number; total: number }>();
+
+  tableRows.forEach((row) => {
+    const existing = subtotalByUnit.get(row.unit);
+    if (existing) {
+      existing.quantity += row.quantity;
+      existing.total += row.total;
+    } else {
+      subtotalByUnit.set(row.unit, { quantity: row.quantity, total: row.total });
+    }
+  });
+
+  // Add OT Hrs row (always show, even if 0)
+  const otHours = report.overtimeHours ?? 0;
+  const otPremium = report.overtimePremium ?? 0;
+  const existingOT = subtotalByUnit.get("OT Hrs");
+  if (existingOT) {
+    existingOT.quantity += otHours;
+    existingOT.total += otPremium;
+  } else {
+    subtotalByUnit.set("OT Hrs", { quantity: otHours, total: otPremium });
+  }
+
+  // Add MW row from minimumWageTopUp (always show)
+  const mwTopUp = report.minimumWageTopUp;
+  const mwRate = report.client.minimumWage ?? 0;
+  const mwUnits = mwRate > 0 ? mwTopUp / mwRate : 0;
+  const existingMW = subtotalByUnit.get("MW");
+  if (existingMW) {
+    existingMW.quantity += mwUnits;
+    existingMW.total += mwTopUp;
+  } else {
+    subtotalByUnit.set("MW", { quantity: mwUnits, total: mwTopUp });
+  }
+
+  // Add paidRestBreaks into Hrs row
+  if (report.paidRestBreaks > 0) {
+    const hrsRow = subtotalByUnit.get("Hrs");
+    if (hrsRow) {
+      hrsRow.total += report.paidRestBreaks;
+    } else {
+      subtotalByUnit.set("Hrs", { quantity: 0, total: report.paidRestBreaks });
+    }
+  }
+
+  // Ordered display: Hrs, Pcs, OT Hrs, MW
+  const unitOrder = ["Hrs", "Pcs", "OT Hrs", "MW"];
+  const subtotalRows = unitOrder.map((unit) => ({
+    unit,
+    ...(subtotalByUnit.get(unit) ?? { quantity: 0, total: 0 }),
+  }));
+
+  const invoiceSubtotal = subtotalRows.reduce((sum, row) => sum + row.total, 0);
+  const contractorsFee = report.commission;
+  const totalFieldCharges = report.total;
+  const invoiceTotal = report.total;
+
+  const invoiceDate = format(new Date(), "MM/dd/yyyy");
+
   return (
     <div>
       <div className="mb-4 flex justify-between items-center print:hidden">
@@ -77,23 +135,13 @@ export function InvoiceReportDisplay({
           <ArrowLeft className="mr-2 h-4 w-4" />
           Generate New Invoice
         </Button>
-        <div className="flex gap-2">
-          {report.employeeDetails && report.employeeDetails.length > 0 && (
-            <Button
-              variant="outline"
-              onClick={() => setShowEmployeeDetails(!showEmployeeDetails)}
-            >
-              {showEmployeeDetails ? "Hide" : "Show"} Employee Details
-            </Button>
-          )}
-          <Button onClick={handlePrint}>
-            <Printer className="mr-2 h-4 w-4" />
-            Print / Save as PDF
-          </Button>
-        </div>
+        <Button onClick={handlePrint}>
+          <Printer className="mr-2 h-4 w-4" />
+          Print / Save as PDF
+        </Button>
       </div>
 
-      <div className="report-container bg-white text-black p-8 rounded-lg border shadow-sm">
+      <div className="report-container bg-white text-black rounded-lg border shadow-sm" style={{ padding: "24px" }}>
         <style jsx global>{`
           @media print {
             body {
@@ -116,18 +164,9 @@ export function InvoiceReportDisplay({
               border: none;
               box-shadow: none;
               margin: 0;
-              padding: 1.5rem;
+              padding: 16px;
               color: #000;
-              font-size: 11px;
-            }
-            .report-container table {
               font-size: 10px;
-            }
-            .report-container h1 {
-              font-size: 24px;
-            }
-            .report-container h2 {
-              font-size: 14px;
             }
             .print\\:hidden {
               display: none;
@@ -138,321 +177,210 @@ export function InvoiceReportDisplay({
             margin: 0.4in;
           }
         `}</style>
-        <div className="flex justify-between items-start mb-12">
-          <div>
-            <h1 className="text-3xl font-bold text-primary">INVOICE</h1>
-            <div className="mt-4">
-              <div className="font-semibold text-gray-700">TO:</div>
-              <div className="font-bold">{report.client.name}</div>
-              <div className="">{report.client.billingAddress}</div>
-              {report.client.email && <div>{report.client.email}</div>}
+
+        {/* ── TOP HEADER: Company info + Logo ── */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: "16px", marginBottom: "8px" }}>
+          {/* Left: INVOICE label + company name */}
+          <div style={{ flex: "0 0 auto" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span style={{ fontSize: "20px", fontWeight: "bold", letterSpacing: "2px" }}>INVOICE</span>
+              <span style={{ fontSize: "16px", fontWeight: "bold" }}>| J&amp;M AGRICULTURAL LABOR LLC</span>
             </div>
           </div>
-          {/* Logo centrado */}
-          <div className="flex-1 flex justify-center items-center mx-8">
+          {/* Center: Logo */}
+          <div style={{ flex: "1", display: "flex", justifyContent: "center" }}>
             <Image
               src={logo}
               alt="JM AGRI Logo"
-              width={128}
-              height={128}
-              className="object-contain"
+              width={80}
+              height={80}
+              style={{ objectFit: "contain" }}
             />
           </div>
-          <div className="text-right">
-            <div className="font-bold">J&M AGRICULTURAL LABOR LLC</div>
-            <div className="mt-4 text-sm text-gray-600">
-              <p>
-                <strong>Invoice Date:</strong> {format(new Date(), "LLL dd, y")}
-              </p>
-              <p>
-                <strong>Period:</strong>{" "}
-                {format(parseLocalDate(report.date.from), "LLL dd, y")} -{" "}
-                {format(parseLocalDate(report.date.to), "LLL dd, y")}
-              </p>
-            </div>
+          {/* Right: Company address + contact */}
+          <div style={{ flex: "0 0 auto", textAlign: "right", fontSize: "12px" }}>
+            <div>250 Country Heaven Loop</div>
+            <div>Pasco, WA 99301.</div>
+            <div>Telf.: 509-000-1111</div>
+            <div>e-mail: jmagriculturalabor@gmail.com</div>
+            <div>Acct #: XXX-295 &nbsp; Lic #: 172-25</div>
           </div>
         </div>
-        {/* <h2 className="font-semibold text-base border-b-2 border-gray-200 pb-1 mb-2">
-          {formatDateRange()}
-        </h2> */}
-        {/* Conditional rendering based on isGrouped */}
-        {!isGrouped ? (
-          // Daily breakdown view (original)
-          <div className="space-y-6">
-            {sortedDates.map((date) => (
-              <div key={date}>
-                <h2 className="font-semibold text-lg border-b-2 border-gray-200 pb-1 mb-2">
-                  {format(parseLocalDate(date), "EEEE, LLL dd, yyyy")}
-                </h2>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Task</TableHead>
-                      <TableHead className="text-right">Quantity</TableHead>
-                      <TableHead className="text-right">Rate</TableHead>
-                      <TableHead className="text-right">Cost</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {Object.values(report.dailyBreakdown[date].tasks).map(
-                      (task) => (
-                        <TableRow key={task.taskName}>
-                          <TableCell>{task.taskName}</TableCell>
-                          <TableCell className="text-right">
-                            {task.clientRateType === "hourly"
-                              ? `${task.hours.toFixed(2)} hrs`
-                              : `${task.pieces.toFixed(2)} pieces`}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            ${task.clientRate.toFixed(2)} /{" "}
-                            {task.clientRateType === "hourly" ? "hr" : "piece"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            ${task.cost.toFixed(2)}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    )}
-                  </TableBody>
-                  <TableFooter>
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-right font-medium">
-                        Daily Total
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        ${report.dailyBreakdown[date].total.toFixed(2)}
-                      </TableCell>
-                    </TableRow>
-                  </TableFooter>
-                </Table>
-              </div>
+
+        {/* ── DIVIDER ── */}
+        <hr style={{ borderTop: "2px solid #000", margin: "8px 0" }} />
+
+        {/* ── BILL TO + INVOICE INFO ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "12px", fontSize: "12px" }}>
+          {/* Left: Bill To */}
+          <div>
+            <table style={{ borderCollapse: "collapse" }}>
+              <tbody>
+                <tr>
+                  <td style={{ fontWeight: "bold", paddingRight: "8px", whiteSpace: "nowrap" }}>Bill to:</td>
+                  <td style={{ fontWeight: "bold" }}>{report.client.name}</td>
+                  {report.client.phone && (
+                    <>
+                      <td style={{ paddingLeft: "16px", whiteSpace: "nowrap" }}>Phone:</td>
+                      <td>{report.client.phone}</td>
+                    </>
+                  )}
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: "bold", paddingRight: "8px", verticalAlign: "top", whiteSpace: "nowrap" }}>Address:</td>
+                  <td colSpan={3}>{report.client.billingAddress}</td>
+                </tr>
+                {report.client.email && (
+                  <tr>
+                    <td style={{ fontWeight: "bold", paddingRight: "8px", whiteSpace: "nowrap" }}>e-mail:</td>
+                    <td colSpan={3}>{report.client.email}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {/* Right: Invoice meta */}
+          <div style={{ textAlign: "right" }}>
+            <table style={{ borderCollapse: "collapse", marginLeft: "auto" }}>
+              <tbody>
+                <tr>
+                  <td style={{ fontWeight: "bold", paddingRight: "8px", whiteSpace: "nowrap" }}>Invoice #:</td>
+                  <td style={{ fontWeight: "bold" }}>{report.invoiceNumber}</td>
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: "bold", paddingRight: "8px", whiteSpace: "nowrap" }}>Invoice Date:</td>
+                  <td>{invoiceDate}</td>
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: "bold", paddingRight: "8px", whiteSpace: "nowrap" }}>Terms:</td>
+                  <td>{report.client.paymentTerms}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ── MAIN LABOR TABLE ── */}
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "16px" }}>
+          <thead>
+            <tr style={{ backgroundColor: "#f3f4f6" }}>
+              <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "left" }}>DATE</th>
+              <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "left" }}>DESCRIPTION</th>
+              <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "right" }}>QUANTITY</th>
+              <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "center" }}>UNIT</th>
+              <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "right" }}>PRICE</th>
+              <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "right" }}>TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tableRows.map((row, idx) => (
+              <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? "#fff" : "#f9fafb" }}>
+                <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", whiteSpace: "nowrap" }}>
+                  {format(parseLocalDate(row.date), "MM/dd/yyyy")}
+                </td>
+                <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px" }}>{row.description}</td>
+                <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "right" }}>
+                  {formatNumber(row.quantity)}
+                </td>
+                <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center" }}>{row.unit}</td>
+                <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "right" }}>
+                  ${row.price.toFixed(4)}
+                </td>
+                <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "right" }}>
+                  {formatCurrency(row.total)}
+                </td>
+              </tr>
             ))}
+          </tbody>
+        </table>
+
+        {/* ── LABOR SUBTOTAL + TOTALS SIDE BY SIDE ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", fontSize: "12px", alignItems: "start" }}>
+          {/* Left: Labor Subtotal */}
+          <div>
+            <div style={{ fontWeight: "bold", marginBottom: "4px" }}>Labor Subtotal</div>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ backgroundColor: "#f3f4f6" }}>
+                  <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "right" }}>QUANTITY</th>
+                  <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "center" }}>UNIT</th>
+                  <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "right" }}>TOTAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subtotalRows.map((row, idx) => (
+                  <tr key={idx}>
+                    <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "right" }}>
+                      {formatNumber(row.quantity)}
+                    </td>
+                    <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center" }}>{row.unit}</td>
+                    <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "right" }}>
+                      {formatCurrency(row.total)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ backgroundColor: "#f3f4f6" }}>
+                  <td colSpan={2} style={{ border: "1px solid #d1d5db", padding: "4px 8px", fontWeight: "bold" }}>
+                    Invoice Subtotal
+                  </td>
+                  <td style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "right", fontWeight: "bold" }}>
+                    {formatCurrency(invoiceSubtotal)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
-        ) : (
-          // Grouped by employee view (new)
-          <div className="space-y-6">
-            {hasEmployeeDetails ? (
-              report.employeeDetails.map((employee) => {
-                const employeeLaborCost = employee.tasksSummary.reduce(
-                  (sum, task) => sum + task.cost,
-                  0
-                );
-                const employeeSubtotal =
-                  employeeLaborCost +
-                  employee.paidRestBreaks +
-                  employee.minimumWageTopUp +
-                  (employee.overtimePremium || 0);
 
-                return (
-                  <div key={employee.employeeId} className="mb-6">
-                    <div className="bg-gray-50 p-3 rounded-md mb-2">
-                      <div className="grid grid-cols-4 gap-4 text-sm">
-                        <div>
-                          <span className="font-semibold">
-                            {employee.employeeName}
-                          </span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-gray-600">Hours: </span>
-                          <span className="font-medium">
-                            {employee.totalHours.toFixed(2)}
-                          </span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-gray-600">
-                            Rest Breaks:{" "}
-                          </span>
-                          <span className="font-medium">
-                            {formatCurrency(employee.paidRestBreaks)}
-                          </span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-gray-600">
-                            Min. Wage:{" "}
-                          </span>
-                          <span className="font-medium">
-                            {formatCurrency(employee.minimumWageTopUp)}
-                          </span>
-                        </div>
-                      </div>
-                      {employee.overtimePremium !== undefined && employee.overtimePremium > 0 && (
-                        <div className="grid grid-cols-4 gap-4 text-sm mt-2 pt-2 border-t border-gray-200">
-                          <div></div>
-                          <div></div>
-                          <div></div>
-                          <div className="text-right">
-                            <span className="text-gray-600">Overtime: </span>
-                            <span className="font-medium text-purple-600">
-                              {formatCurrency(employee.overtimePremium)}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <Table className="text-sm">
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="pl-8">Task</TableHead>
-                          <TableHead className="text-right">Quantity</TableHead>
-                          <TableHead className="text-right">Rate</TableHead>
-                          <TableHead className="text-right">Cost</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {employee.tasksSummary.map((task, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell className="pl-8">
-                              {task.taskName}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {task.rateType === "hourly"
-                                ? `${task.quantity.toFixed(2)} hours`
-                                : `${task.quantity.toFixed(2)} pieces`}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              ${task.rate.toFixed(2)} /{" "}
-                              {task.rateType === "hourly" ? "hour" : "piece"}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              ${task.cost.toFixed(2)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                      <TableFooter>
-                        <TableRow>
-                          <TableCell
-                            colSpan={3}
-                            className="text-right font-medium pl-8"
-                          >
-                            Total
-                          </TableCell>
-                          <TableCell className="text-right font-semibold">
-                            ${employeeSubtotal.toFixed(2)}
-                          </TableCell>
-                        </TableRow>
-                      </TableFooter>
-                    </Table>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="text-center text-gray-500 py-8">
-                No employee details available for this date range.
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="mt-8 flex justify-end">
-          <div className="w-full max-w-md space-y-3">
-            <div className="flex justify-between border-b pb-2">
-              <span className="text-gray-600">Total Base Labor Cost</span>
-              <span>${report.laborCost.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between border-b pb-2">
-              <span className="text-gray-600">Paid Rest Breaks</span>
-              <span>${report.paidRestBreaks.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between border-b pb-2">
-              <span className="text-gray-600">Minimum Wage Adjustments</span>
-              <span>${report.minimumWageTopUp.toFixed(2)}</span>
-            </div>
-            {report.overtimePremium !== undefined && report.overtimePremium > 0 && (
-              <div className="flex justify-between border-b pb-2">
-                <span className="text-gray-600">Overtime Premium</span>
-                <span>${report.overtimePremium.toFixed(2)}</span>
-              </div>
-            )}
-            <div className="flex justify-between font-semibold pt-2">
-              <span>Subtotal</span>
-              <span>{formatCurrency(report.subtotal)}</span>
-            </div>
-            {report.commission > 0 && (
-              <div className="flex justify-between text-gray-600">
-                <span>Commission ({report.client.commissionRate}%)</span>
-                <span>+ ${report.commission.toFixed(2)}</span>
-              </div>
-            )}
-            <div className="flex justify-between font-bold text-2xl border-t-2 border-black mt-4 pt-4">
-              <span>Total Due</span>
-              <span>{formatCurrency(report.total)}</span>
-            </div>
+          {/* Right: Invoice summary */}
+          <div>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <tbody>
+                <tr>
+                  <td style={{ border: "1px solid #e5e7eb", padding: "6px 12px", fontWeight: "bold" }}>Invoice Subtotal</td>
+                  <td style={{ border: "1px solid #e5e7eb", padding: "6px 12px", textAlign: "right" }}>
+                    {formatCurrency(invoiceSubtotal)}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ border: "1px solid #e5e7eb", padding: "6px 12px" }}>
+                    Contractors Fee
+                    {report.client.commissionRate ? ` (${report.client.commissionRate}%)` : ""}
+                  </td>
+                  <td style={{ border: "1px solid #e5e7eb", padding: "6px 12px", textAlign: "right" }}>
+                    {formatCurrency(contractorsFee)}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ border: "1px solid #e5e7eb", padding: "6px 12px" }}>Total Field Charges</td>
+                  <td style={{ border: "1px solid #e5e7eb", padding: "6px 12px", textAlign: "right" }}>
+                    {formatCurrency(totalFieldCharges)}
+                  </td>
+                </tr>
+                <tr style={{ backgroundColor: "#f3f4f6" }}>
+                  <td style={{ border: "1px solid #d1d5db", padding: "6px 12px", fontWeight: "bold", fontSize: "14px" }}>
+                    Invoice Total
+                  </td>
+                  <td style={{ border: "1px solid #d1d5db", padding: "6px 12px", textAlign: "right", fontWeight: "bold", fontSize: "14px" }}>
+                    {formatCurrency(invoiceTotal)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
-        <div className="mt-16 text-center text-sm text-gray-500">
-          <p className="font-semibold">Thank you for your business!</p>
-          <p>Payment Terms: {report.client.paymentTerms}</p>
+        {/* ── FOOTER: Payment terms legal text ── */}
+        <div style={{ marginTop: "24px", fontSize: "11px", color: "#374151", borderTop: "1px solid #d1d5db", paddingTop: "12px" }}>
+          <p>
+            &quot;All invoices are due and payable within thirty (30) calendar days from the invoice date.
+            Any balance unpaid after the 30-day period will accrue interest at a rate of 2% per month.
+            This interest shall be calculated on a per-diem (daily) basis starting from the first day
+            following the Due Date (Day 31) until the payment is received in full by the Contractor.&quot;
+          </p>
         </div>
       </div>
-
-      {/* Employee Details Section */}
-      {showEmployeeDetails &&
-        report.employeeDetails &&
-        report.employeeDetails.length > 0 && (
-          <div className="report-container bg-white text-black p-8 rounded-lg border shadow-sm mt-8">
-            <div className="mb-8">
-              <h1 className="text-2xl font-bold text-primary mb-2">
-                Employee Work Details
-              </h1>
-              <p className="text-sm text-gray-600">
-                Period: {format(parseLocalDate(report.date.from), "LLL dd, y")}{" "}
-                - {format(parseLocalDate(report.date.to), "LLL dd, y")}
-              </p>
-              <p className="text-sm text-gray-600">
-                Client: {report.client.name}
-              </p>
-            </div>
-
-            {report.employeeDetails.map((employee) => (
-              <div key={employee.employeeId} className="mb-8 border-t pt-6">
-                <div className="mb-4">
-                  <h2 className="text-xl font-semibold">
-                    {employee.employeeName}
-                  </h2>
-                  <div className="text-sm text-gray-600 mt-1">
-                    Total Hours: {employee.totalHours.toFixed(2)} | Total
-                    Pieces: {employee.totalPieces}
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {employee.dailyWork.map((day) => (
-                    <div key={day.date}>
-                      <h3 className="font-semibold text-md border-b border-gray-200 pb-1 mb-2">
-                        {format(parseLocalDate(day.date), "EEEE, LLL dd, yyyy")}
-                      </h3>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Task</TableHead>
-                            <TableHead className="text-right">Hours</TableHead>
-                            <TableHead className="text-right">Pieces</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {day.tasks.map((task, idx) => (
-                            <TableRow key={idx}>
-                              <TableCell>{task.taskName}</TableCell>
-                              <TableCell className="text-right">
-                                {task.hours > 0 ? task.hours.toFixed(2) : "-"}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {task.pieces > 0 ? task.pieces.toFixed(2) : "-"}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
     </div>
   );
 }
