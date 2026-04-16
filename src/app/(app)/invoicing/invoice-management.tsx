@@ -300,7 +300,6 @@ export function InvoiceManagement() {
           dateFrom: invoice.dateFrom,
           dateTo: invoice.dateTo,
           total: invoice.total,
-          laborCost: invoice.laborCost,
           minimumWageTopUp: invoice.minimumWageTopUp,
           paidRestBreaks: invoice.paidRestBreaks,
           overtimePremium: invoice.overtimePremium,
@@ -309,6 +308,7 @@ export function InvoiceManagement() {
           commission: invoice.commission,
           dailyBreakdown: invoice.dailyBreakdown ?? null,
           invoiceClientData: invoice.invoiceClientData ?? null,
+          employeeDetails: invoice.employeeDetails ?? [],
         }),
       });
 
