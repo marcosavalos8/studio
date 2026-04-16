@@ -525,11 +525,11 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           employeeDetails,
           invoiceClientData: {
             name: clientData.name,
-            billingAddress: clientData.billingAddress || null,
-            email: clientData.email || null,
-            phone: clientData.phone || null,
+            billingAddress: clientData.billingAddress ?? null,
+            email: clientData.email ?? null,
+            phone: clientData.phone ?? null,
             commissionRate: clientData.commissionRate ?? null,
-            paymentTerms: clientData.paymentTerms || null,
+            paymentTerms: clientData.paymentTerms ?? null,
           },
         });
         toast({

@@ -75,7 +75,7 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
   doc.setTextColor(21, 128, 61); // green
-  doc.text("INVOICE  |  J&M AGRICULTURAL LABOR LLC", margin, y);
+  doc.text("INVOICE | J&M AGRICULTURAL LABOR LLC", margin, y);
   y += 18;
 
   doc.setFont("helvetica", "normal");
