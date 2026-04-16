@@ -11,6 +11,15 @@ interface SendInvoiceBody {
   total: number;
 }
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
 export async function POST(request: Request) {
   let body: SendInvoiceBody;
   try {
@@ -48,29 +57,37 @@ export async function POST(request: Request) {
     },
   });
 
-  const formattedTotal = `$${total?.toFixed(2)}`;
+  const formattedTotal = `$${(total ?? 0).toFixed(2)}`;
+
+  // Escape all user-provided values to prevent HTML injection
+  const safeInvoiceNumber = escapeHtml(invoiceNumber);
+  const safeInvoiceDate = escapeHtml(invoiceDate);
+  const safeClientName = escapeHtml(clientName);
+  const safeDateFrom = escapeHtml(dateFrom);
+  const safeDateTo = escapeHtml(dateTo);
+  const safeTotal = escapeHtml(formattedTotal);
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #1a1a1a;">Invoice #${invoiceNumber}</h2>
-      <p>Estimado/a <strong>${clientName}</strong>,</p>
+      <h2 style="color: #1a1a1a;">Invoice #${safeInvoiceNumber}</h2>
+      <p>Estimado/a <strong>${safeClientName}</strong>,</p>
       <p>Adjuntamos el detalle de su invoice correspondiente al período indicado.</p>
       <table style="width:100%; border-collapse: collapse; margin: 20px 0;">
         <tr style="background:#f5f5f5;">
           <td style="padding:8px; border:1px solid #ddd;"><strong>Invoice #</strong></td>
-          <td style="padding:8px; border:1px solid #ddd;">${invoiceNumber}</td>
+          <td style="padding:8px; border:1px solid #ddd;">${safeInvoiceNumber}</td>
         </tr>
         <tr>
           <td style="padding:8px; border:1px solid #ddd;"><strong>Fecha de invoice</strong></td>
-          <td style="padding:8px; border:1px solid #ddd;">${invoiceDate}</td>
+          <td style="padding:8px; border:1px solid #ddd;">${safeInvoiceDate}</td>
         </tr>
         <tr style="background:#f5f5f5;">
           <td style="padding:8px; border:1px solid #ddd;"><strong>Período</strong></td>
-          <td style="padding:8px; border:1px solid #ddd;">${dateFrom} – ${dateTo}</td>
+          <td style="padding:8px; border:1px solid #ddd;">${safeDateFrom} – ${safeDateTo}</td>
         </tr>
         <tr>
           <td style="padding:8px; border:1px solid #ddd;"><strong>Total</strong></td>
-          <td style="padding:8px; border:1px solid #ddd; font-size: 1.1em; font-weight: bold;">${formattedTotal}</td>
+          <td style="padding:8px; border:1px solid #ddd; font-size: 1.1em; font-weight: bold;">${safeTotal}</td>
         </tr>
       </table>
       <p style="color:#555; font-size:0.9em;">Por favor, realice el pago de acuerdo a sus términos acordados.</p>

@@ -159,6 +159,8 @@ export interface DailyBreakdownEntry {
   total: number;
 }
 
+import type { Timestamp } from "firebase/firestore";
+
 export interface SavedInvoice {
   id?: string;
   invoiceNumber: string;
@@ -176,9 +178,9 @@ export interface SavedInvoice {
   commission: number;
   total: number;
   status: "pending" | "paid";
-  createdAt: Date;
-  sentAt?: Date | null;
-  paidAt?: Date | null;
+  createdAt: Timestamp | Date | null;
+  sentAt?: Timestamp | Date | null;
+  paidAt?: Timestamp | Date | null;
   dailyBreakdown?: Record<string, unknown>;
   employeeDetails?: unknown[];
 }

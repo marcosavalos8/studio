@@ -33,7 +33,7 @@ import {
   FileText,
 } from "lucide-react";
 
-function toDate(val: unknown): Date | null {
+function toDate(val: SavedInvoice["createdAt"]): Date | null {
   if (!val) return null;
   if (val instanceof Timestamp) return val.toDate();
   if (val instanceof Date) return val;
@@ -178,9 +178,9 @@ export function InvoiceManagement() {
         </TableHeader>
         <TableBody>
           {invoices.map((invoice) => {
-            const createdAt = toDate((invoice as unknown as Record<string, unknown>).createdAt);
-            const sentAt = toDate((invoice as unknown as Record<string, unknown>).sentAt);
-            const paidAt = toDate((invoice as unknown as Record<string, unknown>).paidAt);
+            const createdAt = toDate(invoice.createdAt);
+            const sentAt = toDate(invoice.sentAt ?? null);
+            const paidAt = toDate(invoice.paidAt ?? null);
             const isActing = loadingActions[invoice.id ?? ""] || loadingActions[`email-${invoice.id}`];
             const isPaid = invoice.status === "paid";
 
