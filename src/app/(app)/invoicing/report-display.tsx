@@ -29,6 +29,18 @@ const formatNumber = (value: number): string => {
   });
 };
 
+const numberToWords = (n: number): string => {
+  const ones = ["", "one", "two", "three", "four", "five", "six", "seven",
+    "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen",
+    "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+  const tens = ["", "", "twenty", "thirty", "forty", "fifty",
+    "sixty", "seventy", "eighty", "ninety"];
+  if (n < 20) return ones[n] ?? String(n);
+  const t = Math.floor(n / 10);
+  const o = n % 10;
+  return o > 0 ? `${tens[t]}-${ones[o]}` : tens[t] ?? String(n);
+};
+
 export function InvoiceReportDisplay({
   report,
   onBack,
@@ -51,13 +63,13 @@ export function InvoiceReportDisplay({
     total: number;
   };
 
-  const tableRows: TableRow[] = [];
+  const regularRows: TableRow[] = [];
   sortedDates.forEach((date) => {
     Object.values(report.dailyBreakdown[date].tasks).forEach((task) => {
       const isHourly = task.clientRateType === "hourly";
       const quantity = isHourly ? task.hours : task.pieces;
       const unit = isHourly ? "Hrs" : "Pcs";
-      tableRows.push({
+      regularRows.push({
         date,
         description: task.taskName,
         quantity,
@@ -68,10 +80,62 @@ export function InvoiceReportDisplay({
     });
   });
 
-  // Labor Subtotal: aggregate by unit
-  const subtotalByUnit = new Map<string, { quantity: number; total: number }>();
+  // Compute adjustment rows: P/W BREAK, OT Premium, MW
+  const otHours = report.overtimeHours ?? 0;
+  const otPremium = report.overtimePremium ?? 0;
+  const otPrice = otHours > 0 ? otPremium / otHours : 0;
 
-  tableRows.forEach((row) => {
+  const mwTopUp = report.minimumWageTopUp;
+  const numWorkersMW = (report.employeeDetails ?? []).filter(
+    (e) => e.minimumWageTopUp > 0
+  ).length;
+  const mwQuantity = numWorkersMW;
+  const mwPrice = mwQuantity > 0 ? mwTopUp / mwQuantity : 0;
+
+  const totalPieceworkHours = sortedDates.reduce((sum, date) => {
+    return (
+      sum +
+      Object.values(report.dailyBreakdown[date].tasks)
+        .filter((task) => task.clientRateType === "piece")
+        .reduce((s, task) => s + task.hours, 0)
+    );
+  }, 0);
+  const breakQuantity = totalPieceworkHours * 0.0417;
+  const breakPrice =
+    breakQuantity > 0 ? report.paidRestBreaks / breakQuantity : 0;
+
+  const adjustmentRows: TableRow[] = [
+    {
+      date: "",
+      description: "Piecework-P/W BREAK",
+      quantity: breakQuantity,
+      unit: "Hrs",
+      price: breakPrice,
+      total: report.paidRestBreaks,
+    },
+    {
+      date: "",
+      description: "Piecework-OT Premium (0.5x rate)",
+      quantity: otHours,
+      unit: "OT Hrs",
+      price: otPrice,
+      total: otPremium,
+    },
+    {
+      date: "",
+      description: "Piecework-MW",
+      quantity: mwQuantity,
+      unit: "MW",
+      price: mwPrice,
+      total: mwTopUp,
+    },
+  ];
+
+  const tableRows = [...regularRows, ...adjustmentRows];
+
+  // Labor Subtotal: aggregate by unit from regular rows only
+  const subtotalByUnit = new Map<string, { quantity: number; total: number }>();
+  regularRows.forEach((row) => {
     const existing = subtotalByUnit.get(row.unit);
     if (existing) {
       existing.quantity += row.quantity;
@@ -81,41 +145,13 @@ export function InvoiceReportDisplay({
     }
   });
 
-  // Add OT Hrs row (always show, even if 0)
-  const otHours = report.overtimeHours ?? 0;
-  const otPremium = report.overtimePremium ?? 0;
-  const existingOT = subtotalByUnit.get("OT Hrs");
-  if (existingOT) {
-    existingOT.quantity += otHours;
-    existingOT.total += otPremium;
-  } else {
-    subtotalByUnit.set("OT Hrs", { quantity: otHours, total: otPremium });
-  }
+  // Add adjustment subtotals explicitly
+  subtotalByUnit.set("P/W BREAK", { quantity: breakQuantity, total: report.paidRestBreaks });
+  subtotalByUnit.set("OT Hrs", { quantity: otHours, total: otPremium });
+  subtotalByUnit.set("MW", { quantity: mwQuantity, total: mwTopUp });
 
-  // Add MW row from minimumWageTopUp (always show)
-  const mwTopUp = report.minimumWageTopUp;
-  const mwRate = report.client.minimumWage ?? 0;
-  const mwUnits = mwRate > 0 ? mwTopUp / mwRate : 0;
-  const existingMW = subtotalByUnit.get("MW");
-  if (existingMW) {
-    existingMW.quantity += mwUnits;
-    existingMW.total += mwTopUp;
-  } else {
-    subtotalByUnit.set("MW", { quantity: mwUnits, total: mwTopUp });
-  }
-
-  // Add paidRestBreaks into Hrs row
-  if (report.paidRestBreaks > 0) {
-    const hrsRow = subtotalByUnit.get("Hrs");
-    if (hrsRow) {
-      hrsRow.total += report.paidRestBreaks;
-    } else {
-      subtotalByUnit.set("Hrs", { quantity: 0, total: report.paidRestBreaks });
-    }
-  }
-
-  // Ordered display: Hrs, Pcs, OT Hrs, MW
-  const unitOrder = ["Hrs", "Pcs", "OT Hrs", "MW"];
+  // Ordered display: Hrs, Pcs, P/W BREAK, OT Hrs, MW
+  const unitOrder = ["Hrs", "Pcs", "P/W BREAK", "OT Hrs", "MW"];
   const subtotalRows = unitOrder.map((unit) => ({
     unit,
     ...(subtotalByUnit.get(unit) ?? { quantity: 0, total: 0 }),
@@ -220,7 +256,7 @@ export function InvoiceReportDisplay({
                 <tr>
                   <td style={{ fontWeight: "bold", paddingRight: "8px", whiteSpace: "nowrap" }}>Bill to:</td>
                   <td style={{ fontWeight: "bold" }}>{report.client.name}</td>
-                  <td style={{ paddingLeft: "16px", whiteSpace: "nowrap" }}>Phone:</td>
+                  <td style={{ paddingLeft: "16px", whiteSpace: "nowrap", fontWeight: "bold" }}>Phone:</td>
                   <td>{report.client.phone ?? ""}</td>
                 </tr>
                 <tr>
@@ -271,7 +307,7 @@ export function InvoiceReportDisplay({
             {tableRows.map((row, idx) => (
               <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? "#fff" : "#f9fafb" }}>
                 <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", whiteSpace: "nowrap" }}>
-                  {format(parseLocalDate(row.date), "MM/dd/yyyy")}
+                  {row.date ? format(parseLocalDate(row.date), "MM/dd/yyyy") : "-"}
                 </td>
                 <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px" }}>{row.description}</td>
                 <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "right" }}>
@@ -378,7 +414,7 @@ export function InvoiceReportDisplay({
         <div style={{ marginTop: "24px", fontSize: "11px", color: "#374151", borderTop: "1px solid #d1d5db", paddingTop: "12px" }}>
           <p>
             &quot;All invoices are due and payable within{" "}
-            <strong>{paymentDays === 30 ? "thirty (30)" : `${paymentDays}`}</strong>{" "}
+            <strong>{numberToWords(paymentDays)} ({paymentDays})</strong>{" "}
             calendar days from the invoice date.
             Any balance unpaid after the{" "}
             <strong>{paymentDays}-day</strong>{" "}
