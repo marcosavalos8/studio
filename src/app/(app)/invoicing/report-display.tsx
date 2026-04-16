@@ -125,6 +125,12 @@ export function InvoiceReportDisplay({
   const contractorsFee = report.commission;
   const invoiceTotal = report.total;
 
+  // Parse payment terms days for footer (e.g. "Net 30" → 30, "Net 45" → 45)
+  const paymentDays = (() => {
+    const match = report.client.paymentTerms?.match(/\d+/);
+    return match ? parseInt(match[0], 10) : 30;
+  })();
+
   return (
     <div>
       <div className="mb-4 flex justify-between items-center print:hidden">
@@ -180,8 +186,8 @@ export function InvoiceReportDisplay({
           {/* Left: INVOICE label + company name */}
           <div style={{ flex: "0 0 auto" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <span style={{ fontSize: "20px", fontWeight: "bold", letterSpacing: "2px" }}>INVOICE</span>
-              <span style={{ fontSize: "16px", fontWeight: "bold" }}>| J&amp;M AGRICULTURAL LABOR LLC</span>
+              <span style={{ fontSize: "20px", fontWeight: "bold", letterSpacing: "2px", color: "#15803d" }}>INVOICE</span>
+              <span style={{ fontSize: "16px", fontWeight: "bold", color: "#15803d" }}>| J&amp;M AGRICULTURAL LABOR LLC</span>
             </div>
           </div>
           {/* Center: Logo */}
@@ -205,7 +211,7 @@ export function InvoiceReportDisplay({
         </div>
 
         {/* ── DIVIDER ── */}
-        <hr style={{ borderTop: "2px solid #000", margin: "8px 0" }} />
+        <hr style={{ borderTop: "4px solid #15803d", margin: "8px 0" }} />
 
         {/* ── BILL TO + INVOICE INFO ── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "12px", fontSize: "12px" }}>
@@ -216,23 +222,17 @@ export function InvoiceReportDisplay({
                 <tr>
                   <td style={{ fontWeight: "bold", paddingRight: "8px", whiteSpace: "nowrap" }}>Bill to:</td>
                   <td style={{ fontWeight: "bold" }}>{report.client.name}</td>
-                  {report.client.phone && (
-                    <>
-                      <td style={{ paddingLeft: "16px", whiteSpace: "nowrap" }}>Phone:</td>
-                      <td>{report.client.phone}</td>
-                    </>
-                  )}
+                  <td style={{ paddingLeft: "16px", whiteSpace: "nowrap" }}>Phone:</td>
+                  <td>{report.client.phone ?? ""}</td>
                 </tr>
                 <tr>
                   <td style={{ fontWeight: "bold", paddingRight: "8px", verticalAlign: "top", whiteSpace: "nowrap" }}>Address:</td>
                   <td colSpan={3}>{report.client.billingAddress}</td>
                 </tr>
-                {report.client.email && (
-                  <tr>
-                    <td style={{ fontWeight: "bold", paddingRight: "8px", whiteSpace: "nowrap" }}>e-mail:</td>
-                    <td colSpan={3}>{report.client.email}</td>
-                  </tr>
-                )}
+                <tr>
+                  <td style={{ fontWeight: "bold", paddingRight: "8px", whiteSpace: "nowrap" }}>e-mail:</td>
+                  <td colSpan={3}>{report.client.email ?? ""}</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -330,9 +330,17 @@ export function InvoiceReportDisplay({
             </table>
           </div>
 
-          {/* Right: Invoice summary */}
+          {/* Right: Invoice summary — vertically aligned with the Labor Subtotal table body */}
           <div>
+            {/* Spacer matching the "Labor Subtotal" label + table header row height on the left */}
+            <div style={{ fontWeight: "bold", marginBottom: "4px", visibility: "hidden" }}>Labor Subtotal</div>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ visibility: "hidden" }}>
+                  <th style={{ padding: "4px 8px" }}>&nbsp;</th>
+                  <th style={{ padding: "4px 8px" }}>&nbsp;</th>
+                </tr>
+              </thead>
               <tbody>
                 <tr>
                   <td style={{ border: "1px solid #e5e7eb", padding: "6px 12px", fontWeight: "bold" }}>Invoice Subtotal</td>
@@ -371,10 +379,16 @@ export function InvoiceReportDisplay({
         {/* ── FOOTER: Payment terms legal text ── */}
         <div style={{ marginTop: "24px", fontSize: "11px", color: "#374151", borderTop: "1px solid #d1d5db", paddingTop: "12px" }}>
           <p>
-            &quot;All invoices are due and payable within thirty (30) calendar days from the invoice date.
-            Any balance unpaid after the 30-day period will accrue interest at a rate of 2% per month.
+            &quot;All invoices are due and payable within{" "}
+            <strong>{paymentDays === 30 ? "thirty (30)" : `${paymentDays}`}</strong>{" "}
+            calendar days from the invoice date.
+            Any balance unpaid after the{" "}
+            <strong>{paymentDays}-day</strong>{" "}
+            period will accrue interest at a rate of{" "}
+            <strong style={{ color: "#dc2626" }}>2%</strong>{" "}
+            per month.
             This interest shall be calculated on a per-diem (daily) basis starting from the first day
-            following the Due Date (Day 31) until the payment is received in full by the Contractor.&quot;
+            following the Due Date (Day <strong>{paymentDays + 1}</strong>) until the payment is received in full by the Contractor.&quot;
           </p>
         </div>
       </div>
