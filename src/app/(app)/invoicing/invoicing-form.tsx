@@ -512,6 +512,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           minimumWageTopUp: totalTopUp,
           paidRestBreaks: totalRestBreaks,
           overtimePremium: totalOvertimePremium,
+          overtimeHours: totalOvertimeHours,
           subtotal,
           commission,
           total,
@@ -519,6 +520,17 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           createdAt: serverTimestamp(),
           sentAt: null,
           paidAt: null,
+          emailSentCount: 0,
+          dailyBreakdown,
+          employeeDetails,
+          invoiceClientData: {
+            name: clientData.name,
+            billingAddress: clientData.billingAddress || null,
+            email: clientData.email || null,
+            phone: clientData.phone || null,
+            commissionRate: clientData.commissionRate ?? null,
+            paymentTerms: clientData.paymentTerms || null,
+          },
         });
         toast({
           title: "Invoice guardado",

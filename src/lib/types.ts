@@ -161,6 +161,29 @@ export interface DailyBreakdownEntry {
 
 import type { Timestamp } from "firebase/firestore";
 
+export interface SavedInvoiceTaskDetail {
+  taskName: string;
+  hours: number;
+  pieces: number;
+  cost: number;
+  clientRate: number;
+  clientRateType: "hourly" | "piece";
+}
+
+export interface SavedInvoiceDayBreakdown {
+  tasks: Record<string, SavedInvoiceTaskDetail>;
+  total: number;
+}
+
+export interface SavedInvoiceClientSnapshot {
+  name: string;
+  billingAddress?: string;
+  email?: string;
+  phone?: string;
+  commissionRate?: number;
+  paymentTerms?: string;
+}
+
 export interface SavedInvoice {
   id?: string;
   invoiceNumber: string;
@@ -174,6 +197,7 @@ export interface SavedInvoice {
   minimumWageTopUp: number;
   paidRestBreaks: number;
   overtimePremium?: number;
+  overtimeHours?: number;
   subtotal: number;
   commission: number;
   total: number;
@@ -181,8 +205,10 @@ export interface SavedInvoice {
   createdAt: Timestamp | Date | null;
   sentAt?: Timestamp | Date | null;
   paidAt?: Timestamp | Date | null;
-  dailyBreakdown?: Record<string, unknown>;
+  emailSentCount?: number;
+  dailyBreakdown?: Record<string, SavedInvoiceDayBreakdown>;
   employeeDetails?: unknown[];
+  invoiceClientData?: SavedInvoiceClientSnapshot;
 }
 
 export interface SoundSettings {
