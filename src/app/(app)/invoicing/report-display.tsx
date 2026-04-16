@@ -449,7 +449,7 @@ export function InvoiceReportDisplay({
             Any balance unpaid after the{" "}
             <strong>{paymentDays}-day</strong>{" "}
             period will accrue interest at a rate of{" "}
-            <strong style={{ color: "#dc2626" }}>2%</strong>{" "}
+            <strong style={{ color: "#dc2626" }}>1%</strong>{" "}
             per month.
             This interest shall be calculated on a per-diem (daily) basis starting from the first day
             following the Due Date (Day <strong>{paymentDays + 1}</strong>) until the payment is received in full by the Contractor.&quot;
