@@ -9,6 +9,7 @@ interface SendInvoiceBody {
   dateFrom: string;
   dateTo: string;
   total: number;
+  dueDate: string; // Añadimos fecha de vencimiento
 }
 
 function escapeHtml(value: unknown): string {
@@ -25,90 +26,82 @@ export async function POST(request: Request) {
   try {
     body = (await request.json()) as SendInvoiceBody;
   } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-  }
-
-  const { invoiceNumber, invoiceDate, clientName, clientEmail, dateFrom, dateTo, total } = body;
-
-  if (!clientEmail) {
-    return NextResponse.json({ error: "clientEmail is required" }, { status: 400 });
-  }
-
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = parseInt(process.env.SMTP_PORT ?? "587", 10);
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  const smtpFrom = process.env.SMTP_FROM ?? smtpUser;
-
-  if (!smtpHost || !smtpUser || !smtpPass) {
     return NextResponse.json(
-      { error: "Email service not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS environment variables." },
-      { status: 503 }
+      { error: "Invalid request body" },
+      { status: 400 },
     );
   }
 
+  const { invoiceNumber, clientEmail, total, dueDate, clientName } = body;
+
+  if (!clientEmail) {
+    return NextResponse.json(
+      { error: "clientEmail is required" },
+      { status: 400 },
+    );
+  }
+
+  // --- CONFIGURACIÓN GMAIL ---
+  const smtpUser = "m.a.a.g.3008@@gmail.com";
+  const smtpPass = "fktg vwoc qqpi qkbq"; // Tu contraseña de aplicación de 16 letras
+
   const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpPort === 465,
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
     auth: {
       user: smtpUser,
       pass: smtpPass,
     },
   });
 
-  const formattedTotal = `$${(total ?? 0).toFixed(2)}`;
-
-  // Escape all user-provided values to prevent HTML injection
   const safeInvoiceNumber = escapeHtml(invoiceNumber);
-  const safeInvoiceDate = escapeHtml(invoiceDate);
-  const safeClientName = escapeHtml(clientName);
-  const safeDateFrom = escapeHtml(dateFrom);
-  const safeDateTo = escapeHtml(dateTo);
-  const safeTotal = escapeHtml(formattedTotal);
+  const safeTotal = escapeHtml((total ?? 0).toFixed(2));
+  const safeDueDate = escapeHtml(dueDate);
 
   const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #1a1a1a;">Invoice #${safeInvoiceNumber}</h2>
-      <p>Estimado/a <strong>${safeClientName}</strong>,</p>
-      <p>Adjuntamos el detalle de su invoice correspondiente al período indicado.</p>
-      <table style="width:100%; border-collapse: collapse; margin: 20px 0;">
-        <tr style="background:#f5f5f5;">
-          <td style="padding:8px; border:1px solid #ddd;"><strong>Invoice #</strong></td>
-          <td style="padding:8px; border:1px solid #ddd;">${safeInvoiceNumber}</td>
-        </tr>
-        <tr>
-          <td style="padding:8px; border:1px solid #ddd;"><strong>Fecha de invoice</strong></td>
-          <td style="padding:8px; border:1px solid #ddd;">${safeInvoiceDate}</td>
-        </tr>
-        <tr style="background:#f5f5f5;">
-          <td style="padding:8px; border:1px solid #ddd;"><strong>Período</strong></td>
-          <td style="padding:8px; border:1px solid #ddd;">${safeDateFrom} – ${safeDateTo}</td>
-        </tr>
-        <tr>
-          <td style="padding:8px; border:1px solid #ddd;"><strong>Total</strong></td>
-          <td style="padding:8px; border:1px solid #ddd; font-size: 1.1em; font-weight: bold;">${safeTotal}</td>
-        </tr>
-      </table>
-      <p style="color:#555; font-size:0.9em;">Por favor, realice el pago de acuerdo a sus términos acordados.</p>
-      <p style="color:#555; font-size:0.9em;">Gracias por su preferencia.</p>
+    <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px;">
+      <p>Hello,</p>
+      <p>Please find attached invoice <strong>#${safeInvoiceNumber}</strong> for the agricultural labor services provided during the past week.</p>
+      <p>The total amount due is <strong>$${safeTotal}</strong>, with a due date of <strong>${safeDueDate}</strong>.</p>
+      <p>Also attached is the detailed Labor report for your records.</p>
+      
+      <div style="background-color: #f9f9f9; padding: 15px; border-left: 4px solid #ccc; margin: 20px 0;">
+        <p style="font-size: 0.9em; margin: 0;">
+          <strong>Please note:</strong> This is an automated sending service and this email address is not monitored. 
+          For any questions, replies, or future correspondence, please contact us directly at 
+          <a href="mailto:Jmagriculturalabor@outlook.com">Jmagriculturalabor@outlook.com</a>.
+        </p>
+      </div>
+
+      <p>Thank you for your business!</p>
+      
+      <p style="margin-top: 30px;">
+        Best regards,<br>
+        <strong>J&M Agricultural Labor LLC</strong><br>
+        Billing Department<br>
+        Email: <a href="mailto:Jmagriculturalabor@outlook.com">Jmagriculturalabor@outlook.com</a><br>
+        Phone: 509-000-1111<br>
+        License #: 172-25<br>
+        Pasco, WA 99301
+      </p>
     </div>
   `;
 
   try {
     await transporter.sendMail({
-      from: smtpFrom,
+      from: `"J&M Agricultural Labor LLC" <${smtpUser}>`,
       to: clientEmail,
-      subject: `Invoice #${invoiceNumber} – ${clientName}`,
+      subject: `Invoice ${invoiceNumber} from J&M Agricultural Labor LLC`,
       html,
     });
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("Error sending invoice email:", err);
+    console.error("Error sending email:", err);
     return NextResponse.json(
-      { error: "Failed to send email. Check server SMTP configuration." },
-      { status: 500 }
+      { error: "Failed to send email" },
+      { status: 500 },
     );
   }
 }
