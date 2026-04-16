@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
+import { useSettings } from "@/contexts/settings-context";
 
 const PASSWORD_KEY = "secure_page_access_granted";
 
@@ -30,11 +31,11 @@ export function withAuth<P extends object>(
   const WithAuthComponent: React.FC<P> = (props) => {
     const pathname = usePathname();
     const router = useRouter();
+    const { settings } = useSettings();
 
     const [isAuthorized, setIsAuthorized] = useState(false);
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
-    const [correctPassword, setCorrectPassword] = useState("");
     const [isLoading, setIsLoading] = useState(true);
 
     // Estados para cerrar/reabrir el diálogo y bloquear acceso
@@ -44,10 +45,15 @@ export function withAuth<P extends object>(
     const storageKey = options?.key ?? `${PASSWORD_KEY}:${pathname}`;
     const shouldRemember = !options?.askEveryVisit;
 
-    useEffect(() => {
-      const envPassword = process.env.NEXT_PUBLIC_PAYROLL_PASSWORD;
-      setCorrectPassword(envPassword || "4321");
+    // Derive the correct password based on the current route
+    const correctPassword = (() => {
+      if (pathname.includes("/invoicing")) return settings.invoicePassword || process.env.NEXT_PUBLIC_PAYROLL_PASSWORD || "4321";
+      if (pathname.includes("/labor-report")) return settings.laborReportPassword || process.env.NEXT_PUBLIC_PAYROLL_PASSWORD || "4321";
+      if (pathname.includes("/payroll")) return settings.payrollPassword || process.env.NEXT_PUBLIC_PAYROLL_PASSWORD || "4321";
+      return process.env.NEXT_PUBLIC_PAYROLL_PASSWORD || "4321";
+    })();
 
+    useEffect(() => {
       if (shouldRemember) {
         try {
           const raw = sessionStorage.getItem(storageKey);

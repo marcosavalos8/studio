@@ -31,6 +31,8 @@ import {
   Timestamp,
   doc,
   runTransaction,
+  addDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { type DetailedInvoiceData } from "./page";
@@ -493,6 +495,37 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         total,
         employeeDetails,
       };
+
+      // Save invoice record to Firestore
+      try {
+        await addDoc(collection(firestore, "invoices"), {
+          invoiceNumber,
+          invoiceDate: format(new Date(), "MM/dd/yyyy"),
+          clientId: clientData.id,
+          clientName: clientData.name,
+          clientEmail: clientData.email || null,
+          dateFrom: format(startDate, "yyyy-MM-dd"),
+          dateTo: format(endDate, "yyyy-MM-dd"),
+          laborCost,
+          minimumWageTopUp: totalTopUp,
+          paidRestBreaks: totalRestBreaks,
+          overtimePremium: totalOvertimePremium,
+          subtotal,
+          commission,
+          total,
+          status: "pending",
+          createdAt: serverTimestamp(),
+          sentAt: null,
+          paidAt: null,
+        });
+        toast({
+          title: "Invoice guardado",
+          description: `Invoice #${invoiceNumber} guardado en Gestión de Invoices.`,
+        });
+      } catch (saveErr) {
+        console.warn("Could not save invoice record:", saveErr);
+      }
+
       setInvoiceData(finalInvoiceData);
     } catch (err) {
       console.error("Error generating invoice:", err);

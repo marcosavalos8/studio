@@ -7,7 +7,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InvoicingForm } from "./invoicing-form";
+import { InvoiceManagement } from "./invoice-management";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import { useFirestore } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
@@ -86,28 +88,53 @@ function InvoicingPage() {
 
   return (
     <div className="grid gap-3 md:gap-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg md:text-xl">Generate Invoice</CardTitle>
-          <CardDescription className="text-sm">
-            Select a client and date range to generate a detailed invoice for
-            billing. This invoice includes all labor costs calculated according
-            to WA state law.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loadingClients && (
-            <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-3">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          )}
-          {clients && <InvoicingForm clients={clients} />}
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="generate">
+        <TabsList className="mb-4">
+          <TabsTrigger value="generate">Generar Invoice</TabsTrigger>
+          <TabsTrigger value="management">Gestión de Invoices</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="generate">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg md:text-xl">Generate Invoice</CardTitle>
+              <CardDescription className="text-sm">
+                Select a client and date range to generate a detailed invoice for
+                billing. This invoice includes all labor costs calculated according
+                to WA state law.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingClients && (
+                <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-3">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              )}
+              {clients && <InvoicingForm clients={clients} />}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="management">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg md:text-xl">Gestión de Invoices</CardTitle>
+              <CardDescription className="text-sm">
+                Administra los invoices generados: márcalos como pagados, envíalos
+                por correo y lleva un registro del tiempo transcurrido.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <InvoiceManagement />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
 
 export default withAuth(InvoicingPage, { askEveryVisit: true });
+
