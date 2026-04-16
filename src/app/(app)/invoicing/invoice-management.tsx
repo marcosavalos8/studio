@@ -175,12 +175,13 @@ export function InvoiceManagement() {
       list = list.filter((inv) => inv.clientName === filterClient);
     }
 
-    // filter by date range (using dateFrom / dateTo of the invoice period)
+    // filter by date range (show invoices whose period starts on or after filterDateFrom
+    // and ends on or before filterDateTo)
     if (filterDateFrom) {
-      list = list.filter((inv) => inv.dateTo >= filterDateFrom);
+      list = list.filter((inv) => inv.dateFrom >= filterDateFrom);
     }
     if (filterDateTo) {
-      list = list.filter((inv) => inv.dateFrom <= filterDateTo);
+      list = list.filter((inv) => inv.dateTo <= filterDateTo);
     }
 
     // sort
@@ -470,10 +471,9 @@ export function InvoiceManagement() {
                 {/* Select-all checkbox */}
                 <TableHead className="w-10">
                   <Checkbox
-                    checked={allSelected}
+                    checked={allSelected ? true : someSelected ? "indeterminate" : false}
                     onCheckedChange={toggleSelectAll}
                     aria-label="Seleccionar todos"
-                    data-state={someSelected && !allSelected ? "indeterminate" : undefined}
                   />
                 </TableHead>
                 <SortableHead field="invoiceNumber" label="Invoice #" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
