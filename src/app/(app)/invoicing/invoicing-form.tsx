@@ -28,9 +28,9 @@ import {
   getDocs,
   query,
   where,
+  orderBy,
+  limit,
   Timestamp,
-  doc,
-  runTransaction,
   addDoc,
   serverTimestamp,
 } from "firebase/firestore";
@@ -317,21 +317,23 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         : 0;
       const total = subtotal + commission;
 
-      // Generate consecutive invoice number
-      const counterRef = doc(firestore, "settings", "invoiceCounter");
+      // Generate consecutive invoice number by querying the highest existing one
       let invoiceNumber = "00001";
       try {
-        await runTransaction(firestore, async (transaction) => {
-          const counterSnap = await transaction.get(counterRef);
-          const lastNumber = counterSnap.exists()
-            ? (counterSnap.data().lastNumber as number) || 0
-            : 0;
-          const nextNumber = lastNumber + 1;
-          invoiceNumber = String(nextNumber).padStart(5, "0");
-          transaction.set(counterRef, { lastNumber: nextNumber });
-        });
+        const latestQuery = query(
+          collection(firestore, "invoices"),
+          orderBy("invoiceNumber", "desc"),
+          limit(1)
+        );
+        const latestSnap = await getDocs(latestQuery);
+        if (!latestSnap.empty) {
+          const lastNum = parseInt(latestSnap.docs[0].data().invoiceNumber as string, 10);
+          if (!isNaN(lastNum)) {
+            invoiceNumber = String(lastNum + 1).padStart(5, "0");
+          }
+        }
       } catch (counterErr) {
-        console.warn("Could not generate invoice number:", counterErr);
+        console.warn("Could not determine invoice number:", counterErr);
       }
 
       // Collect overtime hours from payroll summaries
