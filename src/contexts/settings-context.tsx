@@ -19,6 +19,9 @@ export interface Settings {
   sidebarPosition: SidebarPosition;
   language: Language;
   dateFormat: DateFormat;
+  invoicePassword: string;
+  laborReportPassword: string;
+  payrollPassword: string;
 }
 
 interface SettingsContextType {
@@ -40,6 +43,9 @@ const defaultSettings: Settings = {
   sidebarPosition: "left",
   language: "es",
   dateFormat: "mm-dd-yyyy",
+  invoicePassword: "4321",
+  laborReportPassword: "4321",
+  payrollPassword: "4321",
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(

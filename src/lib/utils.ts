@@ -56,3 +56,25 @@ export function parseLocalDateOrDateTime(dateString: string): Date {
     return parseLocalDate(dateString);
   }
 }
+
+/**
+ * Returns a human-readable relative time string in Spanish.
+ * e.g. "hace 2 días", "hace 1 hora", "hace 3 semanas"
+ */
+export function formatRelativeTime(date: Date): string {
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  const diffWeeks = Math.floor(diffDays / 7);
+  const diffMonths = Math.floor(diffDays / 30);
+
+  if (diffSecs < 60) return "hace un momento";
+  if (diffMins < 60) return diffMins === 1 ? "hace 1 minuto" : `hace ${diffMins} minutos`;
+  if (diffHours < 24) return diffHours === 1 ? "hace 1 hora" : `hace ${diffHours} horas`;
+  if (diffDays < 7) return diffDays === 1 ? "hace 1 día" : `hace ${diffDays} días`;
+  if (diffWeeks < 5) return diffWeeks === 1 ? "hace 1 semana" : `hace ${diffWeeks} semanas`;
+  return diffMonths === 1 ? "hace 1 mes" : `hace ${diffMonths} meses`;
+}

@@ -28,9 +28,11 @@ import {
   getDocs,
   query,
   where,
+  orderBy,
+  limit,
   Timestamp,
-  doc,
-  runTransaction,
+  addDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { type DetailedInvoiceData } from "./page";
@@ -315,21 +317,23 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         : 0;
       const total = subtotal + commission;
 
-      // Generate consecutive invoice number
-      const counterRef = doc(firestore, "settings", "invoiceCounter");
+      // Generate consecutive invoice number by querying the highest existing one
       let invoiceNumber = "00001";
       try {
-        await runTransaction(firestore, async (transaction) => {
-          const counterSnap = await transaction.get(counterRef);
-          const lastNumber = counterSnap.exists()
-            ? (counterSnap.data().lastNumber as number) || 0
-            : 0;
-          const nextNumber = lastNumber + 1;
-          invoiceNumber = String(nextNumber).padStart(5, "0");
-          transaction.set(counterRef, { lastNumber: nextNumber });
-        });
+        const latestQuery = query(
+          collection(firestore, "invoices"),
+          orderBy("invoiceNumber", "desc"),
+          limit(1)
+        );
+        const latestSnap = await getDocs(latestQuery);
+        if (!latestSnap.empty) {
+          const lastNum = parseInt(latestSnap.docs[0].data().invoiceNumber as string, 10);
+          if (!isNaN(lastNum)) {
+            invoiceNumber = String(lastNum + 1).padStart(5, "0");
+          }
+        }
       } catch (counterErr) {
-        console.warn("Could not generate invoice number:", counterErr);
+        console.warn("Could not determine invoice number:", counterErr);
       }
 
       // Collect overtime hours from payroll summaries
@@ -493,6 +497,37 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         total,
         employeeDetails,
       };
+
+      // Save invoice record to Firestore
+      try {
+        await addDoc(collection(firestore, "invoices"), {
+          invoiceNumber,
+          invoiceDate: format(new Date(), "MM/dd/yyyy"),
+          clientId: clientData.id,
+          clientName: clientData.name,
+          clientEmail: clientData.email || null,
+          dateFrom: format(startDate, "yyyy-MM-dd"),
+          dateTo: format(endDate, "yyyy-MM-dd"),
+          laborCost,
+          minimumWageTopUp: totalTopUp,
+          paidRestBreaks: totalRestBreaks,
+          overtimePremium: totalOvertimePremium,
+          subtotal,
+          commission,
+          total,
+          status: "pending",
+          createdAt: serverTimestamp(),
+          sentAt: null,
+          paidAt: null,
+        });
+        toast({
+          title: "Invoice guardado",
+          description: `Invoice #${invoiceNumber} guardado en Gestión de Invoices.`,
+        });
+      } catch (saveErr) {
+        console.warn("Could not save invoice record:", saveErr);
+      }
+
       setInvoiceData(finalInvoiceData);
     } catch (err) {
       console.error("Error generating invoice:", err);

@@ -10,8 +10,9 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Settings as SettingsIcon, Palette, Moon, Sun, Check } from "lucide-react";
+import { Settings as SettingsIcon, Palette, Moon, Sun, Check, Key, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -21,10 +22,20 @@ import {
 } from "@/components/ui/select";
 import { useSettings } from "@/contexts/settings-context";
 import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 export default function SettingsPage() {
   const { settings, updateSetting, resetSettings } = useSettings();
   const { toast } = useToast();
+  const [showPasswords, setShowPasswords] = useState({
+    invoice: false,
+    laborReport: false,
+    payroll: false,
+  });
+
+  const toggleShowPassword = (field: "invoice" | "laborReport" | "payroll") => {
+    setShowPasswords((prev) => ({ ...prev, [field]: !prev[field] }));
+  };
 
   const handleSave = () => {
     toast({
@@ -272,6 +283,105 @@ export default function SettingsPage() {
                   <SelectItem value="right">Derecha</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          {/* Security / Passwords Section */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Key className="h-5 w-5 text-amber-500" />
+              <h3 className="text-base font-semibold">Seguridad / Contraseñas de Acceso</h3>
+            </div>
+            <Separator />
+            <p className="text-sm text-muted-foreground">
+              Configura las contraseñas de acceso para las secciones protegidas de la aplicación.
+            </p>
+
+            {/* Invoice Password */}
+            <div className="flex items-center justify-between space-x-4">
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="invoice-password" className="text-sm font-medium">
+                  Contraseña – Invoices
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Contraseña de acceso a la sección de Invoicing
+                </p>
+              </div>
+              <div className="relative w-[180px]">
+                <Input
+                  id="invoice-password"
+                  type={showPasswords.invoice ? "text" : "password"}
+                  value={settings.invoicePassword}
+                  onChange={(e) => updateSetting("invoicePassword", e.target.value)}
+                  className="pr-9"
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => toggleShowPassword("invoice")}
+                  aria-label={showPasswords.invoice ? "Ocultar contraseña" : "Mostrar contraseña"}
+                >
+                  {showPasswords.invoice ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Labor Report Password */}
+            <div className="flex items-center justify-between space-x-4">
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="labor-report-password" className="text-sm font-medium">
+                  Contraseña – Labor Report
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Contraseña de acceso a la sección de Labor Report
+                </p>
+              </div>
+              <div className="relative w-[180px]">
+                <Input
+                  id="labor-report-password"
+                  type={showPasswords.laborReport ? "text" : "password"}
+                  value={settings.laborReportPassword}
+                  onChange={(e) => updateSetting("laborReportPassword", e.target.value)}
+                  className="pr-9"
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => toggleShowPassword("laborReport")}
+                  aria-label={showPasswords.laborReport ? "Ocultar contraseña" : "Mostrar contraseña"}
+                >
+                  {showPasswords.laborReport ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Payroll Password */}
+            <div className="flex items-center justify-between space-x-4">
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="payroll-password" className="text-sm font-medium">
+                  Contraseña – Payroll
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Contraseña de acceso a la sección de Payroll
+                </p>
+              </div>
+              <div className="relative w-[180px]">
+                <Input
+                  id="payroll-password"
+                  type={showPasswords.payroll ? "text" : "password"}
+                  value={settings.payrollPassword}
+                  onChange={(e) => updateSetting("payrollPassword", e.target.value)}
+                  className="pr-9"
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => toggleShowPassword("payroll")}
+                  aria-label={showPasswords.payroll ? "Ocultar contraseña" : "Mostrar contraseña"}
+                >
+                  {showPasswords.payroll ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
           </div>
 

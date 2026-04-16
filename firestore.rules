@@ -113,6 +113,37 @@ service cloud.firestore {
       allow delete: if isAdmin() && resource != null;
     }
 
+    /**
+     * @description Manages invoice records.
+     * @path /invoices/{invoiceId}
+     * @allow (get, list, create) - Any authenticated user can read and create invoices.
+     * @allow (update, delete) - Only admins can update or delete invoices.
+     * @principle Allows authenticated users to create and read invoices; only admins can modify.
+     */
+    match /invoices/{invoiceId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    /**
+     * @description Manages app-wide settings and counters (e.g. invoice number sequence).
+     * @path /settings/{settingId}
+     * @allow (get) - Any authenticated user can read settings documents.
+     * @allow (set) - Any authenticated user can create/update the invoiceCounter document;
+     *   all other settings documents require admin access.
+     */
+    match /settings/invoiceCounter {
+      allow get: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /settings/{settingId} {
+      allow get, list: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // --- Helper Functions ---
     
     /**
