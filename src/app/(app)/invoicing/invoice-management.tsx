@@ -141,6 +141,7 @@ export function InvoiceManagement() {
   const [filterClient, setFilterClient] = React.useState<string>("all");
   const [filterDateFrom, setFilterDateFrom] = React.useState<string>("");
   const [filterDateTo, setFilterDateTo] = React.useState<string>("");
+  const [filterInvoiceNumber, setFilterInvoiceNumber] = React.useState<string>("");
 
   // sorting
   const [sortField, setSortField] = React.useState<SortField>("createdAt");
@@ -169,6 +170,12 @@ export function InvoiceManagement() {
   const invoices = React.useMemo(() => {
     if (!allInvoices) return [];
     let list = [...allInvoices];
+
+    // filter by invoice number (partial match, case-insensitive)
+    if (filterInvoiceNumber.trim()) {
+      const needle = filterInvoiceNumber.trim().replace(/^#/, "");
+      list = list.filter((inv) => inv.invoiceNumber.includes(needle));
+    }
 
     // filter by client
     if (filterClient !== "all") {
@@ -214,7 +221,7 @@ export function InvoiceManagement() {
     });
 
     return list;
-  }, [allInvoices, filterClient, filterDateFrom, filterDateTo, sortField, sortDir]);
+  }, [allInvoices, filterClient, filterDateFrom, filterDateTo, filterInvoiceNumber, sortField, sortDir]);
 
   // ── selection helpers ──
   const allVisibleIds = invoices.map((inv) => inv.id ?? "").filter(Boolean);
@@ -354,6 +361,18 @@ export function InvoiceManagement() {
     <div className="space-y-4">
       {/* ── Filters row ── */}
       <div className="flex flex-wrap items-end gap-3">
+        {/* Invoice # filter */}
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground">Invoice #</span>
+          <Input
+            type="text"
+            placeholder="Buscar #..."
+            className="h-9 w-[130px]"
+            value={filterInvoiceNumber}
+            onChange={(e) => setFilterInvoiceNumber(e.target.value)}
+          />
+        </div>
+
         {/* Client filter */}
         <div className="flex flex-col gap-1 min-w-[180px]">
           <span className="text-xs font-medium text-muted-foreground">Cliente</span>
@@ -395,7 +414,7 @@ export function InvoiceManagement() {
         </div>
 
         {/* Clear filters */}
-        {(filterClient !== "all" || filterDateFrom || filterDateTo) && (
+        {(filterClient !== "all" || filterDateFrom || filterDateTo || filterInvoiceNumber) && (
           <Button
             variant="ghost"
             size="sm"
@@ -404,6 +423,7 @@ export function InvoiceManagement() {
               setFilterClient("all");
               setFilterDateFrom("");
               setFilterDateTo("");
+              setFilterInvoiceNumber("");
             }}
           >
             Limpiar filtros

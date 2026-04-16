@@ -127,6 +127,23 @@ service cloud.firestore {
       allow delete: if isSignedIn();
     }
 
+    /**
+     * @description Manages app-wide settings and counters (e.g. invoice number sequence).
+     * @path /settings/{settingId}
+     * @allow (get) - Any authenticated user can read settings documents.
+     * @allow (set) - Any authenticated user can create/update the invoiceCounter document;
+     *   all other settings documents require admin access.
+     */
+    match /settings/invoiceCounter {
+      allow get: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /settings/{settingId} {
+      allow get, list: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // --- Helper Functions ---
     
     /**
