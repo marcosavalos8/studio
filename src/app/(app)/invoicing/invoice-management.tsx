@@ -300,6 +300,15 @@ export function InvoiceManagement() {
           dateFrom: invoice.dateFrom,
           dateTo: invoice.dateTo,
           total: invoice.total,
+          minimumWageTopUp: invoice.minimumWageTopUp,
+          paidRestBreaks: invoice.paidRestBreaks,
+          overtimePremium: invoice.overtimePremium,
+          overtimeHours: invoice.overtimeHours,
+          subtotal: invoice.subtotal,
+          commission: invoice.commission,
+          dailyBreakdown: invoice.dailyBreakdown ?? null,
+          invoiceClientData: invoice.invoiceClientData ?? null,
+          employeeDetails: invoice.employeeDetails ?? [],
         }),
       });
 
@@ -311,6 +320,7 @@ export function InvoiceManagement() {
       if (firestore) {
         await updateDoc(doc(firestore, "invoices", invoice.id), {
           sentAt: Timestamp.now(),
+          emailSentCount: (invoice.emailSentCount ?? 0) + 1,
         });
       }
 
@@ -502,7 +512,8 @@ export function InvoiceManagement() {
                 <SortableHead field="total" label="Total" sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
                 <SortableHead field="status" label="Estado" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                 <SortableHead field="createdAt" label="Creado" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                <TableHead className="whitespace-nowrap">Enviado</TableHead>
+                <TableHead className="whitespace-nowrap">Último envío</TableHead>
+                <TableHead className="whitespace-nowrap text-center">Envíos</TableHead>
                 <TableHead className="whitespace-nowrap">Pagado</TableHead>
                 <TableHead>Acciones</TableHead>
               </TableRow>
@@ -554,6 +565,15 @@ export function InvoiceManagement() {
                     </TableCell>
                     <TableCell className="text-sm whitespace-nowrap">
                       <RelativeTime date={sentAt} />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {(invoice.emailSentCount ?? 0) > 0 ? (
+                        <Badge variant="outline" className="text-xs font-mono">
+                          ×{invoice.emailSentCount}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm whitespace-nowrap">
                       <RelativeTime date={paidAt} />
