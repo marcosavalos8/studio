@@ -80,6 +80,28 @@ export function InvoiceReportDisplay({
     });
   });
 
+  // Find unique piecework task names for adjustment row description prefix
+  const pieceworkTaskNames = new Set<string>();
+  sortedDates.forEach((date) => {
+    Object.values(report.dailyBreakdown[date].tasks).forEach((task) => {
+      if (task.clientRateType === "piece") {
+        pieceworkTaskNames.add(task.taskName);
+      }
+    });
+  });
+  const pieceworkPrefix =
+    pieceworkTaskNames.size === 1
+      ? `${Array.from(pieceworkTaskNames)[0]}-`
+      : "Piecework-";
+
+  // Last date that has at least one piecework task (used as the date for adjustment rows)
+  const lastPieceworkDate =
+    [...sortedDates].reverse().find((date) =>
+      Object.values(report.dailyBreakdown[date].tasks).some(
+        (task) => task.clientRateType === "piece"
+      )
+    ) ?? sortedDates[sortedDates.length - 1] ?? "";
+
   // Compute adjustment rows: P/W BREAK, OT Premium, MW
   const otHours = report.overtimeHours ?? 0;
   const otPremium = report.overtimePremium ?? 0;
@@ -106,24 +128,24 @@ export function InvoiceReportDisplay({
 
   const adjustmentRows: TableRow[] = [
     {
-      date: "",
-      description: "Piecework-P/W BREAK",
+      date: lastPieceworkDate,
+      description: `${pieceworkPrefix}P/W BREAK`,
       quantity: breakQuantity,
       unit: "Hrs",
       price: breakPrice,
       total: report.paidRestBreaks,
     },
     {
-      date: "",
-      description: "Piecework-OT Premium (0.5x rate)",
+      date: lastPieceworkDate,
+      description: `${pieceworkPrefix}OT Premium (0.5x rate)`,
       quantity: otHours,
       unit: "OT Hrs",
       price: otPrice,
       total: otPremium,
     },
     {
-      date: "",
-      description: "Piecework-MW",
+      date: lastPieceworkDate,
+      description: `${pieceworkPrefix}MW`,
       quantity: mwQuantity,
       unit: "MW",
       price: mwPrice,
@@ -145,13 +167,21 @@ export function InvoiceReportDisplay({
     }
   });
 
-  // Add adjustment subtotals explicitly
-  subtotalByUnit.set("P/W BREAK", { quantity: breakQuantity, total: report.paidRestBreaks });
+  // Merge P/W BREAK hours into the Hrs row of the subtotal
+  const existingHrs = subtotalByUnit.get("Hrs");
+  if (existingHrs) {
+    existingHrs.quantity += breakQuantity;
+    existingHrs.total += report.paidRestBreaks;
+  } else {
+    subtotalByUnit.set("Hrs", { quantity: breakQuantity, total: report.paidRestBreaks });
+  }
+
+  // Add OT Hrs and MW adjustment subtotals
   subtotalByUnit.set("OT Hrs", { quantity: otHours, total: otPremium });
   subtotalByUnit.set("MW", { quantity: mwQuantity, total: mwTopUp });
 
-  // Ordered display: Hrs, Pcs, P/W BREAK, OT Hrs, MW
-  const unitOrder = ["Hrs", "Pcs", "P/W BREAK", "OT Hrs", "MW"];
+  // Ordered display: Hrs (includes break), Pcs, OT Hrs, MW
+  const unitOrder = ["Hrs", "Pcs", "OT Hrs", "MW"];
   const subtotalRows = unitOrder.map((unit) => ({
     unit,
     ...(subtotalByUnit.get(unit) ?? { quantity: 0, total: 0 }),
