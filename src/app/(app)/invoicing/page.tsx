@@ -38,11 +38,14 @@ export type DetailedInvoiceData = {
     from: string;
     to: string;
   };
+  invoiceNumber: string;
+  invoiceDate: string;
   dailyBreakdown: DailyBreakdown;
   laborCost: number;
   minimumWageTopUp: number;
   paidRestBreaks: number;
   overtimePremium?: number;
+  overtimeHours?: number;
   subtotal: number;
   commission: number;
   total: number;
