@@ -73,8 +73,12 @@ function fmtCurrency(value: number): string {
 
 /** Parse "YYYY-MM-DD" as a local (not UTC) date — same as parseLocalDate in report-display */
 function parseLocalDate(dateStr: string): Date {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  return new Date(y!, (m! - 1), d!);
+  const parts = dateStr.split("-").map(Number);
+  const [y, m, d] = parts;
+  if (parts.length !== 3 || !y || !m || !d || isNaN(y) || isNaN(m) || isNaN(d)) {
+    return new Date(NaN); // Invalid date — formatDateMDY guards against this
+  }
+  return new Date(y, m - 1, d);
 }
 
 function formatDateMDY(dateStr: string): string {
@@ -83,6 +87,7 @@ function formatDateMDY(dateStr: string): string {
   return `${String(dt.getMonth() + 1).padStart(2, "0")}/${String(dt.getDate()).padStart(2, "0")}/${dt.getFullYear()}`;
 }
 
+/** Convert integer 0–99 to English words (used for payment terms, e.g. 10 → "ten"). */
 function numberToWords(n: number): string {
   const ones = ["", "one", "two", "three", "four", "five", "six", "seven",
     "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen",
@@ -95,7 +100,26 @@ function numberToWords(n: number): string {
   return o > 0 ? `${tens[t]}-${ones[o]}` : tens[t] ?? String(n);
 }
 
-// ─── rich-text renderer for jsPDF ─────────────────────────────────────────────
+/** Truncate text so its rendered width fits within maxWidth, appending "…" if cut. */
+function truncateToFit(doc: jsPDF, text: string, maxWidth: number): string {
+  if (doc.getTextWidth(text) <= maxWidth) return text;
+  // Binary-search the longest prefix that still fits (including ellipsis)
+  const ellipsis = "…";
+  const ellipsisW = doc.getTextWidth(ellipsis);
+  let lo = 0;
+  let hi = text.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (doc.getTextWidth(text.slice(0, mid)) + ellipsisW <= maxWidth) {
+      lo = mid;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return lo > 0 ? text.slice(0, lo) + ellipsis : ellipsis;
+}
+
+
 // Renders segments of text with different font/color inline, wrapping at maxW.
 
 type RichSegment = { text: string; bold?: boolean; red?: boolean };
@@ -225,13 +249,8 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   doc.setFont("helvetica", "bold");
   doc.text("Address:", margin, billY + 13);
   doc.setFont("helvetica", "normal");
-  // Truncate address to fit half the page
   const addrMaxW = contentW / 2 - lblW - 10;
-  let addrText = clientData.billingAddress ?? "";
-  while (addrText && doc.getTextWidth(addrText) > addrMaxW) {
-    addrText = addrText.slice(0, -1);
-  }
-  doc.text(addrText, margin + lblW, billY + 13);
+  doc.text(truncateToFit(doc, clientData.billingAddress ?? "", addrMaxW), margin + lblW, billY + 13);
 
   doc.setFont("helvetica", "bold");
   doc.text("e-mail:", margin, billY + 26);
@@ -459,15 +478,7 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
     doc.setTextColor(0);
 
     doc.text(formatDateMDY(row.date), colX.date + 4, y + 10);
-
-    // Truncate description to fit column
-    let desc = row.description;
-    const maxDW = descW - 8;
-    while (desc.length > 1 && doc.getTextWidth(desc) > maxDW) {
-      desc = desc.slice(0, -1);
-    }
-    if (desc !== row.description) desc = desc.slice(0, -1) + "…";
-    doc.text(desc, colX.desc + 4, y + 10);
+    doc.text(truncateToFit(doc, row.description, descW - 8), colX.desc + 4, y + 10);
 
     doc.text(fmtNum(row.quantity), colX.qty + qtyW - 4, y + 10, { align: "right" });
     doc.text(row.unit, colX.unit + unitW / 2, y + 10, { align: "center" });
