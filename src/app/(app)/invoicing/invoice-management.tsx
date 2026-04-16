@@ -171,10 +171,10 @@ export function InvoiceManagement() {
     if (!allInvoices) return [];
     let list = [...allInvoices];
 
-    // filter by invoice number (partial match, case-insensitive)
+    // filter by invoice number (partial match, case-insensitive, strips leading #)
     if (filterInvoiceNumber.trim()) {
-      const needle = filterInvoiceNumber.trim().replace(/^#/, "");
-      list = list.filter((inv) => inv.invoiceNumber.includes(needle));
+      const needle = filterInvoiceNumber.trim().replace(/^#/, "").toLowerCase();
+      list = list.filter((inv) => inv.invoiceNumber.toLowerCase().includes(needle));
     }
 
     // filter by client
