@@ -181,17 +181,15 @@ export function InvoiceReportDisplay({
           }
         `}</style>
 
-        {/* ── TOP HEADER: Company info + Logo ── */}
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "16px", marginBottom: "8px" }}>
-          {/* Left: INVOICE label + company name */}
-          <div style={{ flex: "0 0 auto" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        {/* ── TOP HEADER: Title row + Logo below + Company info ── */}
+        {/* Row 1: INVOICE title (left) + Company address (right) */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "8px" }}>
+          {/* Left: INVOICE label + company name, with logo below */}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
               <span style={{ fontSize: "20px", fontWeight: "bold", letterSpacing: "2px", color: "#15803d" }}>INVOICE</span>
               <span style={{ fontSize: "16px", fontWeight: "bold", color: "#15803d" }}>| J&amp;M AGRICULTURAL LABOR LLC</span>
             </div>
-          </div>
-          {/* Center: Logo */}
-          <div style={{ flex: "1", display: "flex", justifyContent: "center" }}>
             <Image
               src={logo}
               alt="JM AGRI Logo"
@@ -201,7 +199,7 @@ export function InvoiceReportDisplay({
             />
           </div>
           {/* Right: Company address + contact */}
-          <div style={{ flex: "0 0 auto", textAlign: "right", fontSize: "12px" }}>
+          <div style={{ textAlign: "right", fontSize: "12px" }}>
             <div>250 Country Heaven Loop</div>
             <div>Pasco, WA 99301.</div>
             <div>Telf.: 509-000-1111</div>
