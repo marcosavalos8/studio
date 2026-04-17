@@ -41,26 +41,50 @@ export function DeleteUserDialog({ open, onOpenChange, user }: DeleteUserDialogP
     setIsDeleting(true)
 
     try {
-      // Delete user document from Firestore
+      // 1. Delete from Firebase Authentication via server-side API
+      const authRes = await fetch('/api/users/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: user.id }),
+      })
+
+      if (!authRes.ok) {
+        const data = await authRes.json().catch(() => ({})) as {
+          error?: string;
+          adminUnavailable?: boolean;
+        };
+
+        if (data.adminUnavailable) {
+          // Admin SDK not available — warn but continue with Firestore deletion
+          toast({
+            variant: 'destructive',
+            title: 'Warning: Auth account not deleted',
+            description:
+              'The Firebase Authentication account could not be removed automatically. ' +
+              'Please delete it manually from the Firebase Console. ' +
+              'The user record has been removed from the management system.',
+          })
+        } else {
+          throw new Error(data.error ?? 'Failed to delete user from Firebase Auth')
+        }
+      }
+
+      // 2. Delete user document from Firestore
       const userDocRef = doc(firestore, 'users', user.id)
       await deleteDoc(userDocRef)
 
-      // Note: Firebase Auth user deletion requires admin SDK on server
-      // For now, we only delete the Firestore record
-      // The user won't be able to login if their status is set to Inactive
-
       toast({
         title: 'User Deleted',
-        description: `${user.displayName} has been removed from the system.`,
+        description: `${user.displayName} has been completely removed from the system.`,
       })
-      
+
       onOpenChange(false)
     } catch (error) {
       console.error('Failed to delete user:', error)
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to delete user. Please try again.',
+        description: error instanceof Error ? error.message : 'Failed to delete user. Please try again.',
       })
     } finally {
       setIsDeleting(false)
@@ -73,12 +97,8 @@ export function DeleteUserDialog({ open, onOpenChange, user }: DeleteUserDialogP
         <AlertDialogHeader>
           <AlertDialogTitle>Are you sure?</AlertDialogTitle>
           <AlertDialogDescription>
-            This will permanently delete <strong>{user.displayName}</strong> ({user.email}) from the system. 
-            This action cannot be undone.
-            <br/><br/>
-            <strong>Note:</strong> This only removes the user from the management system. 
-            If the user was created with Firebase Authentication, their authentication account will remain active. 
-            For complete removal, use Firebase Console or implement Firebase Admin SDK on the server.
+            This will permanently delete <strong>{user.displayName}</strong> ({user.email}) from both
+            the management system and Firebase Authentication. This action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

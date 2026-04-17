@@ -10,6 +10,10 @@ import {
   doc,
   updateDoc,
   deleteDoc,
+  addDoc,
+  getDocs,
+  limit,
+  serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
 import type { SavedInvoice } from "@/lib/types";
@@ -57,6 +61,8 @@ import {
   ArrowUp,
   ArrowDown,
   Trash2,
+  Ban,
+  FilePlus,
 } from "lucide-react";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -114,6 +120,7 @@ function computeStatus(invoice: SavedInvoice): DynamicStatus {
 /** Late fees: 1% per month (per-diem) from due date to today */
 function computeLateFees(invoice: SavedInvoice): number {
   if (invoice.status === "paid") return 0;
+  if (invoice.waivedLateFees) return 0;
   const dueDate = computeDueDate(invoice);
   if (!dueDate) return 0;
   const days = daysUntilDue(dueDate);
@@ -402,6 +409,11 @@ export function InvoiceManagement() {
     }
     setActionLoading(`email-${invoice.id}`, true);
     try {
+      const dueDate = computeDueDate(invoice);
+      const dueDateStr = dueDate
+        ? `${String(dueDate.getMonth() + 1).padStart(2, "0")}/${String(dueDate.getDate()).padStart(2, "0")}/${dueDate.getFullYear()}`
+        : undefined;
+
       const res = await fetch("/api/send-invoice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -413,12 +425,14 @@ export function InvoiceManagement() {
           dateFrom: invoice.dateFrom,
           dateTo: invoice.dateTo,
           total: invoice.total,
+          dueDate: dueDateStr,
           minimumWageTopUp: invoice.minimumWageTopUp,
           paidRestBreaks: invoice.paidRestBreaks,
           overtimePremium: invoice.overtimePremium,
           overtimeHours: invoice.overtimeHours,
           subtotal: invoice.subtotal,
           commission: invoice.commission,
+          overdueInterestAccrued: invoice.overdueInterestAccrued ?? 0,
           dailyBreakdown: invoice.dailyBreakdown ?? null,
           invoiceClientData: invoice.invoiceClientData ?? null,
           employeeDetails: invoice.employeeDetails ?? [],
@@ -447,6 +461,93 @@ export function InvoiceManagement() {
       });
     } finally {
       setActionLoading(`email-${invoice.id}`, false);
+    }
+  };
+
+  // ── waive late fees ──
+  const handleWaiveLateFees = async (invoice: SavedInvoice) => {
+    if (!firestore || !invoice.id) return;
+    setActionLoading(`waive-${invoice.id}`, true);
+    try {
+      await updateDoc(doc(firestore, "invoices", invoice.id), {
+        waivedLateFees: true,
+      });
+      toast({ title: "Late Fees dispensados", description: `Los Late Fees del Invoice #${invoice.invoiceNumber} se han puesto a $0.00.` });
+    } catch (err) {
+      console.error("Error waiving late fees:", err);
+      toast({ variant: "destructive", title: "Error", description: "No se pudieron dispensar los Late Fees." });
+    } finally {
+      setActionLoading(`waive-${invoice.id}`, false);
+    }
+  };
+
+  // ── create overdue interest invoice ──
+  const handleCreateOIInvoice = async (invoice: SavedInvoice, lateFees: number) => {
+    if (!firestore || !invoice.id) return;
+    setActionLoading(`oi-${invoice.id}`, true);
+    try {
+      // Determine new invoice number
+      let newInvoiceNumber = invoice.invoiceNumber + "-OI";
+      try {
+        const latestQuery = query(collection(firestore, "invoices"), orderBy("invoiceNumber", "desc"), limit(1));
+        const latestSnap = await getDocs(latestQuery);
+        if (!latestSnap.empty) {
+          const lastNum = parseInt(latestSnap.docs[0].data().invoiceNumber as string, 10);
+          if (!isNaN(lastNum)) {
+            newInvoiceNumber = String(lastNum + 1).padStart(5, "0");
+          }
+        }
+      } catch {
+        // fallback to OI suffix
+      }
+
+      const dueDate = computeDueDate(invoice);
+      const today = new Date();
+      const dueDateStr = dueDate
+        ? `${String(dueDate.getMonth() + 1).padStart(2, "0")}/${String(dueDate.getDate()).padStart(2, "0")}/${dueDate.getFullYear()}`
+        : "N/A";
+      const todayStr = `${String(today.getMonth() + 1).padStart(2, "0")}/${String(today.getDate()).padStart(2, "0")}/${today.getFullYear()}`;
+
+      const newTotal = invoice.total + lateFees;
+
+      await addDoc(collection(firestore, "invoices"), {
+        invoiceNumber: newInvoiceNumber,
+        invoiceDate: todayStr,
+        clientId: invoice.clientId,
+        clientName: invoice.clientName,
+        clientEmail: invoice.clientEmail ?? null,
+        dateFrom: invoice.dateFrom,
+        dateTo: invoice.dateTo,
+        laborCost: invoice.laborCost,
+        minimumWageTopUp: invoice.minimumWageTopUp,
+        paidRestBreaks: invoice.paidRestBreaks,
+        overtimePremium: invoice.overtimePremium ?? 0,
+        overtimeHours: invoice.overtimeHours ?? 0,
+        subtotal: invoice.subtotal,
+        commission: invoice.commission,
+        total: newTotal,
+        overdueInterestAccrued: lateFees,
+        overdueInterestDueDate: dueDateStr,
+        overdueInterestCurrentDate: todayStr,
+        status: "pending",
+        sentAt: null,
+        paidAt: null,
+        emailSentCount: 0,
+        dailyBreakdown: invoice.dailyBreakdown ?? null,
+        employeeDetails: invoice.employeeDetails ?? [],
+        invoiceClientData: invoice.invoiceClientData ?? null,
+        createdAt: serverTimestamp(),
+      });
+
+      toast({
+        title: "Invoice con interés creado",
+        description: `Invoice #${newInvoiceNumber} creado con Overdue Interest de $${lateFees.toFixed(2)}.`,
+      });
+    } catch (err) {
+      console.error("Error creating OI invoice:", err);
+      toast({ variant: "destructive", title: "Error", description: "No se pudo crear el invoice con interés." });
+    } finally {
+      setActionLoading(`oi-${invoice.id}`, false);
     }
   };
 
@@ -638,13 +739,19 @@ export function InvoiceManagement() {
                 const createdAt = toDate(invoice.createdAt);
                 const sentAt = toDate(invoice.sentAt ?? null);
                 const id = invoice.id ?? "";
-                const isActing = loadingActions[id] || loadingActions[`email-${id}`];
+                const isActing = Object.keys(loadingActions).some(
+                  (k) => (k === id || k.endsWith(`-${id}`)) && loadingActions[k]
+                );
                 const isPaid = invoice.status === "paid";
                 const isSelected = selectedIds.has(id);
                 const dynamicStatus = computeStatus(invoice);
                 const dueDate = computeDueDate(invoice);
                 const lateFees = computeLateFees(invoice);
-                const totalDue = (invoice.subtotal ?? 0) + lateFees;
+                // Total due includes overdue interest if already baked in (OI invoice)
+                const totalDue =
+                  (invoice.subtotal ?? 0) +
+                  (invoice.overdueInterestAccrued ?? 0) +
+                  lateFees;
 
                 return (
                   <TableRow key={id} data-selected={isSelected || undefined} className={isSelected ? "bg-muted/50" : ""}>
@@ -681,7 +788,9 @@ export function InvoiceManagement() {
                       {sentAt ? formatDateTime(sentAt) : <span className="text-muted-foreground text-xs">—</span>}
                     </TableCell>
                     <TableCell className="text-right text-sm whitespace-nowrap">
-                      {lateFees > 0 ? (
+                      {invoice.waivedLateFees ? (
+                        <span className="text-muted-foreground text-xs line-through">waived</span>
+                      ) : lateFees > 0 ? (
                         <span className="text-red-600 font-medium">${lateFees.toFixed(2)}</span>
                       ) : (
                         <span className="text-muted-foreground text-xs">—</span>
@@ -691,7 +800,7 @@ export function InvoiceManagement() {
                       ${totalDue.toFixed(2)}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Button
                           size="sm"
                           variant="outline"
@@ -720,6 +829,42 @@ export function InvoiceManagement() {
                               <CheckCircle2 className="h-3 w-3 mr-1" />
                             )}
                             Mark As Paid
+                          </Button>
+                        )}
+                        {/* Waive Late Fees — only when overdue and not yet waived */}
+                        {dynamicStatus === "overdue" && !invoice.waivedLateFees && !isPaid && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="whitespace-nowrap border-orange-400 text-orange-600 hover:bg-orange-50"
+                            onClick={() => handleWaiveLateFees(invoice)}
+                            disabled={isActing}
+                            title="Dispensar Late Fees ($0.00)"
+                          >
+                            {loadingActions[`waive-${id}`] ? (
+                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                            ) : (
+                              <Ban className="h-3 w-3 mr-1" />
+                            )}
+                            Waive Late Fees
+                          </Button>
+                        )}
+                        {/* Create OI Invoice — only when late fees exist */}
+                        {lateFees > 0 && !isPaid && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="whitespace-nowrap border-red-400 text-red-600 hover:bg-red-50"
+                            onClick={() => handleCreateOIInvoice(invoice, lateFees)}
+                            disabled={isActing}
+                            title="Crear invoice con Overdue Interest Accrued"
+                          >
+                            {loadingActions[`oi-${id}`] ? (
+                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                            ) : (
+                              <FilePlus className="h-3 w-3 mr-1" />
+                            )}
+                            Create OI Invoice
                           </Button>
                         )}
                       </div>
