@@ -75,7 +75,15 @@ function fmtCurrency(value: number): string {
 function parseLocalDate(dateStr: string): Date {
   const parts = dateStr.split("-").map(Number);
   const [y, m, d] = parts;
-  if (parts.length !== 3 || !y || !m || !d || isNaN(y) || isNaN(m) || isNaN(d)) {
+  if (
+    parts.length !== 3 ||
+    !y ||
+    !m ||
+    !d ||
+    isNaN(y) ||
+    isNaN(m) ||
+    isNaN(d)
+  ) {
     return new Date(NaN); // Invalid date — formatDateMDY guards against this
   }
   return new Date(y, m - 1, d);
@@ -89,15 +97,44 @@ function formatDateMDY(dateStr: string): string {
 
 /** Convert integer 0–99 to English words (used for payment terms, e.g. 10 → "ten"). */
 function numberToWords(n: number): string {
-  const ones = ["", "one", "two", "three", "four", "five", "six", "seven",
-    "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen",
-    "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
-  const tens = ["", "", "twenty", "thirty", "forty", "fifty",
-    "sixty", "seventy", "eighty", "ninety"];
+  const ones = [
+    "",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+  ];
+  const tens = [
+    "",
+    "",
+    "twenty",
+    "thirty",
+    "forty",
+    "fifty",
+    "sixty",
+    "seventy",
+    "eighty",
+    "ninety",
+  ];
   if (n < 20) return ones[n] ?? String(n);
   const t = Math.floor(n / 10);
   const o = n % 10;
-  return o > 0 ? `${tens[t]}-${ones[o]}` : tens[t] ?? String(n);
+  return o > 0 ? `${tens[t]}-${ones[o]}` : (tens[t] ?? String(n));
 }
 
 /** Truncate text so its rendered width fits within maxWidth, appending "…" if cut. */
@@ -118,7 +155,6 @@ function truncateToFit(doc: jsPDF, text: string, maxWidth: number): string {
   }
   return lo > 0 ? text.slice(0, lo) + ellipsis : ellipsis;
 }
-
 
 // Renders segments of text with different font/color inline, wrapping at maxW.
 
@@ -186,7 +222,13 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   // ── Load logo from the filesystem ───────────────────────────────────────
   let logoBase64: string | null = null;
   try {
-    const logoPath = path.join(process.cwd(), "src", "components", "images", "logo.jpeg");
+    const logoPath = path.join(
+      process.cwd(),
+      "src",
+      "components",
+      "images",
+      "logo.jpeg",
+    );
     logoBase64 = fs.readFileSync(logoPath).toString("base64");
   } catch {
     // Logo not available — skip silently
@@ -250,7 +292,11 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   doc.text("Address:", margin, billY + 13);
   doc.setFont("helvetica", "normal");
   const addrMaxW = contentW / 2 - lblW - 10;
-  doc.text(truncateToFit(doc, clientData.billingAddress ?? "", addrMaxW), margin + lblW, billY + 13);
+  doc.text(
+    truncateToFit(doc, clientData.billingAddress ?? "", addrMaxW),
+    margin + lblW,
+    billY + 13,
+  );
 
   doc.setFont("helvetica", "bold");
   doc.text("e-mail:", margin, billY + 26);
@@ -271,7 +317,9 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   doc.setFont("helvetica", "bold");
   doc.text("Terms:", metaX, billY + 26);
   doc.setFont("helvetica", "normal");
-  doc.text(clientData.paymentTerms ?? `Net ${paymentDays}`, rmX, billY + 26, { align: "right" });
+  doc.text(clientData.paymentTerms ?? `Net ${paymentDays}`, rmX, billY + 26, {
+    align: "right",
+  });
 
   y = billY + 40;
 
@@ -325,8 +373,13 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   const lastPieceworkDate =
     [...sortedDates].reverse().find((date) => {
       const day = dailyBreakdown[date];
-      return day && Object.values(day.tasks).some((t) => t.clientRateType === "piece");
-    }) ?? sortedDates[sortedDates.length - 1] ?? "";
+      return (
+        day &&
+        Object.values(day.tasks).some((t) => t.clientRateType === "piece")
+      );
+    }) ??
+    sortedDates[sortedDates.length - 1] ??
+    "";
 
   // OT
   const otHours = body.overtimeHours ?? 0;
@@ -394,7 +447,10 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
       ex.quantity += row.quantity;
       ex.total += row.total;
     } else {
-      subtotalByUnit.set(row.unit, { quantity: row.quantity, total: row.total });
+      subtotalByUnit.set(row.unit, {
+        quantity: row.quantity,
+        total: row.total,
+      });
     }
   });
   // Merge P/W BREAK hours into Hrs
@@ -403,7 +459,10 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
     hrsEntry.quantity += breakQuantity;
     hrsEntry.total += paidRestBreaks;
   } else {
-    subtotalByUnit.set("Hrs", { quantity: breakQuantity, total: paidRestBreaks });
+    subtotalByUnit.set("Hrs", {
+      quantity: breakQuantity,
+      total: paidRestBreaks,
+    });
   }
   subtotalByUnit.set("OT Hrs", { quantity: otHours, total: otPremium });
   subtotalByUnit.set("MW", { quantity: mwQuantity, total: mwTopUp });
@@ -478,12 +537,22 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
     doc.setTextColor(0);
 
     doc.text(formatDateMDY(row.date), colX.date + 4, y + 10);
-    doc.text(truncateToFit(doc, row.description, descW - 8), colX.desc + 4, y + 10);
+    doc.text(
+      truncateToFit(doc, row.description, descW - 8),
+      colX.desc + 4,
+      y + 10,
+    );
 
-    doc.text(fmtNum(row.quantity), colX.qty + qtyW - 4, y + 10, { align: "right" });
+    doc.text(fmtNum(row.quantity), colX.qty + qtyW - 4, y + 10, {
+      align: "right",
+    });
     doc.text(row.unit, colX.unit + unitW / 2, y + 10, { align: "center" });
-    doc.text(`$${row.price.toFixed(4)}`, colX.price + priceW - 4, y + 10, { align: "right" });
-    doc.text(fmtCurrency(row.total), colX.total + totW - 4, y + 10, { align: "right" });
+    doc.text(`$${row.price.toFixed(4)}`, colX.price + priceW - 4, y + 10, {
+      align: "right",
+    });
+    doc.text(fmtCurrency(row.total), colX.total + totW - 4, y + 10, {
+      align: "right",
+    });
     y += rowH;
   });
 
@@ -508,7 +577,7 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   ly += 15;
 
   // Sub-table header
-  const lqW = halfW * 0.40;
+  const lqW = halfW * 0.4;
   const luW = halfW * 0.25;
   doc.setFillColor(243, 244, 246);
   doc.rect(leftX, ly, halfW, subRowH, "F");
@@ -528,9 +597,13 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
     doc.rect(leftX, ly, halfW, subRowH);
     doc.setFontSize(subFS);
     doc.setTextColor(0);
-    doc.text(fmtNum(row.quantity), leftX + lqW - 4, ly + 11, { align: "right" });
+    doc.text(fmtNum(row.quantity), leftX + lqW - 4, ly + 11, {
+      align: "right",
+    });
     doc.text(row.unit, leftX + lqW + luW / 2, ly + 11, { align: "center" });
-    doc.text(fmtCurrency(row.total), leftX + halfW - 4, ly + 11, { align: "right" });
+    doc.text(fmtCurrency(row.total), leftX + halfW - 4, ly + 11, {
+      align: "right",
+    });
     ly += subRowH;
   });
 
@@ -543,7 +616,9 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   doc.setFontSize(subFS);
   doc.setTextColor(0);
   doc.text("Invoice Subtotal", leftX + 6, ly + 11);
-  doc.text(fmtCurrency(invoiceSubtotal), leftX + halfW - 4, ly + 11, { align: "right" });
+  doc.text(fmtCurrency(invoiceSubtotal), leftX + halfW - 4, ly + 11, {
+    align: "right",
+  });
   ly += subRowH;
 
   // === RIGHT: Invoice Summary ===
@@ -552,7 +627,13 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   let ry = sectionStartY + 15 + subRowH;
 
   const summaryData = [
-    { label: "Invoice Subtotal", value: invoiceSubtotal, bold: true, highlight: false, large: false },
+    {
+      label: "Invoice Subtotal",
+      value: invoiceSubtotal,
+      bold: true,
+      highlight: false,
+      large: false,
+    },
     {
       label: `Contractors Fee${clientData.commissionRate ? ` (${clientData.commissionRate}%)` : ""}`,
       value: contractorsFee,
@@ -560,8 +641,20 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
       highlight: false,
       large: false,
     },
-    { label: "Total Field Charges", value: invoiceTotal, bold: false, highlight: false, large: false },
-    { label: "Invoice Total", value: invoiceTotal, bold: true, highlight: true, large: true },
+    {
+      label: "Total Field Charges",
+      value: invoiceTotal,
+      bold: false,
+      highlight: false,
+      large: false,
+    },
+    {
+      label: "Invoice Total",
+      value: invoiceTotal,
+      bold: true,
+      highlight: true,
+      large: true,
+    },
   ];
 
   summaryData.forEach((row) => {
@@ -577,7 +670,9 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
     doc.setFontSize(row.large ? 10 : subFS);
     doc.setTextColor(0);
     doc.text(row.label, rightX + 8, ry + 11);
-    doc.text(fmtCurrency(row.value), rightX + halfW - 4, ry + 11, { align: "right" });
+    doc.text(fmtCurrency(row.value), rightX + halfW - 4, ry + 11, {
+      align: "right",
+    });
     ry += subRowH;
   });
 
@@ -600,7 +695,9 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
     [
       { text: '"All invoices are due and payable within ' },
       { text: `${numberToWords(paymentDays)} (${paymentDays})`, bold: true },
-      { text: " calendar days from the invoice date. Any balance unpaid after the " },
+      {
+        text: " calendar days from the invoice date. Any balance unpaid after the ",
+      },
       { text: `${paymentDays}-day`, bold: true },
       { text: " period will accrue interest at a rate of " },
       { text: "1%", bold: true, red: true },
@@ -627,18 +724,24 @@ export async function POST(request: Request) {
   try {
     body = (await request.json()) as SendInvoiceBody;
   } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid request body" },
+      { status: 400 },
+    );
   }
 
   const { invoiceNumber, clientEmail, total, dueDate, clientName } = body;
 
   if (!clientEmail) {
-    return NextResponse.json({ error: "clientEmail is required" }, { status: 400 });
+    return NextResponse.json(
+      { error: "clientEmail is required" },
+      { status: 400 },
+    );
   }
 
   // --- CONFIGURACIÓN GMAIL ---
-  const smtpUser = "m.a.a.g.3008@@gmail.com";
-  const smtpPass = "fktg vwoc qqpi qkbq"; // Tu contraseña de aplicación de 16 letras
+  const smtpUser = "jmagriculturalaborinvoicing@gmail.com";
+  const smtpPass = "mmck mxxn fjjk pqf"; // Tu contraseña de aplicación de 16 letras
 
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
@@ -710,6 +813,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Error sending email:", err);
-    return NextResponse.json({ error: "Failed to send email" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to send email" },
+      { status: 500 },
+    );
   }
 }
