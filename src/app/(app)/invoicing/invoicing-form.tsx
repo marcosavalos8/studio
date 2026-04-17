@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Client, Task, Piecework, TimeEntry, Employee } from "@/lib/types";
+import type { Client, Task, Piecework, TimeEntry, Employee, SavedInvoiceClientSnapshot } from "@/lib/types";
 import type { DateRange } from "react-day-picker";
 import { useFirestore } from "@/firebase";
 import {
@@ -43,6 +43,31 @@ type InvoicingFormProps = {
   clients: Client[];
 };
 
+type InvoiceFirestorePayload = {
+  invoiceNumber: string;
+  invoiceDate: string;
+  clientId: string;
+  clientName: string;
+  clientEmail: string | null;
+  dateFrom: string;
+  dateTo: string;
+  laborCost: number;
+  minimumWageTopUp: number;
+  paidRestBreaks: number;
+  overtimePremium: number;
+  overtimeHours: number;
+  subtotal: number;
+  commission: number;
+  total: number;
+  status: "pending";
+  sentAt: null;
+  paidAt: null;
+  emailSentCount: number;
+  dailyBreakdown: DetailedInvoiceData["dailyBreakdown"];
+  employeeDetails: DetailedInvoiceData["employeeDetails"];
+  invoiceClientData: SavedInvoiceClientSnapshot;
+};
+
 export function InvoicingForm({ clients }: InvoicingFormProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -58,7 +83,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
   const [isSaved, setIsSaved] = React.useState(false);
   // Stores the pending Firestore payload while the user previews
   const [pendingFirestorePayload, setPendingFirestorePayload] =
-    React.useState<Record<string, unknown> | null>(null);
+    React.useState<InvoiceFirestorePayload | null>(null);
 
   const handleGenerate = async () => {
     if (!firestore || !selectedClient || !date?.from || !date?.to) {
@@ -504,7 +529,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
       };
 
       // Build the Firestore payload (to be saved only when user clicks "Create Record")
-      const firestorePayload: Record<string, unknown> = {
+      const firestorePayload: InvoiceFirestorePayload = {
         invoiceNumber,
         invoiceDate: format(new Date(), "MM/dd/yyyy"),
         clientId: clientData.id,
