@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase-admin';
 import { firebaseConfig } from '@/firebase/config';
+
+// Firebase Auth REST API endpoints
+const FIREBASE_AUTH_SIGNUP_API = 'https://identitytoolkit.googleapis.com/v1/accounts:signUp';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,70 +23,69 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const auth = adminAuth();
-
-    if (!auth) {
-      // Admin SDK unavailable — fall back to the REST API
-      return await createViaRestApi(email, password, displayName);
+    const API_KEY = firebaseConfig.apiKey;
+    if (!API_KEY) {
+      console.error('Firebase API key not configured');
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
 
-    // ── Try to create the user via Admin SDK ──────────────────────────────
-    try {
-      const userRecord = await auth.createUser({
-        email,
-        password,
-        displayName,
-      });
+    // ── Attempt 1: create via REST API ────────────────────────────────────
+    const { uid, errorMessage } = await signupViaRestApi(API_KEY, email, password, displayName);
 
-      console.log('User created successfully:', { uid: userRecord.uid, email, displayName, role, status });
-
+    if (uid) {
+      console.log('User created successfully:', { uid, email, displayName, role, status });
       return NextResponse.json(
-        { success: true, uid: userRecord.uid, message: 'User created successfully' },
+        { success: true, uid, message: 'User created successfully' },
         { status: 200 },
       );
-    } catch (createError: unknown) {
-      const authError = createError as { code?: string; message?: string };
+    }
 
-      // If the email already exists in Auth but NOT in Firestore (orphaned account),
-      // delete the old Auth account and recreate it so the user can be re-registered.
-      if (authError.code === 'auth/email-already-exists') {
-        try {
-          // Look up the existing Auth user by email
-          const existingUser = await auth.getUserByEmail(email);
+    // If the email already exists, try to clean up the orphaned Auth account via
+    // Admin SDK and then retry. This handles the case where a user was deleted from
+    // Firestore only (without the corresponding Auth account being removed).
+    if (errorMessage === 'EMAIL_EXISTS') {
+      const cleaned = await tryCleanupOrphanedAuthAccount(email);
+      if (cleaned) {
+        // Retry creation after removing the orphaned account
+        const { uid: retryUid, errorMessage: retryError } = await signupViaRestApi(
+          API_KEY,
+          email,
+          password,
+          displayName,
+        );
 
-          // Delete the orphaned Auth account
-          await auth.deleteUser(existingUser.uid);
-
-          // Recreate with the new credentials
-          const newUserRecord = await auth.createUser({
-            email,
-            password,
-            displayName,
-          });
-
-          console.log('Recreated orphaned user:', { uid: newUserRecord.uid, email });
-
+        if (retryUid) {
+          console.log('User recreated after orphan cleanup:', { uid: retryUid, email });
           return NextResponse.json(
-            { success: true, uid: newUserRecord.uid, message: 'User created successfully' },
+            { success: true, uid: retryUid, message: 'User created successfully' },
             { status: 200 },
           );
-        } catch (retryError: unknown) {
-          const retryAuthError = retryError as { message?: string };
-          console.error('Failed to recreate orphaned user:', retryError);
-          return NextResponse.json(
-            { error: retryAuthError.message ?? 'Failed to create user' },
-            { status: 500 },
-          );
         }
+
+        console.error('Retry after orphan cleanup failed:', retryError);
+        return NextResponse.json(
+          { error: retryError ?? 'Failed to create user after cleanup' },
+          { status: 400 },
+        );
       }
 
-      // Any other Auth error
-      console.error('Firebase Admin createUser error:', createError);
+      // Could not clean up via Admin SDK (not available in this environment).
+      // The orphaned account must be removed manually from the Firebase Console.
       return NextResponse.json(
-        { error: authError.message ?? 'Failed to create user in Firebase Auth' },
+        {
+          error:
+            'A Firebase Authentication account with this email already exists but has no ' +
+            'matching user record. Please delete the account from the Firebase Console ' +
+            '(Authentication → Users) and try again.',
+        },
         { status: 400 },
       );
     }
+
+    return NextResponse.json(
+      { error: errorMessage ?? 'Failed to create user in Firebase Auth' },
+      { status: 400 },
+    );
   } catch (error) {
     console.error('Error creating user:', error);
     return NextResponse.json(
@@ -94,54 +95,52 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ─── REST API fallback (used when Admin SDK is unavailable) ───────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const FIREBASE_AUTH_SIGNUP_API = 'https://identitytoolkit.googleapis.com/v1/accounts:signUp';
-const FIREBASE_AUTH_LOOKUP_API = 'https://identitytoolkit.googleapis.com/v1/accounts:lookup';
-const FIREBASE_AUTH_DELETE_API = 'https://identitytoolkit.googleapis.com/v1/accounts:delete';
-
-async function createViaRestApi(
+async function signupViaRestApi(
+  apiKey: string,
   email: string,
   password: string,
   displayName: string,
-): Promise<NextResponse> {
-  const API_KEY = firebaseConfig.apiKey;
-
-  if (!API_KEY) {
-    return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
-  }
-
-  const signupRes = await fetch(`${FIREBASE_AUTH_SIGNUP_API}?key=${API_KEY}`, {
+): Promise<{ uid?: string; errorMessage?: string }> {
+  const res = await fetch(`${FIREBASE_AUTH_SIGNUP_API}?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password, displayName, returnSecureToken: true }),
   });
 
-  if (signupRes.ok) {
-    const data = await signupRes.json();
-    return NextResponse.json({ success: true, uid: data.localId, message: 'User created successfully' });
+  if (res.ok) {
+    const data = await res.json();
+    return { uid: data.localId as string };
   }
 
-  const errorData = await signupRes.json();
+  const errorData = await res.json();
   console.error('Firebase Auth REST error:', errorData);
-
-  if (errorData.error?.message !== 'EMAIL_EXISTS') {
-    return NextResponse.json(
-      { error: errorData.error?.message ?? 'Failed to create user in Firebase Auth' },
-      { status: 400 },
-    );
-  }
-
-  // EMAIL_EXISTS — orphaned Auth account. Cannot delete via REST API without
-  // the user's own ID token. Return a descriptive error asking the admin to
-  // remove the account from the Firebase Console.
-  return NextResponse.json(
-    {
-      error:
-        'A Firebase Authentication account with this email already exists but has no ' +
-        'matching user record. Please delete the account from the Firebase Console ' +
-        '(Authentication → Users) and try again.',
-    },
-    { status: 400 },
-  );
+  return { errorMessage: (errorData.error?.message as string | undefined) ?? 'Unknown error' };
 }
+
+/**
+ * Attempt to delete an orphaned Firebase Auth account (one that exists in Auth
+ * but not in Firestore) using the Admin SDK.
+ *
+ * Returns true if the account was successfully removed, false otherwise (e.g.
+ * when Admin SDK credentials are unavailable in the current environment).
+ */
+async function tryCleanupOrphanedAuthAccount(email: string): Promise<boolean> {
+  try {
+    const { adminAuth } = await import('@/lib/firebase-admin');
+    const auth = adminAuth();
+    if (!auth) return false;
+
+    const existingUser = await auth.getUserByEmail(email);
+    await auth.deleteUser(existingUser.uid);
+    console.log('Deleted orphaned Auth account for:', email);
+    return true;
+  } catch (err) {
+    // Admin SDK not available or call failed — caller will show a user-friendly message
+    console.warn('Could not clean up orphaned Auth account via Admin SDK:', err);
+    return false;
+  }
+}
+
+
