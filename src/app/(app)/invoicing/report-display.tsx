@@ -132,7 +132,8 @@ export function InvoiceReportDisplay({
   const breakPrice =
     breakQuantity > 0 ? report.paidRestBreaks / breakQuantity : 0;
 
-  const adjustmentRows: TableRow[] = [
+  // Only include adjustment rows where the total is > 0
+  const allAdjustmentRows: TableRow[] = [
     {
       date: lastPieceworkDate,
       description: `${pieceworkPrefix}P/W BREAK`,
@@ -158,6 +159,7 @@ export function InvoiceReportDisplay({
       total: mwTopUp,
     },
   ];
+  const adjustmentRows = allAdjustmentRows.filter((r) => r.total > 0);
 
   const tableRows = [...regularRows, ...adjustmentRows];
 
@@ -173,25 +175,33 @@ export function InvoiceReportDisplay({
     }
   });
 
-  // Merge P/W BREAK hours into the Hrs row of the subtotal
-  const existingHrs = subtotalByUnit.get("Hrs");
-  if (existingHrs) {
-    existingHrs.quantity += breakQuantity;
-    existingHrs.total += report.paidRestBreaks;
-  } else {
-    subtotalByUnit.set("Hrs", { quantity: breakQuantity, total: report.paidRestBreaks });
+  // Merge P/W BREAK hours into the Hrs row of the subtotal (only if > 0)
+  if (report.paidRestBreaks > 0) {
+    const existingHrs = subtotalByUnit.get("Hrs");
+    if (existingHrs) {
+      existingHrs.quantity += breakQuantity;
+      existingHrs.total += report.paidRestBreaks;
+    } else {
+      subtotalByUnit.set("Hrs", { quantity: breakQuantity, total: report.paidRestBreaks });
+    }
   }
 
-  // Add OT Hrs and MW adjustment subtotals
-  subtotalByUnit.set("OT Hrs", { quantity: otHours, total: otPremium });
-  subtotalByUnit.set("MW", { quantity: mwQuantity, total: mwTopUp });
+  // Add OT Hrs and MW adjustment subtotals (only if > 0)
+  if (otPremium > 0) {
+    subtotalByUnit.set("OT Hrs", { quantity: otHours, total: otPremium });
+  }
+  if (mwTopUp > 0) {
+    subtotalByUnit.set("MW", { quantity: mwQuantity, total: mwTopUp });
+  }
 
-  // Ordered display: Hrs (includes break), Pcs, OT Hrs, MW
+  // Ordered display: Hrs (includes break), Pcs, OT Hrs, MW — skip rows with zero total
   const unitOrder = ["Hrs", "Pcs", "OT Hrs", "MW"];
-  const subtotalRows = unitOrder.map((unit) => ({
-    unit,
-    ...(subtotalByUnit.get(unit) ?? { quantity: 0, total: 0 }),
-  }));
+  const subtotalRows = unitOrder
+    .map((unit) => ({
+      unit,
+      ...(subtotalByUnit.get(unit) ?? { quantity: 0, total: 0 }),
+    }))
+    .filter((r) => r.total > 0);
 
   const invoiceSubtotal = subtotalRows.reduce((sum, row) => sum + row.total, 0);
   const contractorsFee = report.commission;

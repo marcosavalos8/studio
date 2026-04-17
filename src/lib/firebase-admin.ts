@@ -3,33 +3,34 @@ import * as admin from 'firebase-admin';
 let adminApp: admin.app.App | null = null;
 
 /**
- * Initialize Firebase Admin SDK
- * For production, you should use a service account key file
- * For this implementation, we'll use application default credentials
+ * Initialize Firebase Admin SDK.
+ * On Google Cloud environments (Firebase App Hosting / Cloud Run) Application Default
+ * Credentials (ADC) are available automatically, so no credential configuration is needed.
  */
 export function getAdminApp(): admin.app.App | null {
   if (adminApp) {
     return adminApp;
   }
 
+  // Try to reuse an already-initialized app
   try {
-    // Try to get existing app
     adminApp = admin.app();
-  } catch (error) {
-    // Initialize new app
-    // In production, you would use:
-    // adminApp = admin.initializeApp({
-    //   credential: admin.credential.cert(serviceAccountKey),
-    //   projectId: 'your-project-id'
-    // });
-    
-    // For this sandbox environment, we'll use a simplified approach
-    // The client-side Firebase SDK will handle authentication
-    console.warn('Firebase Admin SDK not properly configured. User creation will use client-side SDK.');
-    return null;
+    return adminApp;
+  } catch {
+    // App not yet initialized — fall through
   }
 
-  return adminApp;
+  // Initialize with ADC (works on Cloud Run / Firebase App Hosting automatically)
+  try {
+    adminApp = admin.initializeApp();
+    return adminApp;
+  } catch (error) {
+    console.error(
+      'Firebase Admin SDK initialization failed. User auth operations requiring Admin SDK will be unavailable.',
+      error,
+    );
+    return null;
+  }
 }
 
 export const adminAuth = () => {

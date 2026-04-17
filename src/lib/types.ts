@@ -209,6 +209,10 @@ export interface SavedInvoice {
   dailyBreakdown?: Record<string, SavedInvoiceDayBreakdown>;
   employeeDetails?: unknown[];
   invoiceClientData?: SavedInvoiceClientSnapshot;
+  /** When true, late fees have been waived and are treated as $0 */
+  waivedLateFees?: boolean;
+  /** Amount of overdue interest added when creating an overdue-interest invoice */
+  overdueInterestAccrued?: number;
 }
 
 export interface SoundSettings {

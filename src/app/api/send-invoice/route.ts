@@ -44,6 +44,9 @@ interface SendInvoiceBody {
   overtimeHours?: number;
   subtotal?: number;
   commission?: number;
+  overdueInterestAccrued?: number;
+  overdueInterestDueDate?: string;
+  overdueInterestCurrentDate?: string;
   dailyBreakdown?: Record<string, InvoiceDayBreakdown>;
   invoiceClientData?: InvoiceClientData;
   employeeDetails?: Array<{ minimumWageTopUp?: number }>;
@@ -240,9 +243,10 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   const addrLines = [
     "250 Country Heaven Loop",
     "Pasco, WA 99301.",
-    "Telf.: 509-000-1111",
-    "e-mail: jmagriculturalabor@gmail.com",
-    "Acct #: XXX-295   Lic #: 172-25",
+    "Telf.: 509.380.3385",
+    "e-mail: Jmagriculturalabor@outlook.com",
+    "EIN #: 33-2236422   UBI #: 605 650 411",
+    "Lic #: 172-25",
   ];
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
@@ -409,8 +413,8 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   const breakQuantity = totalPieceworkHours * 0.0417;
   const breakPrice = breakQuantity > 0 ? paidRestBreaks / breakQuantity : 0;
 
-  // Adjustment rows (same order as report-display.tsx)
-  const adjustmentRows: TableRow[] = [
+  // Adjustment rows (same order as report-display.tsx, only include when total > 0)
+  const allAdjustmentRows: TableRow[] = [
     {
       date: lastPieceworkDate,
       description: `${pieceworkPrefix}P/W BREAK`,
@@ -436,6 +440,7 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
       total: mwTopUp,
     },
   ];
+  const adjustmentRows = allAdjustmentRows.filter((r) => r.total > 0);
 
   const tableRows = [...regularRows, ...adjustmentRows];
 
@@ -453,28 +458,37 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
       });
     }
   });
-  // Merge P/W BREAK hours into Hrs
-  const hrsEntry = subtotalByUnit.get("Hrs");
-  if (hrsEntry) {
-    hrsEntry.quantity += breakQuantity;
-    hrsEntry.total += paidRestBreaks;
-  } else {
-    subtotalByUnit.set("Hrs", {
-      quantity: breakQuantity,
-      total: paidRestBreaks,
-    });
+  // Merge P/W BREAK hours into Hrs (only if > 0)
+  if (paidRestBreaks > 0) {
+    const hrsEntry = subtotalByUnit.get("Hrs");
+    if (hrsEntry) {
+      hrsEntry.quantity += breakQuantity;
+      hrsEntry.total += paidRestBreaks;
+    } else {
+      subtotalByUnit.set("Hrs", {
+        quantity: breakQuantity,
+        total: paidRestBreaks,
+      });
+    }
   }
-  subtotalByUnit.set("OT Hrs", { quantity: otHours, total: otPremium });
-  subtotalByUnit.set("MW", { quantity: mwQuantity, total: mwTopUp });
+  if (otPremium > 0) {
+    subtotalByUnit.set("OT Hrs", { quantity: otHours, total: otPremium });
+  }
+  if (mwTopUp > 0) {
+    subtotalByUnit.set("MW", { quantity: mwQuantity, total: mwTopUp });
+  }
 
   const unitOrder = ["Hrs", "Pcs", "OT Hrs", "MW"];
-  const subtotalRows = unitOrder.map((unit) => ({
-    unit,
-    ...(subtotalByUnit.get(unit) ?? { quantity: 0, total: 0 }),
-  }));
+  const subtotalRows = unitOrder
+    .map((unit) => ({
+      unit,
+      ...(subtotalByUnit.get(unit) ?? { quantity: 0, total: 0 }),
+    }))
+    .filter((r) => r.total > 0);
 
   const invoiceSubtotal = subtotalRows.reduce((sum, r) => sum + r.total, 0);
   const contractorsFee = body.commission ?? 0;
+  const overdueInterest = body.overdueInterestAccrued ?? 0;
   const invoiceTotal = body.total ?? 0;
 
   // ── MAIN LABOR TABLE ─────────────────────────────────────────────────────
@@ -626,7 +640,16 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   // (skip "Labor Subtotal" label height + sub-header row)
   let ry = sectionStartY + 15 + subRowH;
 
-  const summaryData = [
+  // Build summary rows; insert Overdue Interest after Contractors Fee if present
+  type SummaryRow = {
+    label: string;
+    value: number;
+    bold: boolean;
+    highlight: boolean;
+    large: boolean;
+    red?: boolean;
+  };
+  const summaryData: SummaryRow[] = [
     {
       label: "Invoice Subtotal",
       value: invoiceSubtotal,
@@ -641,6 +664,22 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
       highlight: false,
       large: false,
     },
+  ];
+
+  if (overdueInterest > 0) {
+    const oiDueDate = body.overdueInterestDueDate ?? "—";
+    const oiCurrentDate = body.overdueInterestCurrentDate ?? "—";
+    summaryData.push({
+      label: `Overdue Interest Accrued (0.033%/day from ${oiDueDate} to ${oiCurrentDate})`,
+      value: overdueInterest,
+      bold: false,
+      highlight: false,
+      large: false,
+      red: true,
+    });
+  }
+
+  summaryData.push(
     {
       label: "Total Field Charges",
       value: invoiceTotal,
@@ -655,7 +694,7 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
       highlight: true,
       large: true,
     },
-  ];
+  );
 
   summaryData.forEach((row) => {
     if (row.highlight) {
@@ -668,8 +707,13 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
     doc.rect(rightX, ry, halfW, subRowH);
     doc.setFont("helvetica", row.bold ? "bold" : "normal");
     doc.setFontSize(row.large ? 10 : subFS);
+    doc.setTextColor(row.red ? 220 : 0, row.red ? 38 : 0, row.red ? 38 : 0);
+    doc.text(
+      truncateToFit(doc, row.label, halfW - 70),
+      rightX + 8,
+      ry + 11,
+    );
     doc.setTextColor(0);
-    doc.text(row.label, rightX + 8, ry + 11);
     doc.text(fmtCurrency(row.value), rightX + halfW - 4, ry + 11, {
       align: "right",
     });
@@ -776,7 +820,7 @@ export async function POST(request: Request) {
         <strong>J&amp;M Agricultural Labor LLC</strong><br>
         Billing Department<br>
         Email: <a href="mailto:Jmagriculturalabor@outlook.com">Jmagriculturalabor@outlook.com</a><br>
-        Phone: 509-000-1111<br>
+        Phone: 509-380-3385<br>
         License #: 172-25<br>
         Pasco, WA 99301
       </p>
