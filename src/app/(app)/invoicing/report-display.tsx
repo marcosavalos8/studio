@@ -5,7 +5,7 @@ import { type DetailedInvoiceData } from "./page";
 import { format } from "date-fns";
 import { parseLocalDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Printer, ArrowLeft } from "lucide-react";
+import { Printer, ArrowLeft, Save, CheckCircle2, Loader2 } from "lucide-react";
 import logo from "../../../components/images/logo.jpeg";
 import Image from "next/image";
 
@@ -13,6 +13,9 @@ interface ReportDisplayProps {
   report: DetailedInvoiceData;
   onBack: () => void;
   isGrouped?: boolean;
+  onSave?: () => Promise<void>;
+  isSaving?: boolean;
+  isSaved?: boolean;
 }
 
 const formatCurrency = (value: number | undefined | null): string => {
@@ -44,6 +47,9 @@ const numberToWords = (n: number): string => {
 export function InvoiceReportDisplay({
   report,
   onBack,
+  onSave,
+  isSaving,
+  isSaved,
 }: ReportDisplayProps) {
   const handlePrint = () => {
     window.print();
@@ -202,12 +208,30 @@ export function InvoiceReportDisplay({
       <div className="mb-4 flex justify-between items-center print:hidden">
         <Button variant="outline" onClick={onBack}>
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Generate New Invoice
+          {isSaved ? "Generate New Invoice" : "Back / Discard"}
         </Button>
-        <Button onClick={handlePrint}>
-          <Printer className="mr-2 h-4 w-4" />
-          Print / Save as PDF
-        </Button>
+        <div className="flex items-center gap-2">
+          {onSave && (
+            <Button
+              onClick={onSave}
+              disabled={isSaving || isSaved}
+              variant={isSaved ? "secondary" : "default"}
+            >
+              {isSaving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : isSaved ? (
+                <CheckCircle2 className="mr-2 h-4 w-4 text-green-600" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
+              {isSaved ? "Record Created" : "Create Record"}
+            </Button>
+          )}
+          <Button onClick={handlePrint}>
+            <Printer className="mr-2 h-4 w-4" />
+            Print / Save as PDF
+          </Button>
+        </div>
       </div>
 
       <div className="report-container bg-white text-black rounded-lg border shadow-sm" style={{ padding: "24px" }}>
@@ -268,9 +292,9 @@ export function InvoiceReportDisplay({
           <div style={{ textAlign: "right", fontSize: "12px" }}>
             <div>250 Country Heaven Loop</div>
             <div>Pasco, WA 99301.</div>
-            <div>Telf.: 509-000-1111</div>
-            <div>e-mail: jmagriculturalabor@gmail.com</div>
-            <div>Acct #: XXX-295 &nbsp; Lic #: 172-25</div>
+            <div>Telf.: 509.380.3385</div>
+            <div>e-mail: Jmagriculturalabor@outlook.com</div>
+            <div>EIN #: 33-2236422 &nbsp; UBI #: 605 650 411</div>
           </div>
         </div>
 

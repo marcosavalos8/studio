@@ -13,7 +13,6 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import type { SavedInvoice } from "@/lib/types";
-import { formatRelativeTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -49,6 +48,8 @@ import { useToast } from "@/hooks/use-toast";
 import {
   CheckCircle2,
   Clock,
+  AlertCircle,
+  AlarmClock,
   Mail,
   Loader2,
   FileText,
@@ -67,26 +68,132 @@ function toDate(val: SavedInvoice["createdAt"]): Date | null {
   return null;
 }
 
-function RelativeTime({ date }: { date: Date | null }) {
-  const [label, setLabel] = React.useState<string>("-");
+/** Parse "MM/dd/yyyy" → Date at midnight local time */
+function parseInvoiceDate(dateStr: string): Date | null {
+  const parts = dateStr?.split("/");
+  if (!parts || parts.length !== 3) return null;
+  const [month, day, year] = parts.map(Number);
+  if (!month || !day || !year) return null;
+  return new Date(year, month - 1, day);
+}
 
-  React.useEffect(() => {
-    if (!date) {
-      setLabel("-");
-      return;
-    }
-    setLabel(formatRelativeTime(date));
-    const interval = setInterval(() => setLabel(formatRelativeTime(date)), 60_000);
-    return () => clearInterval(interval);
-  }, [date]);
+/** Compute the due date from invoiceDate string + payment terms */
+function computeDueDate(invoice: SavedInvoice): Date | null {
+  const base = parseInvoiceDate(invoice.invoiceDate);
+  if (!base) return null;
+  const paymentTerms =
+    invoice.invoiceClientData?.paymentTerms ?? "";
+  const match = paymentTerms.match(/\d+/);
+  const days = match ? parseInt(match[0], 10) : 30;
+  const due = new Date(base);
+  due.setDate(due.getDate() + days);
+  return due;
+}
 
-  if (!date) return <span className="text-muted-foreground">-</span>;
-  return <span title={date.toLocaleString()}>{label}</span>;
+/** Returns the number of whole days from today midnight to dueDateMidnight (negative = overdue) */
+function daysUntilDue(dueDate: Date): number {
+  const now = new Date();
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dueMidnight = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+  return Math.round((dueMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+type DynamicStatus = "paid" | "pending" | "due_soon" | "due_today" | "overdue";
+
+function computeStatus(invoice: SavedInvoice): DynamicStatus {
+  if (invoice.status === "paid") return "paid";
+  const dueDate = computeDueDate(invoice);
+  if (!dueDate) return "pending";
+  const days = daysUntilDue(dueDate);
+  if (days >= 7) return "pending";
+  if (days >= 1) return "due_soon";
+  if (days === 0) return "due_today";
+  return "overdue";
+}
+
+/** Late fees: 1% per month (per-diem) from due date to today */
+function computeLateFees(invoice: SavedInvoice): number {
+  if (invoice.status === "paid") return 0;
+  const dueDate = computeDueDate(invoice);
+  if (!dueDate) return 0;
+  const days = daysUntilDue(dueDate);
+  if (days >= 0) return 0; // not overdue yet
+  const daysOverdue = Math.abs(days);
+  return invoice.subtotal * (daysOverdue / 30) * 0.01;
+}
+
+function StatusBadge({ status }: { status: DynamicStatus }) {
+  switch (status) {
+    case "paid":
+      return (
+        <Badge className="bg-green-600 text-white hover:bg-green-700 whitespace-nowrap">
+          <CheckCircle2 className="h-3 w-3 mr-1" /> Paid
+        </Badge>
+      );
+    case "pending":
+      return (
+        <Badge className="bg-blue-600 text-white hover:bg-blue-700 whitespace-nowrap">
+          <Clock className="h-3 w-3 mr-1" /> Pending
+        </Badge>
+      );
+    case "due_soon":
+      return (
+        <Badge className="bg-yellow-500 text-white hover:bg-yellow-600 whitespace-nowrap">
+          <AlarmClock className="h-3 w-3 mr-1" /> Due Soon
+        </Badge>
+      );
+    case "due_today":
+      return (
+        <Badge className="bg-orange-500 text-white hover:bg-orange-600 whitespace-nowrap">
+          <AlertCircle className="h-3 w-3 mr-1" /> Due Today
+        </Badge>
+      );
+    case "overdue":
+      return (
+        <Badge className="bg-red-600 text-white hover:bg-red-700 whitespace-nowrap">
+          <AlertCircle className="h-3 w-3 mr-1" /> Overdue
+        </Badge>
+      );
+  }
+}
+
+function AgingCell({ invoice, status }: { invoice: SavedInvoice; status: DynamicStatus }) {
+  if (status === "paid") return <span className="text-muted-foreground text-xs">—</span>;
+  const dueDate = computeDueDate(invoice);
+  if (!dueDate) return <span className="text-muted-foreground text-xs">—</span>;
+  const days = daysUntilDue(dueDate);
+  if (days > 0) {
+    return <span className="text-sm text-blue-600">{days}d left</span>;
+  }
+  if (days === 0) {
+    return <span className="text-sm font-semibold text-orange-500">Due today</span>;
+  }
+  return <span className="text-sm font-semibold text-red-600">{Math.abs(days)}d overdue</span>;
+}
+
+function formatDateTime(date: Date | null): string {
+  if (!date) return "—";
+  return date.toLocaleString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatDate(date: Date | null): string {
+  if (!date) return "—";
+  return date.toLocaleDateString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+  });
 }
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
-type SortField = "invoiceNumber" | "clientName" | "dateFrom" | "total" | "status" | "createdAt";
+type SortField = "invoiceNumber" | "clientName" | "dateFrom" | "subtotal" | "status" | "createdAt" | "dueDate";
 type SortDir = "asc" | "desc";
 
 // ─── SortableHead ─────────────────────────────────────────────────────────────
@@ -204,16 +311,22 @@ export function InvoiceManagement() {
         case "dateFrom":
           cmp = a.dateFrom.localeCompare(b.dateFrom);
           break;
-        case "total":
-          cmp = (a.total ?? 0) - (b.total ?? 0);
+        case "subtotal":
+          cmp = (a.subtotal ?? 0) - (b.subtotal ?? 0);
           break;
         case "status":
-          cmp = a.status.localeCompare(b.status);
+          cmp = computeStatus(a).localeCompare(computeStatus(b));
           break;
         case "createdAt": {
           const aDate = toDate(a.createdAt)?.getTime() ?? 0;
           const bDate = toDate(b.createdAt)?.getTime() ?? 0;
           cmp = aDate - bDate;
+          break;
+        }
+        case "dueDate": {
+          const aDue = computeDueDate(a)?.getTime() ?? 0;
+          const bDue = computeDueDate(b)?.getTime() ?? 0;
+          cmp = aDue - bDue;
           break;
         }
       }
@@ -507,26 +620,31 @@ export function InvoiceManagement() {
                   />
                 </TableHead>
                 <SortableHead field="invoiceNumber" label="Invoice #" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                <SortableHead field="clientName" label="Cliente" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                <SortableHead field="dateFrom" label="Período" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                <SortableHead field="total" label="Total" sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
-                <SortableHead field="status" label="Estado" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                <SortableHead field="createdAt" label="Creado" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                <TableHead className="whitespace-nowrap">Último envío</TableHead>
-                <TableHead className="whitespace-nowrap text-center">Envíos</TableHead>
-                <TableHead className="whitespace-nowrap">Pagado</TableHead>
-                <TableHead>Acciones</TableHead>
+                <SortableHead field="clientName" label="Customer" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                <SortableHead field="dateFrom" label="Period" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                <SortableHead field="createdAt" label="Issue Date" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                <SortableHead field="dueDate" label="Due Date" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                <SortableHead field="status" label="Status" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                <TableHead className="whitespace-nowrap">Aging</TableHead>
+                <SortableHead field="subtotal" label="Subtotal" sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
+                <TableHead className="whitespace-nowrap">Sending Date</TableHead>
+                <TableHead className="whitespace-nowrap text-right">Late Fees</TableHead>
+                <TableHead className="whitespace-nowrap text-right">Total Due</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {invoices.map((invoice) => {
                 const createdAt = toDate(invoice.createdAt);
                 const sentAt = toDate(invoice.sentAt ?? null);
-                const paidAt = toDate(invoice.paidAt ?? null);
                 const id = invoice.id ?? "";
                 const isActing = loadingActions[id] || loadingActions[`email-${id}`];
                 const isPaid = invoice.status === "paid";
                 const isSelected = selectedIds.has(id);
+                const dynamicStatus = computeStatus(invoice);
+                const dueDate = computeDueDate(invoice);
+                const lateFees = computeLateFees(invoice);
+                const totalDue = (invoice.subtotal ?? 0) + lateFees;
 
                 return (
                   <TableRow key={id} data-selected={isSelected || undefined} className={isSelected ? "bg-muted/50" : ""}>
@@ -544,42 +662,50 @@ export function InvoiceManagement() {
                     <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                       {invoice.dateFrom} – {invoice.dateTo}
                     </TableCell>
-                    <TableCell className="text-right font-medium whitespace-nowrap">
-                      ${(invoice.total ?? 0).toFixed(2)}
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {formatDateTime(createdAt)}
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {formatDate(dueDate)}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={isPaid ? "default" : "secondary"}>
-                        {isPaid ? (
-                          <span className="flex items-center gap-1">
-                            <CheckCircle2 className="h-3 w-3" /> Pagado
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" /> Pendiente
-                          </span>
-                        )}
-                      </Badge>
+                      <StatusBadge status={dynamicStatus} />
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <AgingCell invoice={invoice} status={dynamicStatus} />
+                    </TableCell>
+                    <TableCell className="text-right font-medium whitespace-nowrap">
+                      ${(invoice.subtotal ?? 0).toFixed(2)}
                     </TableCell>
                     <TableCell className="text-sm whitespace-nowrap">
-                      <RelativeTime date={createdAt} />
+                      {sentAt ? formatDateTime(sentAt) : <span className="text-muted-foreground text-xs">—</span>}
                     </TableCell>
-                    <TableCell className="text-sm whitespace-nowrap">
-                      <RelativeTime date={sentAt} />
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {(invoice.emailSentCount ?? 0) > 0 ? (
-                        <Badge variant="outline" className="text-xs font-mono">
-                          ×{invoice.emailSentCount}
-                        </Badge>
+                    <TableCell className="text-right text-sm whitespace-nowrap">
+                      {lateFees > 0 ? (
+                        <span className="text-red-600 font-medium">${lateFees.toFixed(2)}</span>
                       ) : (
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm whitespace-nowrap">
-                      <RelativeTime date={paidAt} />
+                    <TableCell className="text-right font-semibold whitespace-nowrap">
+                      ${totalDue.toFixed(2)}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSendEmail(invoice)}
+                          disabled={isActing || !invoice.clientEmail}
+                          title={!invoice.clientEmail ? "El cliente no tiene email registrado" : `Enviar a ${invoice.clientEmail}`}
+                        >
+                          {loadingActions[`email-${id}`] ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Mail className="h-3 w-3 mr-1" />
+                          )}
+                          Send
+                        </Button>
                         {!isPaid && (
                           <Button
                             size="sm"
@@ -593,23 +719,9 @@ export function InvoiceManagement() {
                             ) : (
                               <CheckCircle2 className="h-3 w-3 mr-1" />
                             )}
-                            Marcar pagado
+                            Mark As Paid
                           </Button>
                         )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleSendEmail(invoice)}
-                          disabled={isActing || !invoice.clientEmail}
-                          title={!invoice.clientEmail ? "El cliente no tiene email registrado" : `Enviar a ${invoice.clientEmail}`}
-                        >
-                          {loadingActions[`email-${id}`] ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Mail className="h-3 w-3 mr-1" />
-                          )}
-                          Enviar
-                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
