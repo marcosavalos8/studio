@@ -41,42 +41,38 @@ export function DeleteUserDialog({ open, onOpenChange, user }: DeleteUserDialogP
     setIsDeleting(true)
 
     try {
-      // 1. Delete from Firebase Authentication via server-side API
+      // 1. Delete from Firebase Authentication via server-side API (best-effort)
       const authRes = await fetch('/api/users/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ uid: user.id }),
       })
 
-      if (!authRes.ok) {
-        const data = await authRes.json().catch(() => ({})) as {
-          error?: string;
-          adminUnavailable?: boolean;
-        };
+      const authData = await authRes.json().catch(() => ({})) as {
+        success?: boolean;
+        error?: string;
+        adminUnavailable?: boolean;
+      };
 
-        if (data.adminUnavailable) {
-          // Admin SDK not available — warn but continue with Firestore deletion
-          toast({
-            variant: 'destructive',
-            title: 'Warning: Auth account not deleted',
-            description:
-              'The Firebase Authentication account could not be removed automatically. ' +
-              'Please delete it manually from the Firebase Console. ' +
-              'The user record has been removed from the management system.',
-          })
-        } else {
-          throw new Error(data.error ?? 'Failed to delete user from Firebase Auth')
-        }
+      if (!authRes.ok) {
+        throw new Error(authData.error ?? 'Failed to delete user from Firebase Auth')
       }
 
       // 2. Delete user document from Firestore
       const userDocRef = doc(firestore, 'users', user.id)
       await deleteDoc(userDocRef)
 
-      toast({
-        title: 'User Deleted',
-        description: `${user.displayName} has been completely removed from the system.`,
-      })
+      if (authData.adminUnavailable) {
+        toast({
+          title: 'User Deleted',
+          description: `${user.displayName} was removed from the system. Note: the Firebase Authentication account may need to be deleted manually from the Firebase Console.`,
+        })
+      } else {
+        toast({
+          title: 'User Deleted',
+          description: `${user.displayName} has been completely removed from the system.`,
+        })
+      }
 
       onOpenChange(false)
     } catch (error) {

@@ -13,40 +13,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const auth = adminAuth();
+    // ── Attempt to delete from Firebase Auth via Admin SDK ────────────────
+    // This is best-effort: if Admin SDK credentials are unavailable in the
+    // current environment the Firestore deletion (handled client-side) still
+    // succeeds and we return a flag so the dialog can surface a warning.
+    try {
+      const auth = adminAuth();
 
-    if (!auth) {
-      // Admin SDK unavailable (e.g. local dev without ADC).
-      // Return a specific error so the client can surface a helpful message.
-      return NextResponse.json(
-        {
-          error:
-            'Firebase Admin SDK is not available in this environment. ' +
-            'The Firestore record has been deleted, but the Firebase Authentication ' +
-            'account could not be removed automatically. Please delete it manually ' +
-            'from the Firebase Console.',
-          adminUnavailable: true,
-        },
-        { status: 503 },
-      );
+      if (auth) {
+        await auth.deleteUser(uid);
+      } else {
+        return NextResponse.json({ success: true, adminUnavailable: true });
+      }
+    } catch (authError: unknown) {
+      const err = authError as { code?: string };
+
+      if (err.code !== 'auth/user-not-found') {
+        // Admin SDK threw (e.g. missing project ID / ADC not configured).
+        // Log it but let the client know so it can surface a warning.
+        console.warn('Admin SDK Auth deletion failed (best-effort):', authError);
+        return NextResponse.json({ success: true, adminUnavailable: true });
+      }
+      // auth/user-not-found: already gone from Auth — continue to success
     }
-
-    await auth.deleteUser(uid);
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
-    console.error('Error deleting user from Firebase Auth:', error);
-
-    // firebase-admin throws objects with a `code` property for known errors
-    const authError = error as { code?: string; message?: string };
-
-    if (authError.code === 'auth/user-not-found') {
-      // User doesn't exist in Auth — treat as success (already gone)
-      return NextResponse.json({ success: true, notFound: true });
-    }
-
+    console.error('Error in user delete route:', error);
+    const err = error as { message?: string };
     return NextResponse.json(
-      { error: authError.message ?? 'Failed to delete user from Firebase Auth' },
+      { error: err.message ?? 'Failed to delete user' },
       { status: 500 },
     );
   }
