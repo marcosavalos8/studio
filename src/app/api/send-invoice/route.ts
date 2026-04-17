@@ -741,7 +741,7 @@ export async function POST(request: Request) {
 
   // --- CONFIGURACIÓN GMAIL ---
   const smtpUser = "jmagriculturalaborinvoicing@gmail.com";
-  const smtpPass = "mmck mxxn fjjk pqf"; // Tu contraseña de aplicación de 16 letras
+  const smtpPass = process.env.SMTP_PASS;
 
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
