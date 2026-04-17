@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Client, Task, Piecework, TimeEntry, Employee } from "@/lib/types";
+import type { Client, Task, Piecework, TimeEntry, Employee, SavedInvoiceClientSnapshot } from "@/lib/types";
 import type { DateRange } from "react-day-picker";
 import { useFirestore } from "@/firebase";
 import {
@@ -43,6 +43,31 @@ type InvoicingFormProps = {
   clients: Client[];
 };
 
+type InvoiceFirestorePayload = {
+  invoiceNumber: string;
+  invoiceDate: string;
+  clientId: string;
+  clientName: string;
+  clientEmail: string | null;
+  dateFrom: string;
+  dateTo: string;
+  laborCost: number;
+  minimumWageTopUp: number;
+  paidRestBreaks: number;
+  overtimePremium: number;
+  overtimeHours: number;
+  subtotal: number;
+  commission: number;
+  total: number;
+  status: "pending";
+  sentAt: null;
+  paidAt: null;
+  emailSentCount: number;
+  dailyBreakdown: DetailedInvoiceData["dailyBreakdown"];
+  employeeDetails: DetailedInvoiceData["employeeDetails"];
+  invoiceClientData: SavedInvoiceClientSnapshot;
+};
+
 export function InvoicingForm({ clients }: InvoicingFormProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -54,6 +79,11 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
   const [invoiceData, setInvoiceData] =
     React.useState<DetailedInvoiceData | null>(null);
   const [includeGroupedReport, setIncludeGroupedReport] = React.useState(false);
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [isSaved, setIsSaved] = React.useState(false);
+  // Stores the pending Firestore payload while the user previews
+  const [pendingFirestorePayload, setPendingFirestorePayload] =
+    React.useState<InvoiceFirestorePayload | null>(null);
 
   const handleGenerate = async () => {
     if (!firestore || !selectedClient || !date?.from || !date?.to) {
@@ -498,48 +528,41 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         employeeDetails,
       };
 
-      // Save invoice record to Firestore
-      try {
-        await addDoc(collection(firestore, "invoices"), {
-          invoiceNumber,
-          invoiceDate: format(new Date(), "MM/dd/yyyy"),
-          clientId: clientData.id,
-          clientName: clientData.name,
-          clientEmail: clientData.email || null,
-          dateFrom: format(startDate, "yyyy-MM-dd"),
-          dateTo: format(endDate, "yyyy-MM-dd"),
-          laborCost,
-          minimumWageTopUp: totalTopUp,
-          paidRestBreaks: totalRestBreaks,
-          overtimePremium: totalOvertimePremium,
-          overtimeHours: totalOvertimeHours,
-          subtotal,
-          commission,
-          total,
-          status: "pending",
-          createdAt: serverTimestamp(),
-          sentAt: null,
-          paidAt: null,
-          emailSentCount: 0,
-          dailyBreakdown,
-          employeeDetails,
-          invoiceClientData: {
-            name: clientData.name,
-            billingAddress: clientData.billingAddress ?? null,
-            email: clientData.email ?? null,
-            phone: clientData.phone ?? null,
-            commissionRate: clientData.commissionRate ?? null,
-            paymentTerms: clientData.paymentTerms ?? null,
-          },
-        });
-        toast({
-          title: "Invoice guardado",
-          description: `Invoice #${invoiceNumber} guardado en Gestión de Invoices.`,
-        });
-      } catch (saveErr) {
-        console.warn("Could not save invoice record:", saveErr);
-      }
+      // Build the Firestore payload (to be saved only when user clicks "Create Record")
+      const firestorePayload: InvoiceFirestorePayload = {
+        invoiceNumber,
+        invoiceDate: format(new Date(), "MM/dd/yyyy"),
+        clientId: clientData.id,
+        clientName: clientData.name,
+        clientEmail: clientData.email || null,
+        dateFrom: format(startDate, "yyyy-MM-dd"),
+        dateTo: format(endDate, "yyyy-MM-dd"),
+        laborCost,
+        minimumWageTopUp: totalTopUp,
+        paidRestBreaks: totalRestBreaks,
+        overtimePremium: totalOvertimePremium,
+        overtimeHours: totalOvertimeHours,
+        subtotal,
+        commission,
+        total,
+        status: "pending",
+        sentAt: null,
+        paidAt: null,
+        emailSentCount: 0,
+        dailyBreakdown,
+        employeeDetails,
+        invoiceClientData: {
+          name: clientData.name,
+          billingAddress: clientData.billingAddress ?? null,
+          email: clientData.email ?? null,
+          phone: clientData.phone ?? null,
+          commissionRate: clientData.commissionRate ?? null,
+          paymentTerms: clientData.paymentTerms ?? null,
+        },
+      };
 
+      setPendingFirestorePayload(firestorePayload);
+      setIsSaved(false);
       setInvoiceData(finalInvoiceData);
     } catch (err) {
       console.error("Error generating invoice:", err);
@@ -554,12 +577,44 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
     }
   };
 
+  const handleSaveInvoice = async () => {
+    if (!firestore || !pendingFirestorePayload) return;
+    setIsSaving(true);
+    try {
+      await addDoc(collection(firestore, "invoices"), {
+        ...pendingFirestorePayload,
+        createdAt: serverTimestamp(),
+      });
+      setIsSaved(true);
+      toast({
+        title: "Invoice guardado",
+        description: `Invoice #${pendingFirestorePayload.invoiceNumber} guardado en Gestión de Invoices.`,
+      });
+    } catch (saveErr) {
+      console.warn("Could not save invoice record:", saveErr);
+      toast({
+        variant: "destructive",
+        title: "Error al guardar",
+        description: "No se pudo guardar el invoice. Intente de nuevo.",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   if (invoiceData) {
     return (
       <InvoiceReportDisplay
         report={invoiceData}
-        onBack={() => setInvoiceData(null)}
+        onBack={() => {
+          setInvoiceData(null);
+          setPendingFirestorePayload(null);
+          setIsSaved(false);
+        }}
         isGrouped={includeGroupedReport}
+        onSave={handleSaveInvoice}
+        isSaving={isSaving}
+        isSaved={isSaved}
       />
     );
   }
