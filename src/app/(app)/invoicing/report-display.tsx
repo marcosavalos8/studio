@@ -583,9 +583,9 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
       <div style={{ marginBottom: "16px", position: "relative" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <h1 style={{ fontSize: "20px", fontWeight: "bold", color: "#15803d", marginBottom: "4px" }}>
-            Labor Report | J&amp;M Agricultural Labor LLC
+            Labor Report | J&M Agricultural Labor LLC
           </h1>
-          <img src="/logo.jpeg" alt="JM AGRI Logo" style={{ width: "80px", height: "64px", objectFit: "contain" }} />
+          <img src="/logo.jpeg" alt="J&M Agricultural Labor LLC Logo" style={{ width: "80px", height: "64px", objectFit: "contain" }} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", fontSize: "11px", marginTop: "8px" }}>
           <div>
