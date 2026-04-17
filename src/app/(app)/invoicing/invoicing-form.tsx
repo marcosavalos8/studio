@@ -36,6 +36,7 @@ import {
 } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { type DetailedInvoiceData } from "./page";
+import { type DetailedLabelReportData } from "../labor-report/page";
 import { InvoiceReportDisplay } from "./report-display";
 import { generatePayrollReport } from "@/ai/flows/generate-payroll-report";
 
@@ -66,6 +67,7 @@ type InvoiceFirestorePayload = {
   dailyBreakdown: DetailedInvoiceData["dailyBreakdown"];
   employeeDetails: DetailedInvoiceData["employeeDetails"];
   invoiceClientData: SavedInvoiceClientSnapshot;
+  includeLaborReport: boolean;
 };
 
 export function InvoicingForm({ clients }: InvoicingFormProps) {
@@ -78,7 +80,9 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [invoiceData, setInvoiceData] =
     React.useState<DetailedInvoiceData | null>(null);
-  const [includeGroupedReport, setIncludeGroupedReport] = React.useState(false);
+  const [laborReportData, setLaborReportData] =
+    React.useState<DetailedLabelReportData | null>(null);
+  const [includeLaborReport, setIncludeLaborReport] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isSaved, setIsSaved] = React.useState(false);
   // Stores the pending Firestore payload while the user previews
@@ -95,6 +99,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
     }
     setIsGenerating(true);
     setInvoiceData(null);
+    setLaborReportData(null);
 
     const clientData = clients.find((c) => c.id === selectedClient.id);
     if (!clientData) {
@@ -528,6 +533,145 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         employeeDetails,
       };
 
+      // Build labor report data if requested (same data, extended per-employee overtime fields)
+      let finalLaborReportData: DetailedLabelReportData | null = null;
+      if (includeLaborReport) {
+        const laborEmployeeDetails = filteredSummaries.map((emp) => {
+          const employee = allEmployees.find((e) => e.id === emp.employeeId);
+          const laborDailyWork: Array<{
+            date: string;
+            tasks: Array<{ taskName: string; hours: number; pieces: number }>;
+          }> = [];
+
+          let laborTotalHours = 0;
+          let laborTotalPieces = 0;
+
+          const empPaidRestBreaks = emp.weeklySummaries.reduce(
+            (acc, week) => acc + week.paidRestBreaks, 0
+          );
+          const empMinimumWageTopUp = emp.weeklySummaries.reduce(
+            (acc, week) => acc + week.minimumWageTopUp, 0
+          );
+          const overtimeData = emp.weeklySummaries.reduce(
+            (acc, week) => {
+              const weekOtHours = week.overtimeHours || 0;
+              return {
+                overtimePremium: acc.overtimePremium + (week.overtimePremium || 0),
+                overtimeHours: acc.overtimeHours + weekOtHours,
+                weightedRateSum: acc.weightedRateSum + (week.regularRate || 0) * weekOtHours,
+              };
+            },
+            { overtimePremium: 0, overtimeHours: 0, weightedRateSum: 0 }
+          );
+          const empOvertimePremium = overtimeData.overtimePremium;
+          const empOvertimeHours = overtimeData.overtimeHours;
+          const empRegularRate =
+            empOvertimeHours > 0
+              ? overtimeData.weightedRateSum / empOvertimeHours
+              : 0;
+
+          const laborTasksSummaryMap = new Map<string, {
+            taskName: string;
+            hours: number;
+            pieces: number;
+            taskId?: string;
+          }>();
+
+          emp.weeklySummaries.forEach((week) => {
+            week.dailyBreakdown.forEach((day) => {
+              laborDailyWork.push({
+                date: day.date,
+                tasks: day.tasks.map((task) => ({
+                  taskName: task.taskName,
+                  hours: task.hours,
+                  pieces: task.pieceworkCount,
+                })),
+              });
+              laborTotalHours += day.totalDailyHours;
+              laborTotalPieces += day.tasks.reduce(
+                (sum, task) => sum + task.pieceworkCount, 0
+              );
+              day.tasks.forEach((task) => {
+                const existing = laborTasksSummaryMap.get(task.taskName);
+                if (existing) {
+                  existing.hours += task.hours;
+                  existing.pieces += task.pieceworkCount;
+                } else {
+                  laborTasksSummaryMap.set(task.taskName, {
+                    taskName: task.taskName,
+                    hours: task.hours,
+                    pieces: task.pieceworkCount,
+                    taskId: task.taskId,
+                  });
+                }
+              });
+            });
+          });
+
+          const laborTasksSummary = Array.from(laborTasksSummaryMap.values()).map((taskSummary) => {
+            const originalTask = tasks.find((t) => t.id === taskSummary.taskId);
+            if (!originalTask) {
+              const isHours = taskSummary.hours >= taskSummary.pieces;
+              return {
+                taskName: taskSummary.taskName,
+                quantity: isHours ? taskSummary.hours : taskSummary.pieces,
+                rate: 0,
+                rateType: (isHours ? "hourly" : "piece") as "hourly" | "piece",
+                cost: 0,
+              };
+            }
+            const isHourly = originalTask.clientRateType === "hourly";
+            const quantity = isHourly ? taskSummary.hours : taskSummary.pieces;
+            let rate = originalTask.clientRate;
+            if (!isHourly && (!rate || rate === 0)) {
+              rate = originalTask.piecePrice || 0;
+            }
+            return {
+              taskName: taskSummary.taskName,
+              quantity,
+              rate,
+              rateType: originalTask.clientRateType,
+              cost: quantity * rate,
+            };
+          });
+
+          return {
+            employeeName: employee?.name || emp.employeeName,
+            employeeId: emp.employeeId,
+            totalHours: laborTotalHours,
+            totalPieces: laborTotalPieces,
+            paidRestBreaks: empPaidRestBreaks,
+            minimumWageTopUp: empMinimumWageTopUp,
+            overtimeHours: empOvertimeHours,
+            overtimePremium: empOvertimePremium,
+            regularRate: empRegularRate,
+            dailyWork: laborDailyWork.sort(
+              (a, b) =>
+                parseLocalDate(a.date).getTime() -
+                parseLocalDate(b.date).getTime()
+            ),
+            tasksSummary: laborTasksSummary,
+          };
+        });
+
+        finalLaborReportData = {
+          client: clientData,
+          date: {
+            from: format(startDate, "yyyy-MM-dd"),
+            to: format(endDate, "yyyy-MM-dd"),
+          },
+          dailyBreakdown,
+          laborCost,
+          minimumWageTopUp: totalTopUp,
+          paidRestBreaks: totalRestBreaks,
+          overtimePremium: totalOvertimePremium,
+          subtotal,
+          commission,
+          total,
+          employeeDetails: laborEmployeeDetails,
+        };
+      }
+
       // Build the Firestore payload (to be saved only when user clicks "Create Record")
       const firestorePayload: InvoiceFirestorePayload = {
         invoiceNumber,
@@ -559,11 +703,13 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           commissionRate: clientData.commissionRate ?? null,
           paymentTerms: clientData.paymentTerms ?? null,
         },
+        includeLaborReport,
       };
 
       setPendingFirestorePayload(firestorePayload);
       setIsSaved(false);
       setInvoiceData(finalInvoiceData);
+      setLaborReportData(finalLaborReportData);
     } catch (err) {
       console.error("Error generating invoice:", err);
       toast({
@@ -587,15 +733,15 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
       });
       setIsSaved(true);
       toast({
-        title: "Invoice guardado",
-        description: `Invoice #${pendingFirestorePayload.invoiceNumber} guardado en Gestión de Invoices.`,
+        title: "Invoice saved",
+        description: `Invoice #${pendingFirestorePayload.invoiceNumber} saved to Invoice Management.`,
       });
     } catch (saveErr) {
       console.warn("Could not save invoice record:", saveErr);
       toast({
         variant: "destructive",
-        title: "Error al guardar",
-        description: "No se pudo guardar el invoice. Intente de nuevo.",
+        title: "Save error",
+        description: "Could not save the invoice. Please try again.",
       });
     } finally {
       setIsSaving(false);
@@ -608,10 +754,11 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         report={invoiceData}
         onBack={() => {
           setInvoiceData(null);
+          setLaborReportData(null);
           setPendingFirestorePayload(null);
           setIsSaved(false);
         }}
-        isGrouped={includeGroupedReport}
+        laborReport={laborReportData}
         onSave={handleSaveInvoice}
         isSaving={isSaving}
         isSaved={isSaved}
@@ -697,15 +844,15 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
 
       <div className="mt-4 flex items-center space-x-2">
         <Checkbox
-          id="grouped-report"
-          checked={includeGroupedReport}
-          onCheckedChange={(checked) => setIncludeGroupedReport(checked === true)}
+          id="labor-report"
+          checked={includeLaborReport}
+          onCheckedChange={(checked) => setIncludeLaborReport(checked === true)}
         />
         <label
-          htmlFor="grouped-report"
+          htmlFor="labor-report"
           className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
         >
-          Incluir reporte agrupado
+          Add Labor Report
         </label>
       </div>
 

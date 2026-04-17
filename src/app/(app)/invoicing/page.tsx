@@ -90,8 +90,8 @@ function InvoicingPage() {
     <div className="grid gap-3 md:gap-4">
       <Tabs defaultValue="generate">
         <TabsList className="mb-4">
-          <TabsTrigger value="generate">Generar Invoice</TabsTrigger>
-          <TabsTrigger value="management">Gestión de Invoices</TabsTrigger>
+          <TabsTrigger value="generate">Generate Invoice</TabsTrigger>
+          <TabsTrigger value="management">Invoice Management</TabsTrigger>
         </TabsList>
 
         <TabsContent value="generate">
@@ -120,10 +120,10 @@ function InvoicingPage() {
         <TabsContent value="management">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg md:text-xl">Gestión de Invoices</CardTitle>
+              <CardTitle className="text-lg md:text-xl">Invoice Management</CardTitle>
               <CardDescription className="text-sm">
-                Administra los invoices generados: márcalos como pagados, envíalos
-                por correo y lleva un registro del tiempo transcurrido.
+                Manage generated invoices: mark them as paid, send them by
+                email, and keep track of elapsed time.
               </CardDescription>
             </CardHeader>
             <CardContent>
