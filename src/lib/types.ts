@@ -213,6 +213,8 @@ export interface SavedInvoice {
   waivedLateFees?: boolean;
   /** Amount of overdue interest added when creating an overdue-interest invoice */
   overdueInterestAccrued?: number;
+  /** Whether this invoice was generated together with a Labor Report */
+  includeLaborReport?: boolean;
 }
 
 export interface SoundSettings {

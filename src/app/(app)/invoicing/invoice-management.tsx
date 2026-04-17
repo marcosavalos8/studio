@@ -393,10 +393,10 @@ export function InvoiceManagement() {
         status: "paid",
         paidAt: Timestamp.now(),
       });
-      toast({ title: "Invoice marcado como pagado", description: `Invoice #${invoice.invoiceNumber} actualizado.` });
+      toast({ title: "Invoice marked as paid", description: `Invoice #${invoice.invoiceNumber} updated.` });
     } catch (err) {
       console.error("Error marking invoice as paid:", err);
-      toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el invoice." });
+      toast({ variant: "destructive", title: "Error", description: "Could not update the invoice." });
     } finally {
       setActionLoading(invoice.id, false);
     }
@@ -408,8 +408,8 @@ export function InvoiceManagement() {
     if (!invoice.clientEmail) {
       toast({
         variant: "destructive",
-        title: "Sin correo",
-        description: "Este cliente no tiene correo electrónico registrado.",
+        title: "No email address",
+        description: "This client does not have a registered email address.",
       });
       return;
     }
@@ -457,13 +457,13 @@ export function InvoiceManagement() {
         });
       }
 
-      toast({ title: "Correo enviado", description: `Invoice #${invoice.invoiceNumber} enviado a ${invoice.clientEmail}.` });
+      toast({ title: "Email sent", description: `Invoice #${invoice.invoiceNumber} sent to ${invoice.clientEmail}.` });
     } catch (err) {
       console.error("Error sending invoice email:", err);
       toast({
         variant: "destructive",
-        title: "Error al enviar",
-        description: err instanceof Error ? err.message : "No se pudo enviar el correo.",
+        title: "Send error",
+        description: err instanceof Error ? err.message : "Could not send the email.",
       });
     } finally {
       setActionLoading(`email-${invoice.id}`, false);
@@ -478,10 +478,10 @@ export function InvoiceManagement() {
       await updateDoc(doc(firestore, "invoices", invoice.id), {
         waivedLateFees: true,
       });
-      toast({ title: "Late Fees dispensados", description: `Los Late Fees del Invoice #${invoice.invoiceNumber} se han puesto a $0.00.` });
+      toast({ title: "Late Fees waived", description: `Late Fees for Invoice #${invoice.invoiceNumber} have been set to $0.00.` });
     } catch (err) {
       console.error("Error waiving late fees:", err);
-      toast({ variant: "destructive", title: "Error", description: "No se pudieron dispensar los Late Fees." });
+      toast({ variant: "destructive", title: "Error", description: "Could not waive the Late Fees." });
     } finally {
       setActionLoading(`waive-${invoice.id}`, false);
     }
@@ -551,12 +551,12 @@ export function InvoiceManagement() {
       });
 
       toast({
-        title: "Invoice con interés creado",
-        description: `Invoice #${newInvoiceNumber} creado con Overdue Interest de $${lateFees.toFixed(2)}.`,
+        title: "Overdue interest invoice created",
+        description: `Invoice #${newInvoiceNumber} created with Overdue Interest of $${lateFees.toFixed(2)}.`,
       });
     } catch (err) {
       console.error("Error creating OI invoice:", err);
-      toast({ variant: "destructive", title: "Error", description: "No se pudo crear el invoice con interés." });
+      toast({ variant: "destructive", title: "Error", description: "Could not create the overdue interest invoice." });
     } finally {
       setActionLoading(`oi-${invoice.id}`, false);
     }
@@ -570,10 +570,10 @@ export function InvoiceManagement() {
     try {
       await Promise.all(ids.map((id) => deleteDoc(doc(firestore, "invoices", id))));
       setSelectedIds(new Set());
-      toast({ title: "Invoices eliminados", description: `${ids.length} invoice(s) eliminado(s).` });
+      toast({ title: "Invoices deleted", description: `${ids.length} invoice(s) deleted.` });
     } catch (err) {
       console.error("Error deleting invoices:", err);
-      toast({ variant: "destructive", title: "Error", description: "No se pudieron eliminar los invoices." });
+      toast({ variant: "destructive", title: "Error", description: "Could not delete the invoices." });
     } finally {
       setDeletingBulk(false);
     }
@@ -601,7 +601,7 @@ export function InvoiceManagement() {
           <span className="text-xs font-medium text-muted-foreground">Invoice #</span>
           <Input
             type="text"
-            placeholder="Buscar #..."
+            placeholder="Search #..."
             className="h-9 w-[130px]"
             value={filterInvoiceNumber}
             onChange={(e) => setFilterInvoiceNumber(e.target.value)}
@@ -610,13 +610,13 @@ export function InvoiceManagement() {
 
         {/* Client filter */}
         <div className="flex flex-col gap-1 min-w-[180px]">
-          <span className="text-xs font-medium text-muted-foreground">Cliente</span>
+          <span className="text-xs font-medium text-muted-foreground">Client</span>
           <Select value={filterClient} onValueChange={setFilterClient}>
             <SelectTrigger className="h-9">
-              <SelectValue placeholder="Todos los clientes" />
+              <SelectValue placeholder="All Clients" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos los clientes</SelectItem>
+              <SelectItem value="all">All Clients</SelectItem>
               {clientOptions.map((name) => (
                 <SelectItem key={name} value={name}>
                   {name}
@@ -631,10 +631,10 @@ export function InvoiceManagement() {
           <span className="text-xs font-medium text-muted-foreground">Status</span>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="h-9">
-              <SelectValue placeholder="Todos los estados" />
+              <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos los estados</SelectItem>
+              <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="due-soon">Due Soon</SelectItem>
               <SelectItem value="overdue">Overdue</SelectItem>
@@ -645,7 +645,7 @@ export function InvoiceManagement() {
 
         {/* Date from */}
         <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Desde</span>
+          <span className="text-xs font-medium text-muted-foreground">From</span>
           <Input
             type="date"
             className="h-9 w-[150px]"
@@ -656,7 +656,7 @@ export function InvoiceManagement() {
 
         {/* Date to */}
         <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Hasta</span>
+          <span className="text-xs font-medium text-muted-foreground">To</span>
           <Input
             type="date"
             className="h-9 w-[150px]"
@@ -679,7 +679,7 @@ export function InvoiceManagement() {
               setFilterInvoiceNumber("");
             }}
           >
-            Limpiar filtros
+            Clear Filters
           </Button>
         )}
 
@@ -694,23 +694,23 @@ export function InvoiceManagement() {
                   ) : (
                     <Trash2 className="h-4 w-4 mr-1" />
                   )}
-                  Eliminar {selectedIds.size} seleccionado(s)
+                  Delete {selectedIds.size} selected
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>¿Eliminar invoices?</AlertDialogTitle>
+                  <AlertDialogTitle>Delete Invoices?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Se eliminarán {selectedIds.size} invoice(s) de forma permanente. Esta acción no se puede deshacer.
+                    {selectedIds.size} invoice(s) will be permanently deleted. This action cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     onClick={handleBulkDelete}
                   >
-                    Eliminar
+                    Delete
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -723,15 +723,15 @@ export function InvoiceManagement() {
       {!hasInvoices && (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
           <FileText className="h-12 w-12 opacity-30" />
-          <p className="text-sm">No hay invoices generados aún.</p>
-          <p className="text-xs">Genera un invoice en la pestaña &quot;Generar Invoice&quot;.</p>
+          <p className="text-sm">No invoices generated yet.</p>
+          <p className="text-xs">Generate an invoice in the &quot;Generate Invoice&quot; tab.</p>
         </div>
       )}
 
       {hasInvoices && invoices.length === 0 && (
         <div className="flex flex-col items-center justify-center py-10 text-muted-foreground gap-2">
           <FileText className="h-10 w-10 opacity-30" />
-          <p className="text-sm">No se encontraron invoices con los filtros seleccionados.</p>
+          <p className="text-sm">No invoices found with the selected filters.</p>
         </div>
       )}
 
@@ -760,6 +760,7 @@ export function InvoiceManagement() {
                 <TableHead className="whitespace-nowrap">Sending Date</TableHead>
                 <TableHead className="whitespace-nowrap text-right">Late Fees</TableHead>
                 <TableHead className="whitespace-nowrap text-right">Total Due</TableHead>
+                <TableHead className="whitespace-nowrap text-center">Include LB</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -827,6 +828,13 @@ export function InvoiceManagement() {
                     </TableCell>
                     <TableCell className="text-right font-semibold whitespace-nowrap">
                       ${totalDue.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-center whitespace-nowrap">
+                      {invoice.includeLaborReport ? (
+                        <span className="text-green-600 font-medium text-sm">Yes</span>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">No</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-2">
@@ -904,7 +912,7 @@ export function InvoiceManagement() {
             </TableBody>
           </Table>
           <p className="text-xs text-muted-foreground mt-2">
-            {invoices.length} invoice(s) mostrado(s){selectedIds.size > 0 && ` · ${selectedIds.size} seleccionado(s)`}
+            {invoices.length} invoice(s) shown{selectedIds.size > 0 && ` · ${selectedIds.size} selected`}
           </p>
         </div>
       )}

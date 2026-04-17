@@ -9,7 +9,6 @@ export const metadata: Metadata = {
   title: "FieldTack WA",
   description:
     "Piecework management and payroll for Washington state labor laws.",
-  manifest: "/manifest.json",
   viewport: {
     width: "device-width",
     initialScale: 1,
