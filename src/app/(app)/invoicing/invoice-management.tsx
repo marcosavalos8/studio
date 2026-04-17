@@ -492,9 +492,14 @@ export function InvoiceManagement() {
         const latestQuery = query(collection(firestore, "invoices"), orderBy("invoiceNumber", "desc"), limit(1));
         const latestSnap = await getDocs(latestQuery);
         if (!latestSnap.empty) {
-          const lastNum = parseInt(latestSnap.docs[0].data().invoiceNumber as string, 10);
-          if (!isNaN(lastNum)) {
-            newInvoiceNumber = String(lastNum + 1).padStart(5, "0");
+          // Extract the leading numeric portion (e.g. "00123" from "00123" or "00123-OI")
+          const rawNum = String(latestSnap.docs[0].data().invoiceNumber ?? "");
+          const numericPart = rawNum.match(/^(\d+)/)?.[1];
+          if (numericPart) {
+            const lastNum = parseInt(numericPart, 10);
+            if (!isNaN(lastNum)) {
+              newInvoiceNumber = String(lastNum + 1).padStart(5, "0");
+            }
           }
         }
       } catch {

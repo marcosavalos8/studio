@@ -126,7 +126,8 @@ export async function POST(request: NextRequest) {
 
     const dueDateStr = formatDateMDY(dueDate);
     const issueDateStr = invoice.invoiceDate ?? "—";
-    const totalDue = invoice.total + (invoice.overdueInterestAccrued ?? 0);
+    // invoice.total already incorporates subtotal + commission + any overdueInterestAccrued
+    const totalDue = invoice.total;
     const safeNum = escapeHtml(invoice.invoiceNumber);
     const safeName = escapeHtml(invoice.clientName);
     const safeDue = escapeHtml(dueDateStr);
