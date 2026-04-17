@@ -253,6 +253,7 @@ export function InvoiceManagement() {
 
   // filters
   const [filterClient, setFilterClient] = React.useState<string>("all");
+  const [filterStatus, setFilterStatus] = React.useState<string>("all");
   const [filterDateFrom, setFilterDateFrom] = React.useState<string>("");
   const [filterDateTo, setFilterDateTo] = React.useState<string>("");
   const [filterInvoiceNumber, setFilterInvoiceNumber] = React.useState<string>("");
@@ -294,6 +295,11 @@ export function InvoiceManagement() {
     // filter by client
     if (filterClient !== "all") {
       list = list.filter((inv) => inv.clientName === filterClient);
+    }
+
+    // filter by status
+    if (filterStatus !== "all") {
+      list = list.filter((inv) => computeStatus(inv) === filterStatus);
     }
 
     // filter by date range (show invoices whose period starts on or after filterDateFrom
@@ -341,7 +347,7 @@ export function InvoiceManagement() {
     });
 
     return list;
-  }, [allInvoices, filterClient, filterDateFrom, filterDateTo, filterInvoiceNumber, sortField, sortDir]);
+  }, [allInvoices, filterClient, filterStatus, filterDateFrom, filterDateTo, filterInvoiceNumber, sortField, sortDir]);
 
   // ── selection helpers ──
   const allVisibleIds = invoices.map((inv) => inv.id ?? "").filter(Boolean);
@@ -620,6 +626,23 @@ export function InvoiceManagement() {
           </Select>
         </div>
 
+        {/* Status filter */}
+        <div className="flex flex-col gap-1 min-w-[160px]">
+          <span className="text-xs font-medium text-muted-foreground">Status</span>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="Todos los estados" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los estados</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="due-soon">Due Soon</SelectItem>
+              <SelectItem value="overdue">Overdue</SelectItem>
+              <SelectItem value="paid">Paid</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Date from */}
         <div className="flex flex-col gap-1">
           <span className="text-xs font-medium text-muted-foreground">Desde</span>
@@ -643,13 +666,14 @@ export function InvoiceManagement() {
         </div>
 
         {/* Clear filters */}
-        {(filterClient !== "all" || filterDateFrom || filterDateTo || filterInvoiceNumber) && (
+        {(filterClient !== "all" || filterStatus !== "all" || filterDateFrom || filterDateTo || filterInvoiceNumber) && (
           <Button
             variant="ghost"
             size="sm"
             className="self-end"
             onClick={() => {
               setFilterClient("all");
+              setFilterStatus("all");
               setFilterDateFrom("");
               setFilterDateTo("");
               setFilterInvoiceNumber("");
