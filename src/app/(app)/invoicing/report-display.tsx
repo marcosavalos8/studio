@@ -246,7 +246,9 @@ export function InvoiceReportDisplay({
         </div>
       </div>
 
-      <div className="report-container bg-white text-black rounded-lg border shadow-sm" style={{ padding: "24px" }}>
+      {/* print-root wraps ALL printable pages so the visibility trick works correctly
+          across multiple pages. Individual pages inside use normal flow + page-break. */}
+      <div className="print-root">
         <style jsx global>{`
           @media print {
             body {
@@ -257,21 +259,27 @@ export function InvoiceReportDisplay({
             body * {
               visibility: hidden;
             }
-            .report-container,
-            .report-container * {
+            .print-root,
+            .print-root * {
               visibility: visible;
             }
-            .report-container {
+            .print-root {
               position: absolute;
               left: 0;
               top: 0;
               width: 100%;
-              border: none;
-              box-shadow: none;
               margin: 0;
-              padding: 16px;
+              padding: 0;
               color: #000;
               font-size: 10px;
+            }
+            .print-page {
+              width: 100%;
+              padding: 16px;
+              box-sizing: border-box;
+            }
+            .print-page + .print-page {
+              page-break-before: always;
             }
             .print\\:hidden {
               display: none;
@@ -282,6 +290,8 @@ export function InvoiceReportDisplay({
             margin: 0.4in;
           }
         `}</style>
+
+      <div className="print-page report-container bg-white text-black rounded-lg border shadow-sm" style={{ padding: "24px" }}>
 
         {/* ── TOP HEADER: Title row + Logo below + Company info ── */}
         {/* Row 1: INVOICE title (left) + Company address (right) */}
@@ -491,10 +501,12 @@ export function InvoiceReportDisplay({
             following the Due Date (Day <strong>{paymentDays + 1}</strong>) until the payment is received in full by the Contractor.&quot;
           </p>
         </div>
-      </div>
+      </div>{/* end .print-page (invoice) */}
 
-      {/* ── LABOR REPORT (separate page when printing) ── */}
+      {/* ── LABOR REPORT: second printed page ── */}
       {laborReport && <LaborReportSection report={laborReport} />}
+
+      </div>{/* end .print-root */}
     </div>
   );
 }
@@ -576,8 +588,8 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
 
   return (
     <div
-      className="report-container bg-white text-black"
-      style={{ pageBreakBefore: "always", padding: "24px", marginTop: "0" }}
+      className="print-page bg-white text-black rounded-lg border shadow-sm"
+      style={{ padding: "24px", marginTop: "24px" }}
     >
       {/* Header */}
       <div style={{ marginBottom: "16px", position: "relative" }}>
