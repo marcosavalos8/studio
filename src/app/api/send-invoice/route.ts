@@ -890,22 +890,27 @@ function generateLaborReportPdf(data: LaborReportData): string {
   const otBlockW = hasOT ? otHoursW + regRateW + otPremiumW : 0;
   const tableW = nameW + hoursW + tasksTotalW + totalPiecesPayW + otBlockW + diffOwedW + payReqW;
 
-  // If table is wider than content area, scale font down
-  const scaleFactor = tableW > contentW ? contentW / tableW : 1;
-  const tFS = Math.max(6, Math.floor(8 * scaleFactor));
-  const rowH = Math.max(12, Math.floor(15 * scaleFactor));
+  // Always scale to fill the full content width (scale up or down as needed)
+  const scaleFactor = contentW / tableW;
+  // Font: min 6pt (readability floor), max 9pt (avoid oversized text when few columns)
+  const tFS = Math.min(9, Math.max(6, Math.floor(8 * scaleFactor)));
+  // Row height: min 12pt, max 20pt — scales with font size
+  const rowH = Math.min(20, Math.max(12, Math.floor(15 * scaleFactor)));
+  // Header row is taller than data rows to accommodate 2-3 line wrapped column labels
+  const hRowH = 38;
 
   let cx = margin;
 
   const thStyle = (w: number) => {
     doc.setFillColor(220, 252, 231); // #dcfce7
-    doc.rect(cx, y, w, rowH, "F");
+    doc.rect(cx, y, w, hRowH, "F");
     doc.setDrawColor(22, 163, 74); // #16a34a
-    doc.rect(cx, y, w, rowH);
+    doc.setLineWidth(0.5); // reset lineWidth so header borders are thin (not 3pt from divider)
+    doc.rect(cx, y, w, hRowH);
     cx += w;
   };
 
-  // Helper to draw header cell text centered
+  // Helper to draw header row with centered, wrapped text
   const drawHeader = (cols: Array<{ label: string; w: number }>) => {
     cx = margin;
     cols.forEach(({ label, w }) => {
@@ -914,10 +919,14 @@ function generateLaborReportPdf(data: LaborReportData): string {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(tFS);
       doc.setTextColor(0);
-      doc.text(label, cx + w / 2, y + rowH - 3, { align: "center", maxWidth: w - 2 });
+      const lines = doc.splitTextToSize(label, w - 4);
+      // 1.3× font size per line gives comfortable line spacing for wrapped text
+      const textBlockH = lines.length * (tFS * 1.3);
+      const textStartY = y + (hRowH - textBlockH) / 2 + tFS;
+      doc.text(lines, cx + w / 2, textStartY, { align: "center" });
       cx += w;
     });
-    y += rowH;
+    y += hRowH;
     cx = margin;
   };
 
@@ -933,9 +942,9 @@ function generateLaborReportPdf(data: LaborReportData): string {
   });
   headers.push({ label: "Total Pieces Pay", w: totalPiecesPayW * scaleFactor });
   if (hasOT) {
-    headers.push({ label: "OT Hours", w: otHoursW * scaleFactor });
-    headers.push({ label: "Regular Rate", w: regRateW * scaleFactor });
-    headers.push({ label: "OT Premium", w: otPremiumW * scaleFactor });
+    headers.push({ label: "Overtime Hours (over 40/week)", w: otHoursW * scaleFactor });
+    headers.push({ label: "Regular Rate for OT Calculation", w: regRateW * scaleFactor });
+    headers.push({ label: "Overtime Premium (0.5x rate)", w: otPremiumW * scaleFactor });
   }
   headers.push({ label: "Diff Owed/Break", w: diffOwedW * scaleFactor });
   headers.push({ label: "PAY REQ", w: payReqW * scaleFactor });
@@ -1058,6 +1067,7 @@ function generateLaborReportPdf(data: LaborReportData): string {
         doc.setFillColor(220, 252, 231);
         doc.rect(sx, ry, widths[i]!, subRowH, "F");
         doc.setDrawColor(22, 163, 74);
+        doc.setLineWidth(0.4);
         doc.rect(sx, ry, widths[i]!, subRowH);
         doc.setFont("helvetica", "bold");
         doc.setFontSize(thFS);
@@ -1077,13 +1087,58 @@ function generateLaborReportPdf(data: LaborReportData): string {
         doc.setFillColor(255, 255, 255);
         doc.rect(sx, ry, widths[i]!, subRowH, "F");
         doc.setDrawColor(22, 163, 74);
+        doc.setLineWidth(0.4);
         doc.rect(sx, ry, widths[i]!, subRowH);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(thFS);
         doc.setTextColor(0);
-        doc.text(cell, sx + (widths[i]! / 2), ry + subRowH - 3, { align: "center" });
+        doc.text(cell, sx + (widths[i]! / 2), ry + subRowH - 3, { align: "center", maxWidth: widths[i]! - 4 });
         sx += widths[i]!;
       });
+      ry += subRowH;
+    };
+
+    // Draw a row where the label spans the first 3 columns (matching colSpan={3} in HTML)
+    const drawSubRowSpanned = (label: string, value: string, bold = false) => {
+      const spanW = col1W + col2W + col3W;
+      // Spanned label cell
+      doc.setFillColor(255, 255, 255);
+      doc.rect(rightX, ry, spanW, subRowH, "F");
+      doc.setDrawColor(22, 163, 74);
+      doc.setLineWidth(0.4);
+      doc.rect(rightX, ry, spanW, subRowH);
+      doc.setFont("helvetica", bold ? "bold" : "normal");
+      doc.setFontSize(thFS);
+      doc.setTextColor(0);
+      doc.text(label, rightX + 4, ry + subRowH - 3, { maxWidth: spanW - 6 });
+      // Value cell
+      const valX = rightX + spanW;
+      doc.setFillColor(255, 255, 255);
+      doc.rect(valX, ry, col4W, subRowH, "F");
+      doc.setDrawColor(22, 163, 74);
+      doc.rect(valX, ry, col4W, subRowH);
+      doc.text(value, valX + col4W / 2, ry + subRowH - 3, { align: "center", maxWidth: col4W - 4 });
+      ry += subRowH;
+    };
+
+    // Draw the bold Total Amount row spanning first 3 columns
+    const drawSubTotalRow = (label: string, value: string) => {
+      const spanW = col1W + col2W + col3W;
+      doc.setFillColor(243, 244, 246);
+      doc.rect(rightX, ry, spanW, subRowH, "F");
+      doc.setDrawColor(22, 163, 74);
+      doc.setLineWidth(0.4);
+      doc.rect(rightX, ry, spanW, subRowH);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(thFS);
+      doc.setTextColor(0);
+      doc.text(label, rightX + 4, ry + subRowH - 3, { maxWidth: spanW - 6 });
+      const valX = rightX + spanW;
+      doc.setFillColor(243, 244, 246);
+      doc.rect(valX, ry, col4W, subRowH, "F");
+      doc.setDrawColor(22, 163, 74);
+      doc.rect(valX, ry, col4W, subRowH);
+      doc.text(value, valX + col4W / 2, ry + subRowH - 3, { align: "center", maxWidth: col4W - 4 });
       ry += subRowH;
     };
 
@@ -1110,33 +1165,16 @@ function generateLaborReportPdf(data: LaborReportData): string {
     const totalSubtotal = data.subtotal;
 
     if (totalPaidRestBreaks > 0) {
-      drawSubRow(["Paid Rest Breaks", "", "", `$ ${totalPaidRestBreaks.toFixed(2)}`]);
+      drawSubRowSpanned("Paid Rest Breaks", `$ ${totalPaidRestBreaks.toFixed(2)}`);
     }
     if (totalOtPremium > 0) {
-      drawSubRow(["OT Premium (0.5x rate)", "", "", `$ ${totalOtPremium.toFixed(2)}`]);
+      drawSubRowSpanned("Overtime Premium (0.5x rate)", `$ ${totalOtPremium.toFixed(2)}`);
     }
     if (totalMwTopUp > 0) {
-      drawSubRow(["Minimum Wage Adjustments", "", "", `$ ${totalMwTopUp.toFixed(2)}`]);
+      drawSubRowSpanned("Minimum Wage Adjustments", `$ ${totalMwTopUp.toFixed(2)}`);
     }
 
-    // Bold total row
-    {
-      let sx = rightX;
-      const widths = [col1W, col2W, col3W, col4W];
-      const cells = ["Total Amount:", "", "", `$ ${totalSubtotal.toFixed(2)}`];
-      cells.forEach((cell, i) => {
-        doc.setFillColor(243, 244, 246);
-        doc.rect(sx, ry, widths[i]!, subRowH, "F");
-        doc.setDrawColor(22, 163, 74);
-        doc.rect(sx, ry, widths[i]!, subRowH);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(thFS);
-        doc.setTextColor(0);
-        doc.text(cell, sx + (widths[i]! / 2), ry + subRowH - 3, { align: "center" });
-        sx += widths[i]!;
-      });
-      ry += subRowH;
-    }
+    drawSubTotalRow("Total Amount:", `$ ${totalSubtotal.toFixed(2)}`);
   }
 
   return doc.output("datauristring").split(",")[1];
