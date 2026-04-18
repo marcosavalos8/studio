@@ -31,8 +31,8 @@ import {
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, adminOnly: false },
   { href: "/time-tracking", label: "Time Tracking", icon: QrCode, adminOnly: false },
-  { href: "/employees", label: "Employees", icon: Users, adminOnly: false },
-  { href: "/clients", label: "Clients", icon: Briefcase, adminOnly: false },
+  { href: "/employees", label: "Employees", icon: Users, adminOnly: true },
+  { href: "/clients", label: "Clients", icon: Briefcase, adminOnly: true },
   { href: "/tasks", label: "Tasks", icon: ClipboardList, adminOnly: false },
   { href: "/payroll", label: "Payroll", icon: FileText, adminOnly: true },
   { href: "/invoicing", label: "Invoicing", icon: DollarSign, adminOnly: true },
