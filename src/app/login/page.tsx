@@ -18,6 +18,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/firebase";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { useFirestore } from "@/firebase";
+import { verifyPassword } from "@/lib/auth-utils";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -48,8 +49,12 @@ export default function LoginPage() {
         return;
       }
 
-      // Look up user by username in Firestore first
-      if (firestore) {
+      // Determine if input is email or username
+      const isEmail = trimmedInput.includes('@');
+
+      // For username-based logins only: look up user in Firestore first
+      // (skip this for email logins to avoid unnecessary DB calls)
+      if (!isEmail && firestore) {
         const usersQuery = query(collection(firestore, 'users'), where('username', '==', trimmedInput));
         const usersSnapshot = await getDocs(usersQuery);
 
@@ -65,13 +70,20 @@ export default function LoginPage() {
               return;
             }
 
-            // Hash the input password and compare
-            const msgBuffer = new TextEncoder().encode(trimmedPassword);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const inputHash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+            // Verify password using salt if available, fall back to unsalted hash
+            let passwordMatch = false;
+            if (userData.passwordSalt) {
+              passwordMatch = await verifyPassword(trimmedPassword, userData.passwordSalt, userData.passwordHash);
+            } else {
+              // Legacy: unsalted SHA-256 (for accounts created before salt was added)
+              const msgBuffer = new TextEncoder().encode(trimmedPassword);
+              const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+              const hashArray = Array.from(new Uint8Array(hashBuffer));
+              const legacyHash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+              passwordMatch = legacyHash === userData.passwordHash;
+            }
 
-            if (inputHash !== userData.passwordHash) {
+            if (!passwordMatch) {
               setError("Invalid credentials. Please check your username and password.");
               setLoading(false);
               return;
@@ -89,9 +101,8 @@ export default function LoginPage() {
         }
       }
 
-      // Determine if input is email or username for Auth-based login
+      // Auth-based login (email or username → email lookup)
       let userEmail = trimmedInput;
-      const isEmail = trimmedInput.includes('@');
 
       // If it's a username, look up the email in Firestore
       if (!isEmail && firestore) {

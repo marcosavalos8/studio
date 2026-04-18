@@ -454,7 +454,7 @@ export function InvoiceManagement() {
                 subtotal: invoice.subtotal,
                 commission: invoice.commission,
                 total: invoice.total,
-                employeeDetails: (invoice as unknown as { laborReportEmployeeDetails?: unknown[] }).laborReportEmployeeDetails ?? [],
+                employeeDetails: invoice.laborReportEmployeeDetails ?? [],
               }
             : null,
         }),

@@ -33,6 +33,7 @@ import { collection, doc, setDoc, addDoc, query, where, getDocs } from 'firebase
 import { useToast } from '@/hooks/use-toast'
 import { Loader2 } from 'lucide-react'
 import { useState } from 'react'
+import { generateSalt, hashPassword } from '@/lib/auth-utils'
 
 const userSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
@@ -44,7 +45,7 @@ const userSchema = z.object({
   confirmPassword: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (data.role === 'Admin') {
-    if (!data.email || !data.email.includes('@')) {
+    if (!data.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid email address', path: ['email'] })
     }
     if (!data.password || data.password.length < 6) {
@@ -66,13 +67,6 @@ const userSchema = z.object({
 type AddUserDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-}
-
-async function hashPassword(password: string): Promise<string> {
-  const msgBuffer = new TextEncoder().encode(password)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
@@ -159,8 +153,9 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
           updatedAt: new Date(),
         })
       } else {
-        // User role: store only in Firestore with hashed password
-        const passwordHash = await hashPassword(values.password ?? '')
+        // User role: store only in Firestore with salted+hashed password
+        const salt = generateSalt()
+        const passwordHash = await hashPassword(values.password ?? '', salt)
 
         await addDoc(collection(firestore, 'users'), {
           username: values.username,
@@ -170,6 +165,7 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
           status: values.status,
           noAuth: true,
           passwordHash,
+          passwordSalt: salt,
           createdAt: new Date(),
           updatedAt: new Date(),
         })
