@@ -35,7 +35,7 @@ const pageTitles: { [key: string]: string } = {
 
 export function AppHeader() {
   const pathname = usePathname()
-  const { logout, username, userRole } = useAuth()
+  const { logout, username, userRole, isAdmin } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
 
   const getTitle = () => {
@@ -130,9 +130,11 @@ export function AppHeader() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/settings">Settings</Link>
-            </DropdownMenuItem>
+            {isAdmin && (
+              <DropdownMenuItem asChild>
+                <Link href="/settings">Settings</Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem asChild>
               <Link href="/support">Support</Link>
             </DropdownMenuItem>
