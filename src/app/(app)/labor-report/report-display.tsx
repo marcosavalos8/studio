@@ -509,32 +509,53 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
         laborCostRow++;
       });
 
-      // Add Paid Rest Breaks row
-      worksheet.mergeCells(laborCostRow, 6, laborCostRow, 8);
-      const restBreaksLabelCell = worksheet.getCell(laborCostRow, 6);
-      restBreaksLabelCell.value = "Paid Rest Breaks";
-      restBreaksLabelCell.style = {
-        border: miniCellBorder,
-        font: { size: 10 },
-      };
+      // Add Paid Rest Breaks row (only if value > 0)
+      if ((report.paidRestBreaks ?? 0) > 0) {
+        worksheet.mergeCells(laborCostRow, 6, laborCostRow, 8);
+        const restBreaksLabelCell = worksheet.getCell(laborCostRow, 6);
+        restBreaksLabelCell.value = "Paid Rest Breaks";
+        restBreaksLabelCell.style = {
+          border: miniCellBorder,
+          font: { size: 10 },
+        };
 
-      const restBreaksValueCell = worksheet.getCell(laborCostRow, 9);
-      restBreaksValueCell.value = parseFloat(report.paidRestBreaks.toFixed(2));
-      restBreaksValueCell.numFmt = '"$"0.00';
-      restBreaksValueCell.style = { border: miniCellBorder };
-      laborCostRow++;
+        const restBreaksValueCell = worksheet.getCell(laborCostRow, 9);
+        restBreaksValueCell.value = parseFloat(report.paidRestBreaks.toFixed(2));
+        restBreaksValueCell.numFmt = '"$"0.00';
+        restBreaksValueCell.style = { border: miniCellBorder };
+        laborCostRow++;
+      }
 
-      // Add Minimum Wage Adjustments row
-      worksheet.mergeCells(laborCostRow, 6, laborCostRow, 8);
-      const minWageLabelCell = worksheet.getCell(laborCostRow, 6);
-      minWageLabelCell.value = "Minimum Wage Adjustments";
-      minWageLabelCell.style = { border: miniCellBorder, font: { size: 10 } };
+      // Add Overtime Premium row (only if value > 0)
+      if ((report.overtimePremium ?? 0) > 0) {
+        worksheet.mergeCells(laborCostRow, 6, laborCostRow, 8);
+        const overtimePremiumLabelCell = worksheet.getCell(laborCostRow, 6);
+        overtimePremiumLabelCell.value = "Overtime Premium (0.5x rate)";
+        overtimePremiumLabelCell.style = {
+          border: miniCellBorder,
+          font: { size: 10 },
+        };
 
-      const minWageValueCell = worksheet.getCell(laborCostRow, 9);
-      minWageValueCell.value = parseFloat(report.minimumWageTopUp.toFixed(2));
-      minWageValueCell.numFmt = '"$"0.00';
-      minWageValueCell.style = { border: miniCellBorder };
-      laborCostRow++;
+        const overtimePremiumValueCell = worksheet.getCell(laborCostRow, 9);
+        overtimePremiumValueCell.value = parseFloat((report.overtimePremium ?? 0).toFixed(2));
+        overtimePremiumValueCell.numFmt = '"$"0.00';
+        overtimePremiumValueCell.style = { border: miniCellBorder };
+        laborCostRow++;
+      }
+
+      // Add Minimum Wage Adjustments row (only if value > 0)
+      if ((report.minimumWageTopUp ?? 0) > 0) {
+        worksheet.mergeCells(laborCostRow, 6, laborCostRow, 8);
+        const minWageLabelCell = worksheet.getCell(laborCostRow, 6);
+        minWageLabelCell.value = "Minimum Wage Adjustments";
+        minWageLabelCell.style = { border: miniCellBorder, font: { size: 10 } };
+
+        const minWageValueCell = worksheet.getCell(laborCostRow, 9);
+        minWageValueCell.value = parseFloat(report.minimumWageTopUp.toFixed(2));
+        minWageValueCell.numFmt = '"$"0.00';
+        minWageValueCell.style = { border: miniCellBorder };
+        laborCostRow++;
+      }
 
       // Add Total Amount row
       worksheet.mergeCells(laborCostRow, 6, laborCostRow, 8);
@@ -973,28 +994,45 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                           </tr>
                         );
                       })}
-                      <tr>
-                        <td
-                          className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1"
-                          colSpan={3}
-                        >
-                          Paid Rest Breaks
-                        </td>
-                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
-                          {formatCurrency(report.paidRestBreaks)}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td
-                          className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1"
-                          colSpan={3}
-                        >
-                          Minimum Wage Adjustments
-                        </td>
-                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
-                          {formatCurrency(report.minimumWageTopUp)}
-                        </td>
-                      </tr>
+                      {(report.paidRestBreaks ?? 0) > 0 && (
+                        <tr>
+                          <td
+                            className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1"
+                            colSpan={3}
+                          >
+                            Paid Rest Breaks
+                          </td>
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                            {formatCurrency(report.paidRestBreaks)}
+                          </td>
+                        </tr>
+                      )}
+                      {(report.overtimePremium ?? 0) > 0 && (
+                        <tr>
+                          <td
+                            className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1"
+                            colSpan={3}
+                          >
+                            Overtime Premium (0.5x rate)
+                          </td>
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                            {formatCurrency(report.overtimePremium)}
+                          </td>
+                        </tr>
+                      )}
+                      {(report.minimumWageTopUp ?? 0) > 0 && (
+                        <tr>
+                          <td
+                            className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1"
+                            colSpan={3}
+                          >
+                            Minimum Wage Adjustments
+                          </td>
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                            {formatCurrency(report.minimumWageTopUp)}
+                          </td>
+                        </tr>
+                      )}
                       <tr className="border-t font-bold">
                         <td
                           className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1"

@@ -744,11 +744,15 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
                   );
                 })}
                 <tr>
-                  <td colSpan={3} style={tdStyle}>Paid Rest Breaks</td>
+                  <td colSpan={3} style={{ ...tdStyle, textAlign: "left" }}>Paid Rest Breaks</td>
                   <td style={tdStyle}>{formatCurr(report.paidRestBreaks)}</td>
                 </tr>
                 <tr>
-                  <td colSpan={3} style={tdStyle}>Minimum Wage Adjustments</td>
+                  <td colSpan={3} style={{ ...tdStyle, textAlign: "left" }}>Overtime Premium (0.5x rate)</td>
+                  <td style={tdStyle}>{formatCurr(report.overtimePremium ?? 0)}</td>
+                </tr>
+                <tr>
+                  <td colSpan={3} style={{ ...tdStyle, textAlign: "left" }}>Minimum Wage Adjustments</td>
                   <td style={tdStyle}>{formatCurr(report.minimumWageTopUp)}</td>
                 </tr>
                 <tr style={{ fontWeight: "bold" }}>
