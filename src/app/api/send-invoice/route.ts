@@ -29,6 +29,39 @@ interface InvoiceClientData {
   paymentTerms?: string;
 }
 
+interface LaborReportEmployeeDetail {
+  employeeName: string;
+  employeeId: string;
+  totalHours: number;
+  totalPieces: number;
+  paidRestBreaks: number;
+  minimumWageTopUp: number;
+  overtimeHours?: number;
+  overtimePremium?: number;
+  regularRate?: number;
+  tasksSummary: Array<{
+    taskName: string;
+    quantity: number;
+    rate: number;
+    rateType: "hourly" | "piece";
+    cost: number;
+  }>;
+}
+
+interface LaborReportData {
+  clientName: string;
+  dateFrom: string;
+  dateTo: string;
+  minimumWage?: number;
+  paidRestBreaks: number;
+  minimumWageTopUp: number;
+  overtimePremium?: number;
+  subtotal: number;
+  commission: number;
+  total: number;
+  employeeDetails: LaborReportEmployeeDetail[];
+}
+
 interface SendInvoiceBody {
   invoiceNumber: string;
   invoiceDate: string;
@@ -50,6 +83,8 @@ interface SendInvoiceBody {
   dailyBreakdown?: Record<string, InvoiceDayBreakdown>;
   invoiceClientData?: InvoiceClientData;
   employeeDetails?: Array<{ minimumWageTopUp?: number }>;
+  includeLaborReport?: boolean;
+  laborReportData?: LaborReportData | null;
 }
 
 // ─── utility ──────────────────────────────────────────────────────────────────
@@ -731,32 +766,372 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   doc.setDrawColor(209, 213, 219);
   doc.setLineWidth(0.5);
   doc.line(margin, y, pageW - margin, y);
+  y += 14;
+
+  // Footer: 3 centered lines
+  doc.setFontSize(9);
+  doc.setTextColor(55, 65, 81);
+  doc.setFont("helvetica", "normal");
+  doc.text(
+    "Make all checks payable to J&M Agricultural Labor LLC",
+    pageW / 2,
+    y,
+    { align: "center" },
+  );
+  y += 12;
+  doc.text(
+    "Any unpaid invoices after 30 days will incur additional fees",
+    pageW / 2,
+    y,
+    { align: "center" },
+  );
+  y += 12;
+  doc.setFont("helvetica", "bold");
+  doc.text("THANK YOU FOR YOUR BUSINESS!", pageW / 2, y, { align: "center" });
+
+  return doc.output("datauristring").split(",")[1];
+}
+
+// ─── Labor Report PDF generation ─────────────────────────────────────────────
+
+function generateLaborReportPdf(data: LaborReportData): string {
+  // Use landscape letter for wide employee table
+  const doc = new jsPDF({ unit: "pt", format: "letter", orientation: "landscape" });
+  const pageW = doc.internal.pageSize.getWidth(); // 792
+  const pageH = doc.internal.pageSize.getHeight(); // 612
+  const margin = 30;
+  const contentW = pageW - margin * 2;
+  let y = margin;
+
+  // ── Load logo ──────────────────────────────────────────────────────────
+  let logoBase64: string | null = null;
+  try {
+    const logoPath = path.join(process.cwd(), "src", "components", "images", "logo.jpeg");
+    logoBase64 = fs.readFileSync(logoPath).toString("base64");
+  } catch {
+    // Logo not available — skip silently
+  }
+
+  // ── Date range helpers ──────────────────────────────────────────────────
+  const fromDate = parseLocalDate(data.dateFrom);
+  const toDate = parseLocalDate(data.dateTo);
+
+  const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  let dateRangeStr = "";
+  if (!isNaN(fromDate.getTime()) && !isNaN(toDate.getTime())) {
+    const fromDay = daysOfWeek[fromDate.getDay()] ?? "";
+    const toDay = daysOfWeek[toDate.getDay()] ?? "";
+    const fromMon = monthNames[fromDate.getMonth()] ?? "";
+    const toMon = monthNames[toDate.getMonth()] ?? "";
+    if (fromMon === toMon) {
+      dateRangeStr = `${fromDay} - ${toDay}, ${fromMon} ${String(fromDate.getDate()).padStart(2, "0")}-${String(toDate.getDate()).padStart(2, "0")}, ${toDate.getFullYear()}`;
+    } else {
+      dateRangeStr = `${fromDay}, ${fromMon} ${String(fromDate.getDate()).padStart(2, "0")} - ${toDay}, ${toMon} ${String(toDate.getDate()).padStart(2, "0")}, ${toDate.getFullYear()}`;
+    }
+  }
+
+  // ── HEADER ──────────────────────────────────────────────────────────────
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(21, 128, 61);
+  doc.text("Labor Report | J&M Agricultural Labor LLC", margin, y + 4);
+
+  if (logoBase64) {
+    doc.addImage(logoBase64, "JPEG", pageW - margin - 64, y - 4, 64, 52);
+  }
+
+  y += 16;
+
+  // Meta row
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(0);
+  doc.text(dateRangeStr, margin, y + 10);
+  doc.text(`$ ${(data.minimumWage ?? 19.82).toFixed(2)} :Min Wage`, margin, y + 22);
+  doc.text("EIN# 33-2236422", margin + 200, y + 10);
+  doc.text("UBI# 605 650 411", margin + 200, y + 22);
+  doc.text("LIC#172-25", margin + 380, y + 10);
+
+  y += 36;
+
+  // Green divider
+  doc.setDrawColor(21, 128, 61);
+  doc.setLineWidth(3);
+  doc.line(margin, y, pageW - margin, y);
   y += 10;
 
-  // Footer text with mixed bold / red formatting, matching report-display.tsx exactly
-  drawRichText(
-    doc,
-    [
-      { text: '"All invoices are due and payable within ' },
-      { text: `${numberToWords(paymentDays)} (${paymentDays})`, bold: true },
-      {
-        text: " calendar days from the invoice date. Any balance unpaid after the ",
-      },
-      { text: `${paymentDays}-day`, bold: true },
-      { text: " period will accrue interest at a rate of " },
-      { text: "1%", bold: true, red: true },
-      {
-        text: " per month. This interest shall be calculated on a per-diem (daily) basis starting from the first day following the Due Date (Day ",
-      },
-      { text: `${paymentDays + 1}`, bold: true },
-      { text: ') until the payment is received in full by the Contractor."' },
-    ],
-    margin,
-    y,
-    contentW,
-    11,
-    8,
-  );
+  // ── EMPLOYEE TABLE ──────────────────────────────────────────────────────
+  const employees = data.employeeDetails ?? [];
+
+  // Collect unique task names
+  const taskNameSet = new Set<string>();
+  employees.forEach((emp) => {
+    emp.tasksSummary.forEach((t) => taskNameSet.add(t.taskName));
+  });
+  const uniqueTasks = Array.from(taskNameSet);
+
+  const hasOT = employees.some((emp) => (emp.overtimeHours ?? 0) > 0);
+
+  // Column widths
+  const nameW = 90;
+  const hoursW = 36;
+  const taskColW = 38; // each of: Piece, Rate, Piece Pay
+  const totalPiecesPayW = 46;
+  const otHoursW = 36;
+  const regRateW = 40;
+  const otPremiumW = 40;
+  const diffOwedW = 42;
+  const payReqW = 46;
+
+  const taskBlockW = taskColW * 3;
+  const tasksTotalW = uniqueTasks.length * taskBlockW;
+  const otBlockW = hasOT ? otHoursW + regRateW + otPremiumW : 0;
+  const tableW = nameW + hoursW + tasksTotalW + totalPiecesPayW + otBlockW + diffOwedW + payReqW;
+
+  // If table is wider than content area, scale font down
+  const scaleFactor = tableW > contentW ? contentW / tableW : 1;
+  const tFS = Math.max(6, Math.floor(8 * scaleFactor));
+  const rowH = Math.max(12, Math.floor(15 * scaleFactor));
+
+  let cx = margin;
+
+  const thStyle = (w: number) => {
+    doc.setFillColor(220, 252, 231); // #dcfce7
+    doc.rect(cx, y, w, rowH, "F");
+    doc.setDrawColor(22, 163, 74); // #16a34a
+    doc.rect(cx, y, w, rowH);
+    cx += w;
+  };
+
+  // Helper to draw header cell text centered
+  const drawHeader = (cols: Array<{ label: string; w: number }>) => {
+    cx = margin;
+    cols.forEach(({ label, w }) => {
+      thStyle(w);
+      cx -= w;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(tFS);
+      doc.setTextColor(0);
+      doc.text(label, cx + w / 2, y + rowH - 3, { align: "center", maxWidth: w - 2 });
+      cx += w;
+    });
+    y += rowH;
+    cx = margin;
+  };
+
+  const headers: Array<{ label: string; w: number }> = [
+    { label: "Worker Name", w: nameW * scaleFactor },
+    { label: "Hours", w: hoursW * scaleFactor },
+  ];
+  uniqueTasks.forEach((taskName, idx) => {
+    const label = String.fromCharCode(65 + idx);
+    headers.push({ label: `Piece ${label}`, w: taskColW * scaleFactor });
+    headers.push({ label: `Rate ${label}`, w: taskColW * scaleFactor });
+    headers.push({ label: `Piece Pay ${label}`, w: taskColW * scaleFactor });
+  });
+  headers.push({ label: "Total Pieces Pay", w: totalPiecesPayW * scaleFactor });
+  if (hasOT) {
+    headers.push({ label: "OT Hours", w: otHoursW * scaleFactor });
+    headers.push({ label: "Regular Rate", w: regRateW * scaleFactor });
+    headers.push({ label: "OT Premium", w: otPremiumW * scaleFactor });
+  }
+  headers.push({ label: "Diff Owed/Break", w: diffOwedW * scaleFactor });
+  headers.push({ label: "PAY REQ", w: payReqW * scaleFactor });
+
+  drawHeader(headers);
+
+  // Data rows
+  employees.forEach((emp, rowIdx) => {
+    if (y + rowH > pageH - margin) {
+      doc.addPage();
+      y = margin;
+      drawHeader(headers);
+    }
+
+    const taskMap = new Map(emp.tasksSummary.map((t) => [t.taskName, t]));
+    const totalPiecesPay = emp.tasksSummary.reduce((s, t) => s + t.cost, 0);
+    const diffOwed = emp.paidRestBreaks + emp.minimumWageTopUp + (emp.overtimePremium ?? 0);
+    const payReq = totalPiecesPay + diffOwed;
+
+    const rowBg = rowIdx % 2 === 0 ? [255, 255, 255] : [249, 250, 251];
+
+    cx = margin;
+
+    const drawCell = (text: string, w: number, align: "left" | "center" | "right" = "center") => {
+      doc.setFillColor(rowBg[0]!, rowBg[1]!, rowBg[2]!);
+      doc.rect(cx, y, w, rowH, "F");
+      doc.setDrawColor(22, 163, 74);
+      doc.setLineWidth(0.4);
+      doc.rect(cx, y, w, rowH);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(tFS);
+      doc.setTextColor(0);
+      const tx = align === "left" ? cx + 2 : align === "right" ? cx + w - 2 : cx + w / 2;
+      doc.text(text, tx, y + rowH - 3, { align, maxWidth: w - 2 });
+      cx += w;
+    };
+
+    drawCell(emp.employeeName, nameW * scaleFactor, "left");
+    drawCell(emp.totalHours.toFixed(2), hoursW * scaleFactor);
+
+    uniqueTasks.forEach((taskName) => {
+      const task = taskMap.get(taskName);
+      drawCell(task ? task.quantity.toFixed(2) : "0.00", taskColW * scaleFactor);
+      drawCell(task ? `$${task.rate.toFixed(2)}` : "$0.00", taskColW * scaleFactor);
+      drawCell(task ? `$${task.cost.toFixed(2)}` : "$0.00", taskColW * scaleFactor);
+    });
+
+    drawCell(`$${totalPiecesPay.toFixed(2)}`, totalPiecesPayW * scaleFactor);
+
+    if (hasOT) {
+      drawCell(`${(emp.overtimeHours ?? 0).toFixed(2)}`, otHoursW * scaleFactor);
+      drawCell(`$${(emp.regularRate ?? 0).toFixed(2)}/hr`, regRateW * scaleFactor);
+      drawCell(`$${(emp.overtimePremium ?? 0).toFixed(2)}`, otPremiumW * scaleFactor);
+    }
+
+    drawCell(`$${diffOwed.toFixed(2)}`, diffOwedW * scaleFactor);
+    drawCell(`$${payReq.toFixed(2)}`, payReqW * scaleFactor);
+
+    y += rowH;
+  });
+
+  y += 16;
+
+  // ── TASK LEGEND + TOTAL BASE LABOR COST ──────────────────────────────────
+  if (uniqueTasks.length > 0) {
+    // Check if there's enough space on the current page
+    const estimatedHeight = uniqueTasks.length * 14 + 80;
+    if (y + estimatedHeight > pageH - margin) {
+      doc.addPage();
+      y = margin;
+    }
+
+    doc.setDrawColor(209, 213, 219);
+    doc.setLineWidth(0.5);
+    doc.line(margin, y, pageW - margin, y);
+    y += 12;
+
+    const halfW = contentW / 2 - 16;
+
+    // Task Legend (left)
+    let ly = y;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(0);
+    doc.text("Task Legend:", margin, ly);
+    ly += 14;
+
+    uniqueTasks.forEach((taskName, idx) => {
+      const label = String.fromCharCode(65 + idx);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.text(`PIECE ${label} = `, margin, ly);
+      doc.setFont("helvetica", "normal");
+      doc.text(taskName, margin + doc.getTextWidth(`PIECE ${label} = `), ly);
+      ly += 12;
+    });
+
+    // Total Base Labor Cost (right)
+    const rightX = margin + halfW + 32;
+    let ry = y;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(0);
+    doc.text("Total Base Labor Cost", rightX, ry);
+    ry += 14;
+
+    // Sub-table header
+    const thFS = 8;
+    const subRowH = 14;
+    const col1W = (halfW) * 0.25;
+    const col2W = (halfW) * 0.25;
+    const col3W = (halfW) * 0.25;
+    const col4W = halfW - col1W - col2W - col3W;
+
+    const drawSubHeader = (labels: string[]) => {
+      let sx = rightX;
+      const widths = [col1W, col2W, col3W, col4W];
+      labels.forEach((lbl, i) => {
+        doc.setFillColor(220, 252, 231);
+        doc.rect(sx, ry, widths[i]!, subRowH, "F");
+        doc.setDrawColor(22, 163, 74);
+        doc.rect(sx, ry, widths[i]!, subRowH);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(thFS);
+        doc.setTextColor(0);
+        doc.text(lbl, sx + (widths[i]! / 2), ry + subRowH - 3, { align: "center" });
+        sx += widths[i]!;
+      });
+      ry += subRowH;
+    };
+
+    drawSubHeader(["Pieces", "Total Pieces", "Rate", "Total Pay"]);
+
+    const drawSubRow = (cells: string[]) => {
+      let sx = rightX;
+      const widths = [col1W, col2W, col3W, col4W];
+      cells.forEach((cell, i) => {
+        doc.setFillColor(255, 255, 255);
+        doc.rect(sx, ry, widths[i]!, subRowH, "F");
+        doc.setDrawColor(22, 163, 74);
+        doc.rect(sx, ry, widths[i]!, subRowH);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(thFS);
+        doc.setTextColor(0);
+        doc.text(cell, sx + (widths[i]! / 2), ry + subRowH - 3, { align: "center" });
+        sx += widths[i]!;
+      });
+      ry += subRowH;
+    };
+
+    // Calc task totals across employees
+    uniqueTasks.forEach((taskName, idx) => {
+      const label = String.fromCharCode(65 + idx);
+      let totalPcs = 0;
+      let rate = 0;
+      let totalPay = 0;
+      employees.forEach((emp) => {
+        const task = emp.tasksSummary.find((t) => t.taskName === taskName);
+        if (task) {
+          totalPcs += task.quantity;
+          rate = task.rate;
+          totalPay += task.cost;
+        }
+      });
+      drawSubRow([`Piece ${label}`, totalPcs.toFixed(2), `$${rate.toFixed(2)}`, `$${totalPay.toFixed(2)}`]);
+    });
+
+    const totalPaidRestBreaks = data.paidRestBreaks;
+    const totalOtPremium = data.overtimePremium ?? 0;
+    const totalMwTopUp = data.minimumWageTopUp;
+    const totalSubtotal = data.subtotal;
+
+    drawSubRow(["Paid Rest Breaks", "", "", `$${totalPaidRestBreaks.toFixed(2)}`]);
+    drawSubRow(["OT Premium (0.5x)", "", "", `$${totalOtPremium.toFixed(2)}`]);
+    drawSubRow(["Min Wage Adjustments", "", "", `$${totalMwTopUp.toFixed(2)}`]);
+
+    // Bold total row
+    {
+      let sx = rightX;
+      const widths = [col1W, col2W, col3W, col4W];
+      const cells = ["Total Amount:", "", "", `$${totalSubtotal.toFixed(2)}`];
+      cells.forEach((cell, i) => {
+        doc.setFillColor(243, 244, 246);
+        doc.rect(sx, ry, widths[i]!, subRowH, "F");
+        doc.setDrawColor(22, 163, 74);
+        doc.rect(sx, ry, widths[i]!, subRowH);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(thFS);
+        doc.setTextColor(0);
+        doc.text(cell, sx + (widths[i]! / 2), ry + subRowH - 3, { align: "center" });
+        sx += widths[i]!;
+      });
+      ry += subRowH;
+    }
+  }
 
   return doc.output("datauristring").split(",")[1];
 }
@@ -827,7 +1202,7 @@ export async function POST(request: Request) {
     </div>
   `;
 
-  // Generate PDF attachment
+  // Generate PDF attachments
   let pdfBuffer: Buffer | undefined;
   try {
     const pdfBase64 = generateInvoicePdf(body);
@@ -837,21 +1212,40 @@ export async function POST(request: Request) {
     // Continue without attachment if PDF generation fails
   }
 
+  let laborReportPdfBuffer: Buffer | undefined;
+  if (body.includeLaborReport && body.laborReportData) {
+    try {
+      const laborBase64 = generateLaborReportPdf(body.laborReportData);
+      laborReportPdfBuffer = Buffer.from(laborBase64, "base64");
+    } catch (laborPdfErr) {
+      console.error("Error generating labor report PDF:", laborPdfErr);
+      // Continue without labor report attachment
+    }
+  }
+
+  const attachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
+  if (pdfBuffer) {
+    attachments.push({
+      filename: `Invoice_${invoiceNumber}_${clientName.replace(/\s+/g, "_")}.pdf`,
+      content: pdfBuffer,
+      contentType: "application/pdf",
+    });
+  }
+  if (laborReportPdfBuffer) {
+    attachments.push({
+      filename: `LaborReport_${invoiceNumber}_${clientName.replace(/\s+/g, "_")}.pdf`,
+      content: laborReportPdfBuffer,
+      contentType: "application/pdf",
+    });
+  }
+
   try {
     await transporter.sendMail({
       from: `"J&M Agricultural Labor LLC" <${smtpUser}>`,
       to: clientEmail,
       subject: `Invoice ${invoiceNumber} from J&M Agricultural Labor LLC`,
       html,
-      attachments: pdfBuffer
-        ? [
-            {
-              filename: `Invoice_${invoiceNumber}_${clientName.replace(/\s+/g, "_")}.pdf`,
-              content: pdfBuffer,
-              contentType: "application/pdf",
-            },
-          ]
-        : [],
+      attachments,
     });
 
     return NextResponse.json({ success: true });

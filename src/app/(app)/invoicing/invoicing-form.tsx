@@ -68,6 +68,7 @@ type InvoiceFirestorePayload = {
   employeeDetails: DetailedInvoiceData["employeeDetails"];
   invoiceClientData: SavedInvoiceClientSnapshot;
   includeLaborReport: boolean;
+  laborReportEmployeeDetails: DetailedLabelReportData["employeeDetails"] | null;
 };
 
 export function InvoicingForm({ clients }: InvoicingFormProps) {
@@ -704,6 +705,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           paymentTerms: clientData.paymentTerms ?? null,
         },
         includeLaborReport,
+        laborReportEmployeeDetails: finalLaborReportData?.employeeDetails ?? null,
       };
 
       setPendingFirestorePayload(firestorePayload);

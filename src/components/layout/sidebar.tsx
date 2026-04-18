@@ -93,19 +93,21 @@ export function AppSidebar() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip="Settings"
-              className="px-3 py-2"
-              asChild
-              isActive={pathname === "/settings"}
-            >
-              <Link href="/settings">
-                <Settings className="flex-shrink-0" />
-                <span className="truncate">Settings</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {isAdmin && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip="Settings"
+                className="px-3 py-2"
+                asChild
+                isActive={pathname === "/settings"}
+              >
+                <Link href="/settings">
+                  <Settings className="flex-shrink-0" />
+                  <span className="truncate">Settings</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>

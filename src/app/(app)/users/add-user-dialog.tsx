@@ -29,22 +29,39 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useFirestore } from '@/firebase'
-import { collection, doc, setDoc, query, where, getDocs } from 'firebase/firestore'
+import { collection, doc, setDoc, addDoc, query, where, getDocs } from 'firebase/firestore'
 import { useToast } from '@/hooks/use-toast'
 import { Loader2 } from 'lucide-react'
 import { useState } from 'react'
+import { generateSalt, hashPassword } from '@/lib/auth-utils'
 
 const userSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
   username: z.string().min(3, 'Username must be at least 3 characters').regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  confirmPassword: z.string().min(6, 'Please confirm your password'),
   role: z.enum(['Admin', 'User']),
   status: z.enum(['Active', 'Inactive']),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
+  email: z.string().optional(),
+  password: z.string().optional(),
+  confirmPassword: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.role === 'Admin') {
+    if (!data.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid email address', path: ['email'] })
+    }
+    if (!data.password || data.password.length < 6) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Password must be at least 6 characters', path: ['password'] })
+    }
+    if (data.password !== data.confirmPassword) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Passwords don't match", path: ['confirmPassword'] })
+    }
+  } else {
+    if (!data.password || data.password.length < 6) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Password must be at least 6 characters', path: ['password'] })
+    }
+    if (data.password !== data.confirmPassword) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Passwords don't match", path: ['confirmPassword'] })
+    }
+  }
 })
 
 type AddUserDialogProps = {
@@ -56,19 +73,21 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
   const firestore = useFirestore()
   const { toast } = useToast()
   const [isCreating, setIsCreating] = useState(false)
-  
+
   const form = useForm<z.infer<typeof userSchema>>({
     resolver: zodResolver(userSchema),
     defaultValues: {
       fullName: '',
       username: '',
+      role: 'User',
+      status: 'Active',
       email: '',
       password: '',
       confirmPassword: '',
-      role: 'User',
-      status: 'Active',
     },
   })
+
+  const selectedRole = form.watch('role')
 
   const onSubmit = async (values: z.infer<typeof userSchema>) => {
     if (!firestore) {
@@ -83,74 +102,80 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
     setIsCreating(true)
 
     try {
-      // Check if user already exists in Firestore (by email or username)
-      if (firestore) {
-        const emailQuery = query(collection(firestore, 'users'), where('email', '==', values.email));
-        const existingEmailUsers = await getDocs(emailQuery);
-        
-        if (!existingEmailUsers.empty) {
-          toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'A user with this email already exists.',
-          });
-          setIsCreating(false);
-          return;
-        }
-
-        const usernameQuery = query(collection(firestore, 'users'), where('username', '==', values.username));
-        const existingUsernameUsers = await getDocs(usernameQuery);
-        
-        if (!existingUsernameUsers.empty) {
-          toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'A user with this username already exists.',
-          });
-          setIsCreating(false);
-          return;
-        }
+      // Check if username already exists
+      const usernameQuery = query(collection(firestore, 'users'), where('username', '==', values.username))
+      const existingUsernameUsers = await getDocs(usernameQuery)
+      if (!existingUsernameUsers.empty) {
+        toast({ variant: 'destructive', title: 'Error', description: 'A user with this username already exists.' })
+        setIsCreating(false)
+        return
       }
 
-      // Call server action to create user with Firebase Auth
-      const response = await fetch('/api/users/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      if (values.role === 'Admin') {
+        // Check if email already exists
+        const emailQuery = query(collection(firestore, 'users'), where('email', '==', values.email))
+        const existingEmailUsers = await getDocs(emailQuery)
+        if (!existingEmailUsers.empty) {
+          toast({ variant: 'destructive', title: 'Error', description: 'A user with this email already exists.' })
+          setIsCreating(false)
+          return
+        }
+
+        // Create in Firebase Auth via API
+        const response = await fetch('/api/users/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: values.email,
+            password: values.password,
+            displayName: values.fullName,
+            role: values.role,
+            status: values.status,
+          }),
+        })
+
+        const result = await response.json()
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to create user')
+        }
+
+        // Store in Firestore with Auth UID
+        const userDocRef = doc(firestore, 'users', result.uid)
+        await setDoc(userDocRef, {
           email: values.email,
-          password: values.password,
+          username: values.username,
+          fullName: values.fullName,
           displayName: values.fullName,
           role: values.role,
           status: values.status,
-        }),
-      })
+          noAuth: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+      } else {
+        // User role: store only in Firestore with salted+hashed password
+        const salt = generateSalt()
+        const passwordHash = await hashPassword(values.password ?? '', salt)
 
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to create user')
+        await addDoc(collection(firestore, 'users'), {
+          username: values.username,
+          fullName: values.fullName,
+          displayName: values.fullName,
+          role: 'User',
+          status: values.status,
+          noAuth: true,
+          passwordHash,
+          passwordSalt: salt,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
       }
-
-      // Store user info in Firestore
-      const userDocRef = doc(firestore, 'users', result.uid)
-      await setDoc(userDocRef, {
-        email: values.email,
-        username: values.username,
-        fullName: values.fullName,
-        displayName: values.fullName,
-        role: values.role,
-        status: values.status,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
 
       toast({
         title: 'User Created',
-        description: `${values.fullName} has been added successfully. They can now login with their email or username.`,
+        description: `${values.fullName} has been added successfully.`,
       })
-      
+
       form.reset()
       onOpenChange(false)
     } catch (error) {
@@ -178,6 +203,27 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
+              name="role"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Role</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a role" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="User">User</SelectItem>
+                      <SelectItem value="Admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="fullName"
               render={({ field }) => (
                 <FormItem>
@@ -202,19 +248,21 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input type="email" placeholder="user@example.com" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {selectedRole === 'Admin' && (
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="user@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
               control={form.control}
               name="password"
@@ -237,27 +285,6 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
                   <FormControl>
                     <Input type="password" placeholder="••••••" {...field} />
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="role"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Role</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a role" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="User">User</SelectItem>
-                      <SelectItem value="Admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

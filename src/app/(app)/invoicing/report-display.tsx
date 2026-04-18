@@ -486,20 +486,11 @@ export function InvoiceReportDisplay({
           </div>
         </div>
 
-        {/* ── FOOTER: Payment terms legal text ── */}
-        <div style={{ marginTop: "24px", fontSize: "11px", color: "#374151", borderTop: "1px solid #d1d5db", paddingTop: "12px" }}>
-          <p>
-            &quot;All invoices are due and payable within{" "}
-            <strong>{numberToWords(paymentDays)} ({paymentDays})</strong>{" "}
-            calendar days from the invoice date.
-            Any balance unpaid after the{" "}
-            <strong>{paymentDays}-day</strong>{" "}
-            period will accrue interest at a rate of{" "}
-            <strong style={{ color: "#dc2626" }}>1%</strong>{" "}
-            per month.
-            This interest shall be calculated on a per-diem (daily) basis starting from the first day
-            following the Due Date (Day <strong>{paymentDays + 1}</strong>) until the payment is received in full by the Contractor.&quot;
-          </p>
+        {/* ── FOOTER ── */}
+        <div style={{ marginTop: "24px", fontSize: "11px", color: "#374151", borderTop: "1px solid #d1d5db", paddingTop: "12px", textAlign: "center" }}>
+          <p style={{ margin: "0 0 4px 0" }}>Make all checks payable to <strong>J&amp;M Agricultural Labor LLC</strong></p>
+          <p style={{ margin: "0 0 4px 0" }}>Any unpaid invoices after 30 days will incur additional fees</p>
+          <p style={{ margin: "0", fontWeight: "bold" }}>THANK YOU FOR YOUR BUSINESS!</p>
         </div>
       </div>{/* end .print-page (invoice) */}
 

@@ -215,6 +215,25 @@ export interface SavedInvoice {
   overdueInterestAccrued?: number;
   /** Whether this invoice was generated together with a Labor Report */
   includeLaborReport?: boolean;
+  /** Employee details used for the labor report PDF (includes overtime fields) */
+  laborReportEmployeeDetails?: Array<{
+    employeeName: string;
+    employeeId: string;
+    totalHours: number;
+    totalPieces: number;
+    paidRestBreaks: number;
+    minimumWageTopUp: number;
+    overtimeHours?: number;
+    overtimePremium?: number;
+    regularRate?: number;
+    tasksSummary: Array<{
+      taskName: string;
+      quantity: number;
+      rate: number;
+      rateType: "hourly" | "piece";
+      cost: number;
+    }>;
+  }>;
 }
 
 export interface SoundSettings {
