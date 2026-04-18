@@ -703,6 +703,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           phone: clientData.phone ?? null,
           commissionRate: clientData.commissionRate ?? null,
           paymentTerms: clientData.paymentTerms ?? null,
+          minimumWage: clientData.minimumWage ?? null,
         },
         includeLaborReport,
         laborReportEmployeeDetails: finalLaborReportData?.employeeDetails ?? null,

@@ -448,6 +448,7 @@ export function InvoiceManagement() {
                 clientName: invoice.clientName,
                 dateFrom: invoice.dateFrom,
                 dateTo: invoice.dateTo,
+                minimumWage: invoice.invoiceClientData?.minimumWage ?? undefined,
                 paidRestBreaks: invoice.paidRestBreaks,
                 minimumWageTopUp: invoice.minimumWageTopUp,
                 overtimePremium: invoice.overtimePremium ?? 0,

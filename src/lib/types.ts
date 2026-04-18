@@ -182,6 +182,7 @@ export interface SavedInvoiceClientSnapshot {
   phone?: string;
   commissionRate?: number;
   paymentTerms?: string;
+  minimumWage?: number;
 }
 
 export interface SavedInvoice {
