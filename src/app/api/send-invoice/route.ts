@@ -892,12 +892,17 @@ function generateLaborReportPdf(data: LaborReportData): string {
 
   // Always scale to fill the full content width (scale up or down as needed)
   const scaleFactor = contentW / tableW;
-  // Font: min 6pt (readability floor), max 9pt (avoid oversized text when few columns)
+  // Data-row font: min 6pt (readability floor), max 9pt (avoid oversized text when few columns)
   const tFS = Math.min(9, Math.max(6, Math.floor(8 * scaleFactor)));
   // Row height: min 12pt, max 20pt — scales with font size
   const rowH = Math.min(20, Math.max(12, Math.floor(15 * scaleFactor)));
-  // Header row is taller than data rows to accommodate 2-3 line wrapped column labels
-  const hRowH = 38;
+  // Header cells use a fixed smaller font so long labels (e.g. "Overtime Hours (over 40/week)")
+  // never wrap into more lines than hRowH can contain regardless of scaleFactor.
+  const headerFS = 7;
+  // jsPDF default lineHeightFactor is 1.15 — used to compute the actual rendered block height.
+  const jsPdfLineH = headerFS * 1.15;
+  // Header row tall enough for 3 lines at 7pt with comfortable top/bottom padding.
+  const hRowH = 36;
 
   let cx = margin;
 
@@ -917,12 +922,13 @@ function generateLaborReportPdf(data: LaborReportData): string {
       thStyle(w);
       cx -= w;
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(tFS);
+      doc.setFontSize(headerFS);
       doc.setTextColor(0);
       const lines = doc.splitTextToSize(label, w - 4);
-      // 1.3× font size per line gives comfortable line spacing for wrapped text
-      const textBlockH = lines.length * (tFS * 1.3);
-      const textStartY = y + (hRowH - textBlockH) / 2 + tFS;
+      // Height of the text block: first line cap height + subsequent line steps
+      const textBlockH = headerFS * 0.8 + (lines.length - 1) * jsPdfLineH;
+      // Clamp so the first-line baseline never falls above the cell top
+      const textStartY = Math.max(y + headerFS, y + (hRowH - textBlockH) / 2 + headerFS * 0.8);
       doc.text(lines, cx + w / 2, textStartY, { align: "center" });
       cx += w;
     });
