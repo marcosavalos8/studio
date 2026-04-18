@@ -559,81 +559,114 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
   const hasOvertimeData =
     report.employeeDetails?.some((emp) => (emp.overtimeHours || 0) > 0) ?? false;
 
-  const thStyle: React.CSSProperties = {
-    border: "1px solid #16a34a",
-    borderBottom: "1px solid #000",
-    padding: "4px 6px",
-    textAlign: "center",
-    fontWeight: "bold",
-    backgroundColor: "#dcfce7",
-    color: "#000",
-    fontSize: "9px",
-  };
-  const tdStyle: React.CSSProperties = {
-    borderLeft: "1px solid #16a34a",
-    borderRight: "1px solid #16a34a",
-    padding: "3px 6px",
-    textAlign: "center",
-    fontSize: "9px",
+  const truncateWorkerName = (fullName: string): string => {
+    if (!fullName || typeof fullName !== "string") return "";
+    const nameParts = fullName.trim().split(/\s+/).filter((part) => part.length > 0);
+    if (nameParts.length <= 2) return fullName;
+    return `${nameParts[0]} ${nameParts[1]}`;
   };
 
   return (
     <div
-      className="print-page bg-white text-black rounded-lg border shadow-sm"
-      style={{ padding: "24px", marginTop: "24px" }}
+      className="print-page bg-white text-black p-8 rounded-lg border shadow-sm"
+      style={{ marginTop: "24px" }}
     >
-      {/* Header */}
-      <div style={{ marginBottom: "16px", position: "relative" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h1 style={{ fontSize: "20px", fontWeight: "bold", color: "#15803d", marginBottom: "4px" }}>
-            Labor Report | J&M Agricultural Labor LLC
-          </h1>
-          <img src="/logo.jpeg" alt="J&M Agricultural Labor LLC Logo" style={{ width: "80px", height: "64px", objectFit: "contain" }} />
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", fontSize: "11px", marginTop: "8px" }}>
-          <div>
-            <p><strong>{formatDateRange()}</strong></p>
-            <p><strong>$ {(report.client.minimumWage || 19.82).toFixed(2)} :Min Wage</strong></p>
+      {/* Header con logo */}
+      <div className="mb-6 relative">
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold text-left mb-1 text-green-700">
+              Labor Report | J&M Agricultural Labor LLC
+            </h1>
           </div>
-          <div>
-            <p><strong>EIN#</strong> 33-2236422</p>
-            <p><strong>UBI#</strong> 605 650 411</p>
-          </div>
-          <div>
-            <p><strong>LIC#172-25</strong></p>
+          <div className="absolute right-0 top-0">
+            <img
+              src="/logo.jpeg"
+              alt="JM AGRI Logo"
+              className="w-24 h-20 object-contain"
+            />
           </div>
         </div>
-        <div style={{ borderBottom: "4px solid #15803d", marginTop: "8px" }} />
+
+        {/* Company info section */}
+        <div className="grid grid-cols-3 gap-4 text-sm mt-4">
+          <div>
+            <p>
+              <strong>{formatDateRange()}</strong>
+            </p>
+            <p>
+              <strong>
+                $ {(report.client.minimumWage || 19.82).toFixed(2)} :Min Wage
+              </strong>
+            </p>
+          </div>
+          <div>
+            <p>
+              <strong>EIN#</strong> 33-2236422
+            </p>
+            <p>
+              <strong>UBI#</strong> 605 650 411
+            </p>
+          </div>
+          <div>
+            <p>
+              <strong>LIC#172-25</strong>
+            </p>
+          </div>
+        </div>
+        {/* Green bottom border after company info */}
+        <div className="border-b-4 border-green-700 mt-2"></div>
       </div>
 
-      {/* Employee table */}
       {hasEmployeeDetails ? (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9px" }}>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-xs mt-4">
             <thead>
               <tr>
-                <th style={thStyle}>Worker Name</th>
-                <th style={thStyle}>Hours</th>
+                <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
+                  Worker Name
+                </th>
+                <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
+                  Hours
+                </th>
                 {uniqueTasks.map((taskName, idx) => {
                   const label = String.fromCharCode(65 + idx);
                   return (
                     <React.Fragment key={taskName}>
-                      <th style={thStyle}>Piece {label}</th>
-                      <th style={thStyle}>Rate {label}</th>
-                      <th style={thStyle}>Piece Pay {label}</th>
+                      <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-1 py-1 text-center font-bold bg-green-100 text-black">
+                        Piece {label}
+                      </th>
+                      <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-1 py-1 text-center font-bold bg-green-100 text-black">
+                        Rate {label}
+                      </th>
+                      <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-1 py-1 text-center font-bold bg-green-100 text-black">
+                        Piece Pay {label}
+                      </th>
                     </React.Fragment>
                   );
                 })}
-                <th style={thStyle}>Total Pieces Pay</th>
+                <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
+                  Total Pieces Pay
+                </th>
                 {hasOvertimeData && (
                   <>
-                    <th style={thStyle}>OT Hours</th>
-                    <th style={thStyle}>Regular Rate</th>
-                    <th style={thStyle}>OT Premium</th>
+                    <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
+                      Overtime Hours (over 40/week)
+                    </th>
+                    <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
+                      Regular Rate for OT Calculation
+                    </th>
+                    <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
+                      Overtime Premium (0.5x rate)
+                    </th>
                   </>
                 )}
-                <th style={thStyle}>Diff Owed/Break</th>
-                <th style={thStyle}>PAY REQ</th>
+                <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
+                  Diff Owed/Break
+                </th>
+                <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
+                  PAY REQ
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -642,46 +675,68 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
                   employee.tasksSummary.map((task) => [task.taskName, task]),
                 );
                 const totalPiecesPay = employee.tasksSummary.reduce(
-                  (sum, task) => sum + task.cost, 0
+                  (sum, task) => sum + task.cost,
+                  0,
                 );
                 const diffOwed =
                   employee.paidRestBreaks +
                   employee.minimumWageTopUp +
                   (employee.overtimePremium || 0);
                 const minPayRequired = totalPiecesPay + diffOwed;
-                const rowBg = rowIndex % 2 === 0 ? "#fff" : "#f9fafb";
                 return (
-                  <tr key={employee.employeeId} style={{ backgroundColor: rowBg }}>
-                    <td style={{ ...tdStyle, textAlign: "left", fontWeight: "500" }}>
-                      {employee.employeeName}
+                  <tr
+                    key={employee.employeeId}
+                    className={rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"}
+                  >
+                    <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 font-medium text-left">
+                      <span className="lg:hidden">
+                        {truncateWorkerName(employee.employeeName)}
+                      </span>
+                      <span className="hidden lg:inline">
+                        {employee.employeeName}
+                      </span>
                     </td>
-                    <td style={tdStyle}>{employee.totalHours.toFixed(2)}</td>
+                    <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                      {employee.totalHours.toFixed(2)}
+                    </td>
                     {uniqueTasks.map((taskName) => {
                       const task = taskMap.get(taskName);
                       return (
                         <React.Fragment key={taskName}>
-                          <td style={tdStyle}>{task ? task.quantity.toFixed(2) : "0.00"}</td>
-                          <td style={tdStyle}>$ {task ? task.rate.toFixed(2) : "0.00"}</td>
-                          <td style={tdStyle}>$ {task ? task.cost.toFixed(2) : "0.00"}</td>
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center">
+                            {task ? task.quantity.toFixed(2) : "0.00"}
+                          </td>
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center">
+                            $ {task ? task.rate.toFixed(2) : "0.00"}
+                          </td>
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center">
+                            $ {task ? task.cost.toFixed(2) : "0.00"}
+                          </td>
                         </React.Fragment>
                       );
                     })}
-                    <td style={{ ...tdStyle, fontWeight: "bold" }}>{formatCurr(totalPiecesPay)}</td>
+                    <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
+                      {formatCurr(totalPiecesPay)}
+                    </td>
                     {hasOvertimeData && (
                       <>
-                        <td style={{ ...tdStyle, fontWeight: "bold" }}>
+                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                           {(employee.overtimeHours || 0).toFixed(2)} hrs
                         </td>
-                        <td style={{ ...tdStyle, fontWeight: "bold" }}>
+                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                           {formatCurr(employee.regularRate || 0)}/hr
                         </td>
-                        <td style={{ ...tdStyle, fontWeight: "bold" }}>
+                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
                           {formatCurr(employee.overtimePremium || 0)}
                         </td>
                       </>
                     )}
-                    <td style={{ ...tdStyle, fontWeight: "bold" }}>{formatCurr(diffOwed)}</td>
-                    <td style={{ ...tdStyle, fontWeight: "bold" }}>{formatCurr(minPayRequired)}</td>
+                    <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
+                      {formatCurr(diffOwed)}
+                    </td>
+                    <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
+                      {formatCurr(minPayRequired)}
+                    </td>
                   </tr>
                 );
               })}
@@ -689,69 +744,131 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
           </table>
         </div>
       ) : (
-        <p style={{ textAlign: "center", color: "#6b7280", padding: "32px 0" }}>
+        <div className="text-center text-gray-500 py-8">
           No employee details available for this date range.
-        </p>
+        </div>
       )}
 
       {/* Task Legend and Total Base Labor Cost */}
       {uniqueTasks.length > 0 && (
-        <div style={{ marginTop: "24px", borderTop: "1px solid #d1d5db", paddingTop: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "32px", fontSize: "10px" }}>
-          {/* Task Legend */}
-          <div>
-            <p style={{ fontWeight: "bold", fontSize: "12px", marginBottom: "6px" }}>Task Legend:</p>
-            {uniqueTasks.map((taskName, idx) => {
-              const label = String.fromCharCode(65 + idx);
-              return (
-                <p key={taskName} style={{ margin: "2px 0" }}>
-                  <strong>PIECE {label}</strong> = {taskName}
-                </p>
-              );
-            })}
-          </div>
-          {/* Total Base Labor Cost */}
-          <div>
-            <p style={{ fontWeight: "bold", fontSize: "12px", marginBottom: "6px" }}>Total Base Labor Cost</p>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px" }}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>Pieces</th>
-                  <th style={thStyle}>Total Pieces</th>
-                  <th style={thStyle}>Rate</th>
-                  <th style={thStyle}>Total Pay</th>
-                </tr>
-              </thead>
-              <tbody>
+        <div className="mt-8 pt-4 border-t">
+          <div className="grid grid-cols-2 gap-8 items-start">
+            {/* Task Legend Section */}
+            <div>
+              <h3 className="font-bold mb-2 text-lg">Task Legend:</h3>
+              <div className="text-sm space-y-1">
                 {uniqueTasks.map((taskName, idx) => {
                   const label = String.fromCharCode(65 + idx);
-                  const { totalPieces, rate, totalPay } = calcTaskTotals(taskName, report.employeeDetails);
                   return (
-                    <tr key={taskName}>
-                      <td style={tdStyle}>Piece {label}</td>
-                      <td style={tdStyle}>{totalPieces.toFixed(2)}</td>
-                      <td style={tdStyle}>{formatCurr(rate)}</td>
-                      <td style={tdStyle}>{formatCurr(totalPay)}</td>
-                    </tr>
+                    <p key={taskName} className="text-xs">
+                      <strong>PIECE {label}</strong> = {taskName}
+                    </p>
                   );
                 })}
-                <tr>
-                  <td colSpan={3} style={{ ...tdStyle, textAlign: "left" }}>Paid Rest Breaks</td>
-                  <td style={tdStyle}>{formatCurr(report.paidRestBreaks)}</td>
-                </tr>
-                <tr>
-                  <td colSpan={3} style={{ ...tdStyle, textAlign: "left" }}>Overtime Premium (0.5x rate)</td>
-                  <td style={tdStyle}>{formatCurr(report.overtimePremium ?? 0)}</td>
-                </tr>
-                <tr>
-                  <td colSpan={3} style={{ ...tdStyle, textAlign: "left" }}>Minimum Wage Adjustments</td>
-                  <td style={tdStyle}>{formatCurr(report.minimumWageTopUp)}</td>
-                </tr>
-                <tr style={{ fontWeight: "bold" }}>
-                  <td colSpan={3} style={tdStyle}>Total Amount:</td>
-                  <td style={tdStyle}>{formatCurr(report.subtotal)}</td>
-                </tr>
-              </tbody>
-            </table>
+              </div>
+            </div>
+
+            {/* Total Base Labor Cost Section */}
+            <div>
+              <h3 className="font-bold mb-2 text-lg">
+                Total Base Labor Cost
+              </h3>
+              <div className="text-xs">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr>
+                      <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-left font-bold bg-green-100 text-black">
+                        Pieces
+                      </th>
+                      <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
+                        Total Pieces
+                      </th>
+                      <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
+                        Rate
+                      </th>
+                      <th className="border-l-2 border-r-2 border-green-700 border-t-0 border-b border-black px-2 py-1 text-center font-bold bg-green-100 text-black">
+                        Total Pay
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {uniqueTasks.map((taskName, idx) => {
+                      const label = String.fromCharCode(65 + idx);
+                      const { totalPieces, rate, totalPay } = calcTaskTotals(
+                        taskName,
+                        report.employeeDetails,
+                      );
+                      return (
+                        <tr key={taskName}>
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1">
+                            Piece {label}
+                          </td>
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                            {totalPieces.toFixed(2)}
+                          </td>
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                            {formatCurr(rate)}
+                          </td>
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                            {formatCurr(totalPay)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {(report.paidRestBreaks ?? 0) > 0 && (
+                      <tr>
+                        <td
+                          className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1"
+                          colSpan={3}
+                        >
+                          Paid Rest Breaks
+                        </td>
+                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                          {formatCurr(report.paidRestBreaks)}
+                        </td>
+                      </tr>
+                    )}
+                    {(report.overtimePremium ?? 0) > 0 && (
+                      <tr>
+                        <td
+                          className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1"
+                          colSpan={3}
+                        >
+                          Overtime Premium (0.5x rate)
+                        </td>
+                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                          {formatCurr(report.overtimePremium)}
+                        </td>
+                      </tr>
+                    )}
+                    {(report.minimumWageTopUp ?? 0) > 0 && (
+                      <tr>
+                        <td
+                          className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1"
+                          colSpan={3}
+                        >
+                          Minimum Wage Adjustments
+                        </td>
+                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                          {formatCurr(report.minimumWageTopUp)}
+                        </td>
+                      </tr>
+                    )}
+                    <tr className="border-t font-bold">
+                      <td
+                        className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1"
+                        colSpan={3}
+                      >
+                        Total Amount:
+                      </td>
+                      <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                        {formatCurr(report.subtotal)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       )}
