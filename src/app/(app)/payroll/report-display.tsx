@@ -199,8 +199,8 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                                                               </>
                                                             )}
                                                             <TableRow><TableCell>Raw Task Earnings</TableCell><TableCell className="text-right">${week.totalEarnings.toFixed(2)}</TableCell></TableRow>
-                                                            <TableRow><TableCell>Minimum Wage Top-Up</TableCell><TableCell className="text-right text-amber-600">+ ${week.minimumWageTopUp.toFixed(2)}</TableCell></TableRow>
                                                             <TableRow><TableCell>Paid Rest Breaks (10min / 4hr)</TableCell><TableCell className="text-right text-blue-600">+ ${week.paidRestBreaks.toFixed(2)}</TableCell></TableRow>
+                                                            <TableRow><TableCell>Minimum Wage Top-Up</TableCell><TableCell className="text-right text-amber-600">+ ${week.minimumWageTopUp.toFixed(2)}</TableCell></TableRow>
                                                             <TableRow className={week.overtimeHours && week.overtimeHours > 0 ? "bg-purple-50 dark:bg-purple-900/20" : ""}>
                                                               <TableCell className={week.overtimeHours && week.overtimeHours > 0 ? "font-medium" : ""}>Overtime Hours (over 40/week)</TableCell>
                                                               <TableCell className={`text-right ${week.overtimeHours && week.overtimeHours > 0 ? "text-purple-600 font-medium" : ""}`}>{week.overtimeHours?.toFixed(2) || '0.00'} hrs</TableCell>
