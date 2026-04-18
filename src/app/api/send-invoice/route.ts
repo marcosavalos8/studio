@@ -979,20 +979,20 @@ function generateLaborReportPdf(data: LaborReportData): string {
     uniqueTasks.forEach((taskName) => {
       const task = taskMap.get(taskName);
       drawCell(task ? task.quantity.toFixed(2) : "0.00", taskColW * scaleFactor);
-      drawCell(task ? `$${task.rate.toFixed(2)}` : "$0.00", taskColW * scaleFactor);
-      drawCell(task ? `$${task.cost.toFixed(2)}` : "$0.00", taskColW * scaleFactor);
+      drawCell(task ? `$ ${task.rate.toFixed(2)}` : "$ 0.00", taskColW * scaleFactor);
+      drawCell(task ? `$ ${task.cost.toFixed(2)}` : "$ 0.00", taskColW * scaleFactor);
     });
 
-    drawCell(`$${totalPiecesPay.toFixed(2)}`, totalPiecesPayW * scaleFactor);
+    drawCell(`$ ${totalPiecesPay.toFixed(2)}`, totalPiecesPayW * scaleFactor);
 
     if (hasOT) {
-      drawCell(`${(emp.overtimeHours ?? 0).toFixed(2)}`, otHoursW * scaleFactor);
-      drawCell(`$${(emp.regularRate ?? 0).toFixed(2)}/hr`, regRateW * scaleFactor);
-      drawCell(`$${(emp.overtimePremium ?? 0).toFixed(2)}`, otPremiumW * scaleFactor);
+      drawCell(`${(emp.overtimeHours ?? 0).toFixed(2)} hrs`, otHoursW * scaleFactor);
+      drawCell(`$ ${(emp.regularRate ?? 0).toFixed(2)}/hr`, regRateW * scaleFactor);
+      drawCell(`$ ${(emp.overtimePremium ?? 0).toFixed(2)}`, otPremiumW * scaleFactor);
     }
 
-    drawCell(`$${diffOwed.toFixed(2)}`, diffOwedW * scaleFactor);
-    drawCell(`$${payReq.toFixed(2)}`, payReqW * scaleFactor);
+    drawCell(`$ ${diffOwed.toFixed(2)}`, diffOwedW * scaleFactor);
+    drawCell(`$ ${payReq.toFixed(2)}`, payReqW * scaleFactor);
 
     y += rowH;
   });
@@ -1101,7 +1101,7 @@ function generateLaborReportPdf(data: LaborReportData): string {
           totalPay += task.cost;
         }
       });
-      drawSubRow([`Piece ${label}`, totalPcs.toFixed(2), `$${rate.toFixed(2)}`, `$${totalPay.toFixed(2)}`]);
+      drawSubRow([`Piece ${label}`, totalPcs.toFixed(2), `$ ${rate.toFixed(2)}`, `$ ${totalPay.toFixed(2)}`]);
     });
 
     const totalPaidRestBreaks = data.paidRestBreaks;
@@ -1109,15 +1109,21 @@ function generateLaborReportPdf(data: LaborReportData): string {
     const totalMwTopUp = data.minimumWageTopUp;
     const totalSubtotal = data.subtotal;
 
-    drawSubRow(["Paid Rest Breaks", "", "", `$${totalPaidRestBreaks.toFixed(2)}`]);
-    drawSubRow(["OT Premium (0.5x)", "", "", `$${totalOtPremium.toFixed(2)}`]);
-    drawSubRow(["Min Wage Adjustments", "", "", `$${totalMwTopUp.toFixed(2)}`]);
+    if (totalPaidRestBreaks > 0) {
+      drawSubRow(["Paid Rest Breaks", "", "", `$ ${totalPaidRestBreaks.toFixed(2)}`]);
+    }
+    if (totalOtPremium > 0) {
+      drawSubRow(["OT Premium (0.5x rate)", "", "", `$ ${totalOtPremium.toFixed(2)}`]);
+    }
+    if (totalMwTopUp > 0) {
+      drawSubRow(["Minimum Wage Adjustments", "", "", `$ ${totalMwTopUp.toFixed(2)}`]);
+    }
 
     // Bold total row
     {
       let sx = rightX;
       const widths = [col1W, col2W, col3W, col4W];
-      const cells = ["Total Amount:", "", "", `$${totalSubtotal.toFixed(2)}`];
+      const cells = ["Total Amount:", "", "", `$ ${totalSubtotal.toFixed(2)}`];
       cells.forEach((cell, i) => {
         doc.setFillColor(243, 244, 246);
         doc.rect(sx, ry, widths[i]!, subRowH, "F");
