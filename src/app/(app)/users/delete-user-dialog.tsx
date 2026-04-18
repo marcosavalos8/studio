@@ -41,37 +41,48 @@ export function DeleteUserDialog({ open, onOpenChange, user }: DeleteUserDialogP
     setIsDeleting(true)
 
     try {
-      // 1. Delete from Firebase Authentication via server-side API (best-effort)
-      const authRes = await fetch('/api/users/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: user.id }),
-      })
+      if (user.noAuth) {
+        // Non-auth user: just delete from Firestore
+        const userDocRef = doc(firestore, 'users', user.id)
+        await deleteDoc(userDocRef)
 
-      const authData = await authRes.json().catch(() => ({})) as {
-        success?: boolean;
-        error?: string;
-        adminUnavailable?: boolean;
-      };
-
-      if (!authRes.ok) {
-        throw new Error(authData.error ?? 'Failed to delete user from Firebase Auth')
-      }
-
-      // 2. Delete user document from Firestore
-      const userDocRef = doc(firestore, 'users', user.id)
-      await deleteDoc(userDocRef)
-
-      if (authData.adminUnavailable) {
         toast({
           title: 'User Deleted',
-          description: `${user.displayName} was removed from the system. Note: the Firebase Authentication account may need to be deleted manually from the Firebase Console.`,
+          description: `${user.displayName} has been removed from the system.`,
         })
       } else {
-        toast({
-          title: 'User Deleted',
-          description: `${user.displayName} has been completely removed from the system.`,
+        // Auth user: delete from Firebase Authentication via server-side API (best-effort)
+        const authRes = await fetch('/api/users/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid: user.id }),
         })
+
+        const authData = await authRes.json().catch(() => ({})) as {
+          success?: boolean;
+          error?: string;
+          adminUnavailable?: boolean;
+        };
+
+        if (!authRes.ok) {
+          throw new Error(authData.error ?? 'Failed to delete user from Firebase Auth')
+        }
+
+        // Delete user document from Firestore
+        const userDocRef = doc(firestore, 'users', user.id)
+        await deleteDoc(userDocRef)
+
+        if (authData.adminUnavailable) {
+          toast({
+            title: 'User Deleted',
+            description: `${user.displayName} was removed from the system. Note: the Firebase Authentication account may need to be deleted manually from the Firebase Console.`,
+          })
+        } else {
+          toast({
+            title: 'User Deleted',
+            description: `${user.displayName} has been completely removed from the system.`,
+          })
+        }
       }
 
       onOpenChange(false)
@@ -93,8 +104,11 @@ export function DeleteUserDialog({ open, onOpenChange, user }: DeleteUserDialogP
         <AlertDialogHeader>
           <AlertDialogTitle>Are you sure?</AlertDialogTitle>
           <AlertDialogDescription>
-            This will permanently delete <strong>{user.displayName}</strong> ({user.email}) from both
-            the management system and Firebase Authentication. This action cannot be undone.
+            This will permanently delete <strong>{user.displayName}</strong>
+            {user.noAuth
+              ? " from the management system."
+              : ` (${user.email ?? user.username}) from both the management system and Firebase Authentication.`}{" "}
+            This action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

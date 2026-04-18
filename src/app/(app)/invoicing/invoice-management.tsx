@@ -442,6 +442,21 @@ export function InvoiceManagement() {
           dailyBreakdown: invoice.dailyBreakdown ?? null,
           invoiceClientData: invoice.invoiceClientData ?? null,
           employeeDetails: invoice.employeeDetails ?? [],
+          includeLaborReport: invoice.includeLaborReport ?? false,
+          laborReportData: invoice.includeLaborReport
+            ? {
+                clientName: invoice.clientName,
+                dateFrom: invoice.dateFrom,
+                dateTo: invoice.dateTo,
+                paidRestBreaks: invoice.paidRestBreaks,
+                minimumWageTopUp: invoice.minimumWageTopUp,
+                overtimePremium: invoice.overtimePremium ?? 0,
+                subtotal: invoice.subtotal,
+                commission: invoice.commission,
+                total: invoice.total,
+                employeeDetails: (invoice as unknown as { laborReportEmployeeDetails?: unknown[] }).laborReportEmployeeDetails ?? [],
+              }
+            : null,
         }),
       });
 

@@ -39,12 +39,13 @@ import { DeleteUserDialog } from "./delete-user-dialog";
 
 export interface AppUser {
   id: string;
-  email: string;
+  email?: string;
   username?: string;
   fullName?: string;
   displayName: string;
   role: "Admin" | "User";
   status: "Active" | "Inactive";
+  noAuth?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -71,8 +72,9 @@ export default function UsersPage() {
     const lowerQuery = searchQuery.toLowerCase();
     return users.filter(
       (user) =>
-        user.email.toLowerCase().includes(lowerQuery) ||
-        user.displayName.toLowerCase().includes(lowerQuery)
+        (user.email?.toLowerCase() ?? "").includes(lowerQuery) ||
+        user.displayName.toLowerCase().includes(lowerQuery) ||
+        (user.username?.toLowerCase() ?? "").includes(lowerQuery)
     );
   }, [users, searchQuery]);
 
@@ -156,7 +158,7 @@ export default function UsersPage() {
                           {user.displayName}
                         </div>
                       </TableCell>
-                      <TableCell>{user.email}</TableCell>
+                      <TableCell>{user.email ?? user.username ?? "—"}</TableCell>
                       <TableCell>
                         <Badge
                           variant={user.role === "Admin" ? "default" : "secondary"}

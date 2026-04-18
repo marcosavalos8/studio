@@ -48,21 +48,62 @@ export default function LoginPage() {
         return;
       }
 
-      // Determine if input is email or username
+      // Look up user by username in Firestore first
+      if (firestore) {
+        const usersQuery = query(collection(firestore, 'users'), where('username', '==', trimmedInput));
+        const usersSnapshot = await getDocs(usersQuery);
+
+        if (!usersSnapshot.empty) {
+          const userDoc = usersSnapshot.docs[0];
+          const userData = userDoc.data();
+
+          // Handle non-auth (User role) login: verify password hash in Firestore
+          if (userData.noAuth === true) {
+            if (userData.status === "Inactive") {
+              setError("Your account is inactive. Please contact an administrator.");
+              setLoading(false);
+              return;
+            }
+
+            // Hash the input password and compare
+            const msgBuffer = new TextEncoder().encode(trimmedPassword);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const inputHash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+
+            if (inputHash !== userData.passwordHash) {
+              setError("Invalid credentials. Please check your username and password.");
+              setLoading(false);
+              return;
+            }
+
+            const displayName = userData.displayName || userData.fullName || trimmedInput;
+            const role = userData.role || "User";
+            localStorage.setItem("isAuthenticated", "true");
+            localStorage.setItem("username", displayName);
+            localStorage.setItem("userRole", role);
+            login(displayName, role);
+            router.push("/dashboard");
+            return;
+          }
+        }
+      }
+
+      // Determine if input is email or username for Auth-based login
       let userEmail = trimmedInput;
       const isEmail = trimmedInput.includes('@');
-      
+
       // If it's a username, look up the email in Firestore
       if (!isEmail && firestore) {
         const usersQuery = query(collection(firestore, 'users'), where('username', '==', trimmedInput));
         const usersSnapshot = await getDocs(usersQuery);
-        
+
         if (usersSnapshot.empty) {
           setError("User not found. Please check your username.");
           setLoading(false);
           return;
         }
-        
+
         // Get the email from the user document
         const userDoc = usersSnapshot.docs[0];
         userEmail = userDoc.data().email;
@@ -107,17 +148,18 @@ export default function LoginPage() {
         login(user.email || "User", "User");
         router.push("/dashboard");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Login error:", error);
+      const firebaseError = error as { code?: string };
       
       // Handle specific Firebase Auth errors
-      if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
+      if (firebaseError.code === "auth/user-not-found" || firebaseError.code === "auth/wrong-password") {
         setError("Invalid credentials. Please check your email/username and password.");
-      } else if (error.code === "auth/invalid-email") {
+      } else if (firebaseError.code === "auth/invalid-email") {
         setError("Invalid email format. If using a username, make sure it's correct.");
-      } else if (error.code === "auth/user-disabled") {
+      } else if (firebaseError.code === "auth/user-disabled") {
         setError("This account has been disabled");
-      } else if (error.code === "auth/invalid-credential") {
+      } else if (firebaseError.code === "auth/invalid-credential") {
         setError("Invalid credentials. Please check your email/username and password.");
       } else {
         setError("Failed to login. Please try again.");
