@@ -780,7 +780,7 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   );
   y += 12;
   doc.text(
-    "Any unpaid invoices after 30 days will incur additional fees",
+    `Any unpaid invoices after ${paymentDays} days will incur additional fees`,
     pageW / 2,
     y,
     { align: "center" },

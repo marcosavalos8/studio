@@ -489,7 +489,7 @@ export function InvoiceReportDisplay({
         {/* ── FOOTER ── */}
         <div style={{ marginTop: "24px", fontSize: "11px", color: "#374151", borderTop: "1px solid #d1d5db", paddingTop: "12px", textAlign: "center" }}>
           <p style={{ margin: "0 0 4px 0" }}>Make all checks payable to <strong>J&amp;M Agricultural Labor LLC</strong></p>
-          <p style={{ margin: "0 0 4px 0" }}>Any unpaid invoices after 30 days will incur additional fees</p>
+          <p style={{ margin: "0 0 4px 0" }}>Any unpaid invoices after {paymentDays} days will incur additional fees</p>
           <p style={{ margin: "0", fontWeight: "bold" }}>THANK YOU FOR YOUR BUSINESS!</p>
         </div>
       </div>{/* end .print-page (invoice) */}
