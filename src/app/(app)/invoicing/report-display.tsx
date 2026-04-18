@@ -289,6 +289,24 @@ export function InvoiceReportDisplay({
             size: auto;
             margin: 0.4in;
           }
+          @page labor-report-page {
+            size: landscape;
+            margin: 0.3in;
+          }
+          @media print {
+            .labor-report-section {
+              page: labor-report-page;
+              font-size: 8px;
+            }
+            .labor-report-section table {
+              font-size: 7px;
+            }
+            .labor-report-section table th,
+            .labor-report-section table td {
+              padding: 2px 4px !important;
+              border: 1px solid #000 !important;
+            }
+          }
         `}</style>
 
       <div className="print-page report-container bg-white text-black rounded-lg border shadow-sm" style={{ padding: "24px" }}>
@@ -568,7 +586,7 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
 
   return (
     <div
-      className="print-page bg-white text-black p-8 rounded-lg border shadow-sm"
+      className="print-page labor-report-section bg-white text-black p-8 rounded-lg border shadow-sm"
       style={{ marginTop: "24px" }}
     >
       {/* Header con logo */}
