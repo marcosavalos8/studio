@@ -87,8 +87,7 @@ function parseInvoiceDate(dateStr: string): Date | null {
 function computeDueDate(invoice: SavedInvoice): Date | null {
   const base = parseInvoiceDate(invoice.invoiceDate);
   if (!base) return null;
-  const paymentTerms =
-    invoice.invoiceClientData?.paymentTerms ?? "";
+  const paymentTerms = invoice.invoiceClientData?.paymentTerms ?? "";
   const match = paymentTerms.match(/\d+/);
   const days = match ? parseInt(match[0], 10) : 30;
   const due = new Date(base);
@@ -99,9 +98,19 @@ function computeDueDate(invoice: SavedInvoice): Date | null {
 /** Returns the number of whole days from today midnight to dueDateMidnight (negative = overdue) */
 function daysUntilDue(dueDate: Date): number {
   const now = new Date();
-  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const dueMidnight = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
-  return Math.floor((dueMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
+  const todayMidnight = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
+  const dueMidnight = new Date(
+    dueDate.getFullYear(),
+    dueDate.getMonth(),
+    dueDate.getDate(),
+  );
+  return Math.floor(
+    (dueMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24),
+  );
 }
 
 type DynamicStatus = "paid" | "pending" | "due_soon" | "due_today" | "overdue";
@@ -164,8 +173,15 @@ function StatusBadge({ status }: { status: DynamicStatus }) {
   }
 }
 
-function AgingCell({ invoice, status }: { invoice: SavedInvoice; status: DynamicStatus }) {
-  if (status === "paid") return <span className="text-muted-foreground text-xs">—</span>;
+function AgingCell({
+  invoice,
+  status,
+}: {
+  invoice: SavedInvoice;
+  status: DynamicStatus;
+}) {
+  if (status === "paid")
+    return <span className="text-muted-foreground text-xs">—</span>;
   const dueDate = computeDueDate(invoice);
   if (!dueDate) return <span className="text-muted-foreground text-xs">—</span>;
   const days = daysUntilDue(dueDate);
@@ -173,9 +189,15 @@ function AgingCell({ invoice, status }: { invoice: SavedInvoice; status: Dynamic
     return <span className="text-sm text-blue-600">{days}d left</span>;
   }
   if (days === 0) {
-    return <span className="text-sm font-semibold text-orange-500">Due today</span>;
+    return (
+      <span className="text-sm font-semibold text-orange-500">Due today</span>
+    );
   }
-  return <span className="text-sm font-semibold text-red-600">{Math.abs(days)}d overdue</span>;
+  return (
+    <span className="text-sm font-semibold text-red-600">
+      {Math.abs(days)}d overdue
+    </span>
+  );
 }
 
 function formatDateTime(date: Date | null): string {
@@ -200,7 +222,14 @@ function formatDate(date: Date | null): string {
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
-type SortField = "invoiceNumber" | "clientName" | "dateFrom" | "subtotal" | "status" | "createdAt" | "dueDate";
+type SortField =
+  | "invoiceNumber"
+  | "clientName"
+  | "dateFrom"
+  | "subtotal"
+  | "status"
+  | "createdAt"
+  | "dueDate";
 type SortDir = "asc" | "desc";
 
 // ─── SortableHead ─────────────────────────────────────────────────────────────
@@ -249,14 +278,17 @@ export function InvoiceManagement() {
   const { toast } = useToast();
 
   // action loading per row
-  const [loadingActions, setLoadingActions] = React.useState<Record<string, boolean>>({});
+  const [loadingActions, setLoadingActions] = React.useState<
+    Record<string, boolean>
+  >({});
 
   // filters
   const [filterClient, setFilterClient] = React.useState<string>("all");
   const [filterStatus, setFilterStatus] = React.useState<string>("all");
   const [filterDateFrom, setFilterDateFrom] = React.useState<string>("");
   const [filterDateTo, setFilterDateTo] = React.useState<string>("");
-  const [filterInvoiceNumber, setFilterInvoiceNumber] = React.useState<string>("");
+  const [filterInvoiceNumber, setFilterInvoiceNumber] =
+    React.useState<string>("");
 
   // sorting
   const [sortField, setSortField] = React.useState<SortField>("createdAt");
@@ -269,15 +301,21 @@ export function InvoiceManagement() {
   // Fetch all invoices ordered by createdAt; client-side filter + sort applied below
   const invoicesQuery = React.useMemo(() => {
     if (!firestore) return null;
-    return query(collection(firestore, "invoices"), orderBy("createdAt", "desc"));
+    return query(
+      collection(firestore, "invoices"),
+      orderBy("createdAt", "desc"),
+    );
   }, [firestore]);
 
-  const { data: allInvoices, isLoading } = useCollection<SavedInvoice>(invoicesQuery);
+  const { data: allInvoices, isLoading } =
+    useCollection<SavedInvoice>(invoicesQuery);
 
   // ── derived: unique client list for filter dropdown ──
   const clientOptions = React.useMemo(() => {
     if (!allInvoices) return [];
-    const names = Array.from(new Set(allInvoices.map((inv) => inv.clientName))).sort();
+    const names = Array.from(
+      new Set(allInvoices.map((inv) => inv.clientName)),
+    ).sort();
     return names;
   }, [allInvoices]);
 
@@ -289,7 +327,9 @@ export function InvoiceManagement() {
     // filter by invoice number (partial match, case-insensitive, strips leading #)
     if (filterInvoiceNumber.trim()) {
       const needle = filterInvoiceNumber.trim().replace(/^#/, "").toLowerCase();
-      list = list.filter((inv) => inv.invoiceNumber.toLowerCase().includes(needle));
+      list = list.filter((inv) =>
+        inv.invoiceNumber.toLowerCase().includes(needle),
+      );
     }
 
     // filter by client
@@ -347,11 +387,22 @@ export function InvoiceManagement() {
     });
 
     return list;
-  }, [allInvoices, filterClient, filterStatus, filterDateFrom, filterDateTo, filterInvoiceNumber, sortField, sortDir]);
+  }, [
+    allInvoices,
+    filterClient,
+    filterStatus,
+    filterDateFrom,
+    filterDateTo,
+    filterInvoiceNumber,
+    sortField,
+    sortDir,
+  ]);
 
   // ── selection helpers ──
   const allVisibleIds = invoices.map((inv) => inv.id ?? "").filter(Boolean);
-  const allSelected = allVisibleIds.length > 0 && allVisibleIds.every((id) => selectedIds.has(id));
+  const allSelected =
+    allVisibleIds.length > 0 &&
+    allVisibleIds.every((id) => selectedIds.has(id));
   const someSelected = allVisibleIds.some((id) => selectedIds.has(id));
 
   const toggleSelectAll = () => {
@@ -393,10 +444,17 @@ export function InvoiceManagement() {
         status: "paid",
         paidAt: Timestamp.now(),
       });
-      toast({ title: "Invoice marked as paid", description: `Invoice #${invoice.invoiceNumber} updated.` });
+      toast({
+        title: "Invoice marked as paid",
+        description: `Invoice #${invoice.invoiceNumber} updated.`,
+      });
     } catch (err) {
       console.error("Error marking invoice as paid:", err);
-      toast({ variant: "destructive", title: "Error", description: "Could not update the invoice." });
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Could not update the invoice.",
+      });
     } finally {
       setActionLoading(invoice.id, false);
     }
@@ -448,7 +506,8 @@ export function InvoiceManagement() {
                 clientName: invoice.clientName,
                 dateFrom: invoice.dateFrom,
                 dateTo: invoice.dateTo,
-                minimumWage: invoice.invoiceClientData?.minimumWage ?? undefined,
+                minimumWage:
+                  invoice.invoiceClientData?.minimumWage ?? undefined,
                 paidRestBreaks: invoice.paidRestBreaks,
                 minimumWageTopUp: invoice.minimumWageTopUp,
                 overtimePremium: invoice.overtimePremium ?? 0,
@@ -463,7 +522,9 @@ export function InvoiceManagement() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error((data as { error?: string }).error || "Error al enviar el correo");
+        throw new Error(
+          (data as { error?: string }).error || "Error al enviar el correo",
+        );
       }
 
       if (firestore) {
@@ -473,13 +534,17 @@ export function InvoiceManagement() {
         });
       }
 
-      toast({ title: "Email sent", description: `Invoice #${invoice.invoiceNumber} sent to ${invoice.clientEmail}.` });
+      toast({
+        title: "Email sent",
+        description: `Invoice #${invoice.invoiceNumber} sent to ${invoice.clientEmail}.`,
+      });
     } catch (err) {
       console.error("Error sending invoice email:", err);
       toast({
         variant: "destructive",
         title: "Send error",
-        description: err instanceof Error ? err.message : "Could not send the email.",
+        description:
+          err instanceof Error ? err.message : "Could not send the email.",
       });
     } finally {
       setActionLoading(`email-${invoice.id}`, false);
@@ -494,24 +559,38 @@ export function InvoiceManagement() {
       await updateDoc(doc(firestore, "invoices", invoice.id), {
         waivedLateFees: true,
       });
-      toast({ title: "Late Fees waived", description: `Late Fees for Invoice #${invoice.invoiceNumber} have been set to $0.00.` });
+      toast({
+        title: "Late Fees waived",
+        description: `Late Fees for Invoice #${invoice.invoiceNumber} have been set to $0.00.`,
+      });
     } catch (err) {
       console.error("Error waiving late fees:", err);
-      toast({ variant: "destructive", title: "Error", description: "Could not waive the Late Fees." });
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Could not waive the Late Fees.",
+      });
     } finally {
       setActionLoading(`waive-${invoice.id}`, false);
     }
   };
 
   // ── create overdue interest invoice ──
-  const handleCreateOIInvoice = async (invoice: SavedInvoice, lateFees: number) => {
+  const handleCreateOIInvoice = async (
+    invoice: SavedInvoice,
+    lateFees: number,
+  ) => {
     if (!firestore || !invoice.id) return;
     setActionLoading(`oi-${invoice.id}`, true);
     try {
       // Determine new invoice number
       let newInvoiceNumber = invoice.invoiceNumber + "-OI";
       try {
-        const latestQuery = query(collection(firestore, "invoices"), orderBy("invoiceNumber", "desc"), limit(1));
+        const latestQuery = query(
+          collection(firestore, "invoices"),
+          orderBy("invoiceNumber", "desc"),
+          limit(1),
+        );
         const latestSnap = await getDocs(latestQuery);
         if (!latestSnap.empty) {
           // Extract the leading numeric portion (e.g. "00123" from "00123" or "00123-OI")
@@ -572,7 +651,11 @@ export function InvoiceManagement() {
       });
     } catch (err) {
       console.error("Error creating OI invoice:", err);
-      toast({ variant: "destructive", title: "Error", description: "Could not create the overdue interest invoice." });
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Could not create the overdue interest invoice.",
+      });
     } finally {
       setActionLoading(`oi-${invoice.id}`, false);
     }
@@ -584,12 +667,21 @@ export function InvoiceManagement() {
     setDeletingBulk(true);
     const ids = Array.from(selectedIds);
     try {
-      await Promise.all(ids.map((id) => deleteDoc(doc(firestore, "invoices", id))));
+      await Promise.all(
+        ids.map((id) => deleteDoc(doc(firestore, "invoices", id))),
+      );
       setSelectedIds(new Set());
-      toast({ title: "Invoices deleted", description: `${ids.length} invoice(s) deleted.` });
+      toast({
+        title: "Invoices deleted",
+        description: `${ids.length} invoice(s) deleted.`,
+      });
     } catch (err) {
       console.error("Error deleting invoices:", err);
-      toast({ variant: "destructive", title: "Error", description: "Could not delete the invoices." });
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Could not delete the invoices.",
+      });
     } finally {
       setDeletingBulk(false);
     }
@@ -614,7 +706,9 @@ export function InvoiceManagement() {
       <div className="flex flex-wrap items-end gap-3">
         {/* Invoice # filter */}
         <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Invoice #</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            Invoice #
+          </span>
           <Input
             type="text"
             placeholder="Search #..."
@@ -626,7 +720,9 @@ export function InvoiceManagement() {
 
         {/* Client filter */}
         <div className="flex flex-col gap-1 min-w-[180px]">
-          <span className="text-xs font-medium text-muted-foreground">Client</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            Client
+          </span>
           <Select value={filterClient} onValueChange={setFilterClient}>
             <SelectTrigger className="h-9">
               <SelectValue placeholder="All Clients" />
@@ -644,7 +740,9 @@ export function InvoiceManagement() {
 
         {/* Status filter */}
         <div className="flex flex-col gap-1 min-w-[160px]">
-          <span className="text-xs font-medium text-muted-foreground">Status</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            Status
+          </span>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="h-9">
               <SelectValue placeholder="All Statuses" />
@@ -661,7 +759,9 @@ export function InvoiceManagement() {
 
         {/* Date from */}
         <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">From</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            From
+          </span>
           <Input
             type="date"
             className="h-9 w-[150px]"
@@ -682,7 +782,11 @@ export function InvoiceManagement() {
         </div>
 
         {/* Clear filters */}
-        {(filterClient !== "all" || filterStatus !== "all" || filterDateFrom || filterDateTo || filterInvoiceNumber) && (
+        {(filterClient !== "all" ||
+          filterStatus !== "all" ||
+          filterDateFrom ||
+          filterDateTo ||
+          filterInvoiceNumber) && (
           <Button
             variant="ghost"
             size="sm"
@@ -717,7 +821,8 @@ export function InvoiceManagement() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete Invoices?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    {selectedIds.size} invoice(s) will be permanently deleted. This action cannot be undone.
+                    {selectedIds.size} invoice(s) will be permanently deleted.
+                    This action cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -740,14 +845,18 @@ export function InvoiceManagement() {
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
           <FileText className="h-12 w-12 opacity-30" />
           <p className="text-sm">No invoices generated yet.</p>
-          <p className="text-xs">Generate an invoice in the &quot;Generate Invoice&quot; tab.</p>
+          <p className="text-xs">
+            Generate an invoice in the &quot;Generate Invoice&quot; tab.
+          </p>
         </div>
       )}
 
       {hasInvoices && invoices.length === 0 && (
         <div className="flex flex-col items-center justify-center py-10 text-muted-foreground gap-2">
           <FileText className="h-10 w-10 opacity-30" />
-          <p className="text-sm">No invoices found with the selected filters.</p>
+          <p className="text-sm">
+            No invoices found with the selected filters.
+          </p>
         </div>
       )}
 
@@ -760,23 +869,80 @@ export function InvoiceManagement() {
                 {/* Select-all checkbox */}
                 <TableHead className="w-10">
                   <Checkbox
-                    checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                    checked={
+                      allSelected
+                        ? true
+                        : someSelected
+                          ? "indeterminate"
+                          : false
+                    }
                     onCheckedChange={toggleSelectAll}
                     aria-label="Seleccionar todos"
                   />
                 </TableHead>
-                <SortableHead field="invoiceNumber" label="Invoice #" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                <SortableHead field="clientName" label="Customer" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                <SortableHead field="dateFrom" label="Period" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                <SortableHead field="createdAt" label="Issue Date" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                <SortableHead field="dueDate" label="Due Date" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                <SortableHead field="status" label="Status" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                <SortableHead
+                  field="invoiceNumber"
+                  label="Invoice #"
+                  sortField={sortField}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+                <SortableHead
+                  field="clientName"
+                  label="Customer"
+                  sortField={sortField}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+                <SortableHead
+                  field="dateFrom"
+                  label="Period"
+                  sortField={sortField}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+                <SortableHead
+                  field="createdAt"
+                  label="Issue Date"
+                  sortField={sortField}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+                <SortableHead
+                  field="dueDate"
+                  label="Due Date"
+                  sortField={sortField}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+                <SortableHead
+                  field="status"
+                  label="Status"
+                  sortField={sortField}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
                 <TableHead className="whitespace-nowrap">Aging</TableHead>
-                <SortableHead field="subtotal" label="Subtotal" sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
-                <TableHead className="whitespace-nowrap">Sending Date</TableHead>
-                <TableHead className="whitespace-nowrap text-right">Late Fees</TableHead>
-                <TableHead className="whitespace-nowrap text-right">Total Due</TableHead>
-                <TableHead className="whitespace-nowrap text-center">Include LB</TableHead>
+                <SortableHead
+                  field="subtotal"
+                  label="Subtotal"
+                  sortField={sortField}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                  className="text-right"
+                />
+                <TableHead className="whitespace-nowrap">
+                  Sending Date
+                </TableHead>
+                <TableHead className="whitespace-nowrap text-right">
+                  Late Fees
+                </TableHead>
+                <TableHead className="whitespace-nowrap text-right">
+                  Total Due
+                </TableHead>
+                <TableHead className="whitespace-nowrap text-center">
+                  Include LB
+                </TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -786,7 +952,8 @@ export function InvoiceManagement() {
                 const sentAt = toDate(invoice.sentAt ?? null);
                 const id = invoice.id ?? "";
                 const isActing = Object.keys(loadingActions).some(
-                  (k) => (k === id || k.endsWith(`-${id}`)) && loadingActions[k]
+                  (k) =>
+                    (k === id || k.endsWith(`-${id}`)) && loadingActions[k],
                 );
                 const isPaid = invoice.status === "paid";
                 const isSelected = selectedIds.has(id);
@@ -795,12 +962,16 @@ export function InvoiceManagement() {
                 const lateFees = computeLateFees(invoice);
                 // Total due includes overdue interest if already baked in (OI invoice)
                 const totalDue =
-                  (invoice.subtotal ?? 0) +
+                  (invoice.total ?? 0) +
                   (invoice.overdueInterestAccrued ?? 0) +
                   lateFees;
 
                 return (
-                  <TableRow key={id} data-selected={isSelected || undefined} className={isSelected ? "bg-muted/50" : ""}>
+                  <TableRow
+                    key={id}
+                    data-selected={isSelected || undefined}
+                    className={isSelected ? "bg-muted/50" : ""}
+                  >
                     <TableCell>
                       <Checkbox
                         checked={isSelected}
@@ -811,7 +982,9 @@ export function InvoiceManagement() {
                     <TableCell className="font-mono font-medium whitespace-nowrap">
                       #{invoice.invoiceNumber}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">{invoice.clientName}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {invoice.clientName}
+                    </TableCell>
                     <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                       {invoice.dateFrom} – {invoice.dateTo}
                     </TableCell>
@@ -828,16 +1001,24 @@ export function InvoiceManagement() {
                       <AgingCell invoice={invoice} status={dynamicStatus} />
                     </TableCell>
                     <TableCell className="text-right font-medium whitespace-nowrap">
-                      ${(invoice.subtotal ?? 0).toFixed(2)}
+                      ${(invoice.total ?? 0).toFixed(2)}
                     </TableCell>
                     <TableCell className="text-sm whitespace-nowrap">
-                      {sentAt ? formatDateTime(sentAt) : <span className="text-muted-foreground text-xs">—</span>}
+                      {sentAt ? (
+                        formatDateTime(sentAt)
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right text-sm whitespace-nowrap">
                       {invoice.waivedLateFees ? (
-                        <span className="text-muted-foreground text-xs line-through">waived</span>
+                        <span className="text-muted-foreground text-xs line-through">
+                          waived
+                        </span>
                       ) : lateFees > 0 ? (
-                        <span className="text-red-600 font-medium">${lateFees.toFixed(2)}</span>
+                        <span className="text-red-600 font-medium">
+                          ${lateFees.toFixed(2)}
+                        </span>
                       ) : (
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
@@ -847,9 +1028,13 @@ export function InvoiceManagement() {
                     </TableCell>
                     <TableCell className="text-center whitespace-nowrap">
                       {invoice.includeLaborReport ? (
-                        <span className="text-green-600 font-medium text-sm">Yes</span>
+                        <span className="text-green-600 font-medium text-sm">
+                          Yes
+                        </span>
                       ) : (
-                        <span className="text-muted-foreground text-sm">No</span>
+                        <span className="text-muted-foreground text-sm">
+                          No
+                        </span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -859,7 +1044,11 @@ export function InvoiceManagement() {
                           variant="outline"
                           onClick={() => handleSendEmail(invoice)}
                           disabled={isActing || !invoice.clientEmail}
-                          title={!invoice.clientEmail ? "El cliente no tiene email registrado" : `Enviar a ${invoice.clientEmail}`}
+                          title={
+                            !invoice.clientEmail
+                              ? "El cliente no tiene email registrado"
+                              : `Enviar a ${invoice.clientEmail}`
+                          }
                         >
                           {loadingActions[`email-${id}`] ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
@@ -885,30 +1074,34 @@ export function InvoiceManagement() {
                           </Button>
                         )}
                         {/* Waive Late Fees — only when overdue and not yet waived */}
-                        {dynamicStatus === "overdue" && !invoice.waivedLateFees && !isPaid && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="whitespace-nowrap border-orange-400 text-orange-600 hover:bg-orange-50"
-                            onClick={() => handleWaiveLateFees(invoice)}
-                            disabled={isActing}
-                            title="Dispensar Late Fees ($0.00)"
-                          >
-                            {loadingActions[`waive-${id}`] ? (
-                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                            ) : (
-                              <Ban className="h-3 w-3 mr-1" />
-                            )}
-                            Waive Late Fees
-                          </Button>
-                        )}
+                        {dynamicStatus === "overdue" &&
+                          !invoice.waivedLateFees &&
+                          !isPaid && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="whitespace-nowrap border-orange-400 text-orange-600 hover:bg-orange-50"
+                              onClick={() => handleWaiveLateFees(invoice)}
+                              disabled={isActing}
+                              title="Dispensar Late Fees ($0.00)"
+                            >
+                              {loadingActions[`waive-${id}`] ? (
+                                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                              ) : (
+                                <Ban className="h-3 w-3 mr-1" />
+                              )}
+                              Waive Late Fees
+                            </Button>
+                          )}
                         {/* Create OI Invoice — only when late fees exist */}
                         {lateFees > 0 && !isPaid && (
                           <Button
                             size="sm"
                             variant="outline"
                             className="whitespace-nowrap border-red-400 text-red-600 hover:bg-red-50"
-                            onClick={() => handleCreateOIInvoice(invoice, lateFees)}
+                            onClick={() =>
+                              handleCreateOIInvoice(invoice, lateFees)
+                            }
                             disabled={isActing}
                             title="Crear invoice con Overdue Interest Accrued"
                           >
@@ -928,7 +1121,8 @@ export function InvoiceManagement() {
             </TableBody>
           </Table>
           <p className="text-xs text-muted-foreground mt-2">
-            {invoices.length} invoice(s) shown{selectedIds.size > 0 && ` · ${selectedIds.size} selected`}
+            {invoices.length} invoice(s) shown
+            {selectedIds.size > 0 && ` · ${selectedIds.size} selected`}
           </p>
         </div>
       )}
