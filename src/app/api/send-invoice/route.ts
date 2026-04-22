@@ -743,11 +743,7 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
     doc.setFont("helvetica", row.bold ? "bold" : "normal");
     doc.setFontSize(row.large ? 10 : subFS);
     doc.setTextColor(row.red ? 220 : 0, row.red ? 38 : 0, row.red ? 38 : 0);
-    doc.text(
-      truncateToFit(doc, row.label, halfW - 70),
-      rightX + 8,
-      ry + 11,
-    );
+    doc.text(truncateToFit(doc, row.label, halfW - 70), rightX + 8, ry + 11);
     doc.setTextColor(0);
     doc.text(fmtCurrency(row.value), rightX + halfW - 4, ry + 11, {
       align: "right",
@@ -796,7 +792,11 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
 
 function generateLaborReportPdf(data: LaborReportData): string {
   // Use landscape letter for wide employee table
-  const doc = new jsPDF({ unit: "pt", format: "letter", orientation: "landscape" });
+  const doc = new jsPDF({
+    unit: "pt",
+    format: "letter",
+    orientation: "landscape",
+  });
   const pageW = doc.internal.pageSize.getWidth(); // 792
   const pageH = doc.internal.pageSize.getHeight(); // 612
   const margin = 30;
@@ -806,7 +806,13 @@ function generateLaborReportPdf(data: LaborReportData): string {
   // ── Load logo ──────────────────────────────────────────────────────────
   let logoBase64: string | null = null;
   try {
-    const logoPath = path.join(process.cwd(), "src", "components", "images", "logo.jpeg");
+    const logoPath = path.join(
+      process.cwd(),
+      "src",
+      "components",
+      "images",
+      "logo.jpeg",
+    );
     logoBase64 = fs.readFileSync(logoPath).toString("base64");
   } catch {
     // Logo not available — skip silently
@@ -816,8 +822,29 @@ function generateLaborReportPdf(data: LaborReportData): string {
   const fromDate = parseLocalDate(data.dateFrom);
   const toDate = parseLocalDate(data.dateTo);
 
-  const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const daysOfWeek = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
+  const monthNames = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
 
   let dateRangeStr = "";
   if (!isNaN(fromDate.getTime()) && !isNaN(toDate.getTime())) {
@@ -849,7 +876,11 @@ function generateLaborReportPdf(data: LaborReportData): string {
   doc.setFontSize(9);
   doc.setTextColor(0);
   doc.text(dateRangeStr, margin, y + 10);
-  doc.text(`$ ${(data.minimumWage ?? 19.82).toFixed(2)} :Min Wage`, margin, y + 22);
+  doc.text(
+    `$ ${(data.minimumWage ?? 19.82).toFixed(2)} :Min Wage`,
+    margin,
+    y + 22,
+  );
   doc.text("EIN# 33-2236422", margin + 200, y + 10);
   doc.text("UBI# 605 650 411", margin + 200, y + 22);
   doc.text("LIC#172-25", margin + 380, y + 10);
@@ -888,7 +919,14 @@ function generateLaborReportPdf(data: LaborReportData): string {
   const taskBlockW = taskColW * 3;
   const tasksTotalW = uniqueTasks.length * taskBlockW;
   const otBlockW = hasOT ? otHoursW + regRateW + otPremiumW : 0;
-  const tableW = nameW + hoursW + tasksTotalW + totalPiecesPayW + otBlockW + diffOwedW + payReqW;
+  const tableW =
+    nameW +
+    hoursW +
+    tasksTotalW +
+    totalPiecesPayW +
+    otBlockW +
+    diffOwedW +
+    payReqW;
 
   // Always scale to fill the full content width (scale up or down as needed)
   const scaleFactor = contentW / tableW;
@@ -928,7 +966,10 @@ function generateLaborReportPdf(data: LaborReportData): string {
       // Height of the text block: first line cap height + subsequent line steps
       const textBlockH = headerFS * 0.8 + (lines.length - 1) * jsPdfLineH;
       // Clamp so the first-line baseline never falls above the cell top
-      const textStartY = Math.max(y + headerFS, y + (hRowH - textBlockH) / 2 + headerFS * 0.8);
+      const textStartY = Math.max(
+        y + headerFS,
+        y + (hRowH - textBlockH) / 2 + headerFS * 0.8,
+      );
       doc.text(lines, cx + w / 2, textStartY, { align: "center" });
       cx += w;
     });
@@ -948,9 +989,18 @@ function generateLaborReportPdf(data: LaborReportData): string {
   });
   headers.push({ label: "Total Pieces Pay", w: totalPiecesPayW * scaleFactor });
   if (hasOT) {
-    headers.push({ label: "Overtime Hours (over 40/week)", w: otHoursW * scaleFactor });
-    headers.push({ label: "Regular Rate for OT Calculation", w: regRateW * scaleFactor });
-    headers.push({ label: "Overtime Premium (0.5x rate)", w: otPremiumW * scaleFactor });
+    headers.push({
+      label: "Overtime Hours (over 40/week)",
+      w: otHoursW * scaleFactor,
+    });
+    headers.push({
+      label: "Regular Rate for OT Calculation",
+      w: regRateW * scaleFactor,
+    });
+    headers.push({
+      label: "Overtime Premium (0.5x rate)",
+      w: otPremiumW * scaleFactor,
+    });
   }
   headers.push({ label: "Diff Owed/Break", w: diffOwedW * scaleFactor });
   headers.push({ label: "PAY REQ", w: payReqW * scaleFactor });
@@ -967,14 +1017,19 @@ function generateLaborReportPdf(data: LaborReportData): string {
 
     const taskMap = new Map(emp.tasksSummary.map((t) => [t.taskName, t]));
     const totalPiecesPay = emp.tasksSummary.reduce((s, t) => s + t.cost, 0);
-    const diffOwed = emp.paidRestBreaks + emp.minimumWageTopUp + (emp.overtimePremium ?? 0);
+    const diffOwed =
+      emp.paidRestBreaks + emp.minimumWageTopUp + (emp.overtimePremium ?? 0);
     const payReq = totalPiecesPay + diffOwed;
 
     const rowBg = rowIdx % 2 === 0 ? [255, 255, 255] : [249, 250, 251];
 
     cx = margin;
 
-    const drawCell = (text: string, w: number, align: "left" | "center" | "right" = "center") => {
+    const drawCell = (
+      text: string,
+      w: number,
+      align: "left" | "center" | "right" = "center",
+    ) => {
       doc.setFillColor(rowBg[0]!, rowBg[1]!, rowBg[2]!);
       doc.rect(cx, y, w, rowH, "F");
       doc.setDrawColor(22, 163, 74);
@@ -983,7 +1038,8 @@ function generateLaborReportPdf(data: LaborReportData): string {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(tFS);
       doc.setTextColor(0);
-      const tx = align === "left" ? cx + 2 : align === "right" ? cx + w - 2 : cx + w / 2;
+      const tx =
+        align === "left" ? cx + 2 : align === "right" ? cx + w - 2 : cx + w / 2;
       doc.text(text, tx, y + rowH - 3, { align, maxWidth: w - 2 });
       cx += w;
     };
@@ -993,17 +1049,35 @@ function generateLaborReportPdf(data: LaborReportData): string {
 
     uniqueTasks.forEach((taskName) => {
       const task = taskMap.get(taskName);
-      drawCell(task ? task.quantity.toFixed(2) : "0.00", taskColW * scaleFactor);
-      drawCell(task ? `$ ${task.rate.toFixed(2)}` : "$ 0.00", taskColW * scaleFactor);
-      drawCell(task ? `$ ${task.cost.toFixed(2)}` : "$ 0.00", taskColW * scaleFactor);
+      drawCell(
+        task ? task.quantity.toFixed(2) : "0.00",
+        taskColW * scaleFactor,
+      );
+      drawCell(
+        task ? `$ ${task.rate.toFixed(2)}` : "$ 0.00",
+        taskColW * scaleFactor,
+      );
+      drawCell(
+        task ? `$ ${task.cost.toFixed(2)}` : "$ 0.00",
+        taskColW * scaleFactor,
+      );
     });
 
     drawCell(`$ ${totalPiecesPay.toFixed(2)}`, totalPiecesPayW * scaleFactor);
 
     if (hasOT) {
-      drawCell(`${(emp.overtimeHours ?? 0).toFixed(2)} hrs`, otHoursW * scaleFactor);
-      drawCell(`$ ${(emp.regularRate ?? 0).toFixed(2)}/hr`, regRateW * scaleFactor);
-      drawCell(`$ ${(emp.overtimePremium ?? 0).toFixed(2)}`, otPremiumW * scaleFactor);
+      drawCell(
+        `${(emp.overtimeHours ?? 0).toFixed(2)} hrs`,
+        otHoursW * scaleFactor,
+      );
+      drawCell(
+        `$ ${(emp.regularRate ?? 0).toFixed(2)}/hr`,
+        regRateW * scaleFactor,
+      );
+      drawCell(
+        `$ ${(emp.overtimePremium ?? 0).toFixed(2)}`,
+        otPremiumW * scaleFactor,
+      );
     }
 
     drawCell(`$ ${diffOwed.toFixed(2)}`, diffOwedW * scaleFactor);
@@ -1061,9 +1135,9 @@ function generateLaborReportPdf(data: LaborReportData): string {
     // Sub-table header
     const thFS = 8;
     const subRowH = 14;
-    const col1W = (halfW) * 0.25;
-    const col2W = (halfW) * 0.25;
-    const col3W = (halfW) * 0.25;
+    const col1W = halfW * 0.25;
+    const col2W = halfW * 0.25;
+    const col3W = halfW * 0.25;
     const col4W = halfW - col1W - col2W - col3W;
 
     const drawSubHeader = (labels: string[]) => {
@@ -1078,7 +1152,9 @@ function generateLaborReportPdf(data: LaborReportData): string {
         doc.setFont("helvetica", "bold");
         doc.setFontSize(thFS);
         doc.setTextColor(0);
-        doc.text(lbl, sx + (widths[i]! / 2), ry + subRowH - 3, { align: "center" });
+        doc.text(lbl, sx + widths[i]! / 2, ry + subRowH - 3, {
+          align: "center",
+        });
         sx += widths[i]!;
       });
       ry += subRowH;
@@ -1098,7 +1174,10 @@ function generateLaborReportPdf(data: LaborReportData): string {
         doc.setFont("helvetica", "normal");
         doc.setFontSize(thFS);
         doc.setTextColor(0);
-        doc.text(cell, sx + (widths[i]! / 2), ry + subRowH - 3, { align: "center", maxWidth: widths[i]! - 4 });
+        doc.text(cell, sx + widths[i]! / 2, ry + subRowH - 3, {
+          align: "center",
+          maxWidth: widths[i]! - 4,
+        });
         sx += widths[i]!;
       });
       ry += subRowH;
@@ -1123,7 +1202,10 @@ function generateLaborReportPdf(data: LaborReportData): string {
       doc.rect(valX, ry, col4W, subRowH, "F");
       doc.setDrawColor(22, 163, 74);
       doc.rect(valX, ry, col4W, subRowH);
-      doc.text(value, valX + col4W / 2, ry + subRowH - 3, { align: "center", maxWidth: col4W - 4 });
+      doc.text(value, valX + col4W / 2, ry + subRowH - 3, {
+        align: "center",
+        maxWidth: col4W - 4,
+      });
       ry += subRowH;
     };
 
@@ -1144,7 +1226,10 @@ function generateLaborReportPdf(data: LaborReportData): string {
       doc.rect(valX, ry, col4W, subRowH, "F");
       doc.setDrawColor(22, 163, 74);
       doc.rect(valX, ry, col4W, subRowH);
-      doc.text(value, valX + col4W / 2, ry + subRowH - 3, { align: "center", maxWidth: col4W - 4 });
+      doc.text(value, valX + col4W / 2, ry + subRowH - 3, {
+        align: "center",
+        maxWidth: col4W - 4,
+      });
       ry += subRowH;
     };
 
@@ -1162,7 +1247,12 @@ function generateLaborReportPdf(data: LaborReportData): string {
           totalPay += task.cost;
         }
       });
-      drawSubRow([`Piece ${label}`, totalPcs.toFixed(2), `$ ${rate.toFixed(2)}`, `$ ${totalPay.toFixed(2)}`]);
+      drawSubRow([
+        `Piece ${label}`,
+        totalPcs.toFixed(2),
+        `$ ${rate.toFixed(2)}`,
+        `$ ${totalPay.toFixed(2)}`,
+      ]);
     });
 
     const totalPaidRestBreaks = data.paidRestBreaks;
@@ -1171,13 +1261,22 @@ function generateLaborReportPdf(data: LaborReportData): string {
     const totalSubtotal = data.subtotal;
 
     if (totalPaidRestBreaks > 0) {
-      drawSubRowSpanned("Paid Rest Breaks", `$ ${totalPaidRestBreaks.toFixed(2)}`);
+      drawSubRowSpanned(
+        "Paid Rest Breaks",
+        `$ ${totalPaidRestBreaks.toFixed(2)}`,
+      );
     }
     if (totalOtPremium > 0) {
-      drawSubRowSpanned("Overtime Premium (0.5x rate)", `$ ${totalOtPremium.toFixed(2)}`);
+      drawSubRowSpanned(
+        "Overtime Premium (0.5x rate)",
+        `$ ${totalOtPremium.toFixed(2)}`,
+      );
     }
     if (totalMwTopUp > 0) {
-      drawSubRowSpanned("Minimum Wage Adjustments", `$ ${totalMwTopUp.toFixed(2)}`);
+      drawSubRowSpanned(
+        "Minimum Wage Adjustments",
+        `$ ${totalMwTopUp.toFixed(2)}`,
+      );
     }
 
     drawSubTotalRow("Total Amount:", `$ ${totalSubtotal.toFixed(2)}`);
@@ -1200,14 +1299,14 @@ export async function POST(request: Request) {
   }
 
   const { invoiceNumber, clientEmail, total, dueDate, clientName } = body;
-
+  const includeLaborReport = body.includeLaborReport ?? false;
   if (!clientEmail) {
     return NextResponse.json(
       { error: "clientEmail is required" },
       { status: 400 },
     );
   }
-
+  console.log("variable de,labor report", includeLaborReport);
   // --- CONFIGURACIÓN GMAIL ---
   const smtpUser = "jmagriculturalaborinvoicing@gmail.com";
   const smtpPass = process.env.SMTP_PASS;
@@ -1228,7 +1327,7 @@ export async function POST(request: Request) {
       <p>Hello,</p>
       <p>Please find attached invoice <strong>#${safeInvoiceNumber}</strong> for the agricultural labor services provided during the past week.</p>
       <p>The total amount due is <strong>$${safeTotal}</strong>${safeDueDate ? `, with a due date of <strong>${safeDueDate}</strong>` : ""}.</p>
-      <p>Also attached is the detailed Labor report for your records.</p>
+      ${includeLaborReport ? "<p>Also attached is the detailed Labor report for your records.</p>" : ""}
       
       <div style="background-color: #f9f9f9; padding: 15px; border-left: 4px solid #ccc; margin: 20px 0;">
         <p style="font-size: 0.9em; margin: 0;">
@@ -1273,7 +1372,11 @@ export async function POST(request: Request) {
     }
   }
 
-  const attachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
+  const attachments: Array<{
+    filename: string;
+    content: Buffer;
+    contentType: string;
+  }> = [];
   if (pdfBuffer) {
     attachments.push({
       filename: `Invoice_${invoiceNumber}_${clientName.replace(/\s+/g, "_")}.pdf`,
