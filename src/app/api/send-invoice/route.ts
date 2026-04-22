@@ -705,7 +705,7 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
     const oiDueDate = body.overdueInterestDueDate ?? "—";
     const oiCurrentDate = body.overdueInterestCurrentDate ?? "—";
     summaryData.push({
-      label: `Overdue Interest Accrued (0.033%/day from ${oiDueDate} to ${oiCurrentDate})`,
+      label: `Overdue Interest Accrued`,
       value: overdueInterest,
       bold: false,
       highlight: false,
