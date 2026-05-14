@@ -427,9 +427,7 @@ export async function generatePayrollReport({
 
             taskDetailsForDay.push({
               taskId: taskId, // <- Agregar esto
-              taskName: `${task.name} (${
-                task.variety || "N/A"
-              }) - ${taskTypeLabel}`,
+              taskName: `${task.name}${task.variety ? ` (${task.variety})` : ""} - ${taskTypeLabel}`,
               clientName: client?.name || "Unknown Client",
               ranch: task.ranch,
               block: task.block,

@@ -278,7 +278,7 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   const addrLines = [
     "250 Country Heaven Loop",
     "Pasco, WA 99301.",
-    "Telf.: 509.380.3385",
+    "PH #: 509.380.3385",
     "e-mail: Jmagriculturalabor@outlook.com",
     "EIN #: 33-2236422   UBI #: 605 650 411",
     "Lic #: 172-25",
@@ -296,7 +296,7 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   doc.setTextColor(21, 128, 61);
   doc.text("INVOICE", margin, y + 4);
   const invTextW = doc.getTextWidth("INVOICE");
-  doc.setFontSize(14);
+  doc.setFontSize(20);
   doc.text(" | J&M AGRICULTURAL LABOR LLC", margin + invTextW, y + 4);
 
   y += 16;
@@ -319,13 +319,11 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   const billY = y;
   const lblW = 55; // width of "Address: " label area
 
-  // Left: Bill to
+  // Left: Bill to - 4 row layout
   doc.setFont("helvetica", "bold");
   doc.text("Bill to:", margin, billY);
-  doc.text(clientData.name ?? body.clientName, margin + lblW, billY);
-  doc.text("Phone:", margin + lblW + 130, billY);
   doc.setFont("helvetica", "normal");
-  doc.text(clientData.phone ?? "", margin + lblW + 170, billY);
+  doc.text(clientData.name ?? body.clientName, margin + lblW, billY);
 
   doc.setFont("helvetica", "bold");
   doc.text("Address:", margin, billY + 13);
@@ -342,7 +340,12 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   doc.setFont("helvetica", "normal");
   doc.text(clientData.email ?? "", margin + lblW, billY + 26);
 
-  // Right: Invoice meta
+  doc.setFont("helvetica", "bold");
+  doc.text("Phone:", margin, billY + 39);
+  doc.setFont("helvetica", "normal");
+  doc.text(clientData.phone ?? "", margin + lblW, billY + 39);
+
+  // Right: Invoice meta (adjusted for 4-row Bill To)
   const rmX = pageW - margin;
   const metaX = rmX - 160;
   doc.setFont("helvetica", "bold");
@@ -360,7 +363,7 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
     align: "right",
   });
 
-  y = billY + 40;
+  y = billY + 52;
 
   // ── CALCULATIONS — exact replica of report-display.tsx ───────────────────
 

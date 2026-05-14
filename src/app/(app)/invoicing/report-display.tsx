@@ -34,15 +34,44 @@ const formatNumber = (value: number): string => {
 };
 
 const numberToWords = (n: number): string => {
-  const ones = ["", "one", "two", "three", "four", "five", "six", "seven",
-    "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen",
-    "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
-  const tens = ["", "", "twenty", "thirty", "forty", "fifty",
-    "sixty", "seventy", "eighty", "ninety"];
+  const ones = [
+    "",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+  ];
+  const tens = [
+    "",
+    "",
+    "twenty",
+    "thirty",
+    "forty",
+    "fifty",
+    "sixty",
+    "seventy",
+    "eighty",
+    "ninety",
+  ];
   if (n < 20) return ones[n] ?? String(n);
   const t = Math.floor(n / 10);
   const o = n % 10;
-  return o > 0 ? `${tens[t]}-${ones[o]}` : tens[t] ?? String(n);
+  return o > 0 ? `${tens[t]}-${ones[o]}` : (tens[t] ?? String(n));
 };
 
 export function InvoiceReportDisplay({
@@ -58,7 +87,7 @@ export function InvoiceReportDisplay({
   };
 
   const sortedDates = Object.keys(report.dailyBreakdown).sort(
-    (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime()
+    (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime(),
   );
 
   // Build flat table rows: one row per task per date
@@ -104,11 +133,15 @@ export function InvoiceReportDisplay({
 
   // Last date that has at least one piecework task (used as the date for adjustment rows)
   const lastPieceworkDate =
-    [...sortedDates].reverse().find((date) =>
-      Object.values(report.dailyBreakdown[date].tasks).some(
-        (task) => task.clientRateType === "piece"
-      )
-    ) ?? sortedDates[sortedDates.length - 1] ?? "";
+    [...sortedDates]
+      .reverse()
+      .find((date) =>
+        Object.values(report.dailyBreakdown[date].tasks).some(
+          (task) => task.clientRateType === "piece",
+        ),
+      ) ??
+    sortedDates[sortedDates.length - 1] ??
+    "";
 
   // Compute adjustment rows: P/W BREAK, OT Premium, MW
   const otHours = report.overtimeHours ?? 0;
@@ -117,7 +150,7 @@ export function InvoiceReportDisplay({
 
   const mwTopUp = report.minimumWageTopUp;
   const numWorkersMW = (report.employeeDetails ?? []).filter(
-    (e) => e.minimumWageTopUp > 0
+    (e) => e.minimumWageTopUp > 0,
   ).length;
   const mwQuantity = numWorkersMW;
   const mwPrice = mwQuantity > 0 ? mwTopUp / mwQuantity : 0;
@@ -173,7 +206,10 @@ export function InvoiceReportDisplay({
       existing.quantity += row.quantity;
       existing.total += row.total;
     } else {
-      subtotalByUnit.set(row.unit, { quantity: row.quantity, total: row.total });
+      subtotalByUnit.set(row.unit, {
+        quantity: row.quantity,
+        total: row.total,
+      });
     }
   });
 
@@ -184,7 +220,10 @@ export function InvoiceReportDisplay({
       existingHrs.quantity += breakQuantity;
       existingHrs.total += report.paidRestBreaks;
     } else {
-      subtotalByUnit.set("Hrs", { quantity: breakQuantity, total: report.paidRestBreaks });
+      subtotalByUnit.set("Hrs", {
+        quantity: breakQuantity,
+        total: report.paidRestBreaks,
+      });
     }
   }
 
@@ -309,213 +348,562 @@ export function InvoiceReportDisplay({
           }
         `}</style>
 
-      <div className="print-page report-container bg-white text-black rounded-lg border shadow-sm" style={{ padding: "24px" }}>
-
-        {/* ── TOP HEADER: Title row + Logo below + Company info ── */}
-        {/* Row 1: INVOICE title (left) + Company address (right) */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "8px" }}>
-          {/* Left: INVOICE label + company name, with logo below */}
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
-              <span style={{ fontSize: "20px", fontWeight: "bold", letterSpacing: "2px", color: "#15803d" }}>INVOICE</span>
-              <span style={{ fontSize: "16px", fontWeight: "bold", color: "#15803d" }}>| J&amp;M AGRICULTURAL LABOR LLC</span>
+        <div
+          className="print-page report-container bg-white text-black rounded-lg border shadow-sm"
+          style={{ padding: "24px" }}
+        >
+          {/* ── TOP HEADER: Title row + Logo below + Company info ── */}
+          {/* Row 1: INVOICE title (left) + Company address (right) */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              marginBottom: "8px",
+            }}
+          >
+            {/* Left: INVOICE label + company name, with logo below */}
+            <div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  marginBottom: "8px",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: "bold",
+                    letterSpacing: "2px",
+                    color: "#15803d",
+                  }}
+                >
+                  INVOICE
+                </span>
+                <span
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: "bold",
+                    color: "#15803d",
+                  }}
+                >
+                  | J&amp;M AGRICULTURAL LABOR LLC
+                </span>
+              </div>
+              <Image
+                src={logo}
+                alt="JM AGRI Logo"
+                width={80}
+                height={80}
+                style={{ objectFit: "contain" }}
+              />
             </div>
-            <Image
-              src={logo}
-              alt="JM AGRI Logo"
-              width={80}
-              height={80}
-              style={{ objectFit: "contain" }}
-            />
+            {/* Right: Company address + contact */}
+            <div style={{ textAlign: "right", fontSize: "12px" }}>
+              <div>250 Country Heaven Loop</div>
+              <div>Pasco, WA 99301.</div>
+              <div>PH #: 509.380.3385</div>
+              <div>e-mail: Jmagriculturalabor@outlook.com</div>
+              <div>EIN #: 33-2236422 &nbsp; UBI #: 605 650 411</div>
+            </div>
           </div>
-          {/* Right: Company address + contact */}
-          <div style={{ textAlign: "right", fontSize: "12px" }}>
-            <div>250 Country Heaven Loop</div>
-            <div>Pasco, WA 99301.</div>
-            <div>Telf.: 509.380.3385</div>
-            <div>e-mail: Jmagriculturalabor@outlook.com</div>
-            <div>EIN #: 33-2236422 &nbsp; UBI #: 605 650 411</div>
-          </div>
-        </div>
 
-        {/* ── DIVIDER ── */}
-        <hr style={{ borderTop: "4px solid #15803d", margin: "8px 0" }} />
+          {/* ── DIVIDER ── */}
+          <hr style={{ borderTop: "4px solid #15803d", margin: "8px 0" }} />
 
-        {/* ── BILL TO + INVOICE INFO ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "12px", fontSize: "12px" }}>
-          {/* Left: Bill To */}
-          <div>
-            <table style={{ borderCollapse: "collapse" }}>
-              <tbody>
-                <tr>
-                  <td style={{ fontWeight: "bold", paddingRight: "8px", whiteSpace: "nowrap" }}>Bill to:</td>
-                  <td style={{ fontWeight: "bold" }}>{report.client.name}</td>
-                  <td style={{ paddingLeft: "16px", whiteSpace: "nowrap", fontWeight: "bold" }}>Phone:</td>
-                  <td>{report.client.phone ?? ""}</td>
-                </tr>
-                <tr>
-                  <td style={{ fontWeight: "bold", paddingRight: "8px", verticalAlign: "top", whiteSpace: "nowrap" }}>Address:</td>
-                  <td colSpan={3}>{report.client.billingAddress}</td>
-                </tr>
-                <tr>
-                  <td style={{ fontWeight: "bold", paddingRight: "8px", whiteSpace: "nowrap" }}>e-mail:</td>
-                  <td colSpan={3}>{report.client.email ?? ""}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          {/* Right: Invoice meta */}
-          <div style={{ textAlign: "right" }}>
-            <table style={{ borderCollapse: "collapse", marginLeft: "auto" }}>
-              <tbody>
-                <tr>
-                  <td style={{ fontWeight: "bold", paddingRight: "8px", whiteSpace: "nowrap" }}>Invoice #:</td>
-                  <td style={{ fontWeight: "bold" }}>{report.invoiceNumber}</td>
-                </tr>
-                <tr>
-                  <td style={{ fontWeight: "bold", paddingRight: "8px", whiteSpace: "nowrap" }}>Invoice Date:</td>
-                  <td>{report.invoiceDate}</td>
-                </tr>
-                <tr>
-                  <td style={{ fontWeight: "bold", paddingRight: "8px", whiteSpace: "nowrap" }}>Terms:</td>
-                  <td>{report.client.paymentTerms}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* ── MAIN LABOR TABLE ── */}
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "16px" }}>
-          <thead>
-            <tr style={{ backgroundColor: "#f3f4f6" }}>
-              <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "left" }}>DATE</th>
-              <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "left" }}>DESCRIPTION</th>
-              <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "right" }}>QUANTITY</th>
-              <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "center" }}>UNIT</th>
-              <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "right" }}>PRICE</th>
-              <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "right" }}>TOTAL</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tableRows.map((row, idx) => (
-              <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? "#fff" : "#f9fafb" }}>
-                <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", whiteSpace: "nowrap" }}>
-                  {row.date ? format(parseLocalDate(row.date), "MM/dd/yyyy") : "-"}
-                </td>
-                <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px" }}>{row.description}</td>
-                <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "right" }}>
-                  {formatNumber(row.quantity)}
-                </td>
-                <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center" }}>{row.unit}</td>
-                <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "right" }}>
-                  ${row.price.toFixed(4)}
-                </td>
-                <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "right" }}>
-                  {formatCurrency(row.total)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* ── LABOR SUBTOTAL + TOTALS SIDE BY SIDE ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", fontSize: "12px", alignItems: "start" }}>
-          {/* Left: Labor Subtotal */}
-          <div>
-            <div style={{ fontWeight: "bold", marginBottom: "4px" }}>Labor Subtotal</div>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ backgroundColor: "#f3f4f6" }}>
-                  <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "right" }}>QUANTITY</th>
-                  <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "center" }}>UNIT</th>
-                  <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "right" }}>TOTAL</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subtotalRows.map((row, idx) => (
-                  <tr key={idx}>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "right" }}>
-                      {formatNumber(row.quantity)}
+          {/* ── BILL TO + INVOICE INFO ── */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "16px",
+              marginBottom: "12px",
+              fontSize: "12px",
+            }}
+          >
+            {/* Left: Bill To */}
+            <div>
+              <table style={{ borderCollapse: "collapse" }}>
+                <tbody>
+                  <tr>
+                    <td
+                      style={{
+                        fontWeight: "bold",
+                        paddingRight: "8px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Bill to:
                     </td>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "center" }}>{row.unit}</td>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "right" }}>
-                      {formatCurrency(row.total)}
+                    <td>{report.client.name}</td>
+                  </tr>
+                  <tr>
+                    <td
+                      style={{
+                        fontWeight: "bold",
+                        paddingRight: "8px",
+                        verticalAlign: "top",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Address:
+                    </td>
+                    <td>{report.client.billingAddress}</td>
+                  </tr>
+                  <tr>
+                    <td
+                      style={{
+                        fontWeight: "bold",
+                        paddingRight: "8px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      e-mail:
+                    </td>
+                    <td>{report.client.email ?? ""}</td>
+                  </tr>
+                  <tr>
+                    <td
+                      style={{
+                        fontWeight: "bold",
+                        paddingRight: "8px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Phone:
+                    </td>
+                    <td>{report.client.phone ?? ""}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            {/* Right: Invoice meta */}
+            <div style={{ textAlign: "right" }}>
+              <table style={{ borderCollapse: "collapse", marginLeft: "auto" }}>
+                <tbody>
+                  <tr>
+                    <td
+                      style={{
+                        fontWeight: "bold",
+                        paddingRight: "8px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Invoice #:
+                    </td>
+                    <td style={{ fontWeight: "bold" }}>
+                      {report.invoiceNumber}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr style={{ backgroundColor: "#f3f4f6" }}>
-                  <td colSpan={2} style={{ border: "1px solid #d1d5db", padding: "4px 8px", fontWeight: "bold" }}>
-                    Invoice Subtotal
-                  </td>
-                  <td style={{ border: "1px solid #d1d5db", padding: "4px 8px", textAlign: "right", fontWeight: "bold" }}>
-                    {formatCurrency(invoiceSubtotal)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+                  <tr>
+                    <td
+                      style={{
+                        fontWeight: "bold",
+                        paddingRight: "8px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Invoice Date:
+                    </td>
+                    <td>{report.invoiceDate}</td>
+                  </tr>
+                  <tr>
+                    <td
+                      style={{
+                        fontWeight: "bold",
+                        paddingRight: "8px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Terms:
+                    </td>
+                    <td>{report.client.paymentTerms}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          {/* Right: Invoice summary — vertically aligned with the Labor Subtotal table body */}
-          <div>
-            {/* Spacer matching the "Labor Subtotal" label + table header row height on the left */}
-            <div style={{ fontWeight: "bold", marginBottom: "4px", visibility: "hidden" }}>Labor Subtotal</div>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ visibility: "hidden" }}>
-                  <th style={{ padding: "4px 8px" }}>&nbsp;</th>
-                  <th style={{ padding: "4px 8px" }}>&nbsp;</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td style={{ border: "1px solid #e5e7eb", padding: "6px 12px", fontWeight: "bold" }}>Invoice Subtotal</td>
-                  <td style={{ border: "1px solid #e5e7eb", padding: "6px 12px", textAlign: "right" }}>
-                    {formatCurrency(invoiceSubtotal)}
+          {/* ── MAIN LABOR TABLE ── */}
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: "12px",
+              marginBottom: "16px",
+            }}
+          >
+            <thead>
+              <tr style={{ backgroundColor: "#f3f4f6" }}>
+                <th
+                  style={{
+                    border: "1px solid #d1d5db",
+                    padding: "4px 8px",
+                    textAlign: "left",
+                  }}
+                >
+                  DATE
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #d1d5db",
+                    padding: "4px 8px",
+                    textAlign: "left",
+                  }}
+                >
+                  DESCRIPTION
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #d1d5db",
+                    padding: "4px 8px",
+                    textAlign: "right",
+                  }}
+                >
+                  QUANTITY
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #d1d5db",
+                    padding: "4px 8px",
+                    textAlign: "center",
+                  }}
+                >
+                  UNIT
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #d1d5db",
+                    padding: "4px 8px",
+                    textAlign: "right",
+                  }}
+                >
+                  PRICE
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #d1d5db",
+                    padding: "4px 8px",
+                    textAlign: "right",
+                  }}
+                >
+                  TOTAL
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {tableRows.map((row, idx) => (
+                <tr
+                  key={idx}
+                  style={{
+                    backgroundColor: idx % 2 === 0 ? "#fff" : "#f9fafb",
+                  }}
+                >
+                  <td
+                    style={{
+                      border: "1px solid #e5e7eb",
+                      padding: "4px 8px",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {row.date
+                      ? format(parseLocalDate(row.date), "MM/dd/yyyy")
+                      : "-"}
+                  </td>
+                  <td
+                    style={{ border: "1px solid #e5e7eb", padding: "4px 8px" }}
+                  >
+                    {row.description}
+                  </td>
+                  <td
+                    style={{
+                      border: "1px solid #e5e7eb",
+                      padding: "4px 8px",
+                      textAlign: "right",
+                    }}
+                  >
+                    {formatNumber(row.quantity)}
+                  </td>
+                  <td
+                    style={{
+                      border: "1px solid #e5e7eb",
+                      padding: "4px 8px",
+                      textAlign: "center",
+                    }}
+                  >
+                    {row.unit}
+                  </td>
+                  <td
+                    style={{
+                      border: "1px solid #e5e7eb",
+                      padding: "4px 8px",
+                      textAlign: "right",
+                    }}
+                  >
+                    ${row.price.toFixed(4)}
+                  </td>
+                  <td
+                    style={{
+                      border: "1px solid #e5e7eb",
+                      padding: "4px 8px",
+                      textAlign: "right",
+                    }}
+                  >
+                    {formatCurrency(row.total)}
                   </td>
                 </tr>
-                <tr>
-                  <td style={{ border: "1px solid #e5e7eb", padding: "6px 12px" }}>
-                    Contractors Fee
-                    {report.client.commissionRate ? ` (${report.client.commissionRate}%)` : ""}
-                  </td>
-                  <td style={{ border: "1px solid #e5e7eb", padding: "6px 12px", textAlign: "right" }}>
-                    {formatCurrency(contractorsFee)}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ border: "1px solid #e5e7eb", padding: "6px 12px" }}>Total Field Charges</td>
-                  <td style={{ border: "1px solid #e5e7eb", padding: "6px 12px", textAlign: "right" }}>
-                    {formatCurrency(invoiceTotal)}
-                  </td>
-                </tr>
-                <tr style={{ backgroundColor: "#f3f4f6" }}>
-                  <td style={{ border: "1px solid #d1d5db", padding: "6px 12px", fontWeight: "bold", fontSize: "14px" }}>
-                    Invoice Total
-                  </td>
-                  <td style={{ border: "1px solid #d1d5db", padding: "6px 12px", textAlign: "right", fontWeight: "bold", fontSize: "14px" }}>
-                    {formatCurrency(invoiceTotal)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+              ))}
+            </tbody>
+          </table>
+
+          {/* ── LABOR SUBTOTAL + TOTALS SIDE BY SIDE ── */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "24px",
+              fontSize: "12px",
+              alignItems: "start",
+            }}
+          >
+            {/* Left: Labor Subtotal */}
+            <div>
+              <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+                Labor Subtotal
+              </div>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ backgroundColor: "#f3f4f6" }}>
+                    <th
+                      style={{
+                        border: "1px solid #d1d5db",
+                        padding: "4px 8px",
+                        textAlign: "right",
+                      }}
+                    >
+                      QUANTITY
+                    </th>
+                    <th
+                      style={{
+                        border: "1px solid #d1d5db",
+                        padding: "4px 8px",
+                        textAlign: "center",
+                      }}
+                    >
+                      UNIT
+                    </th>
+                    <th
+                      style={{
+                        border: "1px solid #d1d5db",
+                        padding: "4px 8px",
+                        textAlign: "right",
+                      }}
+                    >
+                      TOTAL
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {subtotalRows.map((row, idx) => (
+                    <tr key={idx}>
+                      <td
+                        style={{
+                          border: "1px solid #e5e7eb",
+                          padding: "4px 8px",
+                          textAlign: "right",
+                        }}
+                      >
+                        {formatNumber(row.quantity)}
+                      </td>
+                      <td
+                        style={{
+                          border: "1px solid #e5e7eb",
+                          padding: "4px 8px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {row.unit}
+                      </td>
+                      <td
+                        style={{
+                          border: "1px solid #e5e7eb",
+                          padding: "4px 8px",
+                          textAlign: "right",
+                        }}
+                      >
+                        {formatCurrency(row.total)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ backgroundColor: "#f3f4f6" }}>
+                    <td
+                      colSpan={2}
+                      style={{
+                        border: "1px solid #d1d5db",
+                        padding: "4px 8px",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      Invoice Subtotal
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #d1d5db",
+                        padding: "4px 8px",
+                        textAlign: "right",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {formatCurrency(invoiceSubtotal)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Right: Invoice summary — vertically aligned with the Labor Subtotal table body */}
+            <div>
+              {/* Spacer matching the "Labor Subtotal" label + table header row height on the left */}
+              <div
+                style={{
+                  fontWeight: "bold",
+                  marginBottom: "4px",
+                  visibility: "hidden",
+                }}
+              >
+                Labor Subtotal
+              </div>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ visibility: "hidden" }}>
+                    <th style={{ padding: "4px 8px" }}>&nbsp;</th>
+                    <th style={{ padding: "4px 8px" }}>&nbsp;</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td
+                      style={{
+                        border: "1px solid #e5e7eb",
+                        padding: "6px 12px",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      Invoice Subtotal
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #e5e7eb",
+                        padding: "6px 12px",
+                        textAlign: "right",
+                      }}
+                    >
+                      {formatCurrency(invoiceSubtotal)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td
+                      style={{
+                        border: "1px solid #e5e7eb",
+                        padding: "6px 12px",
+                      }}
+                    >
+                      Contractors Fee
+                      {report.client.commissionRate
+                        ? ` (${report.client.commissionRate}%)`
+                        : ""}
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #e5e7eb",
+                        padding: "6px 12px",
+                        textAlign: "right",
+                      }}
+                    >
+                      {formatCurrency(contractorsFee)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td
+                      style={{
+                        border: "1px solid #e5e7eb",
+                        padding: "6px 12px",
+                      }}
+                    >
+                      Total Field Charges
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #e5e7eb",
+                        padding: "6px 12px",
+                        textAlign: "right",
+                      }}
+                    >
+                      {formatCurrency(invoiceTotal)}
+                    </td>
+                  </tr>
+                  <tr style={{ backgroundColor: "#f3f4f6" }}>
+                    <td
+                      style={{
+                        border: "1px solid #d1d5db",
+                        padding: "6px 12px",
+                        fontWeight: "bold",
+                        fontSize: "14px",
+                      }}
+                    >
+                      Invoice Total
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #d1d5db",
+                        padding: "6px 12px",
+                        textAlign: "right",
+                        fontWeight: "bold",
+                        fontSize: "14px",
+                      }}
+                    >
+                      {formatCurrency(invoiceTotal)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ── FOOTER ── */}
+          <div
+            style={{
+              marginTop: "24px",
+              fontSize: "11px",
+              color: "#374151",
+              borderTop: "1px solid #d1d5db",
+              paddingTop: "12px",
+              textAlign: "center",
+            }}
+          >
+            <p style={{ margin: "0 0 4px 0" }}>
+              Make all checks payable to{" "}
+              <strong>J&amp;M Agricultural Labor LLC</strong>
+            </p>
+            <p style={{ margin: "0 0 4px 0" }}>
+              Any unpaid invoices after {paymentDays} days will incur additional
+              fees
+            </p>
+            <p style={{ margin: "0", fontWeight: "bold" }}>
+              THANK YOU FOR YOUR BUSINESS!
+            </p>
           </div>
         </div>
+        {/* end .print-page (invoice) */}
 
-        {/* ── FOOTER ── */}
-        <div style={{ marginTop: "24px", fontSize: "11px", color: "#374151", borderTop: "1px solid #d1d5db", paddingTop: "12px", textAlign: "center" }}>
-          <p style={{ margin: "0 0 4px 0" }}>Make all checks payable to <strong>J&amp;M Agricultural Labor LLC</strong></p>
-          <p style={{ margin: "0 0 4px 0" }}>Any unpaid invoices after {paymentDays} days will incur additional fees</p>
-          <p style={{ margin: "0", fontWeight: "bold" }}>THANK YOU FOR YOUR BUSINESS!</p>
-        </div>
-      </div>{/* end .print-page (invoice) */}
-
-      {/* ── LABOR REPORT: second printed page ── */}
-      {laborReport && <LaborReportSection report={laborReport} />}
-
-      </div>{/* end .print-root */}
+        {/* ── LABOR REPORT: second printed page ── */}
+        {laborReport && <LaborReportSection report={laborReport} />}
+      </div>
+      {/* end .print-root */}
     </div>
   );
 }
@@ -575,11 +963,15 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
   const uniqueTasks = Array.from(allTaskNames);
 
   const hasOvertimeData =
-    report.employeeDetails?.some((emp) => (emp.overtimeHours || 0) > 0) ?? false;
+    report.employeeDetails?.some((emp) => (emp.overtimeHours || 0) > 0) ??
+    false;
 
   const truncateWorkerName = (fullName: string): string => {
     if (!fullName || typeof fullName !== "string") return "";
-    const nameParts = fullName.trim().split(/\s+/).filter((part) => part.length > 0);
+    const nameParts = fullName
+      .trim()
+      .split(/\s+/)
+      .filter((part) => part.length > 0);
     if (nameParts.length <= 2) return fullName;
     return `${nameParts[0]} ${nameParts[1]}`;
   };
@@ -788,9 +1180,7 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
 
             {/* Total Base Labor Cost Section */}
             <div>
-              <h3 className="font-bold mb-2 text-lg">
-                Total Base Labor Cost
-              </h3>
+              <h3 className="font-bold mb-2 text-lg">Total Base Labor Cost</h3>
               <div className="text-xs">
                 <table className="w-full border-collapse">
                   <thead>
