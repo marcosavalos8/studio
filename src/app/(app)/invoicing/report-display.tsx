@@ -982,14 +982,22 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
       style={{ marginTop: "24px" }}
     >
       {/* Header con logo */}
-      <div className="mb-6 relative">
-        <div className="flex items-center justify-between">
+      <div className="mb-6">
+        <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <h1 className="text-2xl font-bold text-left mb-1 text-green-700">
+            <h1
+              style={{
+                fontSize: "16px",
+                fontWeight: "bold",
+                textAlign: "left",
+                marginBottom: "4px",
+                color: "#15803d",
+              }}
+            >
               Labor Report | J&M Agricultural Labor LLC
             </h1>
           </div>
-          <div className="absolute right-0 top-0">
+          <div className="flex-shrink-0">
             <img
               src="/logo.jpeg"
               alt="JM AGRI Logo"
@@ -1025,7 +1033,7 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
           </div>
         </div>
         {/* Green bottom border after company info */}
-        <div className="border-b-4 border-green-700 mt-2"></div>
+        <div className="border-b-2 border-green-700 mt-2"></div>
       </div>
 
       {hasEmployeeDetails ? (
@@ -1165,12 +1173,12 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
           <div className="grid grid-cols-2 gap-8 items-start">
             {/* Task Legend Section */}
             <div>
-              <h3 className="font-bold mb-2 text-lg">Task Legend:</h3>
+              <h3 className="font-bold mb-2 text-[12px]">Task Legend:</h3>
               <div className="text-sm space-y-1">
                 {uniqueTasks.map((taskName, idx) => {
                   const label = String.fromCharCode(65 + idx);
                   return (
-                    <p key={taskName} className="text-xs">
+                    <p key={taskName} className="text-[10px]">
                       <strong>PIECE {label}</strong> = {taskName}
                     </p>
                   );
@@ -1180,7 +1188,9 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
 
             {/* Total Base Labor Cost Section */}
             <div>
-              <h3 className="font-bold mb-2 text-lg">Total Base Labor Cost</h3>
+              <h3 className="font-bold mb-2 text-[12px]">
+                Total Base Labor Cost
+              </h3>
               <div className="text-xs">
                 <table className="w-full border-collapse">
                   <thead>
