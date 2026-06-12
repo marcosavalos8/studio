@@ -29,7 +29,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useFirestore } from '@/firebase'
-import { collection, doc, setDoc, query, where, getDocs } from 'firebase/firestore'
+import { collection, doc, setDoc, query, where, getDocs, Timestamp } from 'firebase/firestore'
 import { useToast } from '@/hooks/use-toast'
 import type { Employee } from '@/lib/types'
 import { Loader2 } from 'lucide-react'
@@ -102,24 +102,46 @@ export function AddEmployeeDialog({ isOpen, onOpenChange }: AddEmployeeDialogPro
 
     // Online flow - check for duplicates and wait for operation to complete
     try {
-      // Check for duplicate name
+      // Case-insensitive duplicate name check (fetch all, compare normalized)
       const employeesRef = collection(firestore, 'employees');
-      const duplicateQuery = query(
-        employeesRef,
-        where('name', '==', values.name)
+      const allEmployeesSnap = await getDocs(employeesRef);
+      const normalizedInput = values.name.trim().toLowerCase();
+      const duplicate = allEmployeesSnap.docs.find(
+        d => (d.data().name as string)?.trim().toLowerCase() === normalizedInput
       );
-      const duplicateSnapshot = await getDocs(duplicateQuery);
-      
-      if (!duplicateSnapshot.empty) {
+      if (duplicate) {
         toast({
           variant: 'destructive',
           title: 'Duplicate Employee',
-          description: `An employee with the name "${values.name}" already exists.`,
+          description: `An employee named "${values.name}" already exists (status: ${duplicate.data().status ?? 'unknown'}).`,
         });
         return;
       }
 
-      await setDoc(newDocRef, newEmployee);
+      // Generate unique employeeNumber: YYYY + 6-digit consecutive per year
+      const currentYear = new Date().getFullYear();
+      const yearPrefix = String(currentYear);
+      let maxConsecutive = 0;
+      allEmployeesSnap.docs.forEach(d => {
+        const num: string = d.data().employeeNumber ?? '';
+        if (num.startsWith(yearPrefix) && num.length === 10) {
+          const consecutive = parseInt(num.slice(4), 10);
+          if (!isNaN(consecutive) && consecutive > maxConsecutive) {
+            maxConsecutive = consecutive;
+          }
+        }
+      });
+      const employeeNumber = `${yearPrefix}${String(maxConsecutive + 1).padStart(6, '0')}`;
+      const now = Timestamp.now();
+
+      const newEmployeeWithNumber: Omit<Employee, 'id'> = {
+        ...newEmployee,
+        employeeNumber,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      await setDoc(newDocRef, newEmployeeWithNumber);
       
       toast({
         title: 'Employee Added',

@@ -1,11 +1,16 @@
+import type { Timestamp } from "firebase/firestore";
+
 export type Employee = {
   id: string;
   name: string;
   qrCode: string;
   role: "Worker" | "Supervisor";
   status: "Active" | "Inactive";
-  sickHoursBalance?: number; // Accumulated sick hours available
-  totalHoursWorked?: number; // Total hours worked for sick hours calculation
+  sickHoursBalance?: number;
+  totalHoursWorked?: number;
+  employeeNumber?: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 };
 
 export type Client = {
@@ -160,8 +165,6 @@ export interface DailyBreakdownEntry {
   >;
   total: number;
 }
-
-import type { Timestamp } from "firebase/firestore";
 
 export interface SavedInvoiceTaskDetail {
   taskName: string;

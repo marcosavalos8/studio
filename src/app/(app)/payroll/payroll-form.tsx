@@ -6,6 +6,8 @@ import { format, parseISO } from "date-fns"
 import { Calendar as CalendarIcon, Loader2, Users } from "lucide-react"
 
 import { cn, toLocalMidnight } from "@/lib/utils"
+import { Input } from "@/components/ui/input"
+import { Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -40,6 +42,7 @@ export function PayrollForm() {
   const [allData, setAllData] = React.useState<any>(null);
   const [employeesInRange, setEmployeesInRange] = React.useState<Employee[]>([]);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = React.useState<Set<string>>(new Set());
+  const [employeeSearch, setEmployeeSearch] = React.useState('');
   
   const [reportData, setReportData] = React.useState<ProcessedPayrollData | null>(null);
 
@@ -135,7 +138,12 @@ export function PayrollForm() {
             const activeEmployees = Array.from(employeeIdsWithActivity)
                 .map(id => allEmployeesMap.get(id))
                 .filter((e): e is Employee => !!e)
-                .sort((a,b) => a.name.localeCompare(b.name));
+                .sort((a, b) => {
+                  if (a.employeeNumber && b.employeeNumber) return a.employeeNumber.localeCompare(b.employeeNumber);
+                  if (a.employeeNumber) return -1;
+                  if (b.employeeNumber) return 1;
+                  return a.name.localeCompare(b.name);
+                });
             
             setAllData({ allEmployees, tasks, clients, timeEntries, piecework });
             setEmployeesInRange(activeEmployees);
@@ -191,6 +199,15 @@ export function PayrollForm() {
 
   const jsonData = getFilteredJsonData();
   const allEmployeesSelected = employeesInRange.length > 0 && selectedEmployeeIds.size === employeesInRange.length;
+
+  const filteredEmployeesInRange = React.useMemo(() => {
+    const q = employeeSearch.trim().toLowerCase();
+    if (!q) return employeesInRange;
+    return employeesInRange.filter(e =>
+      e.name.toLowerCase().includes(q) ||
+      (e.employeeNumber ?? '').includes(q)
+    );
+  }, [employeesInRange, employeeSearch]);
 
   if (reportData) {
     return <PayrollReportDisplay report={reportData} onBack={() => setReportData(null)} />;
@@ -302,36 +319,55 @@ export function PayrollForm() {
       {!isFetchingData && employeesInRange.length > 0 && (
          <Card>
             <CardHeader>
-                <CardTitle className="flex items-center justify-between">
+                <CardTitle className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2">
                         <Users className="h-5 w-5"/>
                         <span>Include Employees in Payroll</span>
                     </div>
-                     <div className="flex items-center space-x-2">
-                        <Checkbox 
-                            id="select-all" 
-                            checked={allEmployeesSelected}
-                            onCheckedChange={handleSelectAll}
-                        />
-                        <label
-                          htmlFor="select-all"
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
-                          Select All
-                        </label>
-                      </div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                        {/* Search by name or employee number */}
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search by name or #..."
+                            value={employeeSearch}
+                            onChange={e => setEmployeeSearch(e.target.value)}
+                            className="pl-8 h-9 w-52 text-sm font-normal"
+                          />
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                              id="select-all"
+                              checked={allEmployeesSelected}
+                              onCheckedChange={handleSelectAll}
+                          />
+                          <label
+                            htmlFor="select-all"
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                          >
+                            Select All
+                          </label>
+                        </div>
+                    </div>
                 </CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {employeesInRange.map(employee => (
-                    <div key={employee.id} className="flex items-center space-x-2">
+            <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {filteredEmployeesInRange.length === 0 && (
+                  <p className="col-span-full text-sm text-muted-foreground py-2">No employees match &ldquo;{employeeSearch}&rdquo;.</p>
+                )}
+                {filteredEmployeesInRange.map(employee => (
+                    <div key={employee.id} className="flex items-start space-x-2">
                         <Checkbox
                             id={`employee-${employee.id}`}
                             checked={selectedEmployeeIds.has(employee.id)}
                             onCheckedChange={(checked: boolean) => handleEmployeeSelect(employee.id, !!checked)}
+                            className="mt-0.5"
                         />
-                        <label htmlFor={`employee-${employee.id}`} className="text-sm font-medium leading-none">
+                        <label htmlFor={`employee-${employee.id}`} className="text-sm font-medium leading-snug cursor-pointer">
                             {employee.name}
+                            {employee.employeeNumber && (
+                              <span className="block text-xs text-muted-foreground font-mono">{employee.employeeNumber}</span>
+                            )}
                         </label>
                     </div>
                 ))}

@@ -361,6 +361,9 @@ function TimeTrackingPage() {
     Date | undefined
   >(undefined);
 
+  // Duplicate time entry detection for manual clock-in
+  const [duplicateEntryEmployeeIds, setDuplicateEntryEmployeeIds] = useState<Set<string>>(new Set());
+
   // QR Scanner piecework state - for entering pieces completed when clocking in to piecework task
   const [qrPiecesCompleted, setQrPiecesCompleted] = useState<number | string>(
     "",
@@ -968,10 +971,13 @@ function TimeTrackingPage() {
   const filteredManualEmployees = useMemo(() => {
     if (!activeEmployees) return [];
     if (!manualEmployeeSearch) return [];
-    return activeEmployees.filter((emp) =>
-      emp.name.toLowerCase().includes(manualEmployeeSearch.toLowerCase()),
-    );
-  }, [activeEmployees, manualEmployeeSearch]);
+    return activeEmployees.filter((emp) => {
+      if (!emp.name.toLowerCase().includes(manualEmployeeSearch.toLowerCase())) return false;
+      // For clock-in: exclude employees who already have an entry for this date
+      if (manualLogType === "clock-in" && duplicateEntryEmployeeIds.has(emp.id)) return false;
+      return true;
+    });
+  }, [activeEmployees, manualEmployeeSearch, manualLogType, duplicateEntryEmployeeIds]);
 
   // Filtered employees for adding to multi-employee list (excludes already added)
   const filteredAddEmployees = useMemo(() => {
@@ -1225,6 +1231,39 @@ function TimeTrackingPage() {
     }
     setFocusedManualEmployeeIdx(-1);
   }, [manualEmployeeSearch]);
+
+  // Detect employees with duplicate entries for the selected date (clock-in only)
+  useEffect(() => {
+    if (manualLogType !== "clock-in" || !firestore) {
+      setDuplicateEntryEmployeeIds(new Set());
+      return;
+    }
+    const effectiveDate = useManualDateTime ? manualClockInDate : new Date();
+    if (!effectiveDate) {
+      setDuplicateEntryEmployeeIds(new Set());
+      return;
+    }
+    const dayStart = new Date(effectiveDate);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(effectiveDate);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const q = query(
+      collection(firestore, "time_entries"),
+      where("timestamp", ">=", Timestamp.fromDate(dayStart)),
+      where("timestamp", "<=", Timestamp.fromDate(dayEnd)),
+    );
+    getDocs(q).then(snap => {
+      const ids = new Set<string>();
+      snap.docs.forEach(d => {
+        const data = d.data();
+        if (data.employeeId && !data.isBreak && !data.isSickLeave) {
+          ids.add(data.employeeId as string);
+        }
+      });
+      setDuplicateEntryEmployeeIds(ids);
+    });
+  }, [manualLogType, useManualDateTime, manualClockInDate, firestore]);
 
   // Auto-scroll the focused legacy employee item into view during keyboard navigation
   useEffect(() => {
@@ -4348,6 +4387,14 @@ function TimeTrackingPage() {
                                   className="w-full justify-start"
                                   onMouseDown={(e) => e.preventDefault()}
                                   onClick={() => {
+                                    if (manualLogType === "clock-in" && duplicateEntryEmployeeIds.has(employee.id)) {
+                                      toast({
+                                        variant: "destructive",
+                                        title: "Duplicate Entry",
+                                        description: `${employee.name} already has a time entry for this date.`,
+                                      });
+                                      return;
+                                    }
                                     setManualSelectedEmployee(employee);
                                     setManualEmployeeSearch(employee.name);
                                     setFocusedManualEmployeeIdx(-1);

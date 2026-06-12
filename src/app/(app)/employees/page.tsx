@@ -28,13 +28,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { PlusCircle, Printer, QrCode, MoreHorizontal, Search } from "lucide-react";
+import { PlusCircle, Printer, QrCode, MoreHorizontal, Search, Hash, Loader2 } from "lucide-react";
 
 import type { Employee } from "@/lib/types";
 
 import { useFirestore } from "@/firebase";
 import { useCollection } from "@/firebase/firestore/use-collection";
-import { collection, query, orderBy, getDocs, where } from "firebase/firestore";
+import { collection, query, orderBy, getDocs, where, doc, updateDoc, Timestamp } from "firebase/firestore";
 import { useState, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { AddEmployeeDialog } from "./add-employee-dialog";
@@ -52,19 +52,62 @@ export default function EmployeesPage() {
   const [isAddDialogOpen, setAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
-    null
-  );
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [employeesWithHours, setEmployeesWithHours] = useState<EmployeeWithCalculatedHours[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFilter, setSearchFilter] = useState("");
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+  const [isMigrating, setIsMigrating] = useState(false);
 
   const employeesQuery = useMemo(() => {
     if (!firestore) return null;
     return query(collection(firestore, "employees"), orderBy("name"));
   }, [firestore]);
+
+  const handleMigrateEmployeeNumbers = async () => {
+    if (!firestore) return;
+    setIsMigrating(true);
+    try {
+      const snap = await getDocs(collection(firestore, "employees"));
+      // Sort by Firestore document creation time (document ID is time-ordered for auto-IDs)
+      const withoutNumber = snap.docs
+        .filter(d => !d.data().employeeNumber)
+        .sort((a, b) => a.id.localeCompare(b.id));
+
+      if (withoutNumber.length === 0) {
+        return;
+      }
+
+      // Group by "effective year" — use current year for all legacy employees
+      const currentYear = new Date().getFullYear();
+      const yearPrefix = String(currentYear);
+
+      // Find max consecutive already assigned for this year
+      let maxConsecutive = 0;
+      snap.docs.forEach(d => {
+        const num: string = d.data().employeeNumber ?? '';
+        if (num.startsWith(yearPrefix) && num.length === 10) {
+          const n = parseInt(num.slice(4), 10);
+          if (!isNaN(n) && n > maxConsecutive) maxConsecutive = n;
+        }
+      });
+
+      for (const empDoc of withoutNumber) {
+        maxConsecutive += 1;
+        const employeeNumber = `${yearPrefix}${String(maxConsecutive).padStart(6, '0')}`;
+        await updateDoc(doc(firestore, "employees", empDoc.id), {
+          employeeNumber,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        });
+      }
+    } catch (e) {
+      console.error("Migration error:", e);
+    } finally {
+      setIsMigrating(false);
+    }
+  };
   const { data: employees, isLoading } =
     useCollection<Employee>(employeesQuery);
 
@@ -158,7 +201,15 @@ export default function EmployeesPage() {
   }, [employees, firestore]);
 
   // Use calculated hours if available, otherwise use stored values
-  const displayEmployees = employeesWithHours.length > 0 ? employeesWithHours : employees || [];
+  const baseEmployees = employeesWithHours.length > 0 ? employeesWithHours : employees || [];
+  // Sort by employeeNumber (oldest first); employees without number go to the end
+  const displayEmployees = [...baseEmployees].sort((a, b) => {
+    if (a.employeeNumber && b.employeeNumber) return a.employeeNumber.localeCompare(b.employeeNumber);
+    if (a.employeeNumber) return -1;
+    if (b.employeeNumber) return 1;
+    return a.name.localeCompare(b.name);
+  });
+  const hasMissingNumbers = (employees || []).some(e => !e.employeeNumber);
 
   // Filter employees based on search filter
   const filteredEmployees = useMemo(() => {
@@ -220,7 +271,22 @@ export default function EmployeesPage() {
               Manage your supervisors and workers.
             </CardDescription>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            {hasMissingNumbers && (
+              <Button
+                size="sm"
+                className="gap-1"
+                variant="outline"
+                onClick={handleMigrateEmployeeNumbers}
+                disabled={isMigrating}
+              >
+                {isMigrating
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Hash className="h-4 w-4" />}
+                <span className="hidden sm:inline">Assign Employee Numbers</span>
+                <span className="sm:hidden">Assign #</span>
+              </Button>
+            )}
             <Button
               size="sm"
               className="gap-1"
@@ -290,6 +356,7 @@ export default function EmployeesPage() {
                       onCheckedChange={handleSelectAll}
                     />
                   </TableHead>
+                  <TableHead className="hidden sm:table-cell">Emp. #</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
@@ -302,7 +369,7 @@ export default function EmployeesPage() {
               <TableBody>
                 {(isLoading || isCalculating) && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center">
+                    <TableCell colSpan={9} className="text-center">
                       {isLoading ? "Loading employees..." : "Calculating sick hours..."}
                     </TableCell>
                   </TableRow>
@@ -313,10 +380,13 @@ export default function EmployeesPage() {
                       <TableCell>
                         <Checkbox
                           checked={selectedEmployeeIds.includes(employee.id)}
-                          onCheckedChange={(checked) => 
+                          onCheckedChange={(checked) =>
                             handleSelectEmployee(employee.id, checked as boolean)
                           }
                         />
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell font-mono text-xs text-muted-foreground">
+                        {employee.employeeNumber ?? <span className="text-amber-500">—</span>}
                       </TableCell>
                       <TableCell className="font-medium">
                         {employee.name}
