@@ -47,6 +47,7 @@ const clientSchema = z.object({
   phone: z.string().optional().or(z.literal('')),
   commissionRate: z.coerce.number().min(0, 'Commission must be a positive number.').optional(),
   minimumWage: z.coerce.number().min(0, 'Minimum wage must be a positive number.').optional(),
+  minimumWageForPayroll: z.coerce.number().min(0, 'Minimum wage for payroll must be a positive number.').optional(),
   contractType: z.enum(['Standard', 'H2A']).optional(),
 })
 
@@ -66,6 +67,7 @@ export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDia
       ...client,
       commissionRate: client.commissionRate || 0,
       minimumWage: client.minimumWage || 16.28,
+      minimumWageForPayroll: client.minimumWageForPayroll || 16.28,
       contractType: client.contractType || 'Standard',
     },
   })
@@ -76,6 +78,7 @@ export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDia
         ...client,
         commissionRate: client.commissionRate || 0,
         minimumWage: client.minimumWage || 16.28,
+        minimumWageForPayroll: client.minimumWageForPayroll || 16.28,
         contractType: client.contractType || 'Standard',
       })
     }
@@ -233,6 +236,19 @@ export function EditClientDialog({ isOpen, onOpenChange, client }: EditClientDia
                   <FormLabel>Applicable Minimum Wage ($/hr)</FormLabel>
                   <FormControl>
                     <Input type="number" step="0.01" placeholder="e.g., 17.50" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="minimumWageForPayroll"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Minimum Wage for Payroll ($/hr)</FormLabel>
+                  <FormControl>
+                    <Input type="number" step="0.01" placeholder="e.g., 19.82" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

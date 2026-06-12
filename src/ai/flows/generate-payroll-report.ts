@@ -294,24 +294,23 @@ export async function generatePayrollReport({
             if (!task) continue;
 
             const client = clientMap.get(task.clientId);
-            if (client?.minimumWage) {
+            const clientPayrollMinWage = client?.minimumWageForPayroll || client?.minimumWage;
+            if (clientPayrollMinWage) {
               if (!clientMinWageFound) {
-                // First client minimum wage found - use it
-                console.log("📊 Using client minimum wage:", {
-                  clientName: client.name,
-                  clientMinWage: client.minimumWage,
+                console.log("📊 Using client minimum wage for payroll:", {
+                  clientName: client?.name,
+                  clientMinWage: clientPayrollMinWage,
                   stateMinWage: STATE_MINIMUM_WAGE,
                 });
-                applicableMinWage = client.minimumWage;
+                applicableMinWage = clientPayrollMinWage;
                 clientMinWageFound = true;
-              } else if (client.minimumWage > applicableMinWage) {
-                // If worker has multiple clients, use the highest minimum wage
-                console.log("📊 Updating to higher client minimum wage:", {
-                  clientName: client.name,
-                  clientMinWage: client.minimumWage,
+              } else if (clientPayrollMinWage > applicableMinWage) {
+                console.log("📊 Updating to higher client minimum wage for payroll:", {
+                  clientName: client?.name,
+                  clientMinWage: clientPayrollMinWage,
                   previousMinWage: applicableMinWage,
                 });
-                applicableMinWage = client.minimumWage;
+                applicableMinWage = clientPayrollMinWage;
               }
             }
 
@@ -404,11 +403,13 @@ export async function generatePayrollReport({
               if (piecesByTaskVariety.has(varietyKey)) {
                 const existing = piecesByTaskVariety.get(varietyKey)!;
                 existing.totalPieces += pieces;
+                if (!existing.price && task.piecePrice) existing.price = task.piecePrice;
               } else {
                 piecesByTaskVariety.set(varietyKey, {
                   taskName: task.name,
                   variety: task.variety || "N/A",
-                  totalPieces: pieces
+                  totalPieces: pieces,
+                  price: task.piecePrice || 0,
                 });
               }
             }
@@ -617,7 +618,8 @@ export async function generatePayrollReport({
           piecesByVariety: piecesByVarietyArray.length > 0 ? piecesByVarietyArray.map(item => ({
             taskName: item.taskName,
             variety: item.variety,
-            totalPieces: parseFloat(item.totalPieces.toFixed(2))
+            totalPieces: parseFloat(item.totalPieces.toFixed(2)),
+            price: item.price ?? 0,
           })) : undefined,
         });
       }

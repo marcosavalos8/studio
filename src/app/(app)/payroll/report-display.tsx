@@ -177,48 +177,66 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                                                     <h5 className="font-semibold mb-2">Week {week.weekNumber} Summary & Adjustments</h5>
                                                     <Table>
                                                         <TableBody>
-                                                            <TableRow><TableCell>Total Hours Worked</TableCell><TableCell className="text-right">{week.totalHours.toFixed(2)}</TableCell></TableRow>
+                                                            <TableRow>
+                                                              <TableCell colSpan={2}>Total Hours Worked</TableCell>
+                                                              <TableCell colSpan={2} className="text-right">{week.totalHours.toFixed(2)}</TableCell>
+                                                            </TableRow>
                                                             {week.totalPieces !== undefined && week.totalPieces > 0 && (
                                                               <>
                                                                 <TableRow className="bg-indigo-50 dark:bg-indigo-900/20">
                                                                   <TableCell className="font-medium">Total Pieces Worked</TableCell>
-                                                                  <TableCell className="text-right text-indigo-600 font-medium">{week.totalPieces.toFixed(2)}</TableCell>
+                                                                  <TableCell className="text-right text-indigo-600 font-medium text-xs text-muted-foreground">Pieces</TableCell>
+                                                                  <TableCell className="text-right text-indigo-600 font-medium text-xs text-muted-foreground">Price</TableCell>
+                                                                  <TableCell className="text-right text-indigo-600 font-medium text-xs text-muted-foreground">Total</TableCell>
                                                                 </TableRow>
-                                                                {week.piecesByVariety && week.piecesByVariety.length > 1 && (
-                                                                  <>
-                                                                    {week.piecesByVariety.map((item, idx) => (
-                                                                      <TableRow key={idx} className="bg-indigo-50/50 dark:bg-indigo-900/10">
-                                                                        <TableCell className="pl-8 text-sm text-muted-foreground">
-                                                                          {item.taskName} - {item.variety}
-                                                                        </TableCell>
-                                                                        <TableCell className="text-right text-sm text-indigo-600">{item.totalPieces.toFixed(2)}</TableCell>
-                                                                      </TableRow>
-                                                                    ))}
-                                                                  </>
-                                                                )}
+                                                                {week.piecesByVariety && week.piecesByVariety.map((item, idx) => (
+                                                                  <TableRow key={idx} className="bg-indigo-50/50 dark:bg-indigo-900/10">
+                                                                    <TableCell className="pl-8 text-sm text-muted-foreground">
+                                                                      {item.taskName} - {item.variety}
+                                                                    </TableCell>
+                                                                    <TableCell className="text-right text-sm text-indigo-600">{item.totalPieces.toFixed(2)}</TableCell>
+                                                                    <TableCell className="text-right text-sm text-indigo-600">${(item.price ?? 0).toFixed(2)}</TableCell>
+                                                                    <TableCell className="text-right text-sm text-indigo-600 font-medium">${(item.totalPieces * (item.price ?? 0)).toFixed(2)}</TableCell>
+                                                                  </TableRow>
+                                                                ))}
                                                               </>
                                                             )}
-                                                            <TableRow><TableCell>Raw Task Earnings</TableCell><TableCell className="text-right">${week.totalEarnings.toFixed(2)}</TableCell></TableRow>
-                                                            <TableRow><TableCell>Paid Rest Breaks (10min / 4hr)</TableCell><TableCell className="text-right text-blue-600">+ ${week.paidRestBreaks.toFixed(2)}</TableCell></TableRow>
-                                                            <TableRow><TableCell>Minimum Wage Top-Up</TableCell><TableCell className="text-right text-amber-600">+ ${week.minimumWageTopUp.toFixed(2)}</TableCell></TableRow>
-                                                            <TableRow className={week.overtimeHours && week.overtimeHours > 0 ? "bg-purple-50 dark:bg-purple-900/20" : ""}>
-                                                              <TableCell className={week.overtimeHours && week.overtimeHours > 0 ? "font-medium" : ""}>Overtime Hours (over 40/week)</TableCell>
-                                                              <TableCell className={`text-right ${week.overtimeHours && week.overtimeHours > 0 ? "text-purple-600 font-medium" : ""}`}>{week.overtimeHours?.toFixed(2) || '0.00'} hrs</TableCell>
+                                                            <TableRow>
+                                                              <TableCell colSpan={2}>Raw Task Earnings</TableCell>
+                                                              <TableCell colSpan={2} className="text-right">${week.totalEarnings.toFixed(2)}</TableCell>
+                                                            </TableRow>
+                                                            <TableRow>
+                                                              <TableCell colSpan={2}>Paid Rest Breaks (10min / 4hr)</TableCell>
+                                                              <TableCell colSpan={2} className="text-right text-blue-600">+ ${week.paidRestBreaks.toFixed(2)}</TableCell>
+                                                            </TableRow>
+                                                            <TableRow>
+                                                              <TableCell colSpan={2}>Minimum Wage Top-Up</TableCell>
+                                                              <TableCell colSpan={2} className="text-right text-amber-600">+ ${week.minimumWageTopUp.toFixed(2)}</TableCell>
                                                             </TableRow>
                                                             <TableRow className={week.overtimeHours && week.overtimeHours > 0 ? "bg-purple-50 dark:bg-purple-900/20" : ""}>
-                                                              <TableCell className={week.overtimeHours && week.overtimeHours > 0 ? "font-medium" : ""}>Regular Rate for OT Calculation</TableCell>
-                                                              <TableCell className={`text-right ${week.overtimeHours && week.overtimeHours > 0 ? "text-purple-600 font-medium" : ""}`}>${week.regularRate?.toFixed(2) || '0.00'}/hr</TableCell>
+                                                              <TableCell colSpan={2} className={week.overtimeHours && week.overtimeHours > 0 ? "font-medium" : ""}>Overtime Hours (over 40/week)</TableCell>
+                                                              <TableCell colSpan={2} className={`text-right ${week.overtimeHours && week.overtimeHours > 0 ? "text-purple-600 font-medium" : ""}`}>{week.overtimeHours?.toFixed(2) || '0.00'} hrs</TableCell>
                                                             </TableRow>
                                                             <TableRow className={week.overtimeHours && week.overtimeHours > 0 ? "bg-purple-50 dark:bg-purple-900/20" : ""}>
-                                                              <TableCell className={week.overtimeHours && week.overtimeHours > 0 ? "font-medium" : ""}>Overtime Premium (0.5x rate)</TableCell>
-                                                              <TableCell className={`text-right ${week.overtimeHours && week.overtimeHours > 0 ? "text-purple-600 font-medium" : ""}`}>+ ${week.overtimePremium?.toFixed(2) || '0.00'}</TableCell>
+                                                              <TableCell colSpan={2} className={week.overtimeHours && week.overtimeHours > 0 ? "font-medium" : ""}>Regular Rate for OT Calculation</TableCell>
+                                                              <TableCell colSpan={2} className={`text-right ${week.overtimeHours && week.overtimeHours > 0 ? "text-purple-600 font-medium" : ""}`}>${week.regularRate?.toFixed(2) || '0.00'}/hr</TableCell>
+                                                            </TableRow>
+                                                            <TableRow className={week.overtimeHours && week.overtimeHours > 0 ? "bg-purple-50 dark:bg-purple-900/20" : ""}>
+                                                              <TableCell colSpan={2} className={week.overtimeHours && week.overtimeHours > 0 ? "font-medium" : ""}>Overtime Premium (0.5x rate)</TableCell>
+                                                              <TableCell colSpan={2} className={`text-right ${week.overtimeHours && week.overtimeHours > 0 ? "text-purple-600 font-medium" : ""}`}>+ ${week.overtimePremium?.toFixed(2) || '0.00'}</TableCell>
                                                             </TableRow>
                                                             {week.sickHoursAccrued !== undefined && week.sickHoursAccrued > 0 && (
-                                                              <TableRow className="bg-green-50 dark:bg-green-900/20"><TableCell className="font-medium">Sick Hours Accrued (1hr / 40hrs)</TableCell><TableCell className="text-right text-green-600 font-medium">+ {week.sickHoursAccrued.toFixed(2)} hrs</TableCell></TableRow>
+                                                              <TableRow className="bg-green-50 dark:bg-green-900/20">
+                                                                <TableCell colSpan={2} className="font-medium">Sick Hours Accrued (1hr / 40hrs)</TableCell>
+                                                                <TableCell colSpan={2} className="text-right text-green-600 font-medium">+ {week.sickHoursAccrued.toFixed(2)} hrs</TableCell>
+                                                              </TableRow>
                                                             )}
                                                         </TableBody>
                                                          <TableFooter>
-                                                            <TableRow className="font-semibold"><TableCell>Total Weekly Pay</TableCell><TableCell className="text-right">${week.finalPay.toFixed(2)}</TableCell></TableRow>
+                                                            <TableRow className="font-semibold">
+                                                              <TableCell colSpan={2}>Total Weekly Pay</TableCell>
+                                                              <TableCell colSpan={2} className="text-right">${week.finalPay.toFixed(2)}</TableCell>
+                                                            </TableRow>
                                                         </TableFooter>
                                                     </Table>
                                                     </div>

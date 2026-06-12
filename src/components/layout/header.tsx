@@ -31,6 +31,11 @@ const pageTitles: { [key: string]: string } = {
   '/tasks': 'Tasks & Projects',
   '/payroll': 'Payroll',
   '/invoicing': 'Invoicing',
+  '/accounting-center': 'Accounting Center',
+  '/labor-report': 'Labor Report',
+  '/users': 'User Management',
+  '/settings': 'Settings',
+  '/support': 'Support',
 }
 
 export function AppHeader() {

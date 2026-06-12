@@ -45,6 +45,7 @@ const clientSchema = z.object({
   phone: z.string().optional().or(z.literal('')),
   commissionRate: z.coerce.number().min(0, 'Commission must be a positive number.').optional(),
   minimumWage: z.coerce.number().min(0, 'Minimum wage must be a positive number.').optional(),
+  minimumWageForPayroll: z.coerce.number().min(0, 'Minimum wage for payroll must be a positive number.').optional(),
   contractType: z.enum(['Standard', 'H2A']).optional(),
 })
 
@@ -67,6 +68,7 @@ export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) 
       phone: '',
       commissionRate: 0,
       minimumWage: 16.28,
+      minimumWageForPayroll: 16.28,
       contractType: 'Standard'
     },
   })
@@ -234,6 +236,19 @@ export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) 
                   <FormLabel>Applicable Minimum Wage ($/hr)</FormLabel>
                   <FormControl>
                     <Input type="number" step="0.01" placeholder="e.g., 17.50" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="minimumWageForPayroll"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Minimum Wage for Payroll ($/hr)</FormLabel>
+                  <FormControl>
+                    <Input type="number" step="0.01" placeholder="e.g., 19.82" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

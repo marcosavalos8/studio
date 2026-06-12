@@ -17,6 +17,7 @@ export type Client = {
   phone?: string;
   commissionRate?: number;
   minimumWage?: number;
+  minimumWageForPayroll?: number;
   contractType?: "Standard" | "H2A";
 };
 
@@ -92,6 +93,7 @@ export type PiecesByVariety = {
   taskName: string;
   variety: string;
   totalPieces: number;
+  price?: number;
 };
 
 export type WeeklySummary = {
@@ -235,6 +237,15 @@ export interface SavedInvoice {
       cost: number;
     }>;
   }>;
+}
+
+export interface AccountingCompletion {
+  id?: string;
+  workerId: string;
+  periodStart: string;
+  periodEnd: string;
+  completedAt: Timestamp | Date | null;
+  completedBy: string;
 }
 
 export interface SoundSettings {

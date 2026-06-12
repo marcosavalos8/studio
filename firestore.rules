@@ -144,6 +144,17 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    /**
+     * @description Manages accounting completion records (Mark as Completed in Accounting Center).
+     * @path /accounting_completions/{completionId}
+     * @allow (get, list, create, delete) - Only admins can manage completion records.
+     */
+    match /accounting_completions/{completionId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
     // --- Helper Functions ---
     
     /**

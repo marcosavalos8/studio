@@ -26,6 +26,7 @@ import {
   QrCode,
   Tag,
   UserCog,
+  Calculator,
 } from "lucide-react";
 
 const menuItems = [
@@ -37,6 +38,7 @@ const menuItems = [
   { href: "/payroll", label: "Payroll", icon: FileText, adminOnly: true },
   { href: "/invoicing", label: "Invoicing", icon: DollarSign, adminOnly: true },
   { label: "Labor Report", href: "/labor-report", icon: Tag, adminOnly: true },
+  { href: "/accounting-center", label: "Accounting Center", icon: Calculator, adminOnly: true },
   { href: "/users", label: "User Management", icon: UserCog, adminOnly: true },
 ];
 

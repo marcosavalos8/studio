@@ -84,6 +84,7 @@ export default function ClientsPage() {
                 <TableHead>Client Name</TableHead>
                 <TableHead className="hidden md:table-cell">Contract</TableHead>
                 <TableHead className="hidden lg:table-cell">Min. Wage</TableHead>
+                <TableHead className="hidden lg:table-cell">Min. Wage for Payroll</TableHead>
                 <TableHead className="hidden lg:table-cell">Commission</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -91,7 +92,7 @@ export default function ClientsPage() {
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center">
+                  <TableCell colSpan={6} className="text-center">
                     Loading...
                   </TableCell>
                 </TableRow>
@@ -125,6 +126,11 @@ export default function ClientsPage() {
                       $
                       {client.minimumWage
                         ? client.minimumWage.toFixed(2)
+                        : "N/A"}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {client.minimumWageForPayroll
+                        ? `$${client.minimumWageForPayroll.toFixed(2)}`
                         : "N/A"}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
