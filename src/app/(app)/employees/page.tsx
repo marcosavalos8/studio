@@ -559,9 +559,9 @@ export default function EmployeesPage() {
                           <CardTitle className="text-lg">
                             {employee.name}
                           </CardTitle>
-                          {employee.employee_number && (
+                          {employee.employeeNumber && (
                             <div className="text-sm text-muted-foreground">
-                              #{employee.employee_number}
+                              #{employee.employeeNumber}
                             </div>
                           )}
                           <div className="flex flex-wrap gap-2">
