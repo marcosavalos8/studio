@@ -156,10 +156,16 @@ export default function TasksPage() {
                   {task.clientRateType === "piece" && task.piecePrice ? (
                     <span className="text-xs font-medium">
                       ${task.piecePrice.toFixed(2)}/piece
+                      {task.piecePriceForPayroll != null && (
+                        <span className="text-blue-600 dark:text-blue-400 ml-1">(Payroll: ${task.piecePriceForPayroll.toFixed(2)})</span>
+                      )}
                     </span>
                   ) : (
                     <span className="text-xs font-medium">
                       ${task.clientRate?.toFixed(2) || '0.00'}/hr
+                      {task.clientRateForPayroll != null && (
+                        <span className="text-blue-600 dark:text-blue-400 ml-1">(Payroll: ${task.clientRateForPayroll.toFixed(2)})</span>
+                      )}
                     </span>
                   )}
                 </div>
@@ -189,24 +195,34 @@ export default function TasksPage() {
               </Badge>
             </TableCell>
             <TableCell className="hidden lg:table-cell">
-              <div className="flex flex-col">
+              <div className="flex flex-col gap-0.5">
                 {task.clientRateType === "piece" && task.piecePrice ? (
                   <>
                     <span className="font-medium">
                       ${task.piecePrice.toFixed(2)}/piece
                     </span>
-                    <span className="text-muted-foreground capitalize">
+                    <span className="text-muted-foreground capitalize text-xs">
                       Piecework
                     </span>
+                    {task.piecePriceForPayroll != null && (
+                      <span className="text-xs text-blue-600 dark:text-blue-400">
+                        Payroll: ${task.piecePriceForPayroll.toFixed(2)}/piece
+                      </span>
+                    )}
                   </>
                 ) : (
                   <>
                     <span className="font-medium">
                       ${task.clientRate?.toFixed(2) || '0.00'}/hr
                     </span>
-                    <span className="text-muted-foreground capitalize">
+                    <span className="text-muted-foreground capitalize text-xs">
                       Hourly
                     </span>
+                    {task.clientRateForPayroll != null && (
+                      <span className="text-xs text-blue-600 dark:text-blue-400">
+                        Payroll: ${task.clientRateForPayroll.toFixed(2)}/hr
+                      </span>
+                    )}
                   </>
                 )}
               </div>

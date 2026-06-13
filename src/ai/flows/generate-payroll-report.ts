@@ -330,40 +330,44 @@ export async function generatePayrollReport({
             });
 
             // Calculate earnings based on task type and rate
+            // Use payroll-specific rates when available, fall back to client rates
+            const effectivePiecePrice = task.piecePriceForPayroll ?? task.piecePrice;
+            const effectiveHourlyRate = task.clientRateForPayroll ?? task.clientRate;
+
             if (
               task.clientRateType === "piece" &&
               pieces > 0 &&
-              task.piecePrice &&
-              task.piecePrice > 0
+              effectivePiecePrice &&
+              effectivePiecePrice > 0
             ) {
               // Piecework task: calculate based on pieces
-              earningsForTask = pieces * task.piecePrice;
+              earningsForTask = pieces * effectivePiecePrice;
               isHourlyTask = false;
               console.log("Calculated piecework earnings:", {
                 taskName: task.name,
                 pieces,
-                piecePrice: task.piecePrice,
+                piecePrice: effectivePiecePrice,
                 earnings: earningsForTask,
               });
             } else if (task.clientRateType === "hourly" && hours > 0) {
               // Hourly task: calculate based on hours and clientRate
-              earningsForTask = hours * (task.clientRate || 0);
+              earningsForTask = hours * (effectiveHourlyRate || 0);
               isHourlyTask = true;
               console.log("Calculated hourly earnings:", {
                 taskName: task.name,
                 hours,
-                clientRate: task.clientRate,
+                clientRate: effectiveHourlyRate,
                 earnings: earningsForTask,
               });
             } else if (hours > 0) {
               // Fallback for tasks without explicit type (backward compatibility)
               // Check if it has piecePrice and pieces, otherwise treat as hourly
-              if (pieces > 0 && task.piecePrice && task.piecePrice > 0) {
-                earningsForTask = pieces * task.piecePrice;
+              if (pieces > 0 && effectivePiecePrice && effectivePiecePrice > 0) {
+                earningsForTask = pieces * effectivePiecePrice;
                 isHourlyTask = false;
               } else {
                 // Treat as hourly work
-                earningsForTask = hours * (task.clientRate || 0);
+                earningsForTask = hours * (effectiveHourlyRate || 0);
                 isHourlyTask = true;
               }
               console.log("Calculated earnings (fallback):", {
@@ -403,13 +407,13 @@ export async function generatePayrollReport({
               if (piecesByTaskVariety.has(varietyKey)) {
                 const existing = piecesByTaskVariety.get(varietyKey)!;
                 existing.totalPieces += pieces;
-                if (!existing.price && task.piecePrice) existing.price = task.piecePrice;
+                if (!existing.price && effectivePiecePrice) existing.price = effectivePiecePrice;
               } else {
                 piecesByTaskVariety.set(varietyKey, {
                   taskName: task.name,
                   variety: task.variety || "N/A",
                   totalPieces: pieces,
-                  price: task.piecePrice || 0,
+                  price: effectivePiecePrice || 0,
                 });
               }
             }
@@ -423,8 +427,8 @@ export async function generatePayrollReport({
                 : "Unknown";
             const taskRate =
               task.clientRateType === "piece"
-                ? task.piecePrice
-                : task.clientRate;
+                ? effectivePiecePrice
+                : effectiveHourlyRate;
 
             taskDetailsForDay.push({
               taskId: taskId, // <- Agregar esto

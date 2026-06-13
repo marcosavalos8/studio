@@ -36,6 +36,8 @@ export type Task = {
   clientRate: number;
   clientRateType: "hourly" | "piece";
   piecePrice?: number;
+  clientRateForPayroll?: number;
+  piecePriceForPayroll?: number;
   status: "Active" | "Inactive" | "Completed";
 };
 

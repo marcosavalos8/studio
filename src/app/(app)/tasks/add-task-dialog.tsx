@@ -50,10 +50,12 @@ export function AddTaskDialog({
   const [block, setBlock] = useState("");
   const [clientId, setClientId] = useState("");
   const [clientRate, setClientRate] = useState("");
+  const [clientRateForPayroll, setClientRateForPayroll] = useState("");
   const [clientRateType, setClientRateType] = useState<"hourly" | "piece">(
     "hourly"
   );
   const [piecePrice, setPiecePrice] = useState("");
+  const [piecePriceForPayroll, setPiecePriceForPayroll] = useState("");
   const [status, setStatus] = useState<"Active" | "Inactive" | "Completed">(
     "Active"
   );
@@ -65,8 +67,10 @@ export function AddTaskDialog({
     setBlock("");
     setClientId("");
     setClientRate("");
+    setClientRateForPayroll("");
     setClientRateType("hourly");
     setPiecePrice("");
+    setPiecePriceForPayroll("");
     setStatus("Active");
   };
 
@@ -95,6 +99,12 @@ export function AddTaskDialog({
           ? parseFloat(clientRate) || 0
           : parseFloat(piecePrice) || 0,
       piecePrice: parseFloat(piecePrice) || 0,
+      ...(clientRateType === "hourly" && clientRateForPayroll !== ""
+        ? { clientRateForPayroll: parseFloat(clientRateForPayroll) || 0 }
+        : {}),
+      ...(clientRateType === "piece" && piecePriceForPayroll !== ""
+        ? { piecePriceForPayroll: parseFloat(piecePriceForPayroll) || 0 }
+        : {}),
     };
 
     // When offline, close dialog immediately to simulate normal flow
@@ -271,6 +281,38 @@ export function AddTaskDialog({
                   value={clientRate}
                   onChange={(e) => setClientRate(e.target.value)}
                 />
+              </div>
+            )}
+
+            {clientRateType === "piece" ? (
+              <div className="space-y-2">
+                <Label htmlFor="piecePriceForPayroll">Piece Price for Payroll ($)</Label>
+                <Input
+                  id="piecePriceForPayroll"
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g., 0.50"
+                  value={piecePriceForPayroll}
+                  onChange={(e) => setPiecePriceForPayroll(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Price per piece used for payroll calculations.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="clientRateForPayroll">Hourly Rate for Payroll ($)</Label>
+                <Input
+                  id="clientRateForPayroll"
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g., 16.00"
+                  value={clientRateForPayroll}
+                  onChange={(e) => setClientRateForPayroll(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Hourly rate used for payroll calculations.
+                </p>
               </div>
             )}
           </div>

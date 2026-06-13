@@ -1,5 +1,10 @@
-import { AccountingCenterClient } from "./accounting-center-client"
+"use client";
 
-export default function AccountingCenterPage() {
-  return <AccountingCenterClient />
+import { AccountingCenterClient } from "./accounting-center-client";
+import { withAuth } from "@/components/withAuth";
+
+function AccountingCenterPage() {
+  return <AccountingCenterClient />;
 }
+
+export default withAuth(AccountingCenterPage, { askEveryVisit: true });
