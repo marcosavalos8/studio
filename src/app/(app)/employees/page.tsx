@@ -28,13 +28,30 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { PlusCircle, Printer, QrCode, MoreHorizontal, Search, Hash, Loader2 } from "lucide-react";
+import {
+  PlusCircle,
+  Printer,
+  QrCode,
+  MoreHorizontal,
+  Search,
+  Hash,
+  Loader2,
+} from "lucide-react";
 
 import type { Employee } from "@/lib/types";
 
 import { useFirestore } from "@/firebase";
 import { useCollection } from "@/firebase/firestore/use-collection";
-import { collection, query, orderBy, getDocs, where, doc, updateDoc, Timestamp } from "firebase/firestore";
+import {
+  collection,
+  query,
+  orderBy,
+  getDocs,
+  where,
+  doc,
+  updateDoc,
+  Timestamp,
+} from "firebase/firestore";
 import { useState, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { AddEmployeeDialog } from "./add-employee-dialog";
@@ -52,8 +69,12 @@ export default function EmployeesPage() {
   const [isAddDialogOpen, setAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-  const [employeesWithHours, setEmployeesWithHours] = useState<EmployeeWithCalculatedHours[]>([]);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
+    null,
+  );
+  const [employeesWithHours, setEmployeesWithHours] = useState<
+    EmployeeWithCalculatedHours[]
+  >([]);
   const [isCalculating, setIsCalculating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFilter, setSearchFilter] = useState("");
@@ -72,7 +93,7 @@ export default function EmployeesPage() {
       const snap = await getDocs(collection(firestore, "employees"));
       // Sort by Firestore document creation time (document ID is time-ordered for auto-IDs)
       const withoutNumber = snap.docs
-        .filter(d => !d.data().employeeNumber)
+        .filter((d) => !d.data().employeeNumber)
         .sort((a, b) => a.id.localeCompare(b.id));
 
       if (withoutNumber.length === 0) {
@@ -85,8 +106,8 @@ export default function EmployeesPage() {
 
       // Find max consecutive already assigned for this year
       let maxConsecutive = 0;
-      snap.docs.forEach(d => {
-        const num: string = d.data().employeeNumber ?? '';
+      snap.docs.forEach((d) => {
+        const num: string = d.data().employeeNumber ?? "";
         if (num.startsWith(yearPrefix) && num.length === 10) {
           const n = parseInt(num.slice(4), 10);
           if (!isNaN(n) && n > maxConsecutive) maxConsecutive = n;
@@ -95,7 +116,7 @@ export default function EmployeesPage() {
 
       for (const empDoc of withoutNumber) {
         maxConsecutive += 1;
-        const employeeNumber = `${yearPrefix}${String(maxConsecutive).padStart(6, '0')}`;
+        const employeeNumber = `${yearPrefix}${String(maxConsecutive).padStart(6, "0")}`;
         await updateDoc(doc(firestore, "employees", empDoc.id), {
           employeeNumber,
           createdAt: Timestamp.now(),
@@ -121,77 +142,86 @@ export default function EmployeesPage() {
       setIsCalculating(true);
 
       try {
-        const employeesWithCalculated: EmployeeWithCalculatedHours[] = await Promise.all(
-          employees.map(async (employee) => {
-            try {
-              // Fetch all completed time entries for this employee
-              const timeEntriesQuery = query(
-                collection(firestore, "time_entries"),
-                where("employeeId", "==", employee.id)
-              );
-              
-              const timeEntriesSnapshot = await getDocs(timeEntriesQuery);
-            
-            let totalHoursWorked = 0;
-            let totalHoursUsedSickHours = 0;
+        const employeesWithCalculated: EmployeeWithCalculatedHours[] =
+          await Promise.all(
+            employees.map(async (employee) => {
+              try {
+                // Fetch all completed time entries for this employee
+                const timeEntriesQuery = query(
+                  collection(firestore, "time_entries"),
+                  where("employeeId", "==", employee.id),
+                );
 
-            timeEntriesSnapshot.forEach((doc) => {
-              const entry = doc.data();
-              
-              // Skip if entry is not completed (no endTime)
-              if (!entry.endTime) {
-                return;
+                const timeEntriesSnapshot = await getDocs(timeEntriesQuery);
+
+                let totalHoursWorked = 0;
+                let totalHoursUsedSickHours = 0;
+
+                timeEntriesSnapshot.forEach((doc) => {
+                  const entry = doc.data();
+
+                  // Skip if entry is not completed (no endTime)
+                  if (!entry.endTime) {
+                    return;
+                  }
+
+                  // Skip if it's a break or sick leave
+                  if (entry.isBreak || entry.isSickLeave) {
+                    return;
+                  }
+
+                  // Convert timestamps to dates
+                  const startTime =
+                    entry.timestamp?.toDate?.() || new Date(entry.timestamp);
+                  const endTime =
+                    entry.endTime?.toDate?.() || new Date(entry.endTime);
+
+                  // Calculate hours worked in this entry
+                  let hoursWorked =
+                    (endTime.getTime() - startTime.getTime()) /
+                    (1000 * 60 * 60);
+
+                  // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (0.5 hours) unpaid meal break
+                  if (hoursWorked > 5) {
+                    hoursWorked -= 0.5; // Deduct 30 minutes (0.5 hours)
+                  }
+
+                  if (hoursWorked > 0) {
+                    totalHoursWorked += hoursWorked;
+
+                    // Track hours where sick hours were used for payment
+                    if (entry.useSickHoursForPayment) {
+                      totalHoursUsedSickHours += hoursWorked;
+                    }
+                  }
+                });
+
+                // Calculate sick hours balance
+                const sickHoursAccrued = totalHoursWorked / 40;
+                const calculatedSickHours =
+                  sickHoursAccrued - totalHoursUsedSickHours;
+
+                return {
+                  ...employee,
+                  calculatedSickHours,
+                  calculatedTotalHours: totalHoursWorked,
+                };
+              } catch (error) {
+                // If fetching time entries fails (e.g., offline), return employee without calculations
+                console.warn(
+                  `Failed to calculate hours for employee ${employee.name}:`,
+                  error,
+                );
+                return { ...employee };
               }
-
-              // Skip if it's a break or sick leave
-              if (entry.isBreak || entry.isSickLeave) {
-                return;
-              }
-
-              // Convert timestamps to dates
-              const startTime = entry.timestamp?.toDate?.() || new Date(entry.timestamp);
-              const endTime = entry.endTime?.toDate?.() || new Date(entry.endTime);
-
-              // Calculate hours worked in this entry
-              let hoursWorked = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-              
-              // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (0.5 hours) unpaid meal break
-              if (hoursWorked > 5) {
-                hoursWorked -= 0.5; // Deduct 30 minutes (0.5 hours)
-              }
-              
-              if (hoursWorked > 0) {
-                totalHoursWorked += hoursWorked;
-
-                // Track hours where sick hours were used for payment
-                if (entry.useSickHoursForPayment) {
-                  totalHoursUsedSickHours += hoursWorked;
-                }
-              }
-            });
-
-              // Calculate sick hours balance
-              const sickHoursAccrued = totalHoursWorked / 40;
-              const calculatedSickHours = sickHoursAccrued - totalHoursUsedSickHours;
-
-              return {
-                ...employee,
-                calculatedSickHours,
-                calculatedTotalHours: totalHoursWorked,
-              };
-            } catch (error) {
-              // If fetching time entries fails (e.g., offline), return employee without calculations
-              console.warn(`Failed to calculate hours for employee ${employee.name}:`, error);
-              return { ...employee };
-            }
-          })
-        );
+            }),
+          );
 
         setEmployeesWithHours(employeesWithCalculated);
       } catch (error) {
         console.error("Error calculating sick hours:", error);
         // Fallback to original employees data
-        setEmployeesWithHours(employees.map(emp => ({ ...emp })));
+        setEmployeesWithHours(employees.map((emp) => ({ ...emp })));
       } finally {
         setIsCalculating(false);
       }
@@ -201,15 +231,17 @@ export default function EmployeesPage() {
   }, [employees, firestore]);
 
   // Use calculated hours if available, otherwise use stored values
-  const baseEmployees = employeesWithHours.length > 0 ? employeesWithHours : employees || [];
+  const baseEmployees =
+    employeesWithHours.length > 0 ? employeesWithHours : employees || [];
   // Sort by employeeNumber (oldest first); employees without number go to the end
   const displayEmployees = [...baseEmployees].sort((a, b) => {
-    if (a.employeeNumber && b.employeeNumber) return a.employeeNumber.localeCompare(b.employeeNumber);
+    if (a.employeeNumber && b.employeeNumber)
+      return a.employeeNumber.localeCompare(b.employeeNumber);
     if (a.employeeNumber) return -1;
     if (b.employeeNumber) return 1;
     return a.name.localeCompare(b.name);
   });
-  const hasMissingNumbers = (employees || []).some(e => !e.employeeNumber);
+  const hasMissingNumbers = (employees || []).some((e) => !e.employeeNumber);
 
   // Filter employees based on search filter
   const filteredEmployees = useMemo(() => {
@@ -218,7 +250,7 @@ export default function EmployeesPage() {
     }
     const lowerSearchFilter = searchFilter.toLowerCase();
     return displayEmployees.filter((emp) =>
-      emp.name.toLowerCase().includes(lowerSearchFilter)
+      emp.name.toLowerCase().includes(lowerSearchFilter),
     );
   }, [displayEmployees, searchFilter]);
 
@@ -238,7 +270,7 @@ export default function EmployeesPage() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedEmployeeIds(filteredEmployees.map(emp => emp.id));
+      setSelectedEmployeeIds(filteredEmployees.map((emp) => emp.id));
     } else {
       setSelectedEmployeeIds([]);
     }
@@ -246,9 +278,9 @@ export default function EmployeesPage() {
 
   const handleSelectEmployee = (employeeId: string, checked: boolean) => {
     if (checked) {
-      setSelectedEmployeeIds(prev => [...prev, employeeId]);
+      setSelectedEmployeeIds((prev) => [...prev, employeeId]);
     } else {
-      setSelectedEmployeeIds(prev => prev.filter(id => id !== employeeId));
+      setSelectedEmployeeIds((prev) => prev.filter((id) => id !== employeeId));
     }
   };
 
@@ -257,7 +289,11 @@ export default function EmployeesPage() {
     const idsParam = selectedEmployeeIds.join(",");
     // Use setTimeout to avoid blocking the UI
     setTimeout(() => {
-      window.open(`/employees/print-badges?ids=${idsParam}`, "_blank", "noopener,noreferrer");
+      window.open(
+        `/employees/print-badges?ids=${idsParam}`,
+        "_blank",
+        "noopener,noreferrer",
+      );
     }, 100);
   };
 
@@ -280,10 +316,14 @@ export default function EmployeesPage() {
                 onClick={handleMigrateEmployeeNumbers}
                 disabled={isMigrating}
               >
-                {isMigrating
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <Hash className="h-4 w-4" />}
-                <span className="hidden sm:inline">Assign Employee Numbers</span>
+                {isMigrating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Hash className="h-4 w-4" />
+                )}
+                <span className="hidden sm:inline">
+                  Assign Employee Numbers
+                </span>
                 <span className="sm:hidden">Assign #</span>
               </Button>
             )}
@@ -323,11 +363,7 @@ export default function EmployeesPage() {
               }}
               className="flex-1"
             />
-            <Button
-              onClick={handleSearch}
-              size="default"
-              variant="secondary"
-            >
+            <Button onClick={handleSearch} size="default" variant="secondary">
               <Search className="h-4 w-4 mr-2" />
               Search
             </Button>
@@ -344,7 +380,7 @@ export default function EmployeesPage() {
               </Button>
             )}
           </div>
-          
+
           {/* Table view for large screens */}
           <div className="hidden lg:block">
             <Table>
@@ -352,7 +388,11 @@ export default function EmployeesPage() {
                 <TableRow>
                   <TableHead className="w-12">
                     <Checkbox
-                      checked={selectedEmployeeIds.length === filteredEmployees.length && filteredEmployees.length > 0}
+                      checked={
+                        selectedEmployeeIds.length ===
+                          filteredEmployees.length &&
+                        filteredEmployees.length > 0
+                      }
                       onCheckedChange={handleSelectAll}
                     />
                   </TableHead>
@@ -362,7 +402,9 @@ export default function EmployeesPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>Sick Hours</TableHead>
                   <TableHead>Total Hours</TableHead>
-                  <TableHead className="hidden xl:table-cell">QR Code</TableHead>
+                  <TableHead className="hidden xl:table-cell">
+                    QR Code
+                  </TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -370,23 +412,32 @@ export default function EmployeesPage() {
                 {(isLoading || isCalculating) && (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center">
-                      {isLoading ? "Loading employees..." : "Calculating sick hours..."}
+                      {isLoading
+                        ? "Loading employees..."
+                        : "Calculating sick hours..."}
                     </TableCell>
                   </TableRow>
                 )}
-                {!isLoading && !isCalculating && filteredEmployees &&
+                {!isLoading &&
+                  !isCalculating &&
+                  filteredEmployees &&
                   filteredEmployees.map((employee) => (
                     <TableRow key={employee.id}>
                       <TableCell>
                         <Checkbox
                           checked={selectedEmployeeIds.includes(employee.id)}
                           onCheckedChange={(checked) =>
-                            handleSelectEmployee(employee.id, checked as boolean)
+                            handleSelectEmployee(
+                              employee.id,
+                              checked as boolean,
+                            )
                           }
                         />
                       </TableCell>
                       <TableCell className="hidden sm:table-cell font-mono text-xs text-muted-foreground">
-                        {employee.employeeNumber ?? <span className="text-amber-500">—</span>}
+                        {employee.employeeNumber ?? (
+                          <span className="text-amber-500">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="font-medium">
                         {employee.name}
@@ -420,8 +471,8 @@ export default function EmployeesPage() {
                           {employee.calculatedSickHours !== undefined
                             ? `${employee.calculatedSickHours.toFixed(2)} hrs`
                             : employee.sickHoursBalance !== undefined
-                            ? `${employee.sickHoursBalance.toFixed(2)} hrs`
-                            : "0.00 hrs"}
+                              ? `${employee.sickHoursBalance.toFixed(2)} hrs`
+                              : "0.00 hrs"}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -429,8 +480,8 @@ export default function EmployeesPage() {
                           {employee.calculatedTotalHours !== undefined
                             ? `${employee.calculatedTotalHours.toFixed(2)} hrs`
                             : employee.totalHoursWorked !== undefined
-                            ? `${employee.totalHoursWorked.toFixed(2)} hrs`
-                            : "0.00 hrs"}
+                              ? `${employee.totalHoursWorked.toFixed(2)} hrs`
+                              : "0.00 hrs"}
                         </Badge>
                       </TableCell>
                       <TableCell className="hidden xl:table-cell font-mono flex items-center gap-2">
@@ -481,10 +532,14 @@ export default function EmployeesPage() {
           <div className="lg:hidden space-y-4">
             {(isLoading || isCalculating) && (
               <div className="text-center py-8 text-muted-foreground">
-                {isLoading ? "Loading employees..." : "Calculating sick hours..."}
+                {isLoading
+                  ? "Loading employees..."
+                  : "Calculating sick hours..."}
               </div>
             )}
-            {!isLoading && !isCalculating && filteredEmployees &&
+            {!isLoading &&
+              !isCalculating &&
+              filteredEmployees &&
               filteredEmployees.map((employee) => (
                 <Card key={employee.id} className="relative">
                   <CardHeader className="pb-3">
@@ -492,36 +547,46 @@ export default function EmployeesPage() {
                       <div className="flex gap-3 items-start flex-1">
                         <Checkbox
                           checked={selectedEmployeeIds.includes(employee.id)}
-                          onCheckedChange={(checked) => 
-                            handleSelectEmployee(employee.id, checked as boolean)
+                          onCheckedChange={(checked) =>
+                            handleSelectEmployee(
+                              employee.id,
+                              checked as boolean,
+                            )
                           }
                           className="mt-1"
                         />
                         <div className="space-y-1 flex-1">
-                          <CardTitle className="text-lg">{employee.name}</CardTitle>
-                        <div className="flex flex-wrap gap-2">
-                          <Badge
-                            variant={
-                              employee.role === "Supervisor"
-                                ? "default"
-                                : "secondary"
-                            }
-                          >
-                            {employee.role}
-                          </Badge>
-                          <Badge
-                            variant="outline"
-                            className={cn({
-                              "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200":
-                                employee.status === "Active",
-                              "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200":
-                                employee.status === "Inactive",
-                            })}
-                          >
-                            {employee.status}
-                          </Badge>
+                          <CardTitle className="text-lg">
+                            {employee.name}
+                          </CardTitle>
+                          {employee.employee_number && (
+                            <div className="text-sm text-muted-foreground">
+                              #{employee.employee_number}
+                            </div>
+                          )}
+                          <div className="flex flex-wrap gap-2">
+                            <Badge
+                              variant={
+                                employee.role === "Supervisor"
+                                  ? "default"
+                                  : "secondary"
+                              }
+                            >
+                              {employee.role}
+                            </Badge>
+                            <Badge
+                              variant="outline"
+                              className={cn({
+                                "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200":
+                                  employee.status === "Active",
+                                "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200":
+                                  employee.status === "Inactive",
+                              })}
+                            >
+                              {employee.status}
+                            </Badge>
+                          </div>
                         </div>
-                      </div>
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -560,28 +625,34 @@ export default function EmployeesPage() {
                   <CardContent className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <div className="text-sm text-muted-foreground mb-1">Sick Hours</div>
+                        <div className="text-sm text-muted-foreground mb-1">
+                          Sick Hours
+                        </div>
                         <Badge variant="secondary" className="font-mono">
                           {employee.calculatedSickHours !== undefined
                             ? `${employee.calculatedSickHours.toFixed(2)} hrs`
                             : employee.sickHoursBalance !== undefined
-                            ? `${employee.sickHoursBalance.toFixed(2)} hrs`
-                            : "0.00 hrs"}
+                              ? `${employee.sickHoursBalance.toFixed(2)} hrs`
+                              : "0.00 hrs"}
                         </Badge>
                       </div>
                       <div>
-                        <div className="text-sm text-muted-foreground mb-1">Total Hours</div>
+                        <div className="text-sm text-muted-foreground mb-1">
+                          Total Hours
+                        </div>
                         <Badge variant="outline" className="font-mono">
                           {employee.calculatedTotalHours !== undefined
                             ? `${employee.calculatedTotalHours.toFixed(2)} hrs`
                             : employee.totalHoursWorked !== undefined
-                            ? `${employee.totalHoursWorked.toFixed(2)} hrs`
-                            : "0.00 hrs"}
+                              ? `${employee.totalHoursWorked.toFixed(2)} hrs`
+                              : "0.00 hrs"}
                         </Badge>
                       </div>
                     </div>
                     <div>
-                      <div className="text-sm text-muted-foreground mb-1">QR Code</div>
+                      <div className="text-sm text-muted-foreground mb-1">
+                        QR Code
+                      </div>
                       <div className="font-mono text-sm flex items-center gap-2">
                         <QrCode className="h-4 w-4 text-muted-foreground" />
                         <span>{employee.qrCode}</span>
