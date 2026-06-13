@@ -618,7 +618,7 @@ function TimeTrackingPage() {
     });
   }, [allTimeEntries, allPiecework]);
 
-  // Filter merged records by employee name
+  // Filter merged records by employee name or employee number
   const filteredMergedRecords = useMemo(() => {
     if (!historyNameFilter.trim()) {
       return mergedRecords;
@@ -631,19 +631,22 @@ function TimeTrackingPage() {
         const employee = activeEmployees?.find(
           (e) => e.id === record.data.employeeId,
         );
-        return employee?.name.toLowerCase().includes(searchTerm);
+        return (
+          employee?.name.toLowerCase().includes(searchTerm) ||
+          (employee?.employeeNumber ?? "").includes(searchTerm)
+        );
       } else {
         // Piecework - handle multiple employees (comma-separated IDs)
         const employeeIds = record.data.employeeId.split(",");
-        const employeeNames = employeeIds
-          .map(
-            (id) =>
-              activeEmployees?.find((e) => e.id === id || e.qrCode === id)
-                ?.name,
+        const employees = employeeIds
+          .map((id) =>
+            activeEmployees?.find((e) => e.id === id || e.qrCode === id),
           )
           .filter(Boolean);
-        return employeeNames.some((name) =>
-          name?.toLowerCase().includes(searchTerm),
+        return employees.some(
+          (emp) =>
+            emp?.name.toLowerCase().includes(searchTerm) ||
+            (emp?.employeeNumber ?? "").includes(searchTerm),
         );
       }
     });
@@ -5627,12 +5630,12 @@ function TimeTrackingPage() {
                 {/* Name Filter */}
                 <div className="space-y-2 pt-2 border-t">
                   <Label htmlFor="history-name-filter">
-                    Filter by Employee Name
+                    Filter by Employee Name or Number
                   </Label>
                   <Input
                     id="history-name-filter"
                     type="text"
-                    placeholder="Type employee name to filter..."
+                    placeholder="Type name or employee number to filter..."
                     value={historyNameFilter}
                     onChange={(e) => setHistoryNameFilter(e.target.value)}
                   />
@@ -5800,6 +5803,11 @@ function TimeTrackingPage() {
                                 <User className="h-4 w-4 text-muted-foreground" />
                                 <p className="font-semibold">
                                   {employee?.name || "Unknown Employee"}
+                                  {employee?.employeeNumber && (
+                                    <span className="text-xs font-normal text-muted-foreground ml-1">
+                                      ({employee.employeeNumber})
+                                    </span>
+                                  )}
                                 </p>
                                 {!entry.endTime && (
                                   <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
@@ -6123,16 +6131,16 @@ function TimeTrackingPage() {
 
                         // Handle multiple employees (comma-separated IDs)
                         const employeeIds = piece.employeeId.split(",");
+                        const pieceEmployees = employeeIds
+                          .map((id) =>
+                            activeEmployees?.find(
+                              (e) => e.id === id || e.qrCode === id,
+                            ),
+                          )
+                          .filter(Boolean);
                         const employeeNames =
-                          employeeIds
-                            .map(
-                              (id) =>
-                                activeEmployees?.find(
-                                  (e) => e.id === id || e.qrCode === id,
-                                )?.name,
-                            )
-                            .filter(Boolean)
-                            .join(", ") || "Unknown Employee(s)";
+                          pieceEmployees.map((e) => e!.name).join(", ") ||
+                          "Unknown Employee(s)";
                         const task = allTasks?.find(
                           (t) => t.id === piece.taskId,
                         );
@@ -6176,7 +6184,14 @@ function TimeTrackingPage() {
                               <div className="flex-1 space-y-2">
                               <div className="flex items-center gap-2">
                                 <User className="h-4 w-4 text-muted-foreground" />
-                                <p className="font-semibold">{employeeNames}</p>
+                                <p className="font-semibold">
+                                  {employeeNames}
+                                  {pieceEmployees.length === 1 && pieceEmployees[0]?.employeeNumber && (
+                                    <span className="text-xs font-normal text-muted-foreground ml-1">
+                                      ({pieceEmployees[0].employeeNumber})
+                                    </span>
+                                  )}
+                                </p>
                                 {/* Record Type Badge */}
                                 <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
                                   Piecework

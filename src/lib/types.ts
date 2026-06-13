@@ -101,6 +101,8 @@ export type PiecesByVariety = {
   variety: string;
   totalPieces: number;
   price?: number;
+  rateType?: "piece" | "hourly";
+  totalHours?: number;
 };
 
 export type WeeklySummary = {

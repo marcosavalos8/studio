@@ -66,26 +66,50 @@ function getUserName(): string {
 }
 
 interface PriceGroup {
+  rateType: "piece" | "hourly";
   price: number;
   totalPieces: number;
+  totalHours: number;
   subtotal: number;
 }
 
 function buildPriceGroups(weeklySummaries: WeeklySummary[]): PriceGroup[] {
-  const byPrice = new Map<number, number>();
+  // key: "piece|4.50" or "hourly|16.00"
+  const byKey = new Map<string, PriceGroup>();
   for (const week of weeklySummaries) {
     for (const item of week.piecesByVariety ?? []) {
+      const rateType = item.rateType ?? "piece";
       const price = item.price ?? 0;
-      byPrice.set(price, (byPrice.get(price) ?? 0) + item.totalPieces);
+      const key = `${rateType}|${price}`;
+      const existing = byKey.get(key);
+      if (existing) {
+        existing.totalPieces += item.totalPieces ?? 0;
+        existing.totalHours += item.totalHours ?? 0;
+        existing.subtotal = parseFloat(
+          (rateType === "piece"
+            ? existing.totalPieces * price
+            : existing.totalHours * price
+          ).toFixed(2)
+        );
+      } else {
+        const totalPieces = item.totalPieces ?? 0;
+        const totalHours = item.totalHours ?? 0;
+        byKey.set(key, {
+          rateType,
+          price,
+          totalPieces,
+          totalHours,
+          subtotal: parseFloat(
+            (rateType === "piece" ? totalPieces * price : totalHours * price).toFixed(2)
+          ),
+        });
+      }
     }
   }
-  return Array.from(byPrice.entries())
-    .sort((a, b) => a[0] - b[0])
-    .map(([price, totalPieces]) => ({
-      price,
-      totalPieces,
-      subtotal: parseFloat((totalPieces * price).toFixed(2)),
-    }));
+  return Array.from(byKey.values()).sort((a, b) => {
+    if (a.rateType !== b.rateType) return a.rateType === "piece" ? -1 : 1;
+    return a.price - b.price;
+  });
 }
 
 // ── Left panel: Summary & Adjustments (per week) ─────────────────────────────
@@ -285,19 +309,22 @@ function AccountingSummaryCard({
         {/* Header */}
         <div className="bg-emerald-700 dark:bg-emerald-800 px-3 py-2">
           <h4 className="text-xs font-semibold text-white uppercase tracking-wide">
-            Total Pieces Worked by Price
+            Work Summary by Rate
           </h4>
         </div>
 
         {groups.length > 0 ? (
           <>
             {/* Column headers */}
-            <div className="grid grid-cols-3 bg-emerald-600/10 dark:bg-emerald-900/20 border-b border-emerald-200 dark:border-emerald-800">
+            <div className="grid grid-cols-4 bg-emerald-600/10 dark:bg-emerald-900/20 border-b border-emerald-200 dark:border-emerald-800">
               <div className="px-3 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-300 uppercase tracking-wide">
-                Pieces
+                Type
               </div>
               <div className="px-3 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-300 uppercase tracking-wide text-right">
                 Price
+              </div>
+              <div className="px-3 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-300 uppercase tracking-wide text-right">
+                Quantity
               </div>
               <div className="px-3 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-300 uppercase tracking-wide text-right">
                 Subtotal
@@ -309,15 +336,20 @@ function AccountingSummaryCard({
               <div
                 key={idx}
                 className={cn(
-                  "grid grid-cols-3 border-b border-border/40 last:border-0",
+                  "grid grid-cols-4 border-b border-border/40 last:border-0",
                   idx % 2 === 0 ? "bg-background" : "bg-muted/30",
                 )}
               >
-                <div className="px-3 py-1 text-xs font-medium">
-                  {g.totalPieces.toFixed(2)}
+                <div className="px-3 py-1 text-xs font-medium text-muted-foreground">
+                  {g.rateType === "piece" ? "Piecework" : "Hourly"}
                 </div>
                 <div className="px-3 py-1 text-xs text-right text-muted-foreground">
                   ${g.price.toFixed(2)}
+                </div>
+                <div className="px-3 py-1 text-xs font-medium text-right">
+                  {g.rateType === "piece"
+                    ? `${g.totalPieces.toFixed(2)} pcs`
+                    : `${g.totalHours.toFixed(2)} hrs`}
                 </div>
                 <div className="px-3 py-1 text-xs font-semibold text-right">
                   ${g.subtotal.toFixed(2)}

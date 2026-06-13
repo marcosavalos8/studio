@@ -268,8 +268,10 @@ export async function generatePayrollReport({
         let weeklyPieceworkEarnings = 0; // Earnings from piecework tasks
         let weeklyPieceworkHours = 0; // Hours worked on piecework tasks
         
-        // Track pieces by task/variety for the week
-        const piecesByTaskVariety = new Map<string, { taskName: string; variety: string; totalPieces: number }>();
+        // Track pieces by task/variety for the week (piecework)
+        const piecesByTaskVariety = new Map<string, { taskName: string; variety: string; totalPieces: number; price?: number }>();
+        // Track hours by payroll rate for the week (hourly)
+        const hoursByRate = new Map<number, number>();
 
         // Accumulator for weekly break pay (computed per day)
         let weeklyRestBreaksPay = 0;
@@ -416,6 +418,12 @@ export async function generatePayrollReport({
                   price: effectivePiecePrice || 0,
                 });
               }
+            }
+
+            // Track hours by payroll rate if this is an hourly task
+            if (hours > 0 && task.clientRateType === "hourly" && effectiveHourlyRate) {
+              const rate = effectiveHourlyRate;
+              hoursByRate.set(rate, (hoursByRate.get(rate) ?? 0) + hours);
             }
 
             // Determine task type label and rate for display
@@ -604,6 +612,26 @@ export async function generatePayrollReport({
         const piecesByVarietyArray = Array.from(piecesByTaskVariety.values());
         const totalWeeklyPieces = piecesByVarietyArray.reduce((sum, item) => sum + item.totalPieces, 0);
 
+        // Build combined rate summary: piecework entries + hourly entries
+        const combinedRateEntries = [
+          ...piecesByVarietyArray.map(item => ({
+            taskName: item.taskName,
+            variety: item.variety,
+            totalPieces: parseFloat(item.totalPieces.toFixed(2)),
+            price: item.price ?? 0,
+            rateType: "piece" as const,
+            totalHours: undefined,
+          })),
+          ...Array.from(hoursByRate.entries()).map(([rate, hours]) => ({
+            taskName: "Hourly",
+            variety: "N/A",
+            totalPieces: 0,
+            price: rate,
+            rateType: "hourly" as const,
+            totalHours: parseFloat(hours.toFixed(2)),
+          })),
+        ];
+
         weeklySummaries.push({
           weekNumber,
           year,
@@ -619,12 +647,7 @@ export async function generatePayrollReport({
           dailyBreakdown: dailyBreakdownsForWeek,
           sickHoursAccrued: parseFloat(sickHoursAccrued.toFixed(2)),
           totalPieces: totalWeeklyPieces > 0 ? parseFloat(totalWeeklyPieces.toFixed(2)) : undefined,
-          piecesByVariety: piecesByVarietyArray.length > 0 ? piecesByVarietyArray.map(item => ({
-            taskName: item.taskName,
-            variety: item.variety,
-            totalPieces: parseFloat(item.totalPieces.toFixed(2)),
-            price: item.price ?? 0,
-          })) : undefined,
+          piecesByVariety: combinedRateEntries.length > 0 ? combinedRateEntries : undefined,
         });
       }
 
