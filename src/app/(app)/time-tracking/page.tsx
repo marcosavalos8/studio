@@ -388,6 +388,15 @@ function TimeTrackingPage() {
     number | string
   >("");
 
+  // Missing Buckets state
+  const [mbEmployee, setMbEmployee] = useState<Employee | null>(null);
+  const [mbEmployeeSearch, setMbEmployeeSearch] = useState("");
+  const [mbClientId, setMbClientId] = useState("");
+  const [mbTaskId, setMbTaskId] = useState("");
+  const [mbDate, setMbDate] = useState("");
+  const [mbQuantity, setMbQuantity] = useState<string>("");
+  const [isSubmittingMb, setIsSubmittingMb] = useState(false);
+
   // History filtering state
   const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>(
     undefined,
@@ -3414,6 +3423,46 @@ function TimeTrackingPage() {
     }
   };
 
+  const handleMissingBucketsSubmit = async () => {
+    if (!firestore || !mbEmployee || !mbTaskId || !mbDate || !mbQuantity) {
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please fill in all fields (employee, client, task, date, quantity).",
+      });
+      return;
+    }
+    const qty = parseFloat(mbQuantity);
+    if (isNaN(qty) || qty <= 0) {
+      toast({ variant: "destructive", title: "Invalid Quantity", description: "Enter a valid number of pieces." });
+      return;
+    }
+    setIsSubmittingMb(true);
+    try {
+      await addDoc(collection(firestore, "piecework"), {
+        employeeId: mbEmployee.id,
+        taskId: mbTaskId,
+        timestamp: new Date(), // current date → appears in current payroll/invoice period
+        pieceCount: qty,
+        pieceQrCode: "missing_buckets",
+        originalDate: mbDate, // reference to when the pieces were actually worked
+        isMissingBuckets: true,
+      });
+      toast({ title: "Missing Buckets Recorded", description: `${qty} piece(s) registered for ${mbEmployee.name}.` });
+      setMbEmployee(null);
+      setMbEmployeeSearch("");
+      setMbClientId("");
+      setMbTaskId("");
+      setMbDate("");
+      setMbQuantity("");
+    } catch (e) {
+      console.error(e);
+      toast({ variant: "destructive", title: "Error", description: "Failed to save. Please try again." });
+    } finally {
+      setIsSubmittingMb(false);
+    }
+  };
+
   const handleLogSickLeave = async () => {
     if (!firestore || !manualSelectedEmployee) {
       toast({
@@ -4897,6 +4946,115 @@ function TimeTrackingPage() {
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Log Sick Leave
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Missing Buckets Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg md:text-xl">Missing Buckets</CardTitle>
+              <CardDescription>
+                Register pieces that were not captured in a previous payroll period.
+                They will be included in the current period&apos;s payroll and invoice.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Employee search */}
+              <div className="space-y-2">
+                <Label>Employee</Label>
+                <Input
+                  placeholder="Search employee by name..."
+                  value={mbEmployee ? mbEmployee.name : mbEmployeeSearch}
+                  onChange={(e) => {
+                    setMbEmployeeSearch(e.target.value);
+                    setMbEmployee(null);
+                  }}
+                />
+                {!mbEmployee && mbEmployeeSearch.trim() && (
+                  <div className="border rounded-md max-h-48 overflow-y-auto">
+                    {(activeEmployees ?? [])
+                      .filter((e) => e.name.toLowerCase().includes(mbEmployeeSearch.toLowerCase()))
+                      .map((e) => (
+                        <div
+                          key={e.id}
+                          className="px-3 py-2 hover:bg-muted cursor-pointer text-sm"
+                          onClick={() => { setMbEmployee(e); setMbEmployeeSearch(e.name); }}
+                        >
+                          {e.name}
+                          {e.employeeNumber && <span className="ml-2 text-xs text-muted-foreground font-mono">({e.employeeNumber})</span>}
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Client */}
+              <div className="space-y-2">
+                <Label>Client</Label>
+                <Select value={mbClientId} onValueChange={(v) => { setMbClientId(v); setMbTaskId(""); }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(clients ?? []).map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Task filtered by client */}
+              <div className="space-y-2">
+                <Label>Task</Label>
+                <Select value={mbTaskId} onValueChange={setMbTaskId} disabled={!mbClientId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a task" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(allTasks ?? [])
+                      .filter((t) => t.clientId === mbClientId && t.status === "Active")
+                      .map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}{t.variety ? ` (${t.variety})` : ""}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Original date */}
+              <div className="space-y-2">
+                <Label htmlFor="mb-date">Original Date (when pieces were worked)</Label>
+                <Input
+                  id="mb-date"
+                  type="date"
+                  value={mbDate}
+                  onChange={(e) => setMbDate(e.target.value)}
+                />
+              </div>
+
+              {/* Quantity */}
+              <div className="space-y-2">
+                <Label htmlFor="mb-quantity">Number of Pieces (Missing Buckets)</Label>
+                <Input
+                  id="mb-quantity"
+                  type="number"
+                  step="1"
+                  min="1"
+                  placeholder="e.g., 5"
+                  value={mbQuantity}
+                  onChange={(e) => setMbQuantity(e.target.value)}
+                />
+              </div>
+
+              <Button
+                className="w-full"
+                onClick={handleMissingBucketsSubmit}
+                disabled={!mbEmployee || !mbTaskId || !mbDate || !mbQuantity || isSubmittingMb}
+              >
+                {isSubmittingMb && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Register Missing Buckets
               </Button>
             </CardContent>
           </Card>

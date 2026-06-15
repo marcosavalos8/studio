@@ -287,10 +287,21 @@ export default function EmployeesPage() {
   const handlePrintBadges = () => {
     if (selectedEmployeeIds.length === 0) return;
     const idsParam = selectedEmployeeIds.join(",");
-    // Use setTimeout to avoid blocking the UI
     setTimeout(() => {
       window.open(
         `/employees/print-badges?ids=${idsParam}`,
+        "_blank",
+        "noopener,noreferrer",
+      );
+    }, 100);
+  };
+
+  const handlePrintCrewList = () => {
+    if (selectedEmployeeIds.length === 0) return;
+    const idsParam = selectedEmployeeIds.join(",");
+    setTimeout(() => {
+      window.open(
+        `/employees/print-crew-list?ids=${idsParam}`,
         "_blank",
         "noopener,noreferrer",
       );
@@ -345,7 +356,18 @@ export default function EmployeesPage() {
             >
               <Printer className="h-4 w-4" />
               <span className="hidden sm:inline">Print Badges</span>
-              <span className="sm:hidden">Print</span>
+              <span className="sm:hidden">Badges</span>
+            </Button>
+            <Button
+              size="sm"
+              className="gap-1"
+              onClick={handlePrintCrewList}
+              disabled={selectedEmployeeIds.length === 0}
+              variant="secondary"
+            >
+              <Printer className="h-4 w-4" />
+              <span className="hidden sm:inline">Print Crew List</span>
+              <span className="sm:hidden">Crew</span>
             </Button>
           </div>
         </CardHeader>

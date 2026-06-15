@@ -10,7 +10,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Settings as SettingsIcon, Palette, Moon, Sun, Check, Key, Eye, EyeOff } from "lucide-react";
+import { Settings as SettingsIcon, Palette, Moon, Sun, Check, Key, Eye, EyeOff, Building2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,12 +21,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useSettings } from "@/contexts/settings-context";
+import { useCompanyInfo } from "@/hooks/use-company-info";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 
 export default function SettingsPage() {
   const { settings, updateSetting, resetSettings } = useSettings();
+  const { companyInfo, isLoading: loadingCompany, isSaving: savingCompany, saveCompanyInfo } = useCompanyInfo();
   const { toast } = useToast();
+  const [companyDraft, setCompanyDraft] = useState<typeof companyInfo | null>(null);
+  const company = companyDraft ?? companyInfo;
   const [showPasswords, setShowPasswords] = useState({
     invoice: false,
     laborReport: false,
@@ -383,6 +387,79 @@ export default function SettingsPage() {
                 </button>
               </div>
             </div>
+          </div>
+
+          {/* Company Info Section */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-emerald-600" />
+              <h3 className="text-base font-semibold">Información de la Empresa</h3>
+            </div>
+            <Separator />
+            <p className="text-sm text-muted-foreground">
+              Esta información aparecerá en los reportes impresos (invoices, labor reports y payroll).
+            </p>
+
+            {loadingCompany ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Cargando...
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="company-name" className="text-sm font-medium">Nombre de la Empresa</Label>
+                  <Input
+                    id="company-name"
+                    placeholder="Ej. JM Agri Services"
+                    value={company.companyName}
+                    onChange={(e) => setCompanyDraft({ ...company, companyName: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="company-phone" className="text-sm font-medium">Teléfono</Label>
+                  <Input
+                    id="company-phone"
+                    placeholder="Ej. (509) 555-1234"
+                    value={company.phone}
+                    onChange={(e) => setCompanyDraft({ ...company, phone: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1 md:col-span-2">
+                  <Label htmlFor="company-address" className="text-sm font-medium">Dirección</Label>
+                  <Input
+                    id="company-address"
+                    placeholder="Ej. 123 Main St, Wenatchee, WA 98801"
+                    value={company.address}
+                    onChange={(e) => setCompanyDraft({ ...company, address: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="company-email" className="text-sm font-medium">Email</Label>
+                  <Input
+                    id="company-email"
+                    type="email"
+                    placeholder="Ej. info@jmagri.com"
+                    value={company.email}
+                    onChange={(e) => setCompanyDraft({ ...company, email: e.target.value })}
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button
+                    onClick={async () => {
+                      await saveCompanyInfo(company);
+                      setCompanyDraft(null);
+                      toast({ title: "Información guardada", description: "La información de la empresa se actualizó correctamente." });
+                    }}
+                    disabled={savingCompany}
+                    size="sm"
+                  >
+                    {savingCompany && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Guardar Información
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Info Banner */}
