@@ -393,45 +393,45 @@ export default function SettingsPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Building2 className="h-5 w-5 text-emerald-600" />
-              <h3 className="text-base font-semibold">Información de la Empresa</h3>
+              <h3 className="text-base font-semibold">Company Information</h3>
             </div>
             <Separator />
             <p className="text-sm text-muted-foreground">
-              Esta información aparecerá en los reportes impresos (invoices, labor reports y payroll).
+              This information will appear on printed reports (invoices, labor reports and payroll).
             </p>
 
             {loadingCompany ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Cargando...
+                Loading...
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label htmlFor="company-name" className="text-sm font-medium">Nombre de la Empresa</Label>
+                <div className="space-y-1 md:col-span-2">
+                  <Label htmlFor="company-name" className="text-sm font-medium">Company Name</Label>
                   <Input
                     id="company-name"
-                    placeholder="Ej. JM Agri Services"
+                    placeholder="e.g. J&M Agricultural Labor LLC"
                     value={company.companyName}
                     onChange={(e) => setCompanyDraft({ ...company, companyName: e.target.value })}
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label htmlFor="company-phone" className="text-sm font-medium">Teléfono</Label>
-                  <Input
-                    id="company-phone"
-                    placeholder="Ej. (509) 555-1234"
-                    value={company.phone}
-                    onChange={(e) => setCompanyDraft({ ...company, phone: e.target.value })}
-                  />
-                </div>
                 <div className="space-y-1 md:col-span-2">
-                  <Label htmlFor="company-address" className="text-sm font-medium">Dirección</Label>
+                  <Label htmlFor="company-address" className="text-sm font-medium">Address</Label>
                   <Input
                     id="company-address"
-                    placeholder="Ej. 123 Main St, Wenatchee, WA 98801"
+                    placeholder="e.g. 250 Country Heaven Loop, Pasco, WA 99301"
                     value={company.address}
                     onChange={(e) => setCompanyDraft({ ...company, address: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="company-phone" className="text-sm font-medium">Phone</Label>
+                  <Input
+                    id="company-phone"
+                    placeholder="e.g. 509.380.3385"
+                    value={company.phone}
+                    onChange={(e) => setCompanyDraft({ ...company, phone: e.target.value })}
                   />
                 </div>
                 <div className="space-y-1">
@@ -439,23 +439,41 @@ export default function SettingsPage() {
                   <Input
                     id="company-email"
                     type="email"
-                    placeholder="Ej. info@jmagri.com"
+                    placeholder="e.g. info@jmagri.com"
                     value={company.email}
                     onChange={(e) => setCompanyDraft({ ...company, email: e.target.value })}
                   />
                 </div>
-                <div className="flex items-end">
+                <div className="space-y-1">
+                  <Label htmlFor="company-ein" className="text-sm font-medium">EIN #</Label>
+                  <Input
+                    id="company-ein"
+                    placeholder="e.g. 33-2236422"
+                    value={company.ein}
+                    onChange={(e) => setCompanyDraft({ ...company, ein: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="company-ubi" className="text-sm font-medium">UBI #</Label>
+                  <Input
+                    id="company-ubi"
+                    placeholder="e.g. 605 650 411"
+                    value={company.ubi}
+                    onChange={(e) => setCompanyDraft({ ...company, ubi: e.target.value })}
+                  />
+                </div>
+                <div className="md:col-span-2 flex justify-end">
                   <Button
                     onClick={async () => {
                       await saveCompanyInfo(company);
                       setCompanyDraft(null);
-                      toast({ title: "Información guardada", description: "La información de la empresa se actualizó correctamente." });
+                      toast({ title: "Company information saved", description: "The company details have been updated successfully." });
                     }}
                     disabled={savingCompany}
                     size="sm"
                   >
                     {savingCompany && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Guardar Información
+                    Save Company Info
                   </Button>
                 </div>
               </div>

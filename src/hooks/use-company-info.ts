@@ -6,19 +6,21 @@ import { useFirestore } from "@/firebase";
 
 export interface CompanyInfo {
   companyName: string;
-  phone: string;
   address: string;
+  phone: string;
   email: string;
+  ein: string;
+  ubi: string;
 }
 
 const DEFAULT_COMPANY_INFO: CompanyInfo = {
-  companyName: "",
-  phone: "",
-  address: "",
-  email: "",
+  companyName: "J&M AGRICULTURAL LABOR LLC",
+  address: "250 Country Heaven Loop, Pasco, WA 99301",
+  phone: "509.380.3385",
+  email: "Jmagriculturalabor@outlook.com",
+  ein: "33-2236422",
+  ubi: "605 650 411",
 };
-
-const FIRESTORE_DOC = "company_settings/info";
 
 export function useCompanyInfo() {
   const firestore = useFirestore();
