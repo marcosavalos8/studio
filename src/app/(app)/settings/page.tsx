@@ -43,16 +43,16 @@ export default function SettingsPage() {
 
   const handleSave = () => {
     toast({
-      title: "Configuración guardada",
-      description: "Tus preferencias han sido actualizadas exitosamente.",
+      title: "Settings saved",
+      description: "Your preferences have been updated successfully.",
     });
   };
 
   const handleReset = () => {
     resetSettings();
     toast({
-      title: "Configuración restablecida",
-      description: "Se han restaurado los valores predeterminados.",
+      title: "Settings reset",
+      description: "Default values have been restored.",
     });
   };
 
@@ -63,11 +63,11 @@ export default function SettingsPage() {
           <div className="flex items-center gap-2">
             <SettingsIcon className="h-5 w-5 text-primary" />
             <CardTitle className="text-lg md:text-xl">
-              Configuración
+              Settings
             </CardTitle>
           </div>
           <CardDescription className="text-sm">
-            Personaliza tu experiencia en la aplicación
+            Customize your application experience
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -75,18 +75,18 @@ export default function SettingsPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Palette className="h-5 w-5 text-blue-500" />
-              <h3 className="text-base font-semibold">Apariencia</h3>
+              <h3 className="text-base font-semibold">Appearance</h3>
             </div>
             <Separator />
-            
+
             {/* Theme Selection */}
             <div className="flex items-center justify-between space-x-4">
               <div className="flex-1 space-y-1">
                 <Label htmlFor="theme-mode" className="text-sm font-medium">
-                  Tema de Color
+                  Color Theme
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Selecciona el tema de color de la aplicación
+                  Select the application color theme
                 </p>
               </div>
               <Select
@@ -96,25 +96,25 @@ export default function SettingsPage() {
                 }
               >
                 <SelectTrigger id="theme-mode" className="w-[180px]">
-                  <SelectValue placeholder="Seleccionar tema" />
+                  <SelectValue placeholder="Select theme" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="light">
                     <div className="flex items-center gap-2">
                       <Sun className="h-4 w-4" />
-                      Claro
+                      Light
                     </div>
                   </SelectItem>
                   <SelectItem value="dark">
                     <div className="flex items-center gap-2">
                       <Moon className="h-4 w-4" />
-                      Oscuro
+                      Dark
                     </div>
                   </SelectItem>
                   <SelectItem value="system">
                     <div className="flex items-center gap-2">
                       <SettingsIcon className="h-4 w-4" />
-                      Sistema
+                      System
                     </div>
                   </SelectItem>
                 </SelectContent>
@@ -125,10 +125,10 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between space-x-4">
               <div className="flex-1 space-y-1">
                 <Label htmlFor="color-scheme" className="text-sm font-medium">
-                  Esquema de Colores
+                  Color Scheme
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Personaliza los colores principales de la interfaz
+                  Customize the main colors of the interface
                 </p>
               </div>
               <Select
@@ -138,31 +138,31 @@ export default function SettingsPage() {
                 }
               >
                 <SelectTrigger id="color-scheme" className="w-[180px]">
-                  <SelectValue placeholder="Seleccionar color" />
+                  <SelectValue placeholder="Select color" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="blue">
                     <div className="flex items-center gap-2">
                       <div className="h-4 w-4 rounded-full bg-blue-600" />
-                      Azul
+                      Blue
                     </div>
                   </SelectItem>
                   <SelectItem value="green">
                     <div className="flex items-center gap-2">
                       <div className="h-4 w-4 rounded-full bg-green-600" />
-                      Verde
+                      Green
                     </div>
                   </SelectItem>
                   <SelectItem value="purple">
                     <div className="flex items-center gap-2">
                       <div className="h-4 w-4 rounded-full bg-purple-600" />
-                      Morado
+                      Purple
                     </div>
                   </SelectItem>
                   <SelectItem value="orange">
                     <div className="flex items-center gap-2">
                       <div className="h-4 w-4 rounded-full bg-orange-600" />
-                      Naranja
+                      Orange
                     </div>
                   </SelectItem>
                 </SelectContent>
@@ -173,10 +173,10 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between space-x-4">
               <div className="flex-1 space-y-1">
                 <Label htmlFor="high-contrast" className="text-sm font-medium">
-                  Alto Contraste
+                  High Contrast
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Aumenta el contraste para mejor visibilidad
+                  Increase contrast for better visibility
                 </p>
               </div>
               <Switch
@@ -192,10 +192,10 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between space-x-4">
               <div className="flex-1 space-y-1">
                 <Label htmlFor="font-size" className="text-sm font-medium">
-                  Tamaño de Fuente
+                  Font Size
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Ajusta el tamaño del texto en la aplicación
+                  Adjust the text size in the application
                 </p>
               </div>
               <Select
@@ -205,13 +205,13 @@ export default function SettingsPage() {
                 }
               >
                 <SelectTrigger id="font-size" className="w-[180px]">
-                  <SelectValue placeholder="Seleccionar tamaño" />
+                  <SelectValue placeholder="Select size" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="small">Pequeño</SelectItem>
-                  <SelectItem value="medium">Mediano</SelectItem>
-                  <SelectItem value="large">Grande</SelectItem>
-                  <SelectItem value="xlarge">Extra Grande</SelectItem>
+                  <SelectItem value="small">Small</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="large">Large</SelectItem>
+                  <SelectItem value="xlarge">Extra Large</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -221,7 +221,7 @@ export default function SettingsPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <SettingsIcon className="h-5 w-5 text-purple-500" />
-              <h3 className="text-base font-semibold">Visualización</h3>
+              <h3 className="text-base font-semibold">Display</h3>
             </div>
             <Separator />
 
@@ -229,10 +229,10 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between space-x-4">
               <div className="flex-1 space-y-1">
                 <Label htmlFor="compact-mode" className="text-sm font-medium">
-                  Modo Compacto
+                  Compact Mode
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Reduce el espaciado entre elementos para ver más información
+                  Reduce spacing between elements to show more information
                 </p>
               </div>
               <Switch
@@ -248,10 +248,10 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between space-x-4">
               <div className="flex-1 space-y-1">
                 <Label htmlFor="animations" className="text-sm font-medium">
-                  Animaciones
+                  Animations
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Activa o desactiva las animaciones de la interfaz
+                  Enable or disable interface animations
                 </p>
               </div>
               <Switch
@@ -267,10 +267,10 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between space-x-4">
               <div className="flex-1 space-y-1">
                 <Label htmlFor="sidebar-position" className="text-sm font-medium">
-                  Posición del Menú
+                  Menu Position
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Cambia la posición del menú lateral
+                  Change the position of the side menu
                 </p>
               </div>
               <Select
@@ -280,11 +280,11 @@ export default function SettingsPage() {
                 }
               >
                 <SelectTrigger id="sidebar-position" className="w-[180px]">
-                  <SelectValue placeholder="Seleccionar posición" />
+                  <SelectValue placeholder="Select position" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="left">Izquierda</SelectItem>
-                  <SelectItem value="right">Derecha</SelectItem>
+                  <SelectItem value="left">Left</SelectItem>
+                  <SelectItem value="right">Right</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -294,21 +294,21 @@ export default function SettingsPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Key className="h-5 w-5 text-amber-500" />
-              <h3 className="text-base font-semibold">Seguridad / Contraseñas de Acceso</h3>
+              <h3 className="text-base font-semibold">Security / Access Passwords</h3>
             </div>
             <Separator />
             <p className="text-sm text-muted-foreground">
-              Configura las contraseñas de acceso para las secciones protegidas de la aplicación.
+              Set the access passwords for the protected sections of the application.
             </p>
 
             {/* Invoice Password */}
             <div className="flex items-center justify-between space-x-4">
               <div className="flex-1 space-y-1">
                 <Label htmlFor="invoice-password" className="text-sm font-medium">
-                  Contraseña – Invoices
+                  Password – Invoices
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Contraseña de acceso a la sección de Invoicing
+                  Access password for the Invoicing section
                 </p>
               </div>
               <div className="relative w-[180px]">
@@ -323,7 +323,7 @@ export default function SettingsPage() {
                   type="button"
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   onClick={() => toggleShowPassword("invoice")}
-                  aria-label={showPasswords.invoice ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  aria-label={showPasswords.invoice ? "Hide password" : "Show password"}
                 >
                   {showPasswords.invoice ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -334,10 +334,10 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between space-x-4">
               <div className="flex-1 space-y-1">
                 <Label htmlFor="labor-report-password" className="text-sm font-medium">
-                  Contraseña – Labor Report
+                  Password – Labor Report
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Contraseña de acceso a la sección de Labor Report
+                  Access password for the Labor Report section
                 </p>
               </div>
               <div className="relative w-[180px]">
@@ -352,7 +352,7 @@ export default function SettingsPage() {
                   type="button"
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   onClick={() => toggleShowPassword("laborReport")}
-                  aria-label={showPasswords.laborReport ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  aria-label={showPasswords.laborReport ? "Hide password" : "Show password"}
                 >
                   {showPasswords.laborReport ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -363,10 +363,10 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between space-x-4">
               <div className="flex-1 space-y-1">
                 <Label htmlFor="payroll-password" className="text-sm font-medium">
-                  Contraseña – Payroll
+                  Password – Payroll
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Contraseña de acceso a la sección de Payroll
+                  Access password for the Payroll section
                 </p>
               </div>
               <div className="relative w-[180px]">
@@ -381,7 +381,7 @@ export default function SettingsPage() {
                   type="button"
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   onClick={() => toggleShowPassword("payroll")}
-                  aria-label={showPasswords.payroll ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  aria-label={showPasswords.payroll ? "Hide password" : "Show password"}
                 >
                   {showPasswords.payroll ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -486,11 +486,11 @@ export default function SettingsPage() {
               <Check className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <h4 className="text-sm font-semibold text-green-900 dark:text-green-100">
-                  Configuración Activa
+                  Active Configuration
                 </h4>
                 <p className="text-sm text-green-700 dark:text-green-300">
-                  Todas las opciones de configuración están ahora activas y funcionales.
-                  Los cambios se aplican inmediatamente y se guardan automáticamente en tu navegador.
+                  All configuration options are now active and functional.
+                  Changes are applied immediately and saved automatically in your browser.
                 </p>
               </div>
             </div>
@@ -499,10 +499,10 @@ export default function SettingsPage() {
           {/* Action Buttons */}
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={handleReset}>
-              Restablecer
+              Reset
             </Button>
             <Button onClick={handleSave}>
-              Guardar Cambios
+              Save Changes
             </Button>
           </div>
         </CardContent>
