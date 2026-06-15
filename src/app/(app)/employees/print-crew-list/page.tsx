@@ -42,11 +42,11 @@ export default function PrintCrewListPage() {
           .sidebar, .app-header, .app-sidebar { display: none !important; }
         }
         @media print {
-          @page { size: letter portrait; margin: 0.5in; }
+          @page { size: letter portrait; margin: 0; }
           .print-controls { display: none !important; }
           body * { visibility: hidden !important; }
           .crew-list-root, .crew-list-root * { visibility: visible !important; }
-          .crew-list-root { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; }
+          .crew-list-root { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; padding: 0.5in !important; box-sizing: border-box !important; }
           body { margin: 0 !important; padding: 0 !important; background: white !important; }
         }
         .print-controls {
