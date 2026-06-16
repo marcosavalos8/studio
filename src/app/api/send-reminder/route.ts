@@ -93,6 +93,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Fetch company info from Firestore (fallback to defaults)
+  const defaultCo = {
+    companyName: "J&M AGRICULTURAL LABOR LLC",
+    email: "Jmagriculturalabor@outlook.com",
+    phone: "509.380.3385",
+    address: "250 Country Heaven Loop, Pasco, WA 99301",
+    ein: "33-2236422",
+    ubi: "605 650 411",
+  };
+  let co = defaultCo;
+  try {
+    const coSnap = await db.collection("company_settings").doc("info").get();
+    if (coSnap.exists) co = { ...defaultCo, ...(coSnap.data() as typeof defaultCo) };
+  } catch { /* use defaults */ }
+
   // Fetch all non-paid invoices
   const snapshot = await db
     .collection("invoices")
@@ -164,19 +179,19 @@ export async function POST(request: NextRequest) {
 
         <p style="margin-top:30px;">
           Best regards,<br>
-          <strong>J&amp;M Agricultural Labor LLC</strong><br>
+          <strong>${co.companyName}</strong><br>
           Billing Department<br>
-          Email: <a href="mailto:Jmagriculturalabor@outlook.com">Jmagriculturalabor@outlook.com</a><br>
-          Phone: 509-380-3385<br>
+          Email: <a href="mailto:${co.email}">${co.email}</a><br>
+          Phone: ${co.phone}<br>
           License #: 172-25<br>
-          Pasco, WA 99301
+          ${co.address}
         </p>
       </div>
     `;
 
     try {
       await transporter.sendMail({
-        from: `"J&M Agricultural Labor LLC" <${smtpUser}>`,
+        from: `"${co.companyName}" <${smtpUser}>`,
         to: invoice.clientEmail,
         subject: `Reminder: Invoice #${invoice.invoiceNumber} is due tomorrow`,
         html,

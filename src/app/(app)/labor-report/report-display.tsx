@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { parseLocalDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Printer, ArrowLeft, Download } from "lucide-react";
+import { useCompanyInfo } from "@/hooks/use-company-info";
 import {
   Table,
   TableBody,
@@ -79,6 +80,7 @@ const truncateWorkerName = (fullName: string): string => {
 };
 
 export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
+  const { companyInfo } = useCompanyInfo();
   const handlePrint = () => {
     window.print();
   };
@@ -128,7 +130,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       // Set up header section with styling
       worksheet.mergeCells(1, 1, 1, totalColumns);
       const titleCell = worksheet.getCell(1, 1);
-      titleCell.value = "Labor Report | J&M Agricultural Labor LLC";
+      titleCell.value = `Labor Report | ${companyInfo.companyName}`;
       titleCell.font = { size: 16, bold: true, color: { argb: "FF70AD47" } }; // Green color
       titleCell.alignment = { horizontal: "left" }; // Left-aligned
 
@@ -146,7 +148,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       einCell.font = { bold: true };
 
       const einValueCell = worksheet.getCell(4, 3);
-      einValueCell.value = "33-2236422";
+      einValueCell.value = companyInfo.ein;
 
       const licCell = worksheet.getCell(4, 4);
       licCell.value = "LIC#172-25";
@@ -157,7 +159,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       ubiCell.font = { bold: true };
 
       const ubiValueCell = worksheet.getCell(5, 3);
-      ubiValueCell.value = "605 650 411";
+      ubiValueCell.value = companyInfo.ubi;
 
       // Add thick green bottom border to row 5 (below UBI# info)
       for (let col = 1; col <= totalColumns; col++) {
@@ -761,7 +763,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                   color: "#15803d",
                 }}
               >
-                Labor Report | J&M Agricultural Labor LLC
+                Labor Report | {companyInfo.companyName}
               </h1>
             </div>
             <div className="flex-shrink-0">
@@ -787,10 +789,10 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
             </div>
             <div>
               <p>
-                <strong>EIN#</strong> 33-2236422
+                <strong>EIN#</strong> {companyInfo.ein}
               </p>
               <p>
-                <strong>UBI#</strong> 605 650 411
+                <strong>UBI#</strong> {companyInfo.ubi}
               </p>
             </div>
             <div>

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Printer, ArrowLeft, Save, CheckCircle2, Loader2 } from "lucide-react";
 import logo from "../../../components/images/logo.jpeg";
 import Image from "next/image";
+import { useCompanyInfo } from "@/hooks/use-company-info";
 
 interface ReportDisplayProps {
   report: DetailedInvoiceData;
@@ -82,6 +83,7 @@ export function InvoiceReportDisplay({
   isSaving,
   isSaved,
 }: ReportDisplayProps) {
+  const { companyInfo } = useCompanyInfo();
   const handlePrint = () => {
     window.print();
   };
@@ -389,7 +391,7 @@ export function InvoiceReportDisplay({
                     color: "#15803d",
                   }}
                 >
-                  | J&amp;M AGRICULTURAL LABOR LLC
+                  | {companyInfo.companyName}
                 </span>
               </div>
               <Image
@@ -402,11 +404,12 @@ export function InvoiceReportDisplay({
             </div>
             {/* Right: Company address + contact */}
             <div style={{ textAlign: "right", fontSize: "12px" }}>
-              <div>250 Country Heaven Loop</div>
-              <div>Pasco, WA 99301.</div>
-              <div>PH #: 509.380.3385</div>
-              <div>e-mail: Jmagriculturalabor@outlook.com</div>
-              <div>EIN #: 33-2236422 &nbsp; UBI #: 605 650 411</div>
+              {companyInfo.address.split(",").map((part, i) => (
+                <div key={i}>{part.trim()}{i === 0 ? "" : "."}</div>
+              ))}
+              <div>PH #: {companyInfo.phone}</div>
+              <div>e-mail: {companyInfo.email}</div>
+              <div>EIN #: {companyInfo.ein} &nbsp; UBI #: {companyInfo.ubi}</div>
             </div>
           </div>
 
@@ -931,6 +934,7 @@ function calcTaskTotals(
 
 // ── Inline Labor Report Section ──────────────────────────────────────────────
 function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
+  const { companyInfo } = useCompanyInfo();
   const formatCurr = (v: number | undefined | null) =>
     v === undefined || v === null || isNaN(v) ? "$0.00" : `$${v.toFixed(2)}`;
 
@@ -994,7 +998,7 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
                 color: "#15803d",
               }}
             >
-              Labor Report | J&M Agricultural Labor LLC
+              Labor Report | {companyInfo.companyName}
             </h1>
           </div>
           <div className="flex-shrink-0">
@@ -1020,10 +1024,10 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
           </div>
           <div>
             <p>
-              <strong>EIN#</strong> 33-2236422
+              <strong>EIN#</strong> {companyInfo.ein}
             </p>
             <p>
-              <strong>UBI#</strong> 605 650 411
+              <strong>UBI#</strong> {companyInfo.ubi}
             </p>
           </div>
           <div>

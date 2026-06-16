@@ -3,6 +3,39 @@ import nodemailer from "nodemailer";
 import { jsPDF } from "jspdf";
 import * as fs from "fs";
 import * as path from "path";
+import { adminFirestore } from "@/lib/firebase-admin";
+
+interface CompanyInfo {
+  companyName: string;
+  address: string;
+  phone: string;
+  email: string;
+  ein: string;
+  ubi: string;
+}
+
+const DEFAULT_COMPANY_INFO: CompanyInfo = {
+  companyName: "J&M AGRICULTURAL LABOR LLC",
+  address: "250 Country Heaven Loop, Pasco, WA 99301",
+  phone: "509.380.3385",
+  email: "Jmagriculturalabor@outlook.com",
+  ein: "33-2236422",
+  ubi: "605 650 411",
+};
+
+async function fetchCompanyInfo(): Promise<CompanyInfo> {
+  try {
+    const db = adminFirestore();
+    if (!db) return DEFAULT_COMPANY_INFO;
+    const snap = await db.collection("company_settings").doc("info").get();
+    if (snap.exists) {
+      return { ...DEFAULT_COMPANY_INFO, ...(snap.data() as Partial<CompanyInfo>) };
+    }
+  } catch {
+    // fall through to defaults
+  }
+  return DEFAULT_COMPANY_INFO;
+}
 
 // ─── interfaces ───────────────────────────────────────────────────────────────
 
@@ -242,7 +275,7 @@ function drawRichText(
 
 // ─── PDF generation (exact replica of InvoiceReportDisplay) ───────────────────
 
-function generateInvoicePdf(body: SendInvoiceBody): string {
+function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COMPANY_INFO): string {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const pageW = doc.internal.pageSize.getWidth(); // 612
   const pageH = doc.internal.pageSize.getHeight(); // 792
@@ -275,12 +308,12 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   // ── HEADER: "INVOICE | J&M AGRICULTURAL LABOR LLC" + logo + company addr ─
 
   // Right side: company address block (right-aligned)
+  const addrParts = co.address.split(",").map((p) => p.trim());
   const addrLines = [
-    "250 Country Heaven Loop",
-    "Pasco, WA 99301.",
-    "PH #: 509.380.3385",
-    "e-mail: Jmagriculturalabor@outlook.com",
-    "EIN #: 33-2236422   UBI #: 605 650 411",
+    ...addrParts,
+    `PH #: ${co.phone}`,
+    `e-mail: ${co.email}`,
+    `EIN #: ${co.ein}   UBI #: ${co.ubi}`,
     "Lic #: 172-25",
   ];
   doc.setFont("helvetica", "normal");
@@ -297,7 +330,7 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   doc.text("INVOICE", margin, y + 4);
   const invTextW = doc.getTextWidth("INVOICE");
   doc.setFontSize(20);
-  doc.text(" | J&M AGRICULTURAL LABOR LLC", margin + invTextW, y + 4);
+  doc.text(` | ${co.companyName}`, margin + invTextW, y + 4);
 
   y += 16;
 
@@ -772,7 +805,7 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
   doc.setTextColor(55, 65, 81);
   doc.setFont("helvetica", "normal");
   doc.text(
-    "Make all checks payable to J&M Agricultural Labor LLC",
+    `Make all checks payable to ${co.companyName}`,
     pageW / 2,
     y,
     { align: "center" },
@@ -793,7 +826,7 @@ function generateInvoicePdf(body: SendInvoiceBody): string {
 
 // ─── Labor Report PDF generation ─────────────────────────────────────────────
 
-function generateLaborReportPdf(data: LaborReportData): string {
+function generateLaborReportPdf(data: LaborReportData, co: CompanyInfo = DEFAULT_COMPANY_INFO): string {
   // Use landscape letter for wide employee table
   const doc = new jsPDF({
     unit: "pt",
@@ -866,7 +899,7 @@ function generateLaborReportPdf(data: LaborReportData): string {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
   doc.setTextColor(21, 128, 61);
-  doc.text("Labor Report | J&M Agricultural Labor LLC", margin, y + 4);
+  doc.text(`Labor Report | ${co.companyName}`, margin, y + 4);
 
   if (logoBase64) {
     doc.addImage(logoBase64, "JPEG", pageW - margin - 64, y - 4, 64, 52);
@@ -884,8 +917,8 @@ function generateLaborReportPdf(data: LaborReportData): string {
     margin,
     y + 22,
   );
-  doc.text("EIN# 33-2236422", margin + 200, y + 10);
-  doc.text("UBI# 605 650 411", margin + 200, y + 22);
+  doc.text(`EIN# ${co.ein}`, margin + 200, y + 10);
+  doc.text(`UBI# ${co.ubi}`, margin + 200, y + 22);
   doc.text("LIC#172-25", margin + 380, y + 10);
 
   y += 36;
@@ -1310,6 +1343,9 @@ export async function POST(request: Request) {
     );
   }
   console.log("variable de,labor report", includeLaborReport);
+
+  const co = await fetchCompanyInfo();
+
   // --- CONFIGURACIÓN GMAIL ---
   const smtpUser = "jmagriculturalaborinvoicing@gmail.com";
   const smtpPass = process.env.SMTP_PASS;
@@ -1335,8 +1371,8 @@ export async function POST(request: Request) {
       <div style="background-color: #f9f9f9; padding: 15px; border-left: 4px solid #ccc; margin: 20px 0;">
         <p style="font-size: 0.9em; margin: 0;">
           <strong>Please note:</strong> This is an automated sending service and this email address is not monitored. 
-          For any questions, replies, or future correspondence, please contact us directly at 
-          <a href="mailto:Jmagriculturalabor@outlook.com">Jmagriculturalabor@outlook.com</a>.
+          For any questions, replies, or future correspondence, please contact us directly at
+          <a href="mailto:${co.email}">${co.email}</a>.
         </p>
       </div>
 
@@ -1344,10 +1380,10 @@ export async function POST(request: Request) {
       
       <p style="margin-top: 30px;">
         Best regards,<br>
-        <strong>J&amp;M Agricultural Labor LLC</strong><br>
+        <strong>${co.companyName}</strong><br>
         Billing Department<br>
-        Email: <a href="mailto:Jmagriculturalabor@outlook.com">Jmagriculturalabor@outlook.com</a><br>
-        Phone: 509-380-3385<br>
+        Email: <a href="mailto:${co.email}">${co.email}</a><br>
+        Phone: ${co.phone}<br>
         License #: 172-25<br>
         Pasco, WA 99301
       </p>
@@ -1357,7 +1393,7 @@ export async function POST(request: Request) {
   // Generate PDF attachments
   let pdfBuffer: Buffer | undefined;
   try {
-    const pdfBase64 = generateInvoicePdf(body);
+    const pdfBase64 = generateInvoicePdf(body, co);
     pdfBuffer = Buffer.from(pdfBase64, "base64");
   } catch (pdfErr) {
     console.error("Error generating invoice PDF:", pdfErr);
@@ -1367,7 +1403,7 @@ export async function POST(request: Request) {
   let laborReportPdfBuffer: Buffer | undefined;
   if (body.includeLaborReport && body.laborReportData) {
     try {
-      const laborBase64 = generateLaborReportPdf(body.laborReportData);
+      const laborBase64 = generateLaborReportPdf(body.laborReportData, co);
       laborReportPdfBuffer = Buffer.from(laborBase64, "base64");
     } catch (laborPdfErr) {
       console.error("Error generating labor report PDF:", laborPdfErr);
@@ -1397,9 +1433,9 @@ export async function POST(request: Request) {
 
   try {
     await transporter.sendMail({
-      from: `"J&M Agricultural Labor LLC" <${smtpUser}>`,
+      from: `"${co.companyName}" <${smtpUser}>`,
       to: clientEmail,
-      subject: `Invoice ${invoiceNumber} from J&M Agricultural Labor LLC`,
+      subject: `Invoice ${invoiceNumber} from ${co.companyName}`,
       html,
       attachments,
     });
