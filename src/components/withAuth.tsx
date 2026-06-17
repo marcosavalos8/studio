@@ -50,6 +50,7 @@ export function withAuth<P extends object>(
       if (pathname.includes("/invoicing")) return settings.invoicePassword || process.env.NEXT_PUBLIC_PAYROLL_PASSWORD || "4321";
       if (pathname.includes("/labor-report")) return settings.laborReportPassword || process.env.NEXT_PUBLIC_PAYROLL_PASSWORD || "4321";
       if (pathname.includes("/payroll")) return settings.payrollPassword || process.env.NEXT_PUBLIC_PAYROLL_PASSWORD || "4321";
+      if (pathname.includes("/accounting-center")) return settings.accountingCenterPassword || process.env.NEXT_PUBLIC_PAYROLL_PASSWORD || "4321";
       return process.env.NEXT_PUBLIC_PAYROLL_PASSWORD || "4321";
     })();
 

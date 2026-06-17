@@ -35,9 +35,10 @@ export default function SettingsPage() {
     invoice: false,
     laborReport: false,
     payroll: false,
+    accountingCenter: false,
   });
 
-  const toggleShowPassword = (field: "invoice" | "laborReport" | "payroll") => {
+  const toggleShowPassword = (field: "invoice" | "laborReport" | "payroll" | "accountingCenter") => {
     setShowPasswords((prev) => ({ ...prev, [field]: !prev[field] }));
   };
 
@@ -384,6 +385,35 @@ export default function SettingsPage() {
                   aria-label={showPasswords.payroll ? "Hide password" : "Show password"}
                 >
                   {showPasswords.payroll ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Accounting Center Password */}
+            <div className="flex items-center justify-between space-x-4">
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="accounting-center-password" className="text-sm font-medium">
+                  Password – Accounting Center
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Access password for the Accounting Center section
+                </p>
+              </div>
+              <div className="relative w-[180px]">
+                <Input
+                  id="accounting-center-password"
+                  type={showPasswords.accountingCenter ? "text" : "password"}
+                  value={settings.accountingCenterPassword}
+                  onChange={(e) => updateSetting("accountingCenterPassword", e.target.value)}
+                  className="pr-9"
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => toggleShowPassword("accountingCenter")}
+                  aria-label={showPasswords.accountingCenter ? "Hide password" : "Show password"}
+                >
+                  {showPasswords.accountingCenter ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
