@@ -40,6 +40,12 @@ const calculateTaskTotals = (
       rate: number;
       cost: number;
     }>;
+    missingBucketsSummary?: Array<{
+      taskName: string;
+      quantity: number;
+      rate: number;
+      cost: number;
+    }>;
   }>,
 ): { totalPieces: number; rate: number; totalPay: number } => {
   let totalPieces = 0;
@@ -57,6 +63,15 @@ const calculateTaskTotals = (
         }
         totalPay += task.cost;
       }
+      employee.missingBucketsSummary?.forEach((mb) => {
+        if (mb.taskName === taskName) {
+          totalPieces += mb.quantity;
+          if (rate === undefined) {
+            rate = mb.rate;
+          }
+          totalPay += mb.cost;
+        }
+      });
     });
   }
 

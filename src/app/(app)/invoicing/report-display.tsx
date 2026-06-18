@@ -938,6 +938,13 @@ function calcTaskTotals(
         if (rate === undefined) rate = task.rate;
         totalPay += task.cost;
       }
+      emp.missingBucketsSummary?.forEach((mb) => {
+        if (mb.taskName === taskName) {
+          totalPieces += mb.quantity;
+          if (rate === undefined) rate = mb.rate;
+          totalPay += mb.cost;
+        }
+      });
     });
   }
   return { totalPieces, rate: rate ?? 0, totalPay };
