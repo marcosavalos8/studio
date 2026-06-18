@@ -206,9 +206,13 @@ export async function generatePayrollReport({
           getWeek(weekStartDate, { weekStartsOn: 0 }),
         ];
 
+        // Note: tasks are keyed by taskId for normal work, but Missing Buckets
+        // pieces use a composite key (taskId|MB|originalDate) so entries worked
+        // on different original dates stay separated. The real taskId is stored
+        // in `taskId` for task lookups.
         const dailyWork: Record<
           string,
-          { tasks: Record<string, { hours: number; pieces: number; isMissingBuckets?: boolean; originalDate?: string }> }
+          { tasks: Record<string, { taskId: string; hours: number; pieces: number; isMissingBuckets?: boolean; originalDate?: string }> }
         > = {};
         // Start with state minimum wage as fallback, will be replaced by client-specific minimum wage
         let applicableMinWage = STATE_MINIMUM_WAGE;
@@ -239,7 +243,7 @@ export async function generatePayrollReport({
 
           if (!dailyWork[dayKey]) dailyWork[dayKey] = { tasks: {} };
           if (!dailyWork[dayKey].tasks[entry.taskId])
-            dailyWork[dayKey].tasks[entry.taskId] = { hours: 0, pieces: 0 };
+            dailyWork[dayKey].tasks[entry.taskId] = { taskId: entry.taskId, hours: 0, pieces: 0 };
           dailyWork[dayKey].tasks[entry.taskId].hours += hours;
 
           // Add pieces from piecesWorked field in TimeEntry
@@ -254,13 +258,20 @@ export async function generatePayrollReport({
           const dayKey = format(date, "yyyy-MM-dd");
 
           if (!dailyWork[dayKey]) dailyWork[dayKey] = { tasks: {} };
-          if (!dailyWork[dayKey].tasks[entry.taskId])
-            dailyWork[dayKey].tasks[entry.taskId] = { hours: 0, pieces: 0 };
-          dailyWork[dayKey].tasks[entry.taskId].pieces += entry.pieceCount;
-          if ((entry as Piecework).isMissingBuckets) {
-            dailyWork[dayKey].tasks[entry.taskId].isMissingBuckets = true;
-            if ((entry as Piecework).originalDate) {
-              dailyWork[dayKey].tasks[entry.taskId].originalDate = (entry as Piecework).originalDate;
+          // Missing Buckets pieces are kept in their own entry, separated by
+          // original date, so multiple registrations don't get summed together.
+          const isMB = (entry as Piecework).isMissingBuckets;
+          const mbOriginalDate = (entry as Piecework).originalDate;
+          const taskKey = isMB
+            ? `${entry.taskId}|MB|${mbOriginalDate || ""}`
+            : entry.taskId;
+          if (!dailyWork[dayKey].tasks[taskKey])
+            dailyWork[dayKey].tasks[taskKey] = { taskId: entry.taskId, hours: 0, pieces: 0 };
+          dailyWork[dayKey].tasks[taskKey].pieces += entry.pieceCount;
+          if (isMB) {
+            dailyWork[dayKey].tasks[taskKey].isMissingBuckets = true;
+            if (mbOriginalDate) {
+              dailyWork[dayKey].tasks[taskKey].originalDate = mbOriginalDate;
             }
           }
         });
@@ -296,7 +307,9 @@ export async function generatePayrollReport({
           let dailyHourlyHours = 0;
           let dailyPieceworkEarnings = 0;
 
-          for (const taskId in dailyWork[dayKey].tasks) {
+          for (const taskKey in dailyWork[dayKey].tasks) {
+            const taskWork = dailyWork[dayKey].tasks[taskKey];
+            const taskId = taskWork.taskId;
             const task = taskMap.get(taskId);
             // CORRECCIÓN de TypeScript: saltar si la tarea no existe
             if (!task) continue;
@@ -322,7 +335,7 @@ export async function generatePayrollReport({
               }
             }
 
-            const { hours, pieces } = dailyWork[dayKey].tasks[taskId];
+            const { hours, pieces } = taskWork;
             let earningsForTask = 0;
             let isHourlyTask = false;
 
@@ -411,8 +424,8 @@ export async function generatePayrollReport({
             
             // Track pieces by task/variety if this is a piecework task
             if (pieces > 0 && task.clientRateType === "piece") {
-              const taskIsMissingBuckets = dailyWork[dayKey].tasks[taskId].isMissingBuckets;
-              const taskOriginalDate = dailyWork[dayKey].tasks[taskId].originalDate;
+              const taskIsMissingBuckets = taskWork.isMissingBuckets;
+              const taskOriginalDate = taskWork.originalDate;
               // Keep Missing Buckets entries in their own row, separated by original date
               const varietyKey = taskIsMissingBuckets
                 ? `${task.name}|${task.variety || "N/A"}|MB|${taskOriginalDate || ""}`
@@ -462,8 +475,8 @@ export async function generatePayrollReport({
               totalEarnings: earningsForTask,
               taskType: task.clientRateType,
               rate: taskRate,
-              isMissingBuckets: dailyWork[dayKey].tasks[taskId].isMissingBuckets,
-              originalDate: dailyWork[dayKey].tasks[taskId].originalDate,
+              isMissingBuckets: taskWork.isMissingBuckets,
+              originalDate: taskWork.originalDate,
             });
           }
 
