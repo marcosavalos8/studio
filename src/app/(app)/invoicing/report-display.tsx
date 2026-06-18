@@ -1147,6 +1147,11 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
                       <span className="hidden lg:inline">
                         {employee.employeeName}
                       </span>
+                      {employee.missingBucketsSummary?.map((mb, mbIdx) => (
+                        <div key={mbIdx} className="text-red-500 font-semibold" style={{ fontSize: "9px", lineHeight: 1.3 }}>
+                          – Missing Buckets ({mb.quantity.toFixed(0)} pcs – {mb.originalDate ? format(parseLocalDate(mb.originalDate), "MM/dd/yyyy") : ""})
+                        </div>
+                      ))}
                     </td>
                     <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
                       {employee.totalHours.toFixed(2)}
