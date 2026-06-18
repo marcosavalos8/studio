@@ -284,6 +284,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
               taskDetail.hours += task.hours;
               taskDetail.pieces += task.pieceworkCount;
               if (task.isMissingBuckets) taskDetail.isMissingBuckets = true;
+              if (task.originalDate) taskDetail.originalDate = task.originalDate;
             });
           });
         });

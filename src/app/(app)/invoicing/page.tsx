@@ -29,6 +29,7 @@ export type DailyBreakdown = {
         clientRate: number;
         clientRateType: "hourly" | "piece";
         isMissingBuckets?: boolean;
+        originalDate?: string;
       };
     };
     total: number;

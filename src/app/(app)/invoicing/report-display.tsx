@@ -101,6 +101,7 @@ export function InvoiceReportDisplay({
     price: number;
     total: number;
     isMissingBuckets?: boolean;
+    originalDate?: string;
   };
 
   const regularRows: TableRow[] = [];
@@ -117,6 +118,7 @@ export function InvoiceReportDisplay({
         price: task.clientRate,
         total: task.cost,
         isMissingBuckets: task.isMissingBuckets,
+        originalDate: task.originalDate,
       });
     });
   });
@@ -613,7 +615,9 @@ export function InvoiceReportDisplay({
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {row.date
+                    {row.isMissingBuckets && row.originalDate
+                      ? format(parseLocalDate(row.originalDate), "MM/dd/yyyy")
+                      : row.date
                       ? format(parseLocalDate(row.date), "MM/dd/yyyy")
                       : "-"}
                   </td>

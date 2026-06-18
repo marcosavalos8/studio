@@ -90,6 +90,7 @@ export type DailyTaskDetail = {
   taskType?: "hourly" | "piece"; // Task rate type for display
   rate?: number; // Hourly rate or piece price for display
   isMissingBuckets?: boolean;
+  originalDate?: string;
 };
 
 export type DailyBreakdown = {
