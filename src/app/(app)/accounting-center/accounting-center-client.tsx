@@ -8,7 +8,7 @@ import {
   Search,
   CheckCircle2,
 } from "lucide-react";
-import { cn, toLocalMidnight } from "@/lib/utils";
+import { cn, toLocalMidnight, parseLocalDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -165,6 +165,12 @@ function WeeklySummaryTable({ week }: { week: WeeklySummary }) {
                   >
                     <TableCell className={`${td} !pl-5 text-muted-foreground`}>
                       {item.taskName} — {item.variety}
+                      {item.isMissingBuckets && (
+                        <span className="ml-1 text-[10px] font-semibold text-red-500">
+                          {" "}– Missing Buckets
+                          {item.originalDate ? ` (${format(parseLocalDate(item.originalDate), "MM/dd/yyyy")})` : ""}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell
                       className={`${tdr} text-indigo-700 dark:text-indigo-300`}
