@@ -77,6 +77,14 @@ export type DetailedInvoiceData = {
       cost: number;
       isMissingBuckets?: boolean;
     }>;
+    missingBucketsSummary?: Array<{
+      taskName: string;
+      quantity: number;
+      rate: number;
+      rateType: "hourly" | "piece";
+      cost: number;
+      originalDate: string;
+    }>;
   }>;
 };
 
