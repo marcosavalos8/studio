@@ -70,6 +70,7 @@ export type DetailedLabelReportData = {
       rate: number;
       rateType: "hourly" | "piece";
       cost: number;
+      isMissingBuckets?: boolean;
     }>;
   }>;
 };

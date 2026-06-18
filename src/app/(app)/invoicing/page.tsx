@@ -75,6 +75,7 @@ export type DetailedInvoiceData = {
       rate: number;
       rateType: "hourly" | "piece";
       cost: number;
+      isMissingBuckets?: boolean;
     }>;
   }>;
 };

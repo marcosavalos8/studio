@@ -5011,7 +5011,7 @@ function TimeTrackingPage() {
                   <SelectTrigger>
                     <SelectValue placeholder="Select a task" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60 overflow-y-auto">
                     {(allTasks ?? [])
                       .filter((t) => t.clientId === mbClientId && t.status === "Active")
                       .map((t) => (

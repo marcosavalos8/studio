@@ -658,10 +658,12 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
 
   // Collect all unique tasks across all employees
   const allTaskNames = new Set<string>();
+  const missingBucketsTasks = new Set<string>();
   if (hasEmployeeDetails && report.employeeDetails) {
     report.employeeDetails.forEach((employee) => {
       employee.tasksSummary.forEach((task) => {
         allTaskNames.add(task.taskName);
+        if (task.isMissingBuckets) missingBucketsTasks.add(task.taskName);
       });
     });
   }
@@ -956,6 +958,9 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                     return (
                       <p key={taskName} className="text-[10px]">
                         <strong>PIECE {label}</strong> = {taskName}
+                        {missingBucketsTasks.has(taskName) && (
+                          <span className="text-red-500 font-semibold"> – Missing Buckets</span>
+                        )}
                       </p>
                     );
                   })}

@@ -328,6 +328,7 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
           hours: number;
           pieces: number;
           taskId?: string;
+          isMissingBuckets?: boolean;
         }>();
 
         emp.weeklySummaries.forEach((week) => {
@@ -354,12 +355,14 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
               if (existing) {
                 existing.hours += task.hours;
                 existing.pieces += task.pieceworkCount;
+                if (task.isMissingBuckets) existing.isMissingBuckets = true;
               } else {
                 tasksSummaryMap.set(task.taskName, {
                   taskName: task.taskName,
                   hours: task.hours,
                   pieces: task.pieceworkCount,
                   taskId: task.taskId,
+                  isMissingBuckets: task.isMissingBuckets,
                 });
               }
             });
@@ -382,13 +385,14 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
               rate: 0,
               rateType,
               cost: 0,
+              isMissingBuckets: taskSummary.isMissingBuckets,
             };
           }
 
           const isHourly = originalTask.clientRateType === "hourly";
           const quantity = isHourly ? taskSummary.hours : taskSummary.pieces;
           let effectiveClientRate = originalTask.clientRate;
-          
+
           if (!isHourly && (!effectiveClientRate || effectiveClientRate === 0)) {
             effectiveClientRate = originalTask.piecePrice || 0;
           }
@@ -399,6 +403,7 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
             rate: effectiveClientRate,
             rateType: originalTask.clientRateType,
             cost: quantity * effectiveClientRate,
+            isMissingBuckets: taskSummary.isMissingBuckets,
           };
         });
 
