@@ -270,8 +270,14 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
                 });
               }
 
-              if (!dailyBreakdown[day.date].tasks[task.taskName]) {
-                dailyBreakdown[day.date].tasks[task.taskName] = {
+              // Keep Missing Buckets as their own line item (separated by original
+              // date) so they are never merged into the current week's regular row
+              // for the same task. The displayed name still uses task.taskName.
+              const taskKey = task.isMissingBuckets
+                ? `${task.taskName}|MB|${task.originalDate || ""}`
+                : task.taskName;
+              if (!dailyBreakdown[day.date].tasks[taskKey]) {
+                dailyBreakdown[day.date].tasks[taskKey] = {
                   taskName: task.taskName,
                   hours: 0,
                   pieces: 0,
@@ -280,7 +286,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
                   clientRateType: originalTask.clientRateType,
                 };
               }
-              const taskDetail = dailyBreakdown[day.date].tasks[task.taskName];
+              const taskDetail = dailyBreakdown[day.date].tasks[taskKey];
               taskDetail.hours += task.hours;
               taskDetail.pieces += task.pieceworkCount;
               if (task.isMissingBuckets) taskDetail.isMissingBuckets = true;
