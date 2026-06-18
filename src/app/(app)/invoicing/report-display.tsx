@@ -1112,117 +1112,87 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
             </thead>
             <tbody>
               {report.employeeDetails?.map((employee, rowIndex) => {
-                const taskMap = new Map(
-                  employee.tasksSummary.map((task) => [task.taskName, task]),
-                );
-                const totalPiecesPay = employee.tasksSummary.reduce(
-                  (sum, task) => sum + task.cost,
-                  0,
-                );
                 const diffOwed =
                   employee.paidRestBreaks +
                   employee.minimumWageTopUp +
                   (employee.overtimePremium || 0);
-                const minPayRequired = totalPiecesPay + diffOwed;
+                // Build a merged task map: tasksSummary + missingBucketsSummary combined per taskName
+                type MergedTask = { quantity: number; rate: number; cost: number; isMissingBuckets: boolean };
+                const mergedTaskMap = new Map<string, MergedTask>();
+                employee.tasksSummary.forEach((t) => {
+                  mergedTaskMap.set(t.taskName, { quantity: t.quantity, rate: t.rate, cost: t.cost, isMissingBuckets: false });
+                });
+                employee.missingBucketsSummary?.forEach((mb) => {
+                  const existing = mergedTaskMap.get(mb.taskName);
+                  if (existing) {
+                    existing.quantity += mb.quantity;
+                    existing.cost += mb.cost;
+                    existing.isMissingBuckets = true;
+                  } else {
+                    mergedTaskMap.set(mb.taskName, { quantity: mb.quantity, rate: mb.rate, cost: mb.cost, isMissingBuckets: true });
+                  }
+                });
+                const mergedTotalPiecesPay = Array.from(mergedTaskMap.values()).reduce((s, t) => s + t.cost, 0);
+                const mergedMinPayRequired = mergedTotalPiecesPay + diffOwed;
+
                 return (
-                  <React.Fragment key={employee.employeeId}>
-                    <tr
-                      className={rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"}
-                    >
-                      <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 font-medium text-left">
-                        <span className="lg:hidden">
-                          {truncateWorkerName(employee.employeeName)}
-                        </span>
-                        <span className="hidden lg:inline">
-                          {employee.employeeName}
-                        </span>
-                      </td>
-                      <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
-                        {employee.totalHours.toFixed(2)}
-                      </td>
-                      {uniqueTasks.map((taskName) => {
-                        const task = taskMap.get(taskName);
-                        return (
-                          <React.Fragment key={taskName}>
-                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center">
-                              {task ? task.quantity.toFixed(2) : "0.00"}
-                            </td>
-                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center">
-                              $ {task ? task.rate.toFixed(2) : "0.00"}
-                            </td>
-                            <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center">
-                              $ {task ? task.cost.toFixed(2) : "0.00"}
-                            </td>
-                          </React.Fragment>
-                        );
-                      })}
-                      <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
-                        {formatCurr(totalPiecesPay)}
-                      </td>
-                      {hasOvertimeData && (
-                        <>
-                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
-                            {(employee.overtimeHours || 0).toFixed(2)} hrs
-                          </td>
-                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
-                            {formatCurr(employee.regularRate || 0)}/hr
-                          </td>
-                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
-                            {formatCurr(employee.overtimePremium || 0)}
-                          </td>
-                        </>
-                      )}
-                      <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
-                        {formatCurr(diffOwed)}
-                      </td>
-                      <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
-                        {formatCurr(minPayRequired)}
-                      </td>
-                    </tr>
-                    {employee.missingBucketsSummary?.map((mb, mbIdx) => {
-                      const dateLabel = mb.originalDate ? format(parseLocalDate(mb.originalDate), "MM/dd/yyyy") : "";
+                  <tr
+                    key={employee.employeeId}
+                    className={rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"}
+                  >
+                    <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 font-medium text-left">
+                      <span className="lg:hidden">
+                        {truncateWorkerName(employee.employeeName)}
+                      </span>
+                      <span className="hidden lg:inline">
+                        {employee.employeeName}
+                      </span>
+                    </td>
+                    <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center">
+                      {employee.totalHours.toFixed(2)}
+                    </td>
+                    {uniqueTasks.map((taskName) => {
+                      const task = mergedTaskMap.get(taskName);
                       return (
-                        <tr key={`mb-${employee.employeeId}-${mbIdx}`} className="bg-red-50">
-                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-left">
-                            <span className="text-red-600 font-medium text-[10px]">
-                              {employee.employeeName} – Missing Buckets ({mb.quantity.toFixed(0)} pcs – {dateLabel})
-                            </span>
+                        <React.Fragment key={taskName}>
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center">
+                            {task ? task.quantity.toFixed(2) : "0.00"}
+                            {task?.isMissingBuckets && (
+                              <div className="text-red-500 font-semibold" style={{ fontSize: "9px", lineHeight: 1 }}>MB</div>
+                            )}
                           </td>
-                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center text-gray-400">—</td>
-                          {uniqueTasks.map((taskName) => {
-                            const isMatch = taskName === mb.taskName;
-                            return (
-                              <React.Fragment key={taskName}>
-                                <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center text-red-600">
-                                  {isMatch ? mb.quantity.toFixed(2) : "—"}
-                                </td>
-                                <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center text-red-600">
-                                  {isMatch ? `$ ${mb.rate.toFixed(2)}` : "—"}
-                                </td>
-                                <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center text-red-600">
-                                  {isMatch ? `$ ${mb.cost.toFixed(2)}` : "—"}
-                                </td>
-                              </React.Fragment>
-                            );
-                          })}
-                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold text-red-600">
-                            {formatCurr(mb.cost)}
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center">
+                            $ {task ? task.rate.toFixed(2) : "0.00"}
                           </td>
-                          {hasOvertimeData && (
-                            <>
-                              <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center text-gray-400">—</td>
-                              <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center text-gray-400">—</td>
-                              <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center text-gray-400">—</td>
-                            </>
-                          )}
-                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center text-gray-400">—</td>
-                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold text-red-600">
-                            {formatCurr(mb.cost)}
+                          <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-1 py-1 text-center">
+                            $ {task ? task.cost.toFixed(2) : "0.00"}
                           </td>
-                        </tr>
+                        </React.Fragment>
                       );
                     })}
-                  </React.Fragment>
+                    <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
+                      {formatCurr(mergedTotalPiecesPay)}
+                    </td>
+                    {hasOvertimeData && (
+                      <>
+                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
+                          {(employee.overtimeHours || 0).toFixed(2)} hrs
+                        </td>
+                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
+                          {formatCurr(employee.regularRate || 0)}/hr
+                        </td>
+                        <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
+                          {formatCurr(employee.overtimePremium || 0)}
+                        </td>
+                      </>
+                    )}
+                    <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
+                      {formatCurr(diffOwed)}
+                    </td>
+                    <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-center font-bold">
+                      {formatCurr(mergedMinPayRequired)}
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>
