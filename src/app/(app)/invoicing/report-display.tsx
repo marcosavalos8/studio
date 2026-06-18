@@ -977,16 +977,13 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
     report.employeeDetails && report.employeeDetails.length > 0;
 
   const allTaskNames = new Set<string>();
-  const missingBucketsTasks = new Set<string>();
   if (hasEmployeeDetails && report.employeeDetails) {
     report.employeeDetails.forEach((emp) => {
       emp.tasksSummary.forEach((task) => {
         allTaskNames.add(task.taskName);
-        if (task.isMissingBuckets) missingBucketsTasks.add(task.taskName);
       });
       emp.missingBucketsSummary?.forEach((mb) => {
         allTaskNames.add(mb.taskName);
-        missingBucketsTasks.add(mb.taskName);
       });
     });
   }
@@ -1255,9 +1252,6 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
                   return (
                     <p key={taskName} className="text-[10px]">
                       <strong>PIECE {label}</strong> = {taskName}
-                      {missingBucketsTasks.has(taskName) && (
-                        <span style={{ color: "#ef4444", fontWeight: 600 }}> – Missing Buckets</span>
-                      )}
                     </p>
                   );
                 })}
