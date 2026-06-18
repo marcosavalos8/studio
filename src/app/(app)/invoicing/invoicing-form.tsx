@@ -579,6 +579,12 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
             pieces: number;
             taskId?: string;
           }>();
+          const laborMissingBucketsMap = new Map<string, {
+            taskName: string;
+            pieces: number;
+            taskId?: string;
+            originalDate: string;
+          }>();
 
           emp.weeklySummaries.forEach((week) => {
             week.dailyBreakdown.forEach((day) => {
@@ -595,17 +601,32 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
                 (sum, task) => sum + task.pieceworkCount, 0
               );
               day.tasks.forEach((task) => {
-                const existing = laborTasksSummaryMap.get(task.taskName);
-                if (existing) {
-                  existing.hours += task.hours;
-                  existing.pieces += task.pieceworkCount;
+                if (task.isMissingBuckets) {
+                  const key = `${task.taskName}|${task.originalDate || ""}`;
+                  const existing = laborMissingBucketsMap.get(key);
+                  if (existing) {
+                    existing.pieces += task.pieceworkCount;
+                  } else {
+                    laborMissingBucketsMap.set(key, {
+                      taskName: task.taskName,
+                      pieces: task.pieceworkCount,
+                      taskId: task.taskId,
+                      originalDate: task.originalDate || "",
+                    });
+                  }
                 } else {
-                  laborTasksSummaryMap.set(task.taskName, {
-                    taskName: task.taskName,
-                    hours: task.hours,
-                    pieces: task.pieceworkCount,
-                    taskId: task.taskId,
-                  });
+                  const existing = laborTasksSummaryMap.get(task.taskName);
+                  if (existing) {
+                    existing.hours += task.hours;
+                    existing.pieces += task.pieceworkCount;
+                  } else {
+                    laborTasksSummaryMap.set(task.taskName, {
+                      taskName: task.taskName,
+                      hours: task.hours,
+                      pieces: task.pieceworkCount,
+                      taskId: task.taskId,
+                    });
+                  }
                 }
               });
             });
@@ -638,6 +659,24 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
             };
           });
 
+          const laborMissingBucketsSummary = Array.from(laborMissingBucketsMap.values()).map((mb) => {
+            const originalTask = tasks.find((t) => t.id === mb.taskId);
+            const rate = originalTask
+              ? (originalTask.clientRateType === "hourly"
+                  ? originalTask.clientRate
+                  : (originalTask.piecePrice || originalTask.clientRate || 0))
+              : 0;
+            const rateType = originalTask?.clientRateType ?? "piece";
+            return {
+              taskName: mb.taskName,
+              quantity: mb.pieces,
+              rate,
+              rateType: rateType as "hourly" | "piece",
+              cost: mb.pieces * rate,
+              originalDate: mb.originalDate,
+            };
+          });
+
           return {
             employeeName: employee?.name || emp.employeeName,
             employeeId: emp.employeeId,
@@ -654,6 +693,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
                 parseLocalDate(b.date).getTime()
             ),
             tasksSummary: laborTasksSummary,
+            missingBucketsSummary: laborMissingBucketsSummary.length > 0 ? laborMissingBucketsSummary : undefined,
           };
         });
 
