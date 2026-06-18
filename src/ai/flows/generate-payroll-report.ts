@@ -275,7 +275,7 @@ export async function generatePayrollReport({
         let weeklyPieceworkHours = 0; // Hours worked on piecework tasks
         
         // Track pieces by task/variety for the week (piecework)
-        const piecesByTaskVariety = new Map<string, { taskName: string; variety: string; totalPieces: number; price?: number }>();
+        const piecesByTaskVariety = new Map<string, { taskName: string; variety: string; totalPieces: number; price?: number; isMissingBuckets?: boolean; originalDate?: string }>();
         // Track hours by payroll rate for the week (hourly)
         const hoursByRate = new Map<number, number>();
 
@@ -411,7 +411,12 @@ export async function generatePayrollReport({
             
             // Track pieces by task/variety if this is a piecework task
             if (pieces > 0 && task.clientRateType === "piece") {
-              const varietyKey = `${task.name}|${task.variety || "N/A"}`;
+              const taskIsMissingBuckets = dailyWork[dayKey].tasks[taskId].isMissingBuckets;
+              const taskOriginalDate = dailyWork[dayKey].tasks[taskId].originalDate;
+              // Keep Missing Buckets entries in their own row, separated by original date
+              const varietyKey = taskIsMissingBuckets
+                ? `${task.name}|${task.variety || "N/A"}|MB|${taskOriginalDate || ""}`
+                : `${task.name}|${task.variety || "N/A"}`;
               if (piecesByTaskVariety.has(varietyKey)) {
                 const existing = piecesByTaskVariety.get(varietyKey)!;
                 existing.totalPieces += pieces;
@@ -422,6 +427,8 @@ export async function generatePayrollReport({
                   variety: task.variety || "N/A",
                   totalPieces: pieces,
                   price: effectivePiecePrice || 0,
+                  isMissingBuckets: taskIsMissingBuckets,
+                  originalDate: taskOriginalDate,
                 });
               }
             }
@@ -629,6 +636,8 @@ export async function generatePayrollReport({
             price: item.price ?? 0,
             rateType: "piece" as const,
             totalHours: undefined,
+            isMissingBuckets: item.isMissingBuckets,
+            originalDate: item.originalDate,
           })),
           ...Array.from(hoursByRate.entries()).map(([rate, hours]) => ({
             taskName: "Hourly",
@@ -637,6 +646,8 @@ export async function generatePayrollReport({
             price: rate,
             rateType: "hourly" as const,
             totalHours: parseFloat(hours.toFixed(2)),
+            isMissingBuckets: undefined as boolean | undefined,
+            originalDate: undefined as string | undefined,
           })),
         ];
 

@@ -107,6 +107,8 @@ export type PiecesByVariety = {
   price?: number;
   rateType?: "piece" | "hourly";
   totalHours?: number;
+  isMissingBuckets?: boolean;
+  originalDate?: string;
 };
 
 export type WeeklySummary = {

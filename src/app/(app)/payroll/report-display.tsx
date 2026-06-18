@@ -45,7 +45,10 @@ function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData[
                     <div>
                       {task.taskName}
                       {task.isMissingBuckets && (
-                        <span className="ml-1 text-xs font-semibold text-red-500"> – Missing Buckets</span>
+                        <span className="ml-1 text-xs font-semibold text-red-500">
+                          {" "}– Missing Buckets
+                          {task.originalDate ? ` (${format(parseLocalDate(task.originalDate), "MM/dd/yyyy")})` : ""}
+                        </span>
                       )}
                     </div>
                     <div className="text-xs text-muted-foreground">{task.clientName} {task.ranch && ` - ${task.ranch}`}</div>
@@ -198,6 +201,12 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                                                                   <TableRow key={idx} className="bg-indigo-50/50 dark:bg-indigo-900/10">
                                                                     <TableCell className="pl-8 text-sm text-muted-foreground">
                                                                       {item.taskName} - {item.variety}
+                                                                      {item.isMissingBuckets && (
+                                                                        <span className="ml-1 text-xs font-semibold text-red-500">
+                                                                          {" "}– Missing Buckets
+                                                                          {item.originalDate ? ` (${format(parseLocalDate(item.originalDate), "MM/dd/yyyy")})` : ""}
+                                                                        </span>
+                                                                      )}
                                                                     </TableCell>
                                                                     <TableCell className="text-right text-sm text-indigo-600">{item.totalPieces.toFixed(2)}</TableCell>
                                                                     <TableCell className="text-right text-sm text-indigo-600">${(item.price ?? 0).toFixed(2)}</TableCell>
