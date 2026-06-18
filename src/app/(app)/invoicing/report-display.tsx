@@ -1189,7 +1189,7 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
                       return (
                         <tr key={`mb-${employee.employeeId}-${mbIdx}`} className="bg-red-50">
                           <td className="border-l-2 border-r-2 border-l-green-700 border-r-green-700 px-2 py-1 text-left">
-                            <span className="text-red-600 font-medium text-[10px]">
+                            <span className="text-red-600 font-medium">
                               {employee.employeeName} – Missing Buckets ({mb.quantity.toFixed(0)} pcs – {dateLabel})
                             </span>
                           </td>
