@@ -208,7 +208,7 @@ export async function generatePayrollReport({
 
         const dailyWork: Record<
           string,
-          { tasks: Record<string, { hours: number; pieces: number }> }
+          { tasks: Record<string, { hours: number; pieces: number; isMissingBuckets?: boolean }> }
         > = {};
         // Start with state minimum wage as fallback, will be replaced by client-specific minimum wage
         let applicableMinWage = STATE_MINIMUM_WAGE;
@@ -257,6 +257,9 @@ export async function generatePayrollReport({
           if (!dailyWork[dayKey].tasks[entry.taskId])
             dailyWork[dayKey].tasks[entry.taskId] = { hours: 0, pieces: 0 };
           dailyWork[dayKey].tasks[entry.taskId].pieces += entry.pieceCount;
+          if ((entry as Piecework).isMissingBuckets) {
+            dailyWork[dayKey].tasks[entry.taskId].isMissingBuckets = true;
+          }
         });
 
         const dailyBreakdownsForWeek: DailyBreakdown[] = [];
@@ -439,7 +442,7 @@ export async function generatePayrollReport({
                 : effectiveHourlyRate;
 
             taskDetailsForDay.push({
-              taskId: taskId, // <- Agregar esto
+              taskId: taskId,
               taskName: `${task.name}${task.variety ? ` (${task.variety})` : ""} - ${taskTypeLabel}`,
               clientName: client?.name || "Unknown Client",
               ranch: task.ranch,
@@ -449,6 +452,7 @@ export async function generatePayrollReport({
               totalEarnings: earningsForTask,
               taskType: task.clientRateType,
               rate: taskRate,
+              isMissingBuckets: dailyWork[dayKey].tasks[taskId].isMissingBuckets,
             });
           }
 

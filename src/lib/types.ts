@@ -64,6 +64,8 @@ export type Piecework = {
   pieceCount: number;
   pieceQrCode: string;
   qcNote?: string;
+  isMissingBuckets?: boolean;
+  originalDate?: string;
 };
 
 export type SharedPieceLog = {
@@ -87,6 +89,7 @@ export type DailyTaskDetail = {
   totalEarnings: number;
   taskType?: "hourly" | "piece"; // Task rate type for display
   rate?: number; // Hourly rate or piece price for display
+  isMissingBuckets?: boolean;
 };
 
 export type DailyBreakdown = {

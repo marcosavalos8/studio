@@ -28,6 +28,7 @@ export type DailyBreakdown = {
         cost: number;
         clientRate: number;
         clientRateType: "hourly" | "piece";
+        isMissingBuckets?: boolean;
       };
     };
     total: number;

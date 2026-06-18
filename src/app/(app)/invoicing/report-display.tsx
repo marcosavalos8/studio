@@ -100,6 +100,7 @@ export function InvoiceReportDisplay({
     unit: string;
     price: number;
     total: number;
+    isMissingBuckets?: boolean;
   };
 
   const regularRows: TableRow[] = [];
@@ -115,6 +116,7 @@ export function InvoiceReportDisplay({
         unit,
         price: task.clientRate,
         total: task.cost,
+        isMissingBuckets: task.isMissingBuckets,
       });
     });
   });
@@ -619,6 +621,11 @@ export function InvoiceReportDisplay({
                     style={{ border: "1px solid #e5e7eb", padding: "4px 8px" }}
                   >
                     {row.description}
+                    {row.isMissingBuckets && (
+                      <span style={{ color: "#ef4444", fontSize: "11px", fontWeight: 600, marginLeft: "4px" }}>
+                        – Missing Buckets
+                      </span>
+                    )}
                   </td>
                   <td
                     style={{

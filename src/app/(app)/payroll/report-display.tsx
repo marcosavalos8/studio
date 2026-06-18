@@ -42,7 +42,12 @@ function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData[
               {day.tasks.map((task, idx) => (
                 <TableRow key={idx}>
                   <TableCell>
-                    <div>{task.taskName}</div>
+                    <div>
+                      {task.taskName}
+                      {task.isMissingBuckets && (
+                        <span className="ml-1 text-xs font-semibold text-red-500"> – Missing Buckets</span>
+                      )}
+                    </div>
                     <div className="text-xs text-muted-foreground">{task.clientName} {task.ranch && ` - ${task.ranch}`}</div>
                     {task.rate !== undefined && task.taskType && (
                       <div className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">

@@ -283,6 +283,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
               const taskDetail = dailyBreakdown[day.date].tasks[task.taskName];
               taskDetail.hours += task.hours;
               taskDetail.pieces += task.pieceworkCount;
+              if (task.isMissingBuckets) taskDetail.isMissingBuckets = true;
             });
           });
         });
