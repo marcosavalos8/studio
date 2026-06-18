@@ -656,7 +656,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
     }
   };
 
-  // Collect all unique tasks across all employees
+  // Collect all unique tasks across all employees (including missing buckets)
   const allTaskNames = new Set<string>();
   const missingBucketsTasks = new Set<string>();
   if (hasEmployeeDetails && report.employeeDetails) {
@@ -664,6 +664,10 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
       employee.tasksSummary.forEach((task) => {
         allTaskNames.add(task.taskName);
         if (task.isMissingBuckets) missingBucketsTasks.add(task.taskName);
+      });
+      employee.missingBucketsSummary?.forEach((mb) => {
+        allTaskNames.add(mb.taskName);
+        missingBucketsTasks.add(mb.taskName);
       });
     });
   }
