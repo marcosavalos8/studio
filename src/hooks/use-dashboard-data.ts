@@ -200,9 +200,12 @@ export function useWorkActivityData() {
       const monthDate = subMonths(now, i)
       const monthKey = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`
       const monthName = monthNames[monthDate.getMonth()]
-      
+      // Include the year so months from different years are distinguishable
+      // e.g. "Jan 2026"
+      const monthLabel = `${monthName.slice(0, 3)} ${monthDate.getFullYear()}`
+
       chartDataArray.push({
-        month: monthName,
+        month: monthLabel,
         hours: Math.round(monthlyStats[monthKey].hours),
         pieces: monthlyStats[monthKey].pieces,
         employees: monthlyStats[monthKey].employees.size,
