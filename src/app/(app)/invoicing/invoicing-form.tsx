@@ -699,7 +699,11 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
                 parseLocalDate(b.date).getTime()
             ),
             tasksSummary: laborTasksSummary,
-            missingBucketsSummary: laborMissingBucketsSummary.length > 0 ? laborMissingBucketsSummary : undefined,
+            // Only include the key when there are entries — Firestore rejects
+            // `undefined` field values, which would break Create Record.
+            ...(laborMissingBucketsSummary.length > 0
+              ? { missingBucketsSummary: laborMissingBucketsSummary }
+              : {}),
           };
         });
 
