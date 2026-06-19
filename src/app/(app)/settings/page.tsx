@@ -12,6 +12,17 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Settings as SettingsIcon, Palette, Moon, Sun, Check, Key, Eye, EyeOff, Building2, Loader2, RefreshCw } from "lucide-react";
 import { forceAppUpdate } from "@/lib/force-update";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -552,10 +563,29 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button variant="outline" onClick={() => forceAppUpdate()}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Update &amp; clear cache
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Update &amp; clear cache
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Update &amp; clear cache?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will clear the cached app data and reload the latest
+                  version. No data is lost. Continue?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => forceAppUpdate()}>
+                  Update now
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </CardContent>
       </Card>
     </div>
