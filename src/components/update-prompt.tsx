@@ -42,6 +42,14 @@ export default function UpdatePrompt() {
   }, []);
 
   useEffect(() => {
+    // Strip the cache-busting param left by forceAppUpdate so the URL stays clean.
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("_u")) {
+        url.searchParams.delete("_u");
+        window.history.replaceState(null, "", url.toString());
+      }
+    }
     checkVersion(); // check immediately on mount
     const intervalId = setInterval(checkVersion, CHECK_INTERVAL_MS);
     const onVisible = () => {
