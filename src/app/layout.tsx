@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/contexts/auth-context";
 import { SettingsProvider } from "@/contexts/settings-context";
 import ServiceWorkerRegister from "../components/service-worker-registrer";
+import UpdatePrompt from "../components/update-prompt";
 
 export const metadata: Metadata = {
   title: "FieldTack WA",
@@ -46,6 +47,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <ServiceWorkerRegister />
+        <UpdatePrompt />
         <SettingsProvider>
           <AuthProvider>{children}</AuthProvider>
         </SettingsProvider>

@@ -1,9 +1,20 @@
 import withPWA from "@ducanh2912/next-pwa";
 
+// Unique identifier for each build. On Vercel every deploy gets a fresh
+// VERCEL_GIT_COMMIT_SHA; locally/other hosts fall back to a build timestamp.
+const buildVersion =
+  process.env.VERCEL_GIT_COMMIT_SHA ||
+  process.env.BUILD_VERSION ||
+  String(Date.now());
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Exposed to both server (/api/version) and client bundle (update prompt)
+  env: {
+    NEXT_PUBLIC_BUILD_VERSION: buildVersion,
+  },
   // sin experimental.trace
   typescript: {
     ignoreBuildErrors: true, // 👈 Ignora errores de tipos al compilar

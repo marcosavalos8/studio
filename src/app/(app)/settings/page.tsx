@@ -10,7 +10,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Settings as SettingsIcon, Palette, Moon, Sun, Check, Key, Eye, EyeOff, Building2, Loader2 } from "lucide-react";
+import { Settings as SettingsIcon, Palette, Moon, Sun, Check, Key, Eye, EyeOff, Building2, Loader2, RefreshCw } from "lucide-react";
+import { forceAppUpdate } from "@/lib/force-update";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -535,6 +536,26 @@ export default function SettingsPage() {
               Save Changes
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* App Updates */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <RefreshCw className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg md:text-xl">App Updates</CardTitle>
+          </div>
+          <CardDescription className="text-sm">
+            If the app looks outdated or a change isn&apos;t showing, use this to
+            clear the cache and reload the latest version. No data is lost.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" onClick={() => forceAppUpdate()}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Update &amp; clear cache
+          </Button>
         </CardContent>
       </Card>
     </div>
