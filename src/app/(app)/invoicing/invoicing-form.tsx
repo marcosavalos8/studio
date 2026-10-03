@@ -459,7 +459,11 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         const employeeOvertimePremium =
           overtimeForThisClientByEmployee.get(emp.employeeId)?.premium || 0;
 
-        // Build task summary for this employee
+        // Build task summary for this employee. Grouped by taskId (not task
+        // name) so two different Task records that happen to share a display
+        // name — e.g. the same task re-created mid-season at a different rate —
+        // stay on separate rows instead of merging their pieces under a single
+        // (wrong) rate.
         const tasksSummaryMap = new Map<string, {
           taskName: string;
           hours: number;
@@ -488,12 +492,12 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
 
             // Aggregate tasks for summary
             day.tasks.forEach((task) => {
-              const existing = tasksSummaryMap.get(task.taskName);
+              const existing = tasksSummaryMap.get(task.taskId);
               if (existing) {
                 existing.hours += task.hours;
                 existing.pieces += task.pieceworkCount;
               } else {
-                tasksSummaryMap.set(task.taskName, {
+                tasksSummaryMap.set(task.taskId, {
                   taskName: task.taskName,
                   hours: task.hours,
                   pieces: task.pieceworkCount,
@@ -612,6 +616,9 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
               ? empOvertimePremium / (0.5 * empOvertimeHours)
               : 0;
 
+          // Grouped by taskId (see tasksSummaryMap above for why: two Task
+          // records sharing a display name but different rates must stay on
+          // separate rows).
           const laborTasksSummaryMap = new Map<string, {
             taskName: string;
             hours: number;
@@ -641,7 +648,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
               );
               day.tasks.forEach((task) => {
                 if (task.isMissingBuckets) {
-                  const key = `${task.taskName}|${task.originalDate || ""}`;
+                  const key = `${task.taskId}|${task.originalDate || ""}`;
                   const existing = laborMissingBucketsMap.get(key);
                   if (existing) {
                     existing.pieces += task.pieceworkCount;
@@ -654,12 +661,12 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
                     });
                   }
                 } else {
-                  const existing = laborTasksSummaryMap.get(task.taskName);
+                  const existing = laborTasksSummaryMap.get(task.taskId);
                   if (existing) {
                     existing.hours += task.hours;
                     existing.pieces += task.pieceworkCount;
                   } else {
-                    laborTasksSummaryMap.set(task.taskName, {
+                    laborTasksSummaryMap.set(task.taskId, {
                       taskName: task.taskName,
                       hours: task.hours,
                       pieces: task.pieceworkCount,

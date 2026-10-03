@@ -323,6 +323,10 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
           ? overtimeData.weightedRateSum / overtimeData.overtimeHours 
           : 0;
 
+        // Grouped by taskId, not task name: two Task records that share a
+        // display name but have different rates (e.g. the same task
+        // re-created mid-season at a new price) must stay on separate rows
+        // instead of merging their pieces under a single (wrong) rate.
         const tasksSummaryMap = new Map<string, {
           taskName: string;
           hours: number;
@@ -358,7 +362,7 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
 
             day.tasks.forEach((task) => {
               if (task.isMissingBuckets) {
-                const key = `${task.taskName}|${task.originalDate || ""}`;
+                const key = `${task.taskId}|${task.originalDate || ""}`;
                 const existing = missingBucketsMap.get(key);
                 if (existing) {
                   existing.pieces += task.pieceworkCount;
@@ -371,12 +375,12 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
                   });
                 }
               } else {
-                const existing = tasksSummaryMap.get(task.taskName);
+                const existing = tasksSummaryMap.get(task.taskId);
                 if (existing) {
                   existing.hours += task.hours;
                   existing.pieces += task.pieceworkCount;
                 } else {
-                  tasksSummaryMap.set(task.taskName, {
+                  tasksSummaryMap.set(task.taskId, {
                     taskName: task.taskName,
                     hours: task.hours,
                     pieces: task.pieceworkCount,
