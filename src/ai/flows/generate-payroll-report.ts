@@ -212,7 +212,7 @@ export async function generatePayrollReport({
         // in `taskId` for task lookups.
         const dailyWork: Record<
           string,
-          { tasks: Record<string, { taskId: string; hours: number; pieces: number; isMissingBuckets?: boolean; originalDate?: string }> }
+          { tasks: Record<string, { taskId: string; hours: number; pieces: number; isMissingBuckets?: boolean; originalDate?: string; firstClockInMs?: number }> }
         > = {};
         // Start with state minimum wage as fallback, will be replaced by client-specific minimum wage
         let applicableMinWage = STATE_MINIMUM_WAGE;
@@ -245,6 +245,13 @@ export async function generatePayrollReport({
           if (!dailyWork[dayKey].tasks[entry.taskId])
             dailyWork[dayKey].tasks[entry.taskId] = { taskId: entry.taskId, hours: 0, pieces: 0 };
           dailyWork[dayKey].tasks[entry.taskId].hours += hours;
+          // Track the earliest clock-in for this task/day so weekly overtime
+          // can be attributed chronologically across clients (see PASO 3.5 below).
+          const clockInMs = date.getTime();
+          const existingFirstClockInMs = dailyWork[dayKey].tasks[entry.taskId].firstClockInMs;
+          if (existingFirstClockInMs === undefined || clockInMs < existingFirstClockInMs) {
+            dailyWork[dayKey].tasks[entry.taskId].firstClockInMs = clockInMs;
+          }
 
           // Add pieces from piecesWorked field in TimeEntry
           if (entry.piecesWorked && entry.piecesWorked > 0) {
@@ -289,6 +296,17 @@ export async function generatePayrollReport({
         const piecesByTaskVariety = new Map<string, { taskName: string; variety: string; totalPieces: number; price?: number; isMissingBuckets?: boolean; originalDate?: string }>();
         // Track hours by payroll rate for the week (hourly)
         const hoursByRate = new Map<number, number>();
+
+        // Chronological hour blocks (one per task worked that day), used after the
+        // day loop to attribute overtime hours to whichever client generated them.
+        // Order is day ascending, then by clock-in time within the same day.
+        const weeklyHourBlocks: Array<{
+          dayKey: string;
+          clockInMs: number;
+          clientId: string;
+          clientName: string;
+          hours: number;
+        }> = [];
 
         // Accumulator for weekly break pay (computed per day)
         let weeklyRestBreaksPay = 0;
@@ -410,6 +428,18 @@ export async function generatePayrollReport({
             dailyTotalHours += hours;
             dailyTotalRawEarnings += earningsForTask;
 
+            // Record this task's worked hours as a chronological block, used later
+            // to figure out which client's work pushed the employee past 40 hrs.
+            if (hours > 0) {
+              weeklyHourBlocks.push({
+                dayKey,
+                clockInMs: taskWork.firstClockInMs ?? parseLocalDate(dayKey).getTime(),
+                clientId: task.clientId,
+                clientName: client?.name || "Unknown Client",
+                hours,
+              });
+            }
+
             // Track separately by task type for weekly and daily calculation
             if (isHourlyTask) {
               weeklyHourlyEarnings += earningsForTask;
@@ -422,18 +452,23 @@ export async function generatePayrollReport({
               dailyPieceworkEarnings += earningsForTask;
             }
             
-            // Track pieces by task/variety if this is a piecework task
+            // Track pieces by task/variety/rate if this is a piecework task.
+            // The rate is part of the grouping key: the same task name can be
+            // worked for different clients in the same week at different piece
+            // rates (e.g. Grapes Harvest at $80 for one client, $85 for another),
+            // and each rate must stay on its own row so the price shown next to
+            // each row matches the pieces it was actually paid at.
             if (pieces > 0 && task.clientRateType === "piece") {
               const taskIsMissingBuckets = taskWork.isMissingBuckets;
               const taskOriginalDate = taskWork.originalDate;
+              const rateKey = (effectivePiecePrice || 0).toFixed(2);
               // Keep Missing Buckets entries in their own row, separated by original date
               const varietyKey = taskIsMissingBuckets
-                ? `${task.name}|${task.variety || "N/A"}|MB|${taskOriginalDate || ""}`
-                : `${task.name}|${task.variety || "N/A"}`;
+                ? `${task.name}|${task.variety || "N/A"}|${rateKey}|MB|${taskOriginalDate || ""}`
+                : `${task.name}|${task.variety || "N/A"}|${rateKey}`;
               if (piecesByTaskVariety.has(varietyKey)) {
                 const existing = piecesByTaskVariety.get(varietyKey)!;
                 existing.totalPieces += pieces;
-                if (!existing.price && effectivePiecePrice) existing.price = effectivePiecePrice;
               } else {
                 piecesByTaskVariety.set(varietyKey, {
                   taskName: task.name,
@@ -602,6 +637,45 @@ export async function generatePayrollReport({
           regularRate = overtimeResult.regularRate;
         }
 
+        // PASO 3.6: ATRIBUIR EL OVERTIME AL CLIENTE QUE LO GENERÓ (para facturación)
+        // El trabajador ya recibe su overtime completo arriba (PASO 3.5), sin importar
+        // para cuántos clientes haya trabajado esa semana. Esto es solo para saber a
+        // qué cliente(s) facturar esa prima: se recorren los bloques de horas trabajadas
+        // en orden cronológico (fecha, luego hora de entrada) y las horas que caen
+        // después de la hora 40 acumulada se marcan como overtime para el cliente de
+        // ese bloque. Un mismo bloque puede quedar partido entre regular y overtime si
+        // el corte de las 40 horas cae en medio de él.
+        let overtimeByClient: WeeklySummary["overtimeByClient"];
+        if (overtimeHours > 0) {
+          const sortedBlocks = [...weeklyHourBlocks].sort((a, b) => {
+            if (a.dayKey !== b.dayKey) return a.dayKey < b.dayKey ? -1 : 1;
+            return a.clockInMs - b.clockInMs;
+          });
+
+          const otHoursByClient = new Map<string, { clientName: string; hours: number }>();
+          let cumulativeHours = 0;
+          for (const block of sortedBlocks) {
+            const hoursBeforeBlock = cumulativeHours;
+            cumulativeHours += block.hours;
+            const otHoursInBlock = Math.max(0, cumulativeHours - Math.max(40, hoursBeforeBlock));
+            if (otHoursInBlock > 0) {
+              const existing = otHoursByClient.get(block.clientId);
+              if (existing) {
+                existing.hours += otHoursInBlock;
+              } else {
+                otHoursByClient.set(block.clientId, { clientName: block.clientName, hours: otHoursInBlock });
+              }
+            }
+          }
+
+          overtimeByClient = Array.from(otHoursByClient.entries()).map(([clientId, data]) => ({
+            clientId,
+            clientName: data.clientName,
+            overtimeHours: parseFloat(data.hours.toFixed(2)),
+            overtimePremium: parseFloat((regularRate * 0.5 * data.hours).toFixed(2)),
+          }));
+        }
+
         // PASO 4: PAGO FINAL INCLUYENDO OVERTIME
         const finalWeeklyPay = finalWeeklyPayBeforeOvertime + overtimePremium;
 
@@ -675,6 +749,7 @@ export async function generatePayrollReport({
           overtimeHours: overtimeHours > 0 ? parseFloat(overtimeHours.toFixed(2)) : undefined,
           overtimePremium: overtimePremium > 0 ? parseFloat(overtimePremium.toFixed(2)) : undefined,
           regularRate: regularRate > 0 ? parseFloat(regularRate.toFixed(2)) : undefined,
+          overtimeByClient,
           finalPay: parseFloat(finalWeeklyPay.toFixed(2)),
           dailyBreakdown: dailyBreakdownsForWeek,
           sickHoursAccrued: parseFloat(sickHoursAccrued.toFixed(2)),

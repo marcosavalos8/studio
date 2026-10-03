@@ -141,16 +141,26 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         return;
       }
 
-      // Fetch all entries within the date range, then filter by task IDs in code
+      // Fetch every task (all clients) too. A worker can split a week across up
+      // to ~6 clients, so figuring out which client's hours actually pushed them
+      // past 40/week (and therefore who should be billed for the overtime) needs
+      // the full picture, not just this client's tasks. See the second
+      // generatePayrollReport call below.
+      const allTasksSnap = await getDocs(collection(firestore, "tasks"));
+      const allTasks = allTasksSnap.docs.map(
+        (doc) => ({ id: doc.id, ...doc.data() } as Task)
+      );
+
+      // Fetch all entries within the date range (all clients), then filter by
+      // this client's task IDs in code for the existing client-only calculation.
       const timeEntriesQuery = query(
         collection(firestore, "time_entries"),
         where("timestamp", ">=", startDate),
         where("timestamp", "<=", endDate)
       );
       const timeEntriesSnap = await getDocs(timeEntriesQuery);
-      const timeEntries = timeEntriesSnap.docs
+      const allTimeEntries = timeEntriesSnap.docs
         .map((doc) => ({ ...doc.data(), id: doc.id } as TimeEntry))
-        .filter((te) => taskIds.includes(te.taskId))
         .map((te) => {
           const timestampDate = (
             te.timestamp as unknown as Timestamp
@@ -167,6 +177,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
               : null,
           };
         });
+      const timeEntries = allTimeEntries.filter((te) => taskIds.includes(te.taskId));
 
       const pieceworkQuery = query(
         collection(firestore, "piecework"),
@@ -174,9 +185,8 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         where("timestamp", "<=", endDate)
       );
       const pieceworkSnap = await getDocs(pieceworkQuery);
-      const piecework = pieceworkSnap.docs
+      const allPiecework = pieceworkSnap.docs
         .map((doc) => ({ ...doc.data(), id: doc.id } as Piecework))
-        .filter((pw) => taskIds.includes(pw.taskId))
         .map((pw) => {
           const timestampDate = (
             pw.timestamp as unknown as Timestamp
@@ -189,6 +199,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
               : null,
           };
         });
+      const piecework = allPiecework.filter((pw) => taskIds.includes(pw.taskId));
 
       const jsonData = JSON.stringify({
         employees: allEmployees,
@@ -344,15 +355,51 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         );
       }, 0);
 
-      // Sum up overtime premium
+      // Overtime has to be figured out from the worker's FULL week across every
+      // client, not just this one — otherwise no single client's invoice ever
+      // sees more than 40 hrs and overtime never gets billed to anyone, even
+      // though the worker was correctly paid for it. Run the payroll flow again
+      // with all clients' tasks/entries for the period, then pull out only the
+      // slice of each week's overtime that generatePayrollReport attributed to
+      // this client (see `overtimeByClient` in generate-payroll-report.ts).
+      const fullJsonData = JSON.stringify({
+        employees: allEmployees,
+        tasks: allTasks,
+        clients,
+        timeEntries: allTimeEntries,
+        piecework: allPiecework,
+      });
+      const fullPayrollResult = await generatePayrollReport({
+        startDate: format(startDate, "yyyy-MM-dd"),
+        endDate: format(endDate, "yyyy-MM-dd"),
+        payDate: format(new Date(), "yyyy-MM-dd"),
+        jsonData: fullJsonData,
+      });
+
+      const overtimeForThisClientByEmployee = new Map<
+        string,
+        { hours: number; premium: number }
+      >();
+      fullPayrollResult.employeeSummaries.forEach((emp) => {
+        let hours = 0;
+        let premium = 0;
+        emp.weeklySummaries.forEach((week) => {
+          const attribution = week.overtimeByClient?.find(
+            (c) => c.clientId === clientData.id
+          );
+          if (attribution) {
+            hours += attribution.overtimeHours;
+            premium += attribution.overtimePremium;
+          }
+        });
+        if (hours > 0 || premium > 0) {
+          overtimeForThisClientByEmployee.set(emp.employeeId, { hours, premium });
+        }
+      });
+
+      // Sum up overtime premium attributed to this client
       const totalOvertimePremium = filteredSummaries.reduce((acc, emp) => {
-        return (
-          acc +
-          emp.weeklySummaries.reduce(
-            (weekAcc, week) => weekAcc + (week.overtimePremium || 0),
-            0
-          )
-        );
+        return acc + (overtimeForThisClientByEmployee.get(emp.employeeId)?.premium || 0);
       }, 0);
 
       const subtotal = laborCost + totalTopUp + totalRestBreaks + totalOvertimePremium;
@@ -380,15 +427,9 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         console.warn("Could not determine invoice number:", counterErr);
       }
 
-      // Collect overtime hours from payroll summaries
+      // Collect overtime hours attributed to this client
       const totalOvertimeHours = filteredSummaries.reduce((acc, emp) => {
-        return (
-          acc +
-          emp.weeklySummaries.reduce(
-            (weekAcc, week) => weekAcc + (week.overtimeHours || 0),
-            0
-          )
-        );
+        return acc + (overtimeForThisClientByEmployee.get(emp.employeeId)?.hours || 0);
       }, 0);
 
       // Build employee details for the optional second page
@@ -415,10 +456,8 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           (acc, week) => acc + week.minimumWageTopUp,
           0
         );
-        const employeeOvertimePremium = emp.weeklySummaries.reduce(
-          (acc, week) => acc + (week.overtimePremium || 0),
-          0
-        );
+        const employeeOvertimePremium =
+          overtimeForThisClientByEmployee.get(emp.employeeId)?.premium || 0;
 
         // Build task summary for this employee
         const tasksSummaryMap = new Map<string, {
@@ -561,22 +600,16 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           const empMinimumWageTopUp = emp.weeklySummaries.reduce(
             (acc, week) => acc + week.minimumWageTopUp, 0
           );
-          const overtimeData = emp.weeklySummaries.reduce(
-            (acc, week) => {
-              const weekOtHours = week.overtimeHours || 0;
-              return {
-                overtimePremium: acc.overtimePremium + (week.overtimePremium || 0),
-                overtimeHours: acc.overtimeHours + weekOtHours,
-                weightedRateSum: acc.weightedRateSum + (week.regularRate || 0) * weekOtHours,
-              };
-            },
-            { overtimePremium: 0, overtimeHours: 0, weightedRateSum: 0 }
-          );
-          const empOvertimePremium = overtimeData.overtimePremium;
-          const empOvertimeHours = overtimeData.overtimeHours;
+          // Overtime attributed to this client only (see overtimeForThisClientByEmployee above)
+          const empOvertimePremium =
+            overtimeForThisClientByEmployee.get(emp.employeeId)?.premium || 0;
+          const empOvertimeHours =
+            overtimeForThisClientByEmployee.get(emp.employeeId)?.hours || 0;
+          // overtimePremium = regularRate * 0.5 * hours, so this recovers the
+          // (hours-weighted) regular rate used across this client's OT hours.
           const empRegularRate =
             empOvertimeHours > 0
-              ? overtimeData.weightedRateSum / empOvertimeHours
+              ? empOvertimePremium / (0.5 * empOvertimeHours)
               : 0;
 
           const laborTasksSummaryMap = new Map<string, {

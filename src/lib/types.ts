@@ -126,6 +126,16 @@ export type WeeklySummary = {
   sickHoursAccrued?: number; // Sick hours earned this week
   totalPieces?: number; // Total pieces for the week
   piecesByVariety?: PiecesByVariety[]; // Pieces broken down by task/variety
+  // How this week's overtime premium splits across the clients worked for.
+  // The employee is always paid the full overtimePremium above regardless of
+  // client; this is only used to bill the right client(s) on their invoice,
+  // based on which client's hours chronologically pushed the week past 40.
+  overtimeByClient?: {
+    clientId: string;
+    clientName: string;
+    overtimeHours: number;
+    overtimePremium: number;
+  }[];
 };
 
 export type EmployeePayrollSummary = {

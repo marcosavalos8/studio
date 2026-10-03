@@ -140,16 +140,16 @@ function WeeklySummaryTable({ week }: { week: WeeklySummary }) {
               </TableCell>
             </TableRow>
 
-            {(week.totalPieces ?? 0) > 0 && (
+            {(week.piecesByVariety ?? []).length > 0 && (
               <>
                 <TableRow className="bg-indigo-50 dark:bg-indigo-900/20">
                   <TableCell
                     className={`${td} font-semibold text-indigo-700 dark:text-indigo-300`}
                   >
-                    Total Pieces Worked
+                    Task Summary
                   </TableCell>
                   <TableCell className="!py-[3px] !px-2.5 text-[10px] leading-none text-right text-muted-foreground font-semibold uppercase tracking-wide">
-                    Pieces
+                    Qty
                   </TableCell>
                   <TableCell className="!py-[3px] !px-2.5 text-[10px] leading-none text-right text-muted-foreground font-semibold uppercase tracking-wide">
                     Price
@@ -158,13 +158,17 @@ function WeeklySummaryTable({ week }: { week: WeeklySummary }) {
                     Total
                   </TableCell>
                 </TableRow>
-                {(week.piecesByVariety ?? []).map((item, idx) => (
+                {(week.piecesByVariety ?? []).map((item, idx) => {
+                  const isHourly = item.rateType === "hourly";
+                  const quantity = isHourly ? (item.totalHours ?? 0) : item.totalPieces;
+                  const rowTotal = quantity * (item.price ?? 0);
+                  return (
                   <TableRow
                     key={idx}
                     className="bg-indigo-50/40 dark:bg-indigo-900/10"
                   >
                     <TableCell className={`${td} !pl-5 text-muted-foreground`}>
-                      {item.taskName} — {item.variety}
+                      {isHourly ? item.taskName : `${item.taskName} — ${item.variety}`}
                       {item.isMissingBuckets && (
                         <span className="ml-1 text-[10px] font-semibold text-red-500">
                           {" "}– Missing Buckets
@@ -175,7 +179,7 @@ function WeeklySummaryTable({ week }: { week: WeeklySummary }) {
                     <TableCell
                       className={`${tdr} text-indigo-700 dark:text-indigo-300`}
                     >
-                      {item.totalPieces.toFixed(2)}
+                      {quantity.toFixed(2)}{isHourly ? " hrs" : ""}
                     </TableCell>
                     <TableCell
                       className={`${tdr} text-indigo-700 dark:text-indigo-300`}
@@ -185,10 +189,11 @@ function WeeklySummaryTable({ week }: { week: WeeklySummary }) {
                     <TableCell
                       className={`${tdr} font-semibold text-indigo-700 dark:text-indigo-300`}
                     >
-                      ${(item.totalPieces * (item.price ?? 0)).toFixed(2)}
+                      ${rowTotal.toFixed(2)}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </>
             )}
 
