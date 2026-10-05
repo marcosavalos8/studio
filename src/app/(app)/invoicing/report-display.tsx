@@ -112,7 +112,7 @@ export function InvoiceReportDisplay({
       const unit = isHourly ? "Hrs" : "Pcs";
       regularRows.push({
         date,
-        description: task.taskName,
+        description: task.block ? `${task.taskName} · Block ${task.block}` : task.taskName,
         quantity,
         unit,
         price: task.clientRate,

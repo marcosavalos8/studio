@@ -41,6 +41,7 @@ async function fetchCompanyInfo(): Promise<CompanyInfo> {
 
 interface InvoiceTaskDetail {
   taskName: string;
+  block?: string;
   hours: number;
   pieces: number;
   cost: number;
@@ -422,7 +423,7 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
       const isHourly = task.clientRateType === "hourly";
       regularRows.push({
         date,
-        description: task.taskName,
+        description: task.block ? `${task.taskName} · Block ${task.block}` : task.taskName,
         quantity: isHourly ? task.hours : task.pieces,
         unit: isHourly ? "Hrs" : "Pcs",
         price: task.clientRate,

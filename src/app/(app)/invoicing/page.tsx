@@ -28,6 +28,7 @@ export type DailyBreakdown = {
         cost: number;
         clientRate: number;
         clientRateType: "hourly" | "piece";
+        block?: string;
         isMissingBuckets?: boolean;
         originalDate?: string;
       };

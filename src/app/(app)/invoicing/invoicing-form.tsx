@@ -328,11 +328,12 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
               // date) so they are never merged into the current week's regular row
               // for the same task. The displayed name still uses task.taskName.
               const taskKey = task.isMissingBuckets
-                ? `${task.taskName}|MB|${task.originalDate || ""}`
-                : task.taskName;
+                ? `${task.taskId}|MB|${task.originalDate || ""}`
+                : task.taskId;
               if (!dailyBreakdown[day.date].tasks[taskKey]) {
                 dailyBreakdown[day.date].tasks[taskKey] = {
                   taskName: task.taskName,
+                  block: task.block,
                   hours: 0,
                   pieces: 0,
                   cost: 0,
