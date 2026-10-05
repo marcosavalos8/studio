@@ -7,6 +7,8 @@ import { Employee } from "@/lib/types";
 import { useSearchParams } from "next/navigation";
 import { Printer } from "lucide-react";
 
+const MIN_ROWS = 20;
+
 export default function PrintCrewListPage() {
   const searchParams = useSearchParams();
   const idsParam = searchParams.get("ids");
@@ -32,6 +34,9 @@ export default function PrintCrewListPage() {
     });
   }, [firestore, idsParam]);
 
+  const rowCount = Math.max(MIN_ROWS, employees.length);
+  const rows = Array.from({ length: rowCount }, (_, i) => employees[i] ?? null);
+
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: `
@@ -42,11 +47,11 @@ export default function PrintCrewListPage() {
           .sidebar, .app-header, .app-sidebar { display: none !important; }
         }
         @media print {
-          @page { size: letter portrait; margin: 0; }
+          @page { size: letter portrait; margin: 0.4in; }
           .print-controls { display: none !important; }
           body * { visibility: hidden !important; }
           .crew-list-root, .crew-list-root * { visibility: visible !important; }
-          .crew-list-root { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; padding: 0.5in !important; box-sizing: border-box !important; }
+          .crew-list-root { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; padding: 0 !important; box-sizing: border-box !important; }
           body { margin: 0 !important; padding: 0 !important; background: white !important; }
         }
         .print-controls {
@@ -65,33 +70,32 @@ export default function PrintCrewListPage() {
         .print-button:disabled { background: #d1d5db; cursor: not-allowed; }
         .crew-list-root {
           width: 100%; background: white; min-height: 100vh;
-          padding: 24px; box-sizing: border-box; font-family: Arial, sans-serif;
+          padding: 24px; box-sizing: border-box; font-family: Arial, sans-serif; color: #000;
         }
-        .crew-header {
-          display: flex; gap: 48px; margin-bottom: 20px;
-          border-bottom: 2px solid #000; padding-bottom: 12px;
-          font-size: 13px;
+        .crew-company { text-align: center; font-size: 18px; font-weight: bold; letter-spacing: 0.02em; }
+        .crew-title { text-align: center; font-size: 14px; font-weight: bold; margin: 4px 0 10px; text-transform: uppercase; }
+        .crew-meta {
+          width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 12px;
         }
-        .crew-header-field { display: flex; gap: 8px; align-items: baseline; }
-        .crew-header-label { font-weight: bold; white-space: nowrap; }
-        .crew-header-line {
-          border-bottom: 1px solid #000; min-width: 140px; display: inline-block;
-        }
+        .crew-meta td { border: 1px solid #000; padding: 6px 8px; }
+        .crew-meta td.label { font-weight: bold; width: 18%; }
         .crew-table {
-          width: 100%; border-collapse: collapse; font-size: 12px;
+          width: 100%; border-collapse: collapse; font-size: 11px;
         }
-        .crew-table th {
-          background: #1f2937; color: white; padding: 6px 10px;
-          text-align: left; font-size: 11px; text-transform: uppercase;
-          letter-spacing: 0.05em;
+        .crew-table th, .crew-table td {
+          border: 1px solid #000; padding: 5px 6px; text-align: left;
         }
-        .crew-table th.text-center { text-align: center; }
-        .crew-table td {
-          padding: 6px 10px; border-bottom: 1px solid #e5e7eb;
-          font-size: 12px;
+        .crew-table th { background: #d1d5db; font-size: 10px; text-transform: uppercase; }
+        .crew-table td.num { width: 4%; text-align: center; }
+        .crew-table td.emp { width: 12%; }
+        .crew-table td.time, .crew-table th.time { width: 9%; text-align: center; }
+        .crew-table td.bins, .crew-table th.bins { width: 7%; text-align: center; }
+        .crew-table td.name { width: 27%; }
+        .crew-table tr.row { height: 26px; }
+        .crew-footer {
+          width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px;
         }
-        .crew-table tr:nth-child(even) td { background: #f9fafb; }
-        .crew-table td.text-center { text-align: center; }
+        .crew-footer td { border: 1px solid #000; padding: 6px 8px; font-weight: bold; }
       `}} />
 
       <div className="print-controls">
@@ -106,39 +110,69 @@ export default function PrintCrewListPage() {
       </div>
 
       <div className="crew-list-root">
-        {/* Header with blank fields */}
-        <div className="crew-header">
-          <div className="crew-header-field">
-            <span className="crew-header-label">Date:</span>
-            <span className="crew-header-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-          </div>
-          <div className="crew-header-field">
-            <span className="crew-header-label">Client:</span>
-            <span className="crew-header-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-          </div>
-          <div className="crew-header-field">
-            <span className="crew-header-label">Task:</span>
-            <span className="crew-header-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-          </div>
-        </div>
+        <div className="crew-company">J&amp;M AGRICULTURAL LABOR LLC</div>
+        <div className="crew-title">Daily Crew Sheet</div>
 
-        {/* Crew table */}
+        <table className="crew-meta">
+          <tbody>
+            <tr>
+              <td className="label">Date:</td>
+              <td></td>
+              <td className="label">Grower / Orchard:</td>
+              <td></td>
+            </tr>
+            <tr>
+              <td className="label">Location / Block:</td>
+              <td></td>
+              <td className="label">Variety:</td>
+              <td></td>
+            </tr>
+            <tr>
+              <td className="label">Crew Leader:</td>
+              <td></td>
+              <td className="label">Number of Workers:</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+
         <table className="crew-table">
           <thead>
             <tr>
-              <th>Employee #</th>
-              <th>Name</th>
-              <th className="text-center">Pieces</th>
+              <th className="num">#</th>
+              <th className="emp">Emp #</th>
+              <th className="name">Employee Name</th>
+              <th className="time">Start</th>
+              <th className="time">Lunch Out</th>
+              <th className="time">Lunch In</th>
+              <th className="time">End</th>
+              <th className="time">Hours</th>
+              <th className="bins">Bins</th>
             </tr>
           </thead>
           <tbody>
-            {employees.map((emp) => (
-              <tr key={emp.id}>
-                <td>{emp.employeeNumber || "—"}</td>
-                <td>{emp.name}</td>
-                <td className="text-center">&nbsp;</td>
+            {rows.map((emp, i) => (
+              <tr className="row" key={emp?.id ?? `blank-${i}`}>
+                <td className="num">{i + 1}</td>
+                <td className="emp">{emp?.employeeNumber || ""}</td>
+                <td className="name">{emp?.name || ""}</td>
+                <td className="time"></td>
+                <td className="time"></td>
+                <td className="time"></td>
+                <td className="time"></td>
+                <td className="time"></td>
+                <td className="bins"></td>
               </tr>
             ))}
+          </tbody>
+        </table>
+
+        <table className="crew-footer">
+          <tbody>
+            <tr>
+              <td style={{ width: "50%" }}>Total Workers: {employees.length || ""}</td>
+              <td>Total Hours: </td>
+            </tr>
           </tbody>
         </table>
       </div>
