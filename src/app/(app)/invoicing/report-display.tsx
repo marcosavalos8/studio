@@ -149,6 +149,26 @@ export function InvoiceReportDisplay({
     sortedDates[sortedDates.length - 1] ??
     "";
 
+  // OT premium is paid to hourly workers, so it is labeled with the hourly task
+  const hourlyTaskNames = new Set<string>();
+  sortedDates.forEach((date) => {
+    Object.values(report.dailyBreakdown[date].tasks).forEach((task) => {
+      if (task.clientRateType === "hourly") hourlyTaskNames.add(task.taskName);
+    });
+  });
+  const otPrefix =
+    hourlyTaskNames.size === 0
+      ? pieceworkPrefix
+      : hourlyTaskNames.size === 1
+        ? `${Array.from(hourlyTaskNames)[0]}-`
+        : "Hourly-";
+  const lastHourlyDate =
+    [...sortedDates].reverse().find((date) =>
+      Object.values(report.dailyBreakdown[date].tasks).some(
+        (task) => task.clientRateType === "hourly",
+      ),
+    ) ?? lastPieceworkDate;
+
   // Compute adjustment rows: P/W BREAK, OT Premium, MW
   const otHours = report.overtimeHours ?? 0;
   const otPremium = report.overtimePremium ?? 0;
@@ -184,8 +204,8 @@ export function InvoiceReportDisplay({
       total: report.paidRestBreaks,
     },
     {
-      date: lastPieceworkDate,
-      description: `${pieceworkPrefix}OT Premium (0.5x rate)`,
+      date: lastHourlyDate,
+      description: `${otPrefix}OT Premium (0.5x rate)`,
       quantity: otHours,
       unit: "OT Hrs",
       price: otPrice,
@@ -671,6 +691,28 @@ export function InvoiceReportDisplay({
               ))}
             </tbody>
           </table>
+
+          {(report.weeklyHoursByTask ?? []).length > 0 && (
+            <div style={{ marginTop: "16px", fontSize: "12px" }}>
+              <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+                Total Hours Worked per Week
+              </div>
+              {(report.weeklyHoursByTask ?? []).map((week, wIdx) => (
+                <div key={wIdx} style={{ marginBottom: "8px" }}>
+                  <div style={{ fontWeight: "bold", color: "#374151" }}>
+                    {parseLocalDate(week.from).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}
+                    {" – "}
+                    {parseLocalDate(week.to).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}
+                  </div>
+                  {week.tasks.map((t, tIdx) => (
+                    <div key={tIdx} style={{ paddingLeft: "12px" }}>
+                      {t.taskName}: {formatNumber(t.hours)} hrs
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* ── LABOR SUBTOTAL + TOTALS SIDE BY SIDE ── */}
           <div

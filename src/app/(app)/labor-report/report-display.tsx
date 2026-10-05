@@ -1030,6 +1030,30 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                 </div>
               </div>
 
+              {(report.weeklyHoursByTask ?? []).length > 0 && (
+                <div>
+                  <h3 className="font-bold mb-2 text-[12px]">
+                    Total Hours Worked per Week
+                  </h3>
+                  <div className="text-xs space-y-2">
+                    {(report.weeklyHoursByTask ?? []).map((week, wIdx) => (
+                      <div key={wIdx}>
+                        <div className="font-semibold">
+                          {parseLocalDate(week.from).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}
+                          {" – "}
+                          {parseLocalDate(week.to).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}
+                        </div>
+                        {week.tasks.map((t, tIdx) => (
+                          <div key={tIdx} className="pl-3">
+                            {t.taskName}: {t.hours.toFixed(2)} hrs
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Total Base Labor Cost Section */}
               <div>
                 <h3 className="font-bold mb-2 text-[12px]">

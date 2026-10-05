@@ -138,6 +138,12 @@ export type WeeklySummary = {
   }[];
 };
 
+export type WeeklyTaskHours = Array<{
+  from: string;
+  to: string;
+  tasks: Array<{ taskName: string; hours: number }>;
+}>;
+
 export type EmployeePayrollSummary = {
   employeeId: string;
   employeeName: string;

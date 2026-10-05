@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Client, Task, Piecework, TimeEntry, Employee, SavedInvoiceClientSnapshot } from "@/lib/types";
+import type { Client, Task, Piecework, TimeEntry, Employee, SavedInvoiceClientSnapshot, WeeklyTaskHours } from "@/lib/types";
 import type { DateRange } from "react-day-picker";
 import { useFirestore } from "@/firebase";
 import {
@@ -222,6 +222,45 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         payDate: format(new Date(), "yyyy-MM-dd"), // Pay date is not critical for invoice
         jsonData: jsonData,
       });
+
+      // Total hours per task for each week in the period (this client's tasks only)
+      const hoursByWeek = new Map<
+        string,
+        { dates: string[]; tasks: Map<string, { taskName: string; hours: number }> }
+      >();
+      payrollResult.employeeSummaries.forEach((emp) => {
+        emp.weeklySummaries.forEach((week) => {
+          const weekKey = `${week.year}-${week.weekNumber}`;
+          if (!hoursByWeek.has(weekKey)) {
+            hoursByWeek.set(weekKey, { dates: [], tasks: new Map() });
+          }
+          const bucket = hoursByWeek.get(weekKey)!;
+          week.dailyBreakdown.forEach((day) => {
+            bucket.dates.push(day.date);
+            day.tasks.forEach((task) => {
+              const existing = bucket.tasks.get(task.taskId);
+              if (existing) {
+                existing.hours += task.hours;
+              } else {
+                bucket.tasks.set(task.taskId, { taskName: task.taskName, hours: task.hours });
+              }
+            });
+          });
+        });
+      });
+      const weeklyHoursByTask: WeeklyTaskHours = Array.from(hoursByWeek.values())
+        .filter((bucket) => bucket.dates.length > 0)
+        .map((bucket) => {
+          const sortedWeekDates = [...bucket.dates].sort();
+          return {
+            from: sortedWeekDates[0],
+            to: sortedWeekDates[sortedWeekDates.length - 1],
+            tasks: Array.from(bucket.tasks.values())
+              .map((t) => ({ taskName: t.taskName, hours: parseFloat(t.hours.toFixed(2)) }))
+              .sort((a, b) => a.taskName.localeCompare(b.taskName)),
+          };
+        })
+        .sort((a, b) => a.from.localeCompare(b.from));
 
       // --- Transform payroll data into detailed invoice data ---
       const dailyBreakdown: DetailedInvoiceData["dailyBreakdown"] = {};
@@ -574,6 +613,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         invoiceNumber,
         invoiceDate: format(new Date(), "MM/dd/yyyy"),
         dailyBreakdown,
+        weeklyHoursByTask,
         laborCost,
         minimumWageTopUp: totalTopUp,
         paidRestBreaks: totalRestBreaks,
@@ -754,6 +794,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
             to: format(endDate, "yyyy-MM-dd"),
           },
           dailyBreakdown,
+          weeklyHoursByTask,
           laborCost,
           minimumWageTopUp: totalTopUp,
           paidRestBreaks: totalRestBreaks,

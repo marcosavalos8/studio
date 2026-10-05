@@ -11,7 +11,7 @@ import { LabelReportForm } from "./label-report-form";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import { useFirestore } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
-import type { Client } from "@/lib/types";
+import type { Client, WeeklyTaskHours } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMemo } from "react";
 import { withAuth } from "@/components/withAuth";
@@ -39,6 +39,7 @@ export type DetailedLabelReportData = {
     to: string;
   };
   dailyBreakdown: DailyBreakdown;
+  weeklyHoursByTask?: WeeklyTaskHours;
   laborCost: number;
   minimumWageTopUp: number;
   paidRestBreaks: number;

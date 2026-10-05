@@ -456,6 +456,30 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
     sortedDates[sortedDates.length - 1] ??
     "";
 
+  // OT premium is paid to hourly workers, so it is labeled with the hourly task
+  const hourlyTaskNames = new Set<string>();
+  sortedDates.forEach((date) => {
+    const day = dailyBreakdown[date];
+    if (!day) return;
+    Object.values(day.tasks).forEach((t) => {
+      if (t.clientRateType === "hourly") hourlyTaskNames.add(t.taskName);
+    });
+  });
+  const otPrefix =
+    hourlyTaskNames.size === 0
+      ? pieceworkPrefix
+      : hourlyTaskNames.size === 1
+        ? `${Array.from(hourlyTaskNames)[0]}-`
+        : "Hourly-";
+  const lastHourlyDate =
+    [...sortedDates].reverse().find((date) => {
+      const day = dailyBreakdown[date];
+      return (
+        day &&
+        Object.values(day.tasks).some((t) => t.clientRateType === "hourly")
+      );
+    }) ?? lastPieceworkDate;
+
   // OT
   const otHours = body.overtimeHours ?? 0;
   const otPremium = body.overtimePremium ?? 0;
@@ -495,8 +519,8 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
       total: paidRestBreaks,
     },
     {
-      date: lastPieceworkDate,
-      description: `${pieceworkPrefix}OT Premium (0.5x rate)`,
+      date: lastHourlyDate,
+      description: `${otPrefix}OT Premium (0.5x rate)`,
       quantity: otHours,
       unit: "OT Hrs",
       price: otPrice,
