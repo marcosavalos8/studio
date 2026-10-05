@@ -305,6 +305,9 @@ export async function generatePayrollReport({
           clockInMs: number;
           clientId: string;
           clientName: string;
+          taskId: string;
+          taskName: string;
+          rateType: "piece" | "hourly";
           hours: number;
         }> = [];
 
@@ -436,6 +439,9 @@ export async function generatePayrollReport({
                 clockInMs: taskWork.firstClockInMs ?? parseLocalDate(dayKey).getTime(),
                 clientId: task.clientId,
                 clientName: client?.name || "Unknown Client",
+                taskId,
+                taskName: `${task.name}${task.variety ? ` (${task.variety})` : ""} - ${task.clientRateType === "piece" ? "Piecework" : "Hourly"}`,
+                rateType: task.clientRateType === "piece" ? "piece" : "hourly",
                 hours,
               });
             }
@@ -646,6 +652,7 @@ export async function generatePayrollReport({
         // ese bloque. Un mismo bloque puede quedar partido entre regular y overtime si
         // el corte de las 40 horas cae en medio de él.
         let overtimeByClient: WeeklySummary["overtimeByClient"];
+        let overtimeByTask: WeeklySummary["overtimeByTask"];
         if (overtimeHours > 0) {
           const sortedBlocks = [...weeklyHourBlocks].sort((a, b) => {
             if (a.dayKey !== b.dayKey) return a.dayKey < b.dayKey ? -1 : 1;
@@ -653,6 +660,7 @@ export async function generatePayrollReport({
           });
 
           const otHoursByClient = new Map<string, { clientName: string; hours: number }>();
+          const otHoursByTask = new Map<string, { clientId: string; clientName: string; taskName: string; rateType: "piece" | "hourly"; hours: number }>();
           let cumulativeHours = 0;
           for (const block of sortedBlocks) {
             const hoursBeforeBlock = cumulativeHours;
@@ -665,12 +673,33 @@ export async function generatePayrollReport({
               } else {
                 otHoursByClient.set(block.clientId, { clientName: block.clientName, hours: otHoursInBlock });
               }
+              const existingTask = otHoursByTask.get(block.taskId);
+              if (existingTask) {
+                existingTask.hours += otHoursInBlock;
+              } else {
+                otHoursByTask.set(block.taskId, {
+                  clientId: block.clientId,
+                  clientName: block.clientName,
+                  taskName: block.taskName,
+                  rateType: block.rateType,
+                  hours: otHoursInBlock,
+                });
+              }
             }
           }
 
           overtimeByClient = Array.from(otHoursByClient.entries()).map(([clientId, data]) => ({
             clientId,
             clientName: data.clientName,
+            overtimeHours: parseFloat(data.hours.toFixed(2)),
+            overtimePremium: parseFloat((regularRate * 0.5 * data.hours).toFixed(2)),
+          }));
+          overtimeByTask = Array.from(otHoursByTask.entries()).map(([taskId, data]) => ({
+            taskId,
+            clientId: data.clientId,
+            clientName: data.clientName,
+            taskName: data.taskName,
+            rateType: data.rateType,
             overtimeHours: parseFloat(data.hours.toFixed(2)),
             overtimePremium: parseFloat((regularRate * 0.5 * data.hours).toFixed(2)),
           }));
@@ -750,6 +779,7 @@ export async function generatePayrollReport({
           overtimePremium: overtimePremium > 0 ? parseFloat(overtimePremium.toFixed(2)) : undefined,
           regularRate: regularRate > 0 ? parseFloat(regularRate.toFixed(2)) : undefined,
           overtimeByClient,
+          overtimeByTask,
           finalPay: parseFloat(finalWeeklyPay.toFixed(2)),
           dailyBreakdown: dailyBreakdownsForWeek,
           sickHoursAccrued: parseFloat(sickHoursAccrued.toFixed(2)),

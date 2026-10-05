@@ -149,19 +149,6 @@ export function InvoiceReportDisplay({
     sortedDates[sortedDates.length - 1] ??
     "";
 
-  // OT premium is paid to hourly workers, so it is labeled with the hourly task
-  const hourlyTaskNames = new Set<string>();
-  sortedDates.forEach((date) => {
-    Object.values(report.dailyBreakdown[date].tasks).forEach((task) => {
-      if (task.clientRateType === "hourly") hourlyTaskNames.add(task.taskName);
-    });
-  });
-  const otPrefix =
-    hourlyTaskNames.size === 0
-      ? pieceworkPrefix
-      : hourlyTaskNames.size === 1
-        ? `${Array.from(hourlyTaskNames)[0]}-`
-        : "Hourly-";
   const lastHourlyDate =
     [...sortedDates].reverse().find((date) =>
       Object.values(report.dailyBreakdown[date].tasks).some(
@@ -203,14 +190,25 @@ export function InvoiceReportDisplay({
       price: breakPrice,
       total: report.paidRestBreaks,
     },
-    {
-      date: lastHourlyDate,
-      description: `${otPrefix}OT Premium (0.5x rate)`,
-      quantity: otHours,
-      unit: "OT Hrs",
-      price: otPrice,
-      total: otPremium,
-    },
+    ...(report.overtimeLines && report.overtimeLines.length > 0
+      ? report.overtimeLines.map((line) => ({
+          date: line.rateType === "hourly" ? lastHourlyDate : lastPieceworkDate,
+          description: `${line.taskName}-OT Premium (0.5x rate)`,
+          quantity: line.overtimeHours,
+          unit: "OT Hrs",
+          price: line.overtimeHours > 0 ? line.overtimePremium / line.overtimeHours : 0,
+          total: line.overtimePremium,
+        }))
+      : [
+          {
+            date: lastPieceworkDate,
+            description: `${pieceworkPrefix}OT Premium (0.5x rate)`,
+            quantity: otHours,
+            unit: "OT Hrs",
+            price: otPrice,
+            total: otPremium,
+          },
+        ]),
     {
       date: lastPieceworkDate,
       description: `${pieceworkPrefix}MW`,

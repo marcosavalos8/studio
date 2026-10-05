@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Client, Task, Piecework, TimeEntry, Employee, SavedInvoiceClientSnapshot, WeeklyTaskHours } from "@/lib/types";
+import type { Client, Task, Piecework, TimeEntry, Employee, SavedInvoiceClientSnapshot, WeeklyTaskHours, OvertimeLine } from "@/lib/types";
 import type { DateRange } from "react-day-picker";
 import { useFirestore } from "@/firebase";
 import {
@@ -69,6 +69,7 @@ type InvoiceFirestorePayload = {
   invoiceClientData: SavedInvoiceClientSnapshot;
   includeLaborReport: boolean;
   laborReportEmployeeDetails: DetailedLabelReportData["employeeDetails"] | null;
+  overtimeLines: OvertimeLine[];
 };
 
 export function InvoicingForm({ clients }: InvoicingFormProps) {
@@ -436,6 +437,31 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         }
       });
 
+      // One OT line per task (same client, same task across employees is summed)
+      const overtimeLinesMap = new Map<string, OvertimeLine>();
+      fullPayrollResult.employeeSummaries.forEach((emp) => {
+        emp.weeklySummaries.forEach((week) => {
+          (week.overtimeByTask ?? [])
+            .filter((line) => line.clientId === clientData.id)
+            .forEach((line) => {
+              const existing = overtimeLinesMap.get(line.taskId);
+              if (existing) {
+                existing.overtimeHours += line.overtimeHours;
+                existing.overtimePremium += line.overtimePremium;
+              } else {
+                overtimeLinesMap.set(line.taskId, { ...line });
+              }
+            });
+        });
+      });
+      const overtimeLines: OvertimeLine[] = Array.from(overtimeLinesMap.values())
+        .map((line) => ({
+          ...line,
+          overtimeHours: parseFloat(line.overtimeHours.toFixed(2)),
+          overtimePremium: parseFloat(line.overtimePremium.toFixed(2)),
+        }))
+        .sort((a, b) => a.taskName.localeCompare(b.taskName));
+
       // Sum up overtime premium attributed to this client
       const totalOvertimePremium = filteredSummaries.reduce((acc, emp) => {
         return acc + (overtimeForThisClientByEmployee.get(emp.employeeId)?.premium || 0);
@@ -614,6 +640,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         invoiceDate: format(new Date(), "MM/dd/yyyy"),
         dailyBreakdown,
         weeklyHoursByTask,
+        overtimeLines,
         laborCost,
         minimumWageTopUp: totalTopUp,
         paidRestBreaks: totalRestBreaks,
@@ -840,6 +867,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         },
         includeLaborReport,
         laborReportEmployeeDetails: finalLaborReportData?.employeeDetails ?? null,
+        overtimeLines,
       };
 
       setPendingFirestorePayload(firestorePayload);

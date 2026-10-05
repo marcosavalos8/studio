@@ -13,7 +13,7 @@ import { InvoiceManagement } from "./invoice-management";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import { useFirestore } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
-import type { Client, WeeklyTaskHours } from "@/lib/types";
+import type { Client, WeeklyTaskHours, OvertimeLine } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMemo } from "react";
 import { withAuth } from "@/components/withAuth";
@@ -46,6 +46,7 @@ export type DetailedInvoiceData = {
   invoiceDate: string;
   dailyBreakdown: DailyBreakdown;
   weeklyHoursByTask?: WeeklyTaskHours;
+  overtimeLines?: OvertimeLine[];
   laborCost: number;
   minimumWageTopUp: number;
   paidRestBreaks: number;

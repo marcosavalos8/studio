@@ -494,6 +494,7 @@ export function InvoiceManagement() {
           paidRestBreaks: invoice.paidRestBreaks,
           overtimePremium: invoice.overtimePremium,
           overtimeHours: invoice.overtimeHours,
+          overtimeLines: invoice.overtimeLines ?? null,
           subtotal: invoice.subtotal,
           commission: invoice.commission,
           overdueInterestAccrued: invoice.overdueInterestAccrued ?? 0,
@@ -642,6 +643,7 @@ export function InvoiceManagement() {
         dailyBreakdown: invoice.dailyBreakdown ?? null,
         employeeDetails: invoice.employeeDetails ?? [],
         invoiceClientData: invoice.invoiceClientData ?? null,
+        overtimeLines: invoice.overtimeLines ?? [],
         createdAt: serverTimestamp(),
       });
 

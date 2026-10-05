@@ -136,6 +136,19 @@ export type WeeklySummary = {
     overtimeHours: number;
     overtimePremium: number;
   }[];
+  // Same split as overtimeByClient, but per task (so invoices can show one
+  // OT line per task, e.g. hourly Checker vs piecework Apple Harvest).
+  overtimeByTask?: OvertimeLine[];
+};
+
+export type OvertimeLine = {
+  clientId: string;
+  clientName: string;
+  taskId: string;
+  taskName: string;
+  rateType: "piece" | "hourly";
+  overtimeHours: number;
+  overtimePremium: number;
 };
 
 export type WeeklyTaskHours = Array<{
@@ -230,6 +243,7 @@ export interface SavedInvoice {
   paidRestBreaks: number;
   overtimePremium?: number;
   overtimeHours?: number;
+  overtimeLines?: OvertimeLine[];
   subtotal: number;
   commission: number;
   total: number;
