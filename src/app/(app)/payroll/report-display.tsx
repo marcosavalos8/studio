@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/accordion"
 import { Button } from '@/components/ui/button';
 import { Printer, ArrowLeft } from 'lucide-react';
-import { OvertimeAssignmentControl } from './overtime-assignment-control';
 
 
 function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData['employeeSummaries'][0]['weeklySummaries'][0]['dailyBreakdown']}) {
@@ -245,18 +244,6 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                                                               <TableCell colSpan={2} className={week.overtimeHours && week.overtimeHours > 0 ? "font-medium" : ""}>Overtime Premium (0.5x rate)</TableCell>
                                                               <TableCell colSpan={2} className={`text-right ${week.overtimeHours && week.overtimeHours > 0 ? "text-purple-600 font-medium" : ""}`}>+ ${week.overtimePremium?.toFixed(2) || '0.00'}</TableCell>
                                                             </TableRow>
-                                                            {(week.overtimeHours ?? 0) > 0 && (
-                                                              <TableRow className="print:hidden">
-                                                                <TableCell colSpan={4}>
-                                                                  <OvertimeAssignmentControl
-                                                                    employeeId={employee.employeeId}
-                                                                    year={week.year}
-                                                                    weekNumber={week.weekNumber}
-                                                                    clientsWorked={week.clientsWorked ?? []}
-                                                                  />
-                                                                </TableCell>
-                                                              </TableRow>
-                                                            )}
                                                             {week.sickHoursAccrued !== undefined && week.sickHoursAccrued > 0 && (
                                                               <TableRow className="bg-green-50 dark:bg-green-900/20">
                                                                 <TableCell colSpan={2} className="font-medium">Sick Hours Accrued (1hr / 40hrs)</TableCell>
