@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/accordion"
 import { Button } from '@/components/ui/button';
 import { Printer, ArrowLeft } from 'lucide-react';
+import { OvertimeWaiverControl } from './overtime-waiver-control';
 
 
 function DailyBreakdownDisplay({ breakdown }: { breakdown: ProcessedPayrollData['employeeSummaries'][0]['weeklySummaries'][0]['dailyBreakdown']}) {
@@ -91,6 +92,10 @@ interface ReportDisplayProps {
 
 export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
     const overallTotal = report.employeeSummaries.reduce((acc, emp) => acc + emp.finalPay, 0);
+    const [search, setSearch] = React.useState("");
+    const visibleEmployees = report.employeeSummaries.filter((emp) =>
+        emp.employeeName.toLowerCase().includes(search.trim().toLowerCase())
+    );
 
     const handlePrint = () => {
         window.print();
@@ -161,8 +166,17 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                     </div>
                 </div>
 
+                <div className="mb-4 print:hidden">
+                    <input
+                        type="search"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Buscar empleado…"
+                        className="w-full md:w-80 border rounded-md px-3 py-2 text-sm bg-background"
+                    />
+                </div>
                 <Accordion type="multiple" className="w-full" defaultValue={report.employeeSummaries.map(e => e.employeeId)}>
-                    {report.employeeSummaries.map((employee, index) => (
+                    {visibleEmployees.map((employee, index) => (
                         <div key={employee.employeeId} className={index > 0 ? 'page-break' : ''}>
                             <AccordionItem value={employee.employeeId} className="border-b">
                                 <AccordionTrigger className="text-xl font-semibold hover:no-underline w-full">
@@ -173,6 +187,14 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                                 </AccordionTrigger>
                                 <AccordionContent>
                                     <div className="space-y-4">
+                                    {employee.weeklySummaries.some((w) => (w.overtimeHours ?? 0) > 0) && (
+                                        <OvertimeWaiverControl
+                                            employeeId={employee.employeeId}
+                                            weeks={employee.weeklySummaries
+                                                .filter((w) => (w.overtimeHours ?? 0) > 0)
+                                                .map((w) => ({ year: w.year, weekNumber: w.weekNumber }))}
+                                        />
+                                    )}
                                     <Accordion type="multiple" className="w-full" defaultValue={employee.weeklySummaries.map(w => `w-${w.weekNumber}`)}>
                                         {employee.weeklySummaries.map(week => (
                                             <AccordionItem value={`w-${week.weekNumber}`} key={week.weekNumber}>

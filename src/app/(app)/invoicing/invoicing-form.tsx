@@ -421,6 +421,14 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         jsonData: fullJsonData,
       });
 
+      // Weeks where the admin waived overtime for the client (worker is still paid it)
+      const waiversSnap = await getDocs(collection(firestore, "overtimeWaivers"));
+      const waivedWeekIds = new Set(
+        waiversSnap.docs.filter((d) => d.data().waived === true).map((d) => d.id)
+      );
+      const isWaivedWeek = (employeeId: string, year: number, weekNumber: number) =>
+        waivedWeekIds.has(`${employeeId}_${year}-${weekNumber}`);
+
       const overtimeForThisClientByEmployee = new Map<
         string,
         { hours: number; premium: number }
@@ -429,6 +437,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         let hours = 0;
         let premium = 0;
         emp.weeklySummaries.forEach((week) => {
+          if (isWaivedWeek(emp.employeeId, week.year, week.weekNumber)) return;
           const attribution = week.overtimeByClient?.find(
             (c) => c.clientId === clientData.id
           );
@@ -446,6 +455,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
       const overtimeLinesMap = new Map<string, OvertimeLine>();
       fullPayrollResult.employeeSummaries.forEach((emp) => {
         emp.weeklySummaries.forEach((week) => {
+          if (isWaivedWeek(emp.employeeId, week.year, week.weekNumber)) return;
           (week.overtimeByTask ?? [])
             .filter((line) => line.clientId === clientData.id)
             .forEach((line) => {
