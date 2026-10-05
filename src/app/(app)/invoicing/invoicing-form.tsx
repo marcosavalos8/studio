@@ -243,7 +243,10 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
               if (existing) {
                 existing.hours += task.hours;
               } else {
-                bucket.tasks.set(task.taskId, { taskName: task.taskName, hours: task.hours });
+                bucket.tasks.set(task.taskId, {
+                  taskName: task.block ? `${task.taskName} · Block ${task.block}` : task.taskName,
+                  hours: task.hours,
+                });
               }
             });
           });
