@@ -155,6 +155,15 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    /**
+     * @description Decision of who absorbs a worker's weekly overtime (one doc per employee-week).
+     * @path /overtimeAssignments/{assignmentId}
+     * @allow (get, list, create, update, delete) - Any signed-in user, matching how invoices are handled.
+     */
+    match /overtimeAssignments/{assignmentId} {
+      allow get, list, create, update, delete: if isSignedIn();
+    }
+
     // --- Helper Functions ---
     
     /**

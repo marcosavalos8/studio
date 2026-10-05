@@ -767,9 +767,16 @@ export async function generatePayrollReport({
           })),
         ];
 
+        const clientsWorked = Array.from(
+          new Map(
+            weeklyHourBlocks.map((b) => [b.clientId, { clientId: b.clientId, clientName: b.clientName }])
+          ).values()
+        );
+
         weeklySummaries.push({
           weekNumber,
           year,
+          clientsWorked,
           totalHours: parseFloat(weeklyTotalHours.toFixed(2)),
           // totalEarnings es la ganancia RAW (sin ajustes de salario mínimo ni descansos)
           totalEarnings: parseFloat(weeklyTotalRawEarnings.toFixed(2)),

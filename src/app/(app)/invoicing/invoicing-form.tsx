@@ -20,7 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Client, Task, Piecework, TimeEntry, Employee, SavedInvoiceClientSnapshot, WeeklyTaskHours, OvertimeLine } from "@/lib/types";
+import type { Client, Task, Piecework, TimeEntry, Employee, SavedInvoiceClientSnapshot, WeeklyTaskHours, OvertimeLine, WeeklySummary } from "@/lib/types";
+import { overtimeAssignmentId } from "@/lib/types";
 import type { DateRange } from "react-day-picker";
 import { useFirestore } from "@/firebase";
 import {
@@ -39,6 +40,7 @@ import { type DetailedInvoiceData } from "./page";
 import { type DetailedLabelReportData } from "../labor-report/page";
 import { InvoiceReportDisplay } from "./report-display";
 import { generatePayrollReport } from "@/ai/flows/generate-payroll-report";
+import { clientOvertimeForWeek, type WeekTaskCandidate } from "@/lib/overtime-attribution";
 
 type InvoicingFormProps = {
   clients: Client[];
@@ -416,44 +418,75 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         jsonData: fullJsonData,
       });
 
+      // Saved decisions of who absorbs each employee-week of overtime (absent = automatic split)
+      const assignmentsSnap = await getDocs(collection(firestore, "overtimeAssignments"));
+      const assignmentByDocId = new Map<string, string | null>();
+      assignmentsSnap.docs.forEach((d) => {
+        const data = d.data() as { clientId?: string | null };
+        assignmentByDocId.set(d.id, data.clientId ?? null);
+      });
+
+      const taskById = new Map(allTasks.map((t) => [t.id, t]));
+      const candidatesForWeek = (week: WeeklySummary): WeekTaskCandidate[] => {
+        const byTask = new Map<string, WeekTaskCandidate>();
+        week.dailyBreakdown.forEach((day) =>
+          day.tasks.forEach((t) => {
+            const task = taskById.get(t.taskId);
+            if (!task) return;
+            const existing = byTask.get(t.taskId);
+            if (existing) {
+              existing.hours += t.hours;
+            } else {
+              byTask.set(t.taskId, {
+                taskId: t.taskId,
+                taskName: t.taskName,
+                rateType: task.clientRateType,
+                clientId: task.clientId,
+                hours: t.hours,
+              });
+            }
+          })
+        );
+        return Array.from(byTask.values());
+      };
+
       const overtimeForThisClientByEmployee = new Map<
         string,
         { hours: number; premium: number }
       >();
+      const overtimeLinesMap = new Map<string, OvertimeLine>();
       fullPayrollResult.employeeSummaries.forEach((emp) => {
         let hours = 0;
         let premium = 0;
         emp.weeklySummaries.forEach((week) => {
-          const attribution = week.overtimeByClient?.find(
-            (c) => c.clientId === clientData.id
+          const docId = overtimeAssignmentId(emp.employeeId, week.year, week.weekNumber);
+          const override = assignmentByDocId.has(docId)
+            ? assignmentByDocId.get(docId)
+            : undefined;
+          const attribution = clientOvertimeForWeek(
+            week,
+            clientData.id,
+            clientData.name,
+            override,
+            candidatesForWeek(week)
           );
-          if (attribution) {
-            hours += attribution.overtimeHours;
-            premium += attribution.overtimePremium;
-          }
+          hours += attribution.hours;
+          premium += attribution.premium;
+          attribution.lines.forEach((line) => {
+            const existing = overtimeLinesMap.get(line.taskId);
+            if (existing) {
+              existing.overtimeHours += line.overtimeHours;
+              existing.overtimePremium += line.overtimePremium;
+            } else {
+              overtimeLinesMap.set(line.taskId, { ...line });
+            }
+          });
         });
         if (hours > 0 || premium > 0) {
           overtimeForThisClientByEmployee.set(emp.employeeId, { hours, premium });
         }
       });
 
-      // One OT line per task (same client, same task across employees is summed)
-      const overtimeLinesMap = new Map<string, OvertimeLine>();
-      fullPayrollResult.employeeSummaries.forEach((emp) => {
-        emp.weeklySummaries.forEach((week) => {
-          (week.overtimeByTask ?? [])
-            .filter((line) => line.clientId === clientData.id)
-            .forEach((line) => {
-              const existing = overtimeLinesMap.get(line.taskId);
-              if (existing) {
-                existing.overtimeHours += line.overtimeHours;
-                existing.overtimePremium += line.overtimePremium;
-              } else {
-                overtimeLinesMap.set(line.taskId, { ...line });
-              }
-            });
-        });
-      });
       const overtimeLines: OvertimeLine[] = Array.from(overtimeLinesMap.values())
         .map((line) => ({
           ...line,

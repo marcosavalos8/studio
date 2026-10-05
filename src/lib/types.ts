@@ -139,7 +139,24 @@ export type WeeklySummary = {
   // Same split as overtimeByClient, but per task (so invoices can show one
   // OT line per task, e.g. hourly Checker vs piecework Apple Harvest).
   overtimeByTask?: OvertimeLine[];
+  // Clients the employee worked for this week (used to pick who absorbs OT)
+  clientsWorked?: Array<{ clientId: string; clientName: string }>;
 };
+
+// Manual decision for who is billed a worker's weekly overtime.
+// clientId === null means the overtime is not billed to any client.
+export type OvertimeAssignment = {
+  id: string;
+  employeeId: string;
+  year: number;
+  weekNumber: number;
+  clientId: string | null;
+  updatedBy?: string;
+};
+
+export function overtimeAssignmentId(employeeId: string, year: number, weekNumber: number): string {
+  return `${employeeId}_${year}-${weekNumber}`;
+}
 
 export type OvertimeLine = {
   clientId: string;
