@@ -39,6 +39,7 @@ import { type DetailedInvoiceData } from "./page";
 import { type DetailedLabelReportData } from "../labor-report/page";
 import { InvoiceReportDisplay } from "./report-display";
 import { generatePayrollReport } from "@/ai/flows/generate-payroll-report";
+import { laborTaskLabel } from "@/lib/labor-task-label";
 
 type InvoicingFormProps = {
   clients: Client[];
@@ -725,20 +726,21 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
                     existing.pieces += task.pieceworkCount;
                   } else {
                     laborMissingBucketsMap.set(key, {
-                      taskName: task.taskName,
+                      taskName: laborTaskLabel(tasks, task.taskId, task.taskName),
                       pieces: task.pieceworkCount,
                       taskId: task.taskId,
                       originalDate: task.originalDate || "",
                     });
                   }
                 } else {
-                  const existing = laborTasksSummaryMap.get(task.taskId);
+                  const labelKey = laborTaskLabel(tasks, task.taskId, task.taskName);
+                  const existing = laborTasksSummaryMap.get(labelKey);
                   if (existing) {
                     existing.hours += task.hours;
                     existing.pieces += task.pieceworkCount;
                   } else {
-                    laborTasksSummaryMap.set(task.taskId, {
-                      taskName: task.taskName,
+                    laborTasksSummaryMap.set(labelKey, {
+                      taskName: labelKey,
                       hours: task.hours,
                       pieces: task.pieceworkCount,
                       taskId: task.taskId,

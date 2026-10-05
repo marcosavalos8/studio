@@ -1,5 +1,6 @@
 "use client";
 
+import { laborTaskLabel } from "@/lib/labor-task-label";
 import * as React from "react";
 import { format } from "date-fns";
 import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
@@ -368,20 +369,21 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
                   existing.pieces += task.pieceworkCount;
                 } else {
                   missingBucketsMap.set(key, {
-                    taskName: task.taskName,
+                    taskName: laborTaskLabel(tasks, task.taskId, task.taskName),
                     pieces: task.pieceworkCount,
                     taskId: task.taskId,
                     originalDate: task.originalDate || "",
                   });
                 }
               } else {
-                const existing = tasksSummaryMap.get(task.taskId);
+                const labelKey = laborTaskLabel(tasks, task.taskId, task.taskName);
+                const existing = tasksSummaryMap.get(labelKey);
                 if (existing) {
                   existing.hours += task.hours;
                   existing.pieces += task.pieceworkCount;
                 } else {
-                  tasksSummaryMap.set(task.taskId, {
-                    taskName: task.taskName,
+                  tasksSummaryMap.set(labelKey, {
+                    taskName: labelKey,
                     hours: task.hours,
                     pieces: task.pieceworkCount,
                     taskId: task.taskId,
