@@ -155,15 +155,6 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    /**
-     * @description Overtime waiver per employee-week: the client is not billed the overtime.
-     * @path /overtimeWaivers/{waiverId}
-     * @allow (get, list, create, update, delete) - Any signed-in user, matching how invoices are handled.
-     */
-    match /overtimeWaivers/{waiverId} {
-      allow get, list, create, update, delete: if isSignedIn();
-    }
-
     // --- Helper Functions ---
     
     /**
