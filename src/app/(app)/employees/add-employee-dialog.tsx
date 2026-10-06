@@ -29,7 +29,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useFirestore } from '@/firebase'
-import { collection, doc, setDoc, query, where, getDocs, Timestamp } from 'firebase/firestore'
+import { collection, doc, setDoc, query, where, getDocs, Timestamp, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore'
 import { useToast } from '@/hooks/use-toast'
 import type { Employee } from '@/lib/types'
 import { Loader2 } from 'lucide-react'
@@ -74,6 +74,27 @@ export function AddEmployeeDialog({ isOpen, onOpenChange }: AddEmployeeDialogPro
       return
     }
 
+    // Case-insensitive duplicate check, also when offline (uses the local cache)
+    const normalizedInput = values.name.trim().toLowerCase()
+    let duplicate: QueryDocumentSnapshot<DocumentData> | undefined
+    let existingDocs: QueryDocumentSnapshot<DocumentData>[] | undefined
+    try {
+      existingDocs = (await getDocs(collection(firestore, 'employees'))).docs as QueryDocumentSnapshot<DocumentData>[]
+      duplicate = existingDocs.find(
+        d => (d.data().name as string)?.trim().toLowerCase() === normalizedInput
+      )
+    } catch (error) {
+      console.warn('Could not check for duplicate employees:', error)
+    }
+    if (duplicate) {
+      toast({
+        variant: 'destructive',
+        title: 'Duplicate Employee',
+        description: `An employee named "${values.name}" already exists (status: ${duplicate.data().status ?? 'unknown'}).`,
+      })
+      return
+    }
+
     const newDocRef = doc(collection(firestore, 'employees'))
     const newEmployee: Omit<Employee, 'id'> = {
       ...values,
@@ -102,27 +123,12 @@ export function AddEmployeeDialog({ isOpen, onOpenChange }: AddEmployeeDialogPro
 
     // Online flow - check for duplicates and wait for operation to complete
     try {
-      // Case-insensitive duplicate name check (fetch all, compare normalized)
-      const employeesRef = collection(firestore, 'employees');
-      const allEmployeesSnap = await getDocs(employeesRef);
-      const normalizedInput = values.name.trim().toLowerCase();
-      const duplicate = allEmployeesSnap.docs.find(
-        d => (d.data().name as string)?.trim().toLowerCase() === normalizedInput
-      );
-      if (duplicate) {
-        toast({
-          variant: 'destructive',
-          title: 'Duplicate Employee',
-          description: `An employee named "${values.name}" already exists (status: ${duplicate.data().status ?? 'unknown'}).`,
-        });
-        return;
-      }
-
       // Generate unique employeeNumber: YYYY + 6-digit consecutive per year
       const currentYear = new Date().getFullYear();
       const yearPrefix = String(currentYear);
       let maxConsecutive = 0;
-      allEmployeesSnap.docs.forEach(d => {
+      const allEmployeeDocs = existingDocs ?? ((await getDocs(collection(firestore, 'employees'))).docs as QueryDocumentSnapshot<DocumentData>[])
+      allEmployeeDocs.forEach(d => {
         const num: string = d.data().employeeNumber ?? '';
         if (num.startsWith(yearPrefix) && num.length === 10) {
           const consecutive = parseInt(num.slice(4), 10);
