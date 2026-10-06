@@ -60,10 +60,12 @@ export async function fetchPayrollRangeData(
   const timeEntries = timeEntriesSnap.docs.map((d) => {
     const data = d.data();
     const ts = (data.timestamp as Timestamp)?.toDate();
+    const endTs = (data.endTime as Timestamp | null | undefined)?.toDate?.();
     return {
       ...data,
       id: d.id,
       timestamp: ts ? format(ts, "yyyy-MM-dd'T'HH:mm:ss") : null,
+      endTime: endTs ? format(endTs, "yyyy-MM-dd'T'HH:mm:ss") : null,
     } as unknown as TimeEntry;
   });
 
