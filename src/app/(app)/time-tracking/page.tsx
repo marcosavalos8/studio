@@ -103,6 +103,7 @@ import { SoundSettingsService } from "../../../services/SoundSettingsService";
 import { AVAILABLE_SOUNDS, SoundOption } from "../../../lib/types";
 // Al inicio del archivo, agregar el import
 import SoundTestTab from "./SoundTestTab";
+import { recalcEntry, combineDateAndTime, hoursOrTimesValid } from "@/lib/entry-hours";
 const QrScanner = dynamic(
   () => import("./qr-scanner").then((mod) => mod.QrScannerComponent),
   {
@@ -334,9 +335,31 @@ function TimeTrackingPage() {
     useState<Employee | null>(null);
   // Multi-employee list for manual entry: each entry has the employee and their individual PC count
   const [manualEmployees, setManualEmployees] = useState<
-    Array<{ employee: Employee; pieces: number | string }>
+    Array<{
+      employee: Employee;
+      pieces: number | string;
+      clockIn?: string;
+      clockOut?: string;
+      hours?: string;
+    }>
   >([]);
   const [manualAddEmployeeSearch, setManualAddEmployeeSearch] = useState("");
+  const updateManualEntry = (
+    idx: number,
+    field: "clockIn" | "clockOut" | "hours",
+    value: string,
+  ) => {
+    setManualEmployees((prev) =>
+      prev.map((item, i) =>
+        i === idx ? recalcEntry({ ...item, [field]: value }, field) : item,
+      ),
+    );
+  };
+  const setManualClockInForAll = (value: string) => {
+    setManualEmployees((prev) =>
+      prev.map((item) => recalcEntry({ ...item, clockIn: value }, "clockIn")),
+    );
+  };
   const [showAddEmployeeSearch, setShowAddEmployeeSearch] = useState(false);
   const [focusedAddEmployeeIdx, setFocusedAddEmployeeIdx] = useState(-1);
   const addEmployeeInputRef = useRef<HTMLInputElement>(null);
@@ -1036,16 +1059,17 @@ function TimeTrackingPage() {
       }
     }
 
-    // When past records mode is active, date and times are required
+    // When past records mode is active, the date is required and every employee needs times
     if (usePastRecords) {
       if (!pastRecordDate) {
         issues.push("Select a date");
       }
-      if (!pastRecordClockInTime) {
-        issues.push("Set Clock-In Time");
-      }
-      if (!pastRecordClockOutTime) {
-        issues.push("Set Clock-Out Time");
+      if (
+        manualEmployees.some(
+          (e) => !hoursOrTimesValid(e.clockIn, e.clockOut),
+        )
+      ) {
+        issues.push("Check clock-in and clock-out times for every employee");
       }
     }
     return issues;
@@ -1056,8 +1080,6 @@ function TimeTrackingPage() {
     allTasks,
     usePastRecords,
     pastRecordDate,
-    pastRecordClockInTime,
-    pastRecordClockOutTime,
   ]);
 
   useEffect(() => {
@@ -2418,7 +2440,7 @@ function TimeTrackingPage() {
       manualEmployees.length > 0
         ? manualEmployees
         : manualSelectedEmployee
-          ? [{ employee: manualSelectedEmployee, pieces: pastRecordPiecesCount }]
+          ? [{ employee: manualSelectedEmployee, pieces: pastRecordPiecesCount, clockIn: pastRecordClockInTime, clockOut: "", hours: "" }]
           : [];
 
     if (!firestore || !selectedTask || employeesToProcess.length === 0) {
@@ -2434,12 +2456,29 @@ function TimeTrackingPage() {
 
     // If past records mode is enabled, create both clock-in and clock-out
     if (usePastRecords) {
-      if (!pastRecordClockInDate || !pastRecordClockOutDate) {
+      if (!pastRecordDate) {
         toast({
           variant: "destructive",
-          title: "Missing Times",
-          description:
-            "Please set both clock-in and clock-out times for past records.",
+          title: "Missing Date",
+          description: "Please select a date for the past records.",
+        });
+        setIsManualSubmitting(false);
+        return;
+      }
+
+      const timedEntries = employeesToProcess.map((entry) => ({
+        entry,
+        clockInDate: combineDateAndTime(pastRecordDate, entry.clockIn ?? "") as Date,
+        clockOutDate: combineDateAndTime(pastRecordDate, entry.clockOut ?? "") as Date,
+      }));
+      const invalidEntry = employeesToProcess.find(
+        (entry) => !hoursOrTimesValid(entry.clockIn, entry.clockOut),
+      );
+      if (invalidEntry) {
+        toast({
+          variant: "destructive",
+          title: "Invalid Times",
+          description: `Check the clock-in and clock-out times for ${invalidEntry.employee.name}. Clock-out must be after clock-in.`,
         });
         setIsManualSubmitting(false);
         return;
@@ -2450,36 +2489,37 @@ function TimeTrackingPage() {
 
       // Check for duplicate time entries for each employee
       if (allTimeEntries) {
-        for (const { employee: empToCheck } of employeesToProcess) {
-          const duplicate = allTimeEntries.find((entry) => {
+        for (const { entry, clockInDate, clockOutDate } of timedEntries) {
+          const empToCheck = entry.employee;
+          const duplicate = allTimeEntries.find((existing) => {
             if (
-              entry.employeeId !== empToCheck.id ||
-              entry.taskId !== selectedTask
+              existing.employeeId !== empToCheck.id ||
+              existing.taskId !== selectedTask
             ) {
               return false;
             }
 
             // Check if clock-in times match (within 1 minute tolerance)
             const entryClockIn =
-              entry.timestamp instanceof Date
-                ? entry.timestamp
-                : (entry.timestamp as any)?.toDate?.()
-                  ? (entry.timestamp as any).toDate()
-                  : new Date(entry.timestamp as any);
+              existing.timestamp instanceof Date
+                ? existing.timestamp
+                : (existing.timestamp as any)?.toDate?.()
+                  ? (existing.timestamp as any).toDate()
+                  : new Date(existing.timestamp as any);
             const timeDiffIn = Math.abs(
-              entryClockIn.getTime() - pastRecordClockInDate.getTime(),
+              entryClockIn.getTime() - clockInDate.getTime(),
             );
 
             // Check if clock-out times match (within 1 minute tolerance)
-            if (entry.endTime) {
+            if (existing.endTime) {
               const entryClockOut =
-                entry.endTime instanceof Date
-                  ? entry.endTime
-                  : (entry.endTime as any)?.toDate?.()
-                    ? (entry.endTime as any).toDate()
-                    : new Date(entry.endTime as any);
+                existing.endTime instanceof Date
+                  ? existing.endTime
+                  : (existing.endTime as any)?.toDate?.()
+                    ? (existing.endTime as any).toDate()
+                    : new Date(existing.endTime as any);
               const timeDiffOut = Math.abs(
-                entryClockOut.getTime() - pastRecordClockOutDate.getTime(),
+                entryClockOut.getTime() - clockOutDate.getTime(),
               );
 
               // If both clock-in and clock-out times match within 1 minute, it's a duplicate
@@ -2497,7 +2537,7 @@ function TimeTrackingPage() {
               description: `A time entry already exists for ${
                 empToCheck.name
               } on ${format(
-                pastRecordClockInDate,
+                clockInDate,
                 "PPP",
               )} with the same clock-in and clock-out times for ${
                 task?.name || "this task"
@@ -2507,19 +2547,6 @@ function TimeTrackingPage() {
             return;
           }
         }
-      }
-
-      // Validate clock-in/clock-out order before processing (so form data is preserved on error)
-      const roundedClockIn = roundToNearestQuarterHour(pastRecordClockInDate);
-      const roundedClockOut = roundToNearestQuarterHour(pastRecordClockOutDate);
-      if (roundedClockOut <= roundedClockIn) {
-        toast({
-          variant: "destructive",
-          title: "Invalid Times",
-          description: "Clock-out time must be after clock-in time.",
-        });
-        setIsManualSubmitting(false);
-        return;
       }
 
       // Show toast and stop loading immediately when offline to allow user to continue working
@@ -2536,7 +2563,7 @@ function TimeTrackingPage() {
       }
 
       // Submit for each employee
-      for (const entry of employeesToProcess) {
+      for (const { entry, clockInDate, clockOutDate } of timedEntries) {
         const piecesCount = isPiece
           ? typeof entry.pieces === "number"
             ? entry.pieces
@@ -2546,8 +2573,8 @@ function TimeTrackingPage() {
         await createPastRecord(
           entry.employee,
           selectedTask,
-          pastRecordClockInDate,
-          pastRecordClockOutDate,
+          clockInDate,
+          clockOutDate,
           piecesCount > 0 ? piecesCount : undefined,
         );
       }
@@ -4074,32 +4101,17 @@ function TimeTrackingPage() {
                     {/* Clock-In Time */}
                     <div className="space-y-2">
                       <Label htmlFor="past-clock-in-time-manual">
-                        Clock-In Time
+                        Clock-In Time (pre-fills each employee)
                       </Label>
                       <Input
                         id="past-clock-in-time-manual"
                         type="time"
                         value={pastRecordClockInTime}
-                        onChange={(e) =>
-                          setPastRecordClockInTime(e.target.value)
-                        }
+                        onChange={(e) => {
+                          setPastRecordClockInTime(e.target.value);
+                          setManualClockInForAll(e.target.value);
+                        }}
                         placeholder="Select clock-in time"
-                      />
-                    </div>
-
-                    {/* Clock-Out Time */}
-                    <div className="space-y-2">
-                      <Label htmlFor="past-clock-out-time-manual">
-                        Clock-Out Time
-                      </Label>
-                      <Input
-                        id="past-clock-out-time-manual"
-                        type="time"
-                        value={pastRecordClockOutTime}
-                        onChange={(e) =>
-                          setPastRecordClockOutTime(e.target.value)
-                        }
-                        placeholder="Select clock-out time"
                       />
                     </div>
 
@@ -4185,7 +4197,7 @@ function TimeTrackingPage() {
                             );
                             return alreadyAdded
                               ? prev
-                              : [...prev, { employee: manualSelectedEmployee!, pieces: pastRecordPiecesCount }];
+                              : [...prev, { employee: manualSelectedEmployee!, pieces: pastRecordPiecesCount, clockIn: pastRecordClockInTime, clockOut: "", hours: "" }];
                           });
                           setManualSelectedEmployee(null);
                           setManualEmployeeSearch("");
@@ -4208,12 +4220,41 @@ function TimeTrackingPage() {
                     {manualEmployees.map((entry, idx) => (
                       <div
                         key={entry.employee.id}
-                        className="flex items-center gap-2 rounded-md border p-2 bg-muted"
+                        className="flex flex-wrap items-center gap-2 rounded-md border p-2 bg-muted"
                       >
                         <User className="h-4 w-4 shrink-0" />
-                        <span className="flex-1 text-sm font-medium truncate">
+                        <span className="flex-1 min-w-[120px] text-sm font-medium truncate">
                           {entry.employee.name}
                         </span>
+                        <span className="text-xs text-muted-foreground">In</span>
+                        <Input
+                          type="time"
+                          className="w-28 h-7 text-xs"
+                          value={entry.clockIn ?? ""}
+                          onChange={(e) =>
+                            updateManualEntry(idx, "clockIn", e.target.value)
+                          }
+                        />
+                        <span className="text-xs text-muted-foreground">Out</span>
+                        <Input
+                          type="time"
+                          className="w-28 h-7 text-xs"
+                          value={entry.clockOut ?? ""}
+                          onChange={(e) =>
+                            updateManualEntry(idx, "clockOut", e.target.value)
+                          }
+                        />
+                        <span className="text-xs text-muted-foreground">Hrs</span>
+                        <Input
+                          type="number"
+                          step="0.25"
+                          min="0"
+                          className="w-20 h-7 text-xs"
+                          value={entry.hours ?? ""}
+                          onChange={(e) =>
+                            updateManualEntry(idx, "hours", e.target.value)
+                          }
+                        />
                         {selectedTask &&
                           allTasks?.find((t) => t.id === selectedTask)
                             ?.clientRateType === "piece" && (
@@ -4294,7 +4335,7 @@ function TimeTrackingPage() {
                             if (emp) {
                               setManualEmployees((prev) => [
                                 ...prev,
-                                { employee: emp, pieces: "" },
+                                { employee: emp, pieces: "", clockIn: pastRecordClockInTime, clockOut: "", hours: "" },
                               ]);
                               setManualAddEmployeeSearch("");
                               setFocusedAddEmployeeIdx(-1);
@@ -4335,7 +4376,7 @@ function TimeTrackingPage() {
                               onClick={() => {
                                 setManualEmployees((prev) => [
                                   ...prev,
-                                  { employee, pieces: "" },
+                                  { employee, pieces: "", clockIn: pastRecordClockInTime, clockOut: "", hours: "" },
                                 ]);
                                 setManualAddEmployeeSearch("");
                                 setFocusedAddEmployeeIdx(-1);
