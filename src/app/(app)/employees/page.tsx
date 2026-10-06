@@ -33,7 +33,6 @@ import {
   Printer,
   QrCode,
   MoreHorizontal,
-  Search,
   Hash,
   Loader2,
 } from "lucide-react";
@@ -77,7 +76,6 @@ export default function EmployeesPage() {
   >([]);
   const [isCalculating, setIsCalculating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchFilter, setSearchFilter] = useState("");
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [isMigrating, setIsMigrating] = useState(false);
 
@@ -245,18 +243,17 @@ export default function EmployeesPage() {
 
   // Filter employees based on search filter
   const filteredEmployees = useMemo(() => {
-    if (!searchFilter.trim()) {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
       return displayEmployees;
     }
-    const lowerSearchFilter = searchFilter.toLowerCase();
-    return displayEmployees.filter((emp) =>
-      emp.name.toLowerCase().includes(lowerSearchFilter),
-    );
-  }, [displayEmployees, searchFilter]);
-
-  const handleSearch = () => {
-    setSearchFilter(searchQuery);
-  };
+    return displayEmployees.filter((emp) => {
+      const words = emp.name.toLowerCase().split(/\s+/);
+      const matchesName = words.some((word) => word.startsWith(query));
+      const matchesNumber = (emp.employeeNumber ?? "").toLowerCase().includes(query);
+      return matchesName || matchesNumber;
+    });
+  }, [displayEmployees, searchQuery]);
 
   const handleEdit = (employee: Employee) => {
     setSelectedEmployee(employee);
@@ -375,26 +372,14 @@ export default function EmployeesPage() {
           {/* Search bar */}
           <div className="flex gap-2">
             <Input
-              placeholder="Search employees by name..."
+              placeholder="Buscar por nombre o número de empleado..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleSearch();
-                }
-              }}
               className="flex-1"
             />
-            <Button onClick={handleSearch} size="default" variant="secondary">
-              <Search className="h-4 w-4 mr-2" />
-              Search
-            </Button>
-            {searchFilter && (
+            {searchQuery && (
               <Button
-                onClick={() => {
-                  setSearchQuery("");
-                  setSearchFilter("");
-                }}
+                onClick={() => setSearchQuery("")}
                 size="default"
                 variant="outline"
               >
