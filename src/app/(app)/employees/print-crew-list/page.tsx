@@ -79,7 +79,6 @@ export default function PrintCrewListPage() {
           border-bottom: 3px solid #15803d; padding-bottom: 10px; margin-bottom: 12px;
         }
         .crew-company-name { font-size: 18px; font-weight: bold; color: #15803d; }
-        .crew-company-detail { font-size: 10px; color: #374151; line-height: 1.4; text-align: right; }
         .crew-title {
           text-align: center; font-size: 15px; font-weight: bold; letter-spacing: 0.06em;
           text-transform: uppercase; margin: 0 0 10px; color: #14532d;
@@ -133,11 +132,6 @@ export default function PrintCrewListPage() {
             <img src="/logo.jpeg" alt="Logo" style={{ width: "80px", height: "64px", objectFit: "contain" }} />
             <div className="crew-company-name">{companyInfo.companyName}</div>
           </div>
-          <div className="crew-company-detail">
-            {companyInfo.address}<br />
-            PH: {companyInfo.phone} · {companyInfo.email}<br />
-            EIN: {companyInfo.ein} · UBI: {companyInfo.ubi}
-          </div>
         </div>
 
         <div className="crew-title">Daily Crew Sheet</div>
@@ -180,7 +174,7 @@ export default function PrintCrewListPage() {
               <th className="time">Lunch Out</th>
               <th className="time">End</th>
               <th className="time">Hours</th>
-              <th className="bins">Bins</th>
+              <th className="bins">Pieces</th>
             </tr>
           </thead>
           <tbody>
@@ -205,6 +199,10 @@ export default function PrintCrewListPage() {
             <tr>
               <td style={{ width: "50%" }}>Total Workers: {employees.length || ""}</td>
               <td>Total Hours:</td>
+            </tr>
+            <tr>
+              <td style={{ width: "50%" }}>Total Pieces:</td>
+              <td></td>
             </tr>
           </tbody>
         </table>
