@@ -162,6 +162,10 @@ export default function PrintCrewListPage() {
               <td className="label">Number of Workers:</td>
               <td></td>
             </tr>
+            <tr>
+              <td className="label">Task:</td>
+              <td colSpan={3}></td>
+            </tr>
           </tbody>
         </table>
 
