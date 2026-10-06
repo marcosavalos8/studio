@@ -1,4 +1,5 @@
 import { parseLocalDateOrDateTime } from "@/lib/utils";
+import { roundToQuarterHour } from "@/lib/calculations";
 import { format } from "date-fns";
 import type { Task, Client, Piecework, TimeEntry } from "@/lib/types";
 import type { PayrollRangeData } from "./range-data";
@@ -11,13 +12,27 @@ export interface ManagementRow {
   rateType: "piece" | "hourly";
   price: number;
   quantity: number;
+  hours: number;
   total: number;
 }
 
 export interface ManagementReport {
   rows: ManagementRow[];
   totalQuantity: number;
+  totalHours: number;
   totalAmount: number;
+}
+
+// Same rule Payroll uses: after 5 worked hours a 30 minute unpaid lunch is removed,
+// and hours are rounded to the quarter hour.
+function hoursWorked(entry: TimeEntry): number {
+  if (!entry.timestamp || !entry.endTime || entry.isSickLeave) return 0;
+  const start = parseLocalDateOrDateTime(String(entry.timestamp));
+  const end = parseLocalDateOrDateTime(String(entry.endTime));
+  let hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+  if (hours <= 0) return 0;
+  if (hours > 5) hours -= 0.5;
+  return roundToQuarterHour(hours);
 }
 
 /**
@@ -36,8 +51,8 @@ export function buildManagementReport(
   // Accumulate by Date|Client|Task|Variety|RateType|Price
   const groups = new Map<string, ManagementRow>();
 
-  const addPieces = (taskId: string, timestamp: unknown, pieces: number) => {
-    if (!taskId || !pieces || pieces <= 0) return;
+  const addEntry = (taskId: string, timestamp: unknown, pieces: number, hours: number) => {
+    if (!taskId || (pieces <= 0 && hours <= 0)) return;
     const task = taskMap.get(taskId);
     if (!task) return;
     if (!selectedClientIds.has(task.clientId)) return;
@@ -59,7 +74,8 @@ export function buildManagementReport(
     const existing = groups.get(key);
     if (existing) {
       existing.quantity += pieces;
-      existing.total = existing.quantity * existing.price;
+      existing.hours += hours;
+      existing.total = (rateType === "piece" ? existing.quantity : existing.hours) * existing.price;
     } else {
       groups.set(key, {
         date,
@@ -69,21 +85,20 @@ export function buildManagementReport(
         rateType,
         price,
         quantity: pieces,
-        total: pieces * price,
+        hours,
+        total: (rateType === "piece" ? pieces : hours) * price,
       });
     }
   };
 
   // Pieces from the piecework collection
   data.piecework.forEach((p: Piecework) => {
-    addPieces(p.taskId, p.timestamp, p.pieceCount);
+    addEntry(p.taskId, p.timestamp, p.pieceCount, 0);
   });
 
-  // Pieces recorded inside time entries (kept consistent with Payroll counting)
+  // Time entries: hours for every task, plus pieces recorded inside them
   data.timeEntries.forEach((t: TimeEntry) => {
-    if (t.piecesWorked && t.piecesWorked > 0) {
-      addPieces(t.taskId, t.timestamp, t.piecesWorked);
-    }
+    addEntry(t.taskId, t.timestamp, t.piecesWorked ?? 0, hoursWorked(t));
   });
 
   const rows = Array.from(groups.values()).sort((a, b) => {
@@ -95,7 +110,8 @@ export function buildManagementReport(
   });
 
   const totalQuantity = rows.reduce((sum, r) => sum + r.quantity, 0);
+  const totalHours = rows.reduce((sum, r) => sum + r.hours, 0);
   const totalAmount = rows.reduce((sum, r) => sum + r.total, 0);
 
-  return { rows, totalQuantity, totalAmount };
+  return { rows, totalQuantity, totalHours, totalAmount };
 }

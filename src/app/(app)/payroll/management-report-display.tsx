@@ -103,7 +103,8 @@ export function ManagementReportDisplay({
                 <TableHead>Variety</TableHead>
                 <TableHead>Rate Type</TableHead>
                 <TableHead className="text-right">Price</TableHead>
-                <TableHead className="text-right">Quantity</TableHead>
+                <TableHead className="text-right">Total Pieces</TableHead>
+                <TableHead className="text-right">Total Hours</TableHead>
                 <TableHead className="text-right">Total</TableHead>
               </TableRow>
             </TableHeader>
@@ -123,7 +124,10 @@ export function ManagementReportDisplay({
                     {currency(row.price)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {quantity(row.quantity)}
+                    {row.quantity > 0 ? quantity(row.quantity) : "—"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {row.hours > 0 ? quantity(row.hours) : "—"}
                   </TableCell>
                   <TableCell className="text-right font-medium">
                     {currency(row.total)}
@@ -136,6 +140,9 @@ export function ManagementReportDisplay({
                 <TableCell colSpan={6}>Total</TableCell>
                 <TableCell className="text-right">
                   {quantity(report.totalQuantity)}
+                </TableCell>
+                <TableCell className="text-right">
+                  {quantity(report.totalHours)}
                 </TableCell>
                 <TableCell className="text-right">
                   {currency(report.totalAmount)}
