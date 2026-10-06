@@ -983,8 +983,11 @@ function TimeTrackingPage() {
   const filteredManualEmployees = useMemo(() => {
     if (!activeEmployees) return [];
     if (!manualEmployeeSearch) return [];
+    const query = manualEmployeeSearch.trim();
     return activeEmployees.filter((emp) => {
-      if (!emp.name.toLowerCase().includes(manualEmployeeSearch.toLowerCase())) return false;
+      const matchesName = emp.name.toLowerCase().includes(query.toLowerCase());
+      const matchesNumber = /^\d+$/.test(query) && (emp.employeeNumber ?? "").endsWith(query);
+      if (!matchesName && !matchesNumber) return false;
       // For clock-in: exclude employees who already have an entry for this date
       if (manualLogType === "clock-in" && duplicateEntryEmployeeIds.has(emp.id)) return false;
       return true;
@@ -996,13 +999,12 @@ function TimeTrackingPage() {
     if (!activeEmployees) return [];
     if (!manualAddEmployeeSearch) return [];
     const addedIds = new Set(manualEmployees.map((e) => e.employee.id));
-    return activeEmployees.filter(
-      (emp) =>
-        emp.name
-          .toLowerCase()
-          .includes(manualAddEmployeeSearch.toLowerCase()) &&
-        !addedIds.has(emp.id),
-    );
+    const query = manualAddEmployeeSearch.trim();
+    return activeEmployees.filter((emp) => {
+      const matchesName = emp.name.toLowerCase().includes(query.toLowerCase());
+      const matchesNumber = /^\d+$/.test(query) && (emp.employeeNumber ?? "").endsWith(query);
+      return (matchesName || matchesNumber) && !addedIds.has(emp.id);
+    });
   }, [activeEmployees, manualAddEmployeeSearch, manualEmployees]);
 
   // Validation for the Manual Entry submit button
