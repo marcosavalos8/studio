@@ -176,8 +176,8 @@ export default function PrintCrewListPage() {
               <th className="emp">Emp #</th>
               <th className="name">Employee Name</th>
               <th className="time">Start</th>
-              <th className="time">Lunch Out</th>
               <th className="time">Lunch In</th>
+              <th className="time">Lunch Out</th>
               <th className="time">End</th>
               <th className="time">Hours</th>
               <th className="bins">Bins</th>
