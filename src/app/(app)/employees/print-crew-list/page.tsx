@@ -74,6 +74,10 @@ export default function PrintCrewListPage() {
           width: 100%; background: white; min-height: 100vh;
           padding: 24px; box-sizing: border-box; font-family: Arial, sans-serif; color: #111827;
         }
+        .crew-head-cell {
+          background: white; color: #111827; text-align: left; border: none; padding: 0 0 8px 0;
+          text-transform: none; font-size: 11px; letter-spacing: normal;
+        }
         .crew-header {
           display: flex; justify-content: space-between; align-items: center; gap: 16px;
           border-bottom: 3px solid #15803d; padding-bottom: 10px; margin-bottom: 12px;
@@ -84,17 +88,20 @@ export default function PrintCrewListPage() {
           text-transform: uppercase; margin: 0 0 10px; color: #14532d;
         }
         .crew-meta {
-          width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 12px;
+          width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 4px;
         }
         .crew-meta td { border: 1px solid #9ca3af; padding: 7px 8px; }
         .crew-meta td.label { font-weight: bold; width: 18%; background: #f3f4f6; }
         .crew-table {
           width: 100%; border-collapse: collapse; font-size: 11px;
         }
+        .crew-table thead { display: table-header-group; }
+        .crew-table tfoot { display: table-footer-group; }
+        .crew-table tr { page-break-inside: avoid; }
         .crew-table th, .crew-table td {
           border: 1px solid #9ca3af; padding: 5px 6px; text-align: left;
         }
-        .crew-table th {
+        .crew-table thead tr:not(:first-child) th {
           background: #15803d; color: white; font-size: 10px;
           text-transform: uppercase; letter-spacing: 0.04em;
         }
@@ -104,15 +111,9 @@ export default function PrintCrewListPage() {
         .crew-table td.bins, .crew-table th.bins { width: 7%; text-align: center; }
         .crew-table td.name { width: 27%; }
         .crew-table tbody tr:nth-child(even) td { background: #f9fafb; }
-        .crew-table tr.row { height: 26px; }
-        .crew-footer {
-          width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px;
-        }
-        .crew-footer td { border: 1px solid #9ca3af; padding: 8px; font-weight: bold; background: #f3f4f6; }
-        .crew-signature {
-          margin-top: 28px; display: flex; justify-content: space-between; font-size: 11px;
-        }
-        .crew-signature div { width: 45%; border-top: 1px solid #111827; padding-top: 4px; }
+        .crew-table tbody tr.row { height: 26px; }
+        .crew-table .foot-cell { font-weight: bold; background: #f3f4f6; padding: 8px; }
+        .crew-table .sign-cell { padding-top: 26px; border-top: 1px solid #111827; border-left: none; border-right: none; border-bottom: none; font-size: 11px; }
       `}} />
 
       <div className="print-controls">
@@ -127,44 +128,43 @@ export default function PrintCrewListPage() {
       </div>
 
       <div className="crew-list-root">
-        <div className="crew-header">
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <img src="/logo.jpeg" alt="Logo" style={{ width: "80px", height: "64px", objectFit: "contain" }} />
-            <div className="crew-company-name">{companyInfo.companyName}</div>
-          </div>
-        </div>
-
-        <div className="crew-title">Daily Crew Sheet</div>
-
-        <table className="crew-meta">
-          <tbody>
-            <tr>
-              <td className="label">Date:</td>
-              <td></td>
-              <td className="label">Grower / Orchard:</td>
-              <td></td>
-            </tr>
-            <tr>
-              <td className="label">Location / Block:</td>
-              <td></td>
-              <td className="label">Variety:</td>
-              <td></td>
-            </tr>
-            <tr>
-              <td className="label">Crew Leader:</td>
-              <td></td>
-              <td className="label">Number of Workers:</td>
-              <td></td>
-            </tr>
-            <tr>
-              <td className="label">Task:</td>
-              <td colSpan={3}></td>
-            </tr>
-          </tbody>
-        </table>
-
         <table className="crew-table">
           <thead>
+            <tr>
+              <th colSpan={9} className="crew-head-cell">
+                <div className="crew-header">
+                  <img src="/logo.jpeg" alt="Logo" style={{ width: "80px", height: "64px", objectFit: "contain" }} />
+                  <div className="crew-company-name">{companyInfo.companyName}</div>
+                </div>
+                <div className="crew-title">Daily Crew Sheet</div>
+                <table className="crew-meta">
+                  <tbody>
+                    <tr>
+                      <td className="label">Date:</td>
+                      <td></td>
+                      <td className="label">Grower / Orchard:</td>
+                      <td></td>
+                    </tr>
+                    <tr>
+                      <td className="label">Location / Block:</td>
+                      <td></td>
+                      <td className="label">Variety:</td>
+                      <td></td>
+                    </tr>
+                    <tr>
+                      <td className="label">Crew Leader:</td>
+                      <td></td>
+                      <td className="label">Number of Workers:</td>
+                      <td></td>
+                    </tr>
+                    <tr>
+                      <td className="label">Task:</td>
+                      <td colSpan={3}></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </th>
+            </tr>
             <tr>
               <th className="num">#</th>
               <th className="emp">Emp #</th>
@@ -192,25 +192,21 @@ export default function PrintCrewListPage() {
               </tr>
             ))}
           </tbody>
-        </table>
-
-        <table className="crew-footer">
-          <tbody>
+          <tfoot>
             <tr>
-              <td style={{ width: "50%" }}>Total Workers: {employees.length || ""}</td>
-              <td>Total Hours:</td>
+              <td colSpan={5} className="foot-cell">Total Workers: {employees.length || ""}</td>
+              <td colSpan={4} className="foot-cell">Total Hours:</td>
             </tr>
             <tr>
-              <td style={{ width: "50%" }}>Total Pieces:</td>
-              <td></td>
+              <td colSpan={5} className="foot-cell">Total Pieces:</td>
+              <td colSpan={4} className="foot-cell"></td>
             </tr>
-          </tbody>
+            <tr>
+              <td colSpan={5} className="sign-cell">Crew Leader Signature</td>
+              <td colSpan={4} className="sign-cell">Date</td>
+            </tr>
+          </tfoot>
         </table>
-
-        <div className="crew-signature">
-          <div>Crew Leader Signature</div>
-          <div>Date</div>
-        </div>
       </div>
     </>
   );
