@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import {
   Calendar as CalendarIcon,
@@ -1053,31 +1054,35 @@ export function AccountingCenterClient() {
         </div>
       )}
 
-      {stubIds.length > 0 && reportData && (
-        <div className="pay-stub-root">
-          <style>{`
-            @media print {
-              body * { visibility: hidden !important; }
-              .pay-stub-root, .pay-stub-root * { visibility: visible !important; }
-              .pay-stub-root { position: absolute; left: 0; top: 0; width: 100%; background: #fff; }
-            }
-          `}</style>
-          {stubIds.map((id) => {
-            const summary = reportData.employeeSummaries.find((e) => e.employeeId === id);
-            if (!summary) return null;
-            return (
-              <PayStub
-                key={id}
-                summary={summary}
-                employeeNumber={stubEmployeeNumbers[id]}
-                companyName={companyInfo.companyName}
-                startDate={reportData.startDate}
-                endDate={reportData.endDate}
-              />
-            );
-          })}
-        </div>
-      )}
+      {stubIds.length > 0 && reportData && typeof document !== "undefined" &&
+        createPortal(
+          <div className="pay-stub-root">
+            <style>{`
+              @media print {
+                body > *:not(.pay-stub-root) { display: none !important; }
+                .pay-stub-root { display: block !important; }
+              }
+              @media screen {
+                .pay-stub-root { display: none; }
+              }
+            `}</style>
+            {stubIds.map((id) => {
+              const summary = reportData.employeeSummaries.find((e) => e.employeeId === id);
+              if (!summary) return null;
+              return (
+                <PayStub
+                  key={id}
+                  summary={summary}
+                  employeeNumber={stubEmployeeNumbers[id]}
+                  companyName={companyInfo.companyName}
+                  startDate={reportData.startDate}
+                  endDate={reportData.endDate}
+                />
+              );
+            })}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
