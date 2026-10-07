@@ -58,11 +58,12 @@ const base = "px-2 py-1 border-l border-r border-gray-300";
 const numeric = `${base} text-right tabular-nums`;
 const headCell = "px-2 py-1 border-l border-r border-gray-300 border-y-2 border-y-gray-700 bg-green-100 font-semibold text-center";
 
+// Horizontal lines only at the start and end of each worker's block.
 function groupCell(cls: string, isFirst: boolean, isLast: boolean) {
   return [
     cls,
-    isFirst ? "border-t border-t-gray-500" : "",
-    isLast ? "border-b border-b-gray-500" : "",
+    isFirst ? "border-t border-t-gray-500" : "border-t-0",
+    isLast ? "border-b border-b-gray-500" : "border-b-0",
   ].join(" ");
 }
 
@@ -110,9 +111,11 @@ export function LaborNewDesignTable({ report }: { report: Report }) {
     <div className="overflow-x-auto">
       <style>{`
         @media print {
-          @page { size: landscape; margin: 0.4in; }
+          @page { size: landscape; margin: 0.25in; }
+          .labor-new-design { margin: -0.5rem -0.5rem 0 !important; }
         }
       `}</style>
+      <div className="labor-new-design">
       <table className="w-full table-fixed border-collapse text-xs mt-4">
         <thead>
           <tr>
@@ -198,6 +201,7 @@ export function LaborNewDesignTable({ report }: { report: Report }) {
           );
         })}
       </table>
+      </div>
 
       <div className="mt-6 max-w-xl">
         <h3 className="font-bold mb-2 text-[12px]">Total Base Labor Cost</h3>
