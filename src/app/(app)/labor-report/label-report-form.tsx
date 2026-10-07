@@ -410,6 +410,8 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
               rate: 0,
               rateType,
               cost: 0,
+              hours: taskSummary.hours,
+              pieces: taskSummary.pieces,
               isMissingBuckets: taskSummary.isMissingBuckets,
             };
           }
@@ -428,6 +430,8 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
             rate: effectiveClientRate,
             rateType: originalTask.clientRateType,
             cost: quantity * effectiveClientRate,
+            hours: taskSummary.hours,
+            pieces: taskSummary.pieces,
             isMissingBuckets: taskSummary.isMissingBuckets,
           };
         });

@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { parseLocalDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Printer, ArrowLeft, Download } from "lucide-react";
+import { LaborNewDesignTable } from "./new-design-table";
 import { useCompanyInfo } from "@/hooks/use-company-info";
 import {
   Table,
@@ -96,6 +97,7 @@ const truncateWorkerName = (fullName: string): string => {
 
 export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
   const { companyInfo } = useCompanyInfo();
+  const [newDesign, setNewDesign] = React.useState(false);
   const handlePrint = () => {
     window.print();
   };
@@ -701,7 +703,15 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
           <ArrowLeft className="mr-2 h-4 w-4" />
           Generate New Report
         </Button>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <label className="flex items-center gap-2 text-sm mr-2">
+            <input
+              type="checkbox"
+              checked={newDesign}
+              onChange={(e) => setNewDesign(e.target.checked)}
+            />
+            Nuevo diseño
+          </label>
           <Button variant="outline" onClick={handleExportExcel}>
             <Download className="mr-2 h-4 w-4" />
             Export to Excel
@@ -826,7 +836,9 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
           <div className="border-b-2 border-green-700 mt-2"></div>
         </div>
 
-        {hasEmployeeDetails ? (
+        {hasEmployeeDetails ? (newDesign ? (
+          <LaborNewDesignTable report={report} />
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-xs mt-4">
               <thead>
@@ -1002,7 +1014,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
               </tbody>
             </table>
           </div>
-        ) : (
+        )) : (
           <div className="text-center text-gray-500 py-8">
             No employee details available for this date range.
           </div>

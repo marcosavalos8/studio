@@ -71,6 +71,8 @@ export type DetailedLabelReportData = {
       rate: number;
       rateType: "hourly" | "piece";
       cost: number;
+      hours?: number;
+      pieces?: number;
       isMissingBuckets?: boolean;
     }>;
     missingBucketsSummary?: Array<{
