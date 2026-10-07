@@ -112,17 +112,21 @@ export function LaborNewDesignTable({ report }: { report: Report }) {
       <style>{`
         @media print {
           @page { size: landscape; margin: 0.25in; }
-          .report-container .labor-new-design td,
-          .report-container .labor-new-design th {
+          /* .labor-new-design.labor-new-design (class doubled) keeps this at least as
+             specific as any ".report-container table td" / ".labor-report-section table
+             td" rule from whichever page embeds this table, without depending on a
+             particular ancestor class being present. */
+          .labor-new-design.labor-new-design td,
+          .labor-new-design.labor-new-design th {
             border-left: 1px solid #9ca3af !important;
             border-right: 1px solid #9ca3af !important;
             border-top: 0 !important;
             border-bottom: 0 !important;
           }
-          .report-container .labor-new-design td.grp-top {
+          .labor-new-design.labor-new-design td.grp-top {
             border-top: 1px solid #6b7280 !important;
           }
-          .report-container .labor-new-design td.grp-bottom {
+          .labor-new-design.labor-new-design td.grp-bottom {
             border-bottom: 1px solid #6b7280 !important;
           }
         }
