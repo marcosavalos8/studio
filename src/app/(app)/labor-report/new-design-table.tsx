@@ -62,8 +62,8 @@ const headCell = "px-2 py-1 border-l border-r border-gray-300 border-y-2 border-
 function groupCell(cls: string, isFirst: boolean, isLast: boolean) {
   return [
     cls,
-    isFirst ? "border-t border-t-gray-500" : "border-t-0",
-    isLast ? "border-b border-b-gray-500" : "border-b-0",
+    isFirst ? "grp-top" : "",
+    isLast ? "grp-bottom" : "",
   ].join(" ");
 }
 
@@ -112,7 +112,19 @@ export function LaborNewDesignTable({ report }: { report: Report }) {
       <style>{`
         @media print {
           @page { size: landscape; margin: 0.25in; }
-          .labor-new-design { margin: -0.5rem -0.5rem 0 !important; }
+          .report-container .labor-new-design td,
+          .report-container .labor-new-design th {
+            border-left: 1px solid #9ca3af !important;
+            border-right: 1px solid #9ca3af !important;
+            border-top: 0 !important;
+            border-bottom: 0 !important;
+          }
+          .report-container .labor-new-design td.grp-top {
+            border-top: 1px solid #6b7280 !important;
+          }
+          .report-container .labor-new-design td.grp-bottom {
+            border-bottom: 1px solid #6b7280 !important;
+          }
         }
       `}</style>
       <div className="labor-new-design">
