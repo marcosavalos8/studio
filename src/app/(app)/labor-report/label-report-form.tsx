@@ -88,6 +88,11 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
       const tasks = tasksSnap.docs.map(
         (doc) => ({ id: doc.id, ...doc.data() } as Task)
       );
+      // All clients' tasks: overtime is worked out over the worker's full week
+      const allTasksSnap = await getDocs(collection(firestore, "tasks"));
+      const allTasks = allTasksSnap.docs.map(
+        (doc) => ({ id: doc.id, ...doc.data() } as Task)
+      );
 
       const taskIds = tasks.map((t) => t.id);
 
@@ -107,9 +112,8 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
         where("timestamp", "<=", endDate)
       );
       const timeEntriesSnap = await getDocs(timeEntriesQuery);
-      const timeEntries = timeEntriesSnap.docs
+      const allTimeEntries = timeEntriesSnap.docs
         .map((doc) => ({ ...doc.data(), id: doc.id } as TimeEntry))
-        .filter((te) => taskIds.includes(te.taskId))
         .map((te) => {
           const timestampDate = (
             te.timestamp as unknown as Timestamp
@@ -125,6 +129,7 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
               : null,
           };
         });
+      const timeEntries = allTimeEntries.filter((te) => taskIds.includes(te.taskId));
 
       const pieceworkQuery = query(
         collection(firestore, "piecework"),
@@ -132,9 +137,8 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
         where("timestamp", "<=", endDate)
       );
       const pieceworkSnap = await getDocs(pieceworkQuery);
-      const piecework = pieceworkSnap.docs
+      const allPiecework = pieceworkSnap.docs
         .map((doc) => ({ ...doc.data(), id: doc.id } as Piecework))
-        .filter((pw) => taskIds.includes(pw.taskId))
         .map((pw) => {
           const timestampDate = (
             pw.timestamp as unknown as Timestamp
@@ -146,6 +150,7 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
               : null,
           };
         });
+      const piecework = allPiecework.filter((pw) => taskIds.includes(pw.taskId));
 
       const jsonData = JSON.stringify({
         employees: allEmployees,
@@ -161,6 +166,40 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
         endDate: format(endDate, "yyyy-MM-dd"),
         payDate: format(new Date(), "yyyy-MM-dd"),
         jsonData: jsonData,
+      });
+
+      // Overtime is billed per client from the worker's full week (all clients)
+      const fullPayrollResult = await generatePayrollReport({
+        startDate: format(startDate, "yyyy-MM-dd"),
+        endDate: format(endDate, "yyyy-MM-dd"),
+        payDate: format(new Date(), "yyyy-MM-dd"),
+        jsonData: JSON.stringify({
+          employees: allEmployees,
+          tasks: allTasks,
+          clients,
+          timeEntries: allTimeEntries,
+          piecework: allPiecework,
+        }),
+      });
+      const overtimeForThisClientByEmployee = new Map<
+        string,
+        { hours: number; premium: number }
+      >();
+      fullPayrollResult.employeeSummaries.forEach((emp) => {
+        let hours = 0;
+        let premium = 0;
+        emp.weeklySummaries.forEach((week) => {
+          const attribution = week.overtimeByClient?.find(
+            (c) => c.clientId === clientData.id
+          );
+          if (attribution) {
+            hours += attribution.overtimeHours;
+            premium += attribution.overtimePremium;
+          }
+        });
+        if (hours > 0 || premium > 0) {
+          overtimeForThisClientByEmployee.set(emp.employeeId, { hours, premium });
+        }
       });
 
       // --- Transform payroll data into detailed report data ---
@@ -266,15 +305,11 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
         );
       }, 0);
 
-      const totalOvertimePremium = filteredSummaries.reduce((acc, emp) => {
-        return (
-          acc +
-          emp.weeklySummaries.reduce(
-            (weekAcc, week) => weekAcc + (week.overtimePremium || 0),
-            0
-          )
-        );
-      }, 0);
+      const totalOvertimePremium = filteredSummaries.reduce(
+        (acc, emp) =>
+          acc + (overtimeForThisClientByEmployee.get(emp.employeeId)?.premium || 0),
+        0
+      );
 
       const subtotal = laborCost + totalTopUp + totalRestBreaks + totalOvertimePremium;
       const commission = clientData.commissionRate
@@ -305,24 +340,14 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
           (acc, week) => acc + week.minimumWageTopUp,
           0
         );
-        // Calculate all overtime values in a single pass
-        const overtimeData = emp.weeklySummaries.reduce(
-          (acc, week) => {
-            const weekOvertimeHours = week.overtimeHours || 0;
-            return {
-              overtimePremium: acc.overtimePremium + (week.overtimePremium || 0),
-              overtimeHours: acc.overtimeHours + weekOvertimeHours,
-              weightedRateSum: acc.weightedRateSum + (week.regularRate || 0) * weekOvertimeHours,
-            };
-          },
-          { overtimePremium: 0, overtimeHours: 0, weightedRateSum: 0 }
-        );
-        
-        const employeeOvertimePremium = overtimeData.overtimePremium;
-        const employeeOvertimeHours = overtimeData.overtimeHours;
-        const employeeRegularRate = overtimeData.overtimeHours > 0 
-          ? overtimeData.weightedRateSum / overtimeData.overtimeHours 
-          : 0;
+        const employeeOvertime = overtimeForThisClientByEmployee.get(emp.employeeId);
+        const employeeOvertimePremium = employeeOvertime?.premium ?? 0;
+        const employeeOvertimeHours = employeeOvertime?.hours ?? 0;
+        // premium = regularRate * 0.5 * hours, so this recovers the regular rate
+        const employeeRegularRate =
+          employeeOvertimeHours > 0
+            ? employeeOvertimePremium / (0.5 * employeeOvertimeHours)
+            : 0;
 
         // Grouped by taskId, not task name: two Task records that share a
         // display name but have different rates (e.g. the same task
