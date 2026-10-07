@@ -55,7 +55,7 @@ function buildRows(emp: Employee): Row[] {
 
 // Only vertical column lines, plus horizontal lines around each worker's group.
 const base = "px-2 py-1 border-l border-r border-gray-300";
-const numeric = `${base} text-right tabular-nums`;
+const numeric = `${base} text-right tabular-nums whitespace-nowrap print:whitespace-normal`;
 const headCell = "px-2 py-1 border-l border-r border-gray-300 border-y-2 border-y-gray-700 bg-green-100 font-semibold text-center";
 
 // Horizontal lines only at the start and end of each worker's block.
@@ -116,7 +116,7 @@ export function LaborNewDesignTable({ report }: { report: Report }) {
         }
       `}</style>
       <div className="labor-new-design">
-      <table className="w-full table-fixed border-collapse text-xs mt-4">
+      <table className="w-full min-w-[880px] print:min-w-0 table-fixed border-collapse text-xs mt-4">
         <thead>
           <tr>
             <th className={headCell} style={{ width: "12%" }}>Worker Name</th>
