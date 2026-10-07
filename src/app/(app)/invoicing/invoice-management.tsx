@@ -502,6 +502,7 @@ export function InvoiceManagement() {
           invoiceClientData: invoice.invoiceClientData ?? null,
           employeeDetails: invoice.employeeDetails ?? [],
           includeLaborReport: invoice.includeLaborReport ?? false,
+          laborReportNewDesign: invoice.laborReportNewDesign ?? false,
           laborReportData: invoice.includeLaborReport
             ? {
                 clientName: invoice.clientName,

@@ -86,6 +86,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
   const [laborReportData, setLaborReportData] =
     React.useState<DetailedLabelReportData | null>(null);
   const [includeLaborReport, setIncludeLaborReport] = React.useState(false);
+  const [laborReportNewDesign, setLaborReportNewDesign] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isSaved, setIsSaved] = React.useState(false);
   // Stores the pending Firestore payload while the user previews
@@ -761,6 +762,8 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
                 rate: 0,
                 rateType: (isHours ? "hourly" : "piece") as "hourly" | "piece",
                 cost: 0,
+                hours: taskSummary.hours,
+                pieces: taskSummary.pieces,
               };
             }
             const isHourly = originalTask.clientRateType === "hourly";
@@ -775,6 +778,8 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
               rate,
               rateType: originalTask.clientRateType,
               cost: quantity * rate,
+              hours: taskSummary.hours,
+              pieces: taskSummary.pieces,
             };
           });
 
@@ -872,6 +877,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           minimumWage: clientData.minimumWage ?? null,
         },
         includeLaborReport,
+        laborReportNewDesign,
         laborReportEmployeeDetails: finalLaborReportData?.employeeDetails ?? null,
         overtimeLines,
       };
@@ -1025,6 +1031,22 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           Add Labor Report
         </label>
       </div>
+
+      {includeLaborReport && (
+        <div className="mt-2 ml-6 flex items-center space-x-2">
+          <Checkbox
+            id="labor-report-new-design"
+            checked={laborReportNewDesign}
+            onCheckedChange={(checked) => setLaborReportNewDesign(checked === true)}
+          />
+          <label
+            htmlFor="labor-report-new-design"
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+          >
+            Nuevo diseño (one row per task, landscape PDF)
+          </label>
+        </div>
+      )}
 
       {isGenerating && (
         <div className="mt-6 text-center">

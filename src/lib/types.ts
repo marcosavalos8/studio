@@ -261,6 +261,8 @@ export interface SavedInvoice {
   overdueInterestAccrued?: number;
   /** Whether this invoice was generated together with a Labor Report */
   includeLaborReport?: boolean;
+  /** Whether the Labor Report PDF should use the new one-row-per-task layout */
+  laborReportNewDesign?: boolean;
   /** Employee details used for the labor report PDF (includes overtime fields) */
   laborReportEmployeeDetails?: Array<{
     employeeName: string;
@@ -278,6 +280,8 @@ export interface SavedInvoice {
       rate: number;
       rateType: "hourly" | "piece";
       cost: number;
+      hours?: number;
+      pieces?: number;
     }>;
   }>;
 }

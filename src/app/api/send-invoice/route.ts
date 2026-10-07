@@ -4,6 +4,7 @@ import { jsPDF } from "jspdf";
 import * as fs from "fs";
 import * as path from "path";
 import { adminFirestore } from "@/lib/firebase-admin";
+import { generateLaborReportPdfNewDesign } from "@/lib/labor-report-pdf-new-design";
 
 interface CompanyInfo {
   companyName: string;
@@ -79,6 +80,8 @@ interface LaborReportEmployeeDetail {
     rate: number;
     rateType: "hourly" | "piece";
     cost: number;
+    hours?: number;
+    pieces?: number;
   }>;
 }
 
@@ -119,6 +122,7 @@ interface SendInvoiceBody {
   invoiceClientData?: InvoiceClientData;
   employeeDetails?: Array<{ minimumWageTopUp?: number }>;
   includeLaborReport?: boolean;
+  laborReportNewDesign?: boolean;
   laborReportData?: LaborReportData | null;
 }
 
@@ -1425,7 +1429,9 @@ export async function POST(request: Request) {
   let laborReportPdfBuffer: Buffer | undefined;
   if (body.includeLaborReport && body.laborReportData) {
     try {
-      const laborBase64 = generateLaborReportPdf(body.laborReportData, co);
+      const laborBase64 = body.laborReportNewDesign
+        ? generateLaborReportPdfNewDesign(body.laborReportData, co)
+        : generateLaborReportPdf(body.laborReportData, co);
       laborReportPdfBuffer = Buffer.from(laborBase64, "base64");
     } catch (laborPdfErr) {
       console.error("Error generating labor report PDF:", laborPdfErr);
