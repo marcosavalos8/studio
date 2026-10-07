@@ -958,6 +958,25 @@ export function AccountingCenterClient() {
                 {completed} done
               </span>
             )}
+            <label className="flex items-center gap-1.5 text-xs whitespace-nowrap cursor-pointer select-none">
+              <Checkbox
+                checked={
+                  filtered.length > 0 &&
+                  filtered.every((e) => selectedIds.has(e.employeeId))
+                }
+                onCheckedChange={(checked) =>
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    filtered.forEach((e) => {
+                      if (checked === true) next.add(e.employeeId);
+                      else next.delete(e.employeeId);
+                    });
+                    return next;
+                  })
+                }
+              />
+              Select all
+            </label>
             <Button
               variant="outline"
               size="sm"
