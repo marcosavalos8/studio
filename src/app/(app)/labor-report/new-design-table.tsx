@@ -55,7 +55,7 @@ function buildRows(emp: Employee): Row[] {
 
 // Only vertical column lines, plus horizontal lines around each worker's group.
 const base = "px-2 py-1 border-l border-r border-gray-300";
-const numeric = `${base} text-right tabular-nums whitespace-nowrap`;
+const numeric = `${base} text-right tabular-nums`;
 const headCell = "px-2 py-1 border-l border-r border-gray-300 border-y-2 border-y-gray-700 bg-green-100 font-semibold text-center";
 
 function groupCell(cls: string, isFirst: boolean, isLast: boolean) {
@@ -113,11 +113,11 @@ export function LaborNewDesignTable({ report }: { report: Report }) {
           @page { size: landscape; margin: 0.4in; }
         }
       `}</style>
-      <table className="w-full border-collapse text-xs mt-4">
+      <table className="w-full table-fixed border-collapse text-xs mt-4">
         <thead>
           <tr>
-            <th className={headCell}>Worker Name</th>
-            <th className={headCell}>Task/Description</th>
+            <th className={headCell} style={{ width: "12%" }}>Worker Name</th>
+            <th className={headCell} style={{ width: "22%" }}>Task/Description</th>
             <th className={headCell}>Hours</th>
             {hasPieces && <th className={headCell}>Pieces</th>}
             <th className={headCell}>Rate</th>

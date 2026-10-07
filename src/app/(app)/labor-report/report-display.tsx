@@ -1067,6 +1067,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
               )}
 
               {/* Total Base Labor Cost Section */}
+              {!newDesign && (
               <div>
                 <h3 className="font-bold mb-2 text-[12px]">
                   Total Base Labor Cost
@@ -1166,6 +1167,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
                   </table>
                 </div>
               </div>
+              )}
             </div>
           </div>
         )}
