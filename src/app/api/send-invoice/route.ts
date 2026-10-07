@@ -1429,9 +1429,19 @@ export async function POST(request: Request) {
   let laborReportPdfBuffer: Buffer | undefined;
   if (body.includeLaborReport && body.laborReportData) {
     try {
-      const laborBase64 = body.laborReportNewDesign
-        ? generateLaborReportPdfNewDesign(body.laborReportData, co)
-        : generateLaborReportPdf(body.laborReportData, co);
+      let laborBase64: string;
+      if (body.laborReportNewDesign) {
+        let logoBase64: string | null = null;
+        try {
+          const logoPath = path.join(process.cwd(), "src", "components", "images", "logo.jpeg");
+          logoBase64 = fs.readFileSync(logoPath).toString("base64");
+        } catch {
+          // Logo not available — skip silently
+        }
+        laborBase64 = generateLaborReportPdfNewDesign(body.laborReportData, co, logoBase64);
+      } else {
+        laborBase64 = generateLaborReportPdf(body.laborReportData, co);
+      }
       laborReportPdfBuffer = Buffer.from(laborBase64, "base64");
     } catch (laborPdfErr) {
       console.error("Error generating labor report PDF:", laborPdfErr);

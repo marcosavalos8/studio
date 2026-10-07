@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Printer, ArrowLeft, Download } from "lucide-react";
 import { LaborNewDesignTable } from "./new-design-table";
 import { useCompanyInfo } from "@/hooks/use-company-info";
+import { useToast } from "@/hooks/use-toast";
+import { generateLaborReportPdfNewDesign } from "@/lib/labor-report-pdf-new-design";
 import {
   Table,
   TableBody,
@@ -97,9 +99,69 @@ const truncateWorkerName = (fullName: string): string => {
 
 export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
   const { companyInfo } = useCompanyInfo();
+  const { toast } = useToast();
   const [newDesign, setNewDesign] = React.useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = React.useState(false);
   const handlePrint = () => {
     window.print();
+  };
+
+  // The browser print dialog doesn't reliably honor @page landscape on every
+  // device (notably Android), which was leaving a lot of blank space on the
+  // page. The "Nuevo diseño" PDF is generated the same way as the one emailed
+  // from Invoicing instead (jsPDF, orientation fixed in code, not by the OS
+  // print dialog), so it is always landscape and fits the page correctly.
+  const handleDownloadNewDesignPdf = async () => {
+    setIsDownloadingPdf(true);
+    try {
+      let logoBase64: string | null = null;
+      try {
+        const logoResponse = await fetch("/logo.jpeg");
+        if (logoResponse.ok) {
+          const buffer = await logoResponse.arrayBuffer();
+          let binary = "";
+          const bytes = new Uint8Array(buffer);
+          for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          logoBase64 = window.btoa(binary);
+        }
+      } catch {
+        // Logo not available — skip silently
+      }
+
+      const base64 = generateLaborReportPdfNewDesign(
+        {
+          clientName: report.client.name,
+          dateFrom: report.date.from,
+          dateTo: report.date.to,
+          minimumWage: report.client.minimumWage,
+          paidRestBreaks: report.paidRestBreaks,
+          minimumWageTopUp: report.minimumWageTopUp,
+          overtimePremium: report.overtimePremium,
+          subtotal: report.subtotal,
+          commission: report.commission,
+          total: report.total,
+          employeeDetails: report.employeeDetails ?? [],
+        },
+        companyInfo,
+        logoBase64,
+      );
+
+      const link = document.createElement("a");
+      link.href = `data:application/pdf;base64,${base64}`;
+      link.download = `LaborReport_${report.client.name.replace(/\s+/g, "_")}.pdf`;
+      link.click();
+    } catch (err) {
+      console.error("Error generating new-design labor report PDF:", err);
+      toast({
+        variant: "destructive",
+        title: "Could not generate PDF",
+        description: "Please try again.",
+      });
+    } finally {
+      setIsDownloadingPdf(false);
+    }
   };
 
   const handleExportExcel = async () => {
@@ -716,10 +778,17 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
             <Download className="mr-2 h-4 w-4" />
             Export to Excel
           </Button>
-          <Button onClick={handlePrint}>
-            <Printer className="mr-2 h-4 w-4" />
-            Print / Save as PDF
-          </Button>
+          {newDesign ? (
+            <Button onClick={handleDownloadNewDesignPdf} disabled={isDownloadingPdf}>
+              <Printer className="mr-2 h-4 w-4" />
+              {isDownloadingPdf ? "Generando…" : "Download PDF (landscape)"}
+            </Button>
+          ) : (
+            <Button onClick={handlePrint}>
+              <Printer className="mr-2 h-4 w-4" />
+              Print / Save as PDF
+            </Button>
+          )}
         </div>
       </div>
       <div className="report-container bg-white text-black p-8 rounded-lg border shadow-sm">

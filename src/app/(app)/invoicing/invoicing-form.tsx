@@ -935,6 +935,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           setIsSaved(false);
         }}
         laborReport={laborReportData}
+        laborReportNewDesign={laborReportNewDesign}
         onSave={handleSaveInvoice}
         isSaving={isSaving}
         isSaved={isSaved}

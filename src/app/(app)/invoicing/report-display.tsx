@@ -10,11 +10,13 @@ import { Printer, ArrowLeft, Save, CheckCircle2, Loader2 } from "lucide-react";
 import logo from "../../../components/images/logo.jpeg";
 import Image from "next/image";
 import { useCompanyInfo } from "@/hooks/use-company-info";
+import { LaborNewDesignTable } from "../labor-report/new-design-table";
 
 interface ReportDisplayProps {
   report: DetailedInvoiceData;
   onBack: () => void;
   laborReport?: DetailedLabelReportData | null;
+  laborReportNewDesign?: boolean;
   onSave?: () => Promise<void>;
   isSaving?: boolean;
   isSaved?: boolean;
@@ -79,6 +81,7 @@ export function InvoiceReportDisplay({
   report,
   onBack,
   laborReport,
+  laborReportNewDesign,
   onSave,
   isSaving,
   isSaved,
@@ -957,7 +960,9 @@ export function InvoiceReportDisplay({
         {/* end .print-page (invoice) */}
 
         {/* ── LABOR REPORT: second printed page ── */}
-        {laborReport && <LaborReportSection report={laborReport} />}
+        {laborReport && (
+          <LaborReportSection report={laborReport} newDesign={laborReportNewDesign} />
+        )}
       </div>
       {/* end .print-root */}
     </div>
@@ -993,7 +998,13 @@ function calcTaskTotals(
 }
 
 // ── Inline Labor Report Section ──────────────────────────────────────────────
-function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
+function LaborReportSection({
+  report,
+  newDesign,
+}: {
+  report: DetailedLabelReportData;
+  newDesign?: boolean;
+}) {
   const { companyInfo } = useCompanyInfo();
   const formatCurr = (v: number | undefined | null) =>
     v === undefined || v === null || isNaN(v) ? "$0.00" : `$${v.toFixed(2)}`;
@@ -1105,6 +1116,10 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
         <div className="border-b-2 border-green-700 mt-2"></div>
       </div>
 
+      {newDesign ? (
+        <LaborNewDesignTable report={report} />
+      ) : (
+        <>
       {hasEmployeeDetails ? (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-xs mt-4">
@@ -1403,6 +1418,8 @@ function LaborReportSection({ report }: { report: DetailedLabelReportData }) {
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

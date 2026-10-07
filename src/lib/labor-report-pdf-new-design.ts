@@ -1,6 +1,4 @@
 import { jsPDF } from "jspdf";
-import * as fs from "fs";
-import * as path from "path";
 
 // Self-contained module: no imports from the API route, so it can be unit-tested
 // on its own and never risks breaking the existing (old design) PDF generator.
@@ -109,6 +107,9 @@ function buildRows(emp: LaborReportEmployeeDetail): Row[] {
 export function generateLaborReportPdfNewDesign(
   data: LaborReportData,
   co: CompanyInfo,
+  // Base64-encoded logo (no data: prefix). Loading it is the caller's job, since
+  // this module has to work both on the server (fs) and in the browser (fetch).
+  logoBase64?: string | null,
 ): string {
   // Landscape letter, same as the existing (old design) labor report PDF.
   const doc = new jsPDF({ unit: "pt", format: "letter", orientation: "landscape" });
@@ -117,15 +118,6 @@ export function generateLaborReportPdfNewDesign(
   const margin = 30;
   const contentW = pageW - margin * 2;
   let y = margin;
-
-  // ── Load logo ──────────────────────────────────────────────────────────
-  let logoBase64: string | null = null;
-  try {
-    const logoPath = path.join(process.cwd(), "src", "components", "images", "logo.jpeg");
-    logoBase64 = fs.readFileSync(logoPath).toString("base64");
-  } catch {
-    // Logo not available — skip silently
-  }
 
   // ── Date range ────────────────────────────────────────────────────────
   const fromDate = parseLocalDate(data.dateFrom);
