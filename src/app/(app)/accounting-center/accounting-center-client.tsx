@@ -7,6 +7,7 @@ import {
   Loader2,
   Search,
   CheckCircle2,
+  Printer,
 } from "lucide-react";
 import { cn, toLocalMidnight, parseLocalDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,8 @@ import type {
   AccountingCompletion,
 } from "@/lib/types";
 import { generateAccountingReportAction } from "./actions";
+import { PayStub } from "./pay-stub";
+import { useCompanyInfo } from "@/hooks/use-company-info";
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -497,6 +500,8 @@ function AccountingSummaryCard({
 // ── Worker accordion item ─────────────────────────────────────────────────────
 
 interface WorkerAccordionItemProps {
+  selected: boolean;
+  onSelectChange: (checked: boolean) => void;
   employeeSummary: ProcessedPayrollData["employeeSummaries"][0];
   isCompleted: boolean;
   completionDocId: string | undefined;
@@ -508,6 +513,8 @@ interface WorkerAccordionItemProps {
 }
 
 function WorkerAccordionItem({
+  selected,
+  onSelectChange,
   employeeSummary,
   isCompleted,
   completionDocId,
@@ -515,10 +522,18 @@ function WorkerAccordionItem({
   isToggling,
 }: WorkerAccordionItemProps) {
   return (
+    <div className="flex items-start gap-3 mb-2">
+      <div className="pt-6">
+        <Checkbox
+          checked={selected}
+          onCheckedChange={(checked) => onSelectChange(checked === true)}
+          aria-label={`Select ${employeeSummary.employeeName}`}
+        />
+      </div>
     <AccordionItem
       value={employeeSummary.employeeId}
       className={cn(
-        "rounded-lg border mb-2 overflow-hidden shadow-sm transition-colors",
+        "flex-1 min-w-0 rounded-lg border overflow-hidden shadow-sm transition-colors",
         isCompleted
           ? "border-green-300 bg-green-50/30 dark:border-green-800 dark:bg-green-950/10"
           : "border-border bg-card",
@@ -603,6 +618,7 @@ function WorkerAccordionItem({
         </div>
       </AccordionContent>
     </AccordionItem>
+    </div>
   );
 }
 
@@ -624,6 +640,36 @@ export function AccountingCenterClient() {
   >(new Map());
   const [togglingIds, setTogglingIds] = React.useState<Set<string>>(new Set());
   const [openItems, setOpenItems] = React.useState<string[]>([]);
+  const companyInfo = useCompanyInfo().companyInfo;
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  const [stubIds, setStubIds] = React.useState<string[]>([]);
+  const [stubEmployeeNumbers, setStubEmployeeNumbers] = React.useState<Record<string, string>>({});
+
+  const handlePrintStubs = async () => {
+    if (!reportData || selectedIds.size === 0) return;
+    let numbers: Record<string, string> = {};
+    if (firestore) {
+      const snap = await getDocs(collection(firestore, "employees"));
+      numbers = Object.fromEntries(
+        snap.docs.map((d) => [d.id, (d.data().employeeNumber as string) ?? ""]),
+      );
+    }
+    setStubEmployeeNumbers(numbers);
+    setStubIds(
+      reportData.employeeSummaries
+        .map((e) => e.employeeId)
+        .filter((id) => selectedIds.has(id)),
+    );
+  };
+
+  React.useEffect(() => {
+    if (stubIds.length === 0) return;
+    const timer = setTimeout(() => {
+      window.print();
+      setStubIds([]);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [stubIds]);
 
   // ── Fetch data & generate report ─────────────────────────────────────────
   React.useEffect(() => {
@@ -912,6 +958,16 @@ export function AccountingCenterClient() {
                 {completed} done
               </span>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-sm"
+              disabled={selectedIds.size === 0}
+              onClick={handlePrintStubs}
+            >
+              <Printer className="mr-2 h-3.5 w-3.5" />
+              Print Pay Stubs{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+            </Button>
             <div className="relative">
               <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
@@ -947,6 +1003,15 @@ export function AccountingCenterClient() {
                     return (
                       <WorkerAccordionItem
                         key={emp.employeeId}
+                        selected={selectedIds.has(emp.employeeId)}
+                        onSelectChange={(checked) =>
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            if (checked) next.add(emp.employeeId);
+                            else next.delete(emp.employeeId);
+                            return next;
+                          })
+                        }
                         employeeSummary={emp}
                         isCompleted={!!completion}
                         completionDocId={completion?.docId}
@@ -966,6 +1031,32 @@ export function AccountingCenterClient() {
           <p className="text-sm">
             No worker activity found for the selected date range.
           </p>
+        </div>
+      )}
+
+      {stubIds.length > 0 && reportData && (
+        <div className="pay-stub-root">
+          <style>{`
+            @media print {
+              body * { visibility: hidden !important; }
+              .pay-stub-root, .pay-stub-root * { visibility: visible !important; }
+              .pay-stub-root { position: absolute; left: 0; top: 0; width: 100%; background: #fff; }
+            }
+          `}</style>
+          {stubIds.map((id) => {
+            const summary = reportData.employeeSummaries.find((e) => e.employeeId === id);
+            if (!summary) return null;
+            return (
+              <PayStub
+                key={id}
+                summary={summary}
+                employeeNumber={stubEmployeeNumbers[id]}
+                companyName={companyInfo.companyName}
+                startDate={reportData.startDate}
+                endDate={reportData.endDate}
+              />
+            );
+          })}
         </div>
       )}
     </div>
