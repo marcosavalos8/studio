@@ -90,6 +90,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
   const [laborReportNewDesign, setLaborReportNewDesign] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isSaved, setIsSaved] = React.useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = React.useState(false);
   // Stores the pending Firestore payload while the user previews
   const [pendingFirestorePayload, setPendingFirestorePayload] =
     React.useState<InvoiceFirestorePayload | null>(null);
@@ -925,6 +926,84 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
     }
   };
 
+  // The invoice page(s) print fine as portrait via the browser (window.print),
+  // but a single print job can't reliably mix orientations across pages — most
+  // browsers force one orientation for the whole job, which was forcing the
+  // labor report pages to portrait too. When a labor report is attached, we
+  // instead ask the server for one merged PDF where the invoice pages are
+  // generated exactly like always (portrait) and the labor report pages keep
+  // their own landscape orientation (same jsPDF generator used for email).
+  const handleDownloadUnifiedPdf = async () => {
+    if (!pendingFirestorePayload) return;
+    const payload = pendingFirestorePayload;
+    setIsDownloadingPdf(true);
+    try {
+      const res = await fetch("/api/send-invoice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deliveryMode: "download",
+          invoiceNumber: payload.invoiceNumber,
+          invoiceDate: payload.invoiceDate,
+          clientName: payload.clientName,
+          clientEmail: payload.clientEmail ?? "",
+          dateFrom: payload.dateFrom,
+          dateTo: payload.dateTo,
+          total: payload.total,
+          minimumWageTopUp: payload.minimumWageTopUp,
+          paidRestBreaks: payload.paidRestBreaks,
+          overtimePremium: payload.overtimePremium,
+          overtimeHours: payload.overtimeHours,
+          overtimeLines: payload.overtimeLines ?? null,
+          subtotal: payload.subtotal,
+          commission: payload.commission,
+          dailyBreakdown: payload.dailyBreakdown ?? null,
+          invoiceClientData: payload.invoiceClientData ?? null,
+          employeeDetails: payload.employeeDetails ?? [],
+          includeLaborReport,
+          laborReportNewDesign,
+          laborReportData: includeLaborReport
+            ? {
+                clientName: payload.clientName,
+                dateFrom: payload.dateFrom,
+                dateTo: payload.dateTo,
+                minimumWage: payload.invoiceClientData?.minimumWage ?? undefined,
+                paidRestBreaks: payload.paidRestBreaks,
+                minimumWageTopUp: payload.minimumWageTopUp,
+                overtimePremium: payload.overtimePremium ?? 0,
+                subtotal: payload.subtotal,
+                commission: payload.commission,
+                total: payload.total,
+                employeeDetails: payload.laborReportEmployeeDetails ?? [],
+              }
+            : null,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error || "Error generating PDF");
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Invoice_${payload.invoiceNumber}_${payload.clientName.replace(/\s+/g, "_")}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Error downloading invoice PDF:", err);
+      toast({
+        variant: "destructive",
+        title: "Could not generate PDF",
+        description: "Please try again.",
+      });
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
   if (invoiceData) {
     return (
       <InvoiceReportDisplay
@@ -940,6 +1019,8 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         onSave={handleSaveInvoice}
         isSaving={isSaving}
         isSaved={isSaved}
+        onDownloadUnifiedPdf={handleDownloadUnifiedPdf}
+        isDownloadingPdf={isDownloadingPdf}
       />
     );
   }
@@ -1045,7 +1126,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
             htmlFor="labor-report-new-design"
             className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
           >
-            Diseño antiguo
+            Old Version
           </label>
         </div>
       )}

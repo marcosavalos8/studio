@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { jsPDF } from "jspdf";
+import { PDFDocument } from "pdf-lib";
 import * as fs from "fs";
 import * as path from "path";
 import { adminFirestore } from "@/lib/firebase-admin";
@@ -124,6 +125,10 @@ interface SendInvoiceBody {
   includeLaborReport?: boolean;
   laborReportNewDesign?: boolean;
   laborReportData?: LaborReportData | null;
+  // "download" skips sending the email and instead returns a single merged
+  // PDF (invoice pages as-is + labor report pages, each keeping its own
+  // page orientation) for the caller to download directly.
+  deliveryMode?: "email" | "download";
 }
 
 // ─── utility ──────────────────────────────────────────────────────────────────
@@ -1362,7 +1367,8 @@ export async function POST(request: Request) {
 
   const { invoiceNumber, clientEmail, total, dueDate, clientName } = body;
   const includeLaborReport = body.includeLaborReport ?? false;
-  if (!clientEmail) {
+  const deliveryMode = body.deliveryMode ?? "email";
+  if (deliveryMode === "email" && !clientEmail) {
     return NextResponse.json(
       { error: "clientEmail is required" },
       { status: 400 },
@@ -1446,6 +1452,43 @@ export async function POST(request: Request) {
     } catch (laborPdfErr) {
       console.error("Error generating labor report PDF:", laborPdfErr);
       // Continue without labor report attachment
+    }
+  }
+
+  if (deliveryMode === "download") {
+    if (!pdfBuffer) {
+      return NextResponse.json(
+        { error: "Failed to generate invoice PDF" },
+        { status: 500 },
+      );
+    }
+    try {
+      const merged = await PDFDocument.create();
+      const invoiceSrc = await PDFDocument.load(pdfBuffer);
+      const invoicePages = await merged.copyPages(invoiceSrc, invoiceSrc.getPageIndices());
+      invoicePages.forEach((p) => merged.addPage(p));
+
+      if (laborReportPdfBuffer) {
+        const laborSrc = await PDFDocument.load(laborReportPdfBuffer);
+        const laborPages = await merged.copyPages(laborSrc, laborSrc.getPageIndices());
+        laborPages.forEach((p) => merged.addPage(p));
+      }
+
+      const mergedBytes = await merged.save();
+      const safeFilename = `Invoice_${invoiceNumber}_${clientName.replace(/\s+/g, "_")}.pdf`;
+      return new NextResponse(Buffer.from(mergedBytes), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="${safeFilename}"`,
+        },
+      });
+    } catch (mergeErr) {
+      console.error("Error merging invoice + labor report PDF:", mergeErr);
+      return NextResponse.json(
+        { error: "Failed to generate merged PDF" },
+        { status: 500 },
+      );
     }
   }
 

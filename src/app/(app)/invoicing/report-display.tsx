@@ -20,6 +20,11 @@ interface ReportDisplayProps {
   onSave?: () => Promise<void>;
   isSaving?: boolean;
   isSaved?: boolean;
+  // When a labor report is attached, printing via the browser can't reliably
+  // mix the invoice's portrait pages with the labor report's landscape pages
+  // in one job, so that case downloads a server-merged PDF instead.
+  onDownloadUnifiedPdf?: () => Promise<void>;
+  isDownloadingPdf?: boolean;
 }
 
 const formatCurrency = (value: number | undefined | null): string => {
@@ -85,11 +90,14 @@ export function InvoiceReportDisplay({
   onSave,
   isSaving,
   isSaved,
+  onDownloadUnifiedPdf,
+  isDownloadingPdf,
 }: ReportDisplayProps) {
   const { companyInfo } = useCompanyInfo();
   const handlePrint = () => {
     window.print();
   };
+  const hasLaborReport = !!laborReport;
 
   const sortedDates = Object.keys(report.dailyBreakdown).sort(
     (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime(),
@@ -305,10 +313,17 @@ export function InvoiceReportDisplay({
               {isSaved ? "Record Created" : "Create Record"}
             </Button>
           )}
-          <Button onClick={handlePrint}>
-            <Printer className="mr-2 h-4 w-4" />
-            Print / Save as PDF
-          </Button>
+          {hasLaborReport && onDownloadUnifiedPdf ? (
+            <Button onClick={onDownloadUnifiedPdf} disabled={isDownloadingPdf}>
+              <Printer className="mr-2 h-4 w-4" />
+              {isDownloadingPdf ? "Generando…" : "Print / Save as PDF"}
+            </Button>
+          ) : (
+            <Button onClick={handlePrint}>
+              <Printer className="mr-2 h-4 w-4" />
+              Print / Save as PDF
+            </Button>
+          )}
         </div>
       </div>
 
