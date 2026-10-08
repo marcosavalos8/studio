@@ -183,7 +183,7 @@ function WeeklySummaryTable({ week }: { week: WeeklySummary }) {
                     <TableCell
                       className={`${tdr} text-indigo-700 dark:text-indigo-300`}
                     >
-                      {quantity.toFixed(2)}{isHourly ? " hrs" : ""}
+                      {isHourly ? quantity.toFixed(2) : quantity.toFixed(4)}{isHourly ? " hrs" : ""}
                     </TableCell>
                     <TableCell
                       className={`${tdr} text-indigo-700 dark:text-indigo-300`}
@@ -363,7 +363,7 @@ function AccountingSummaryCard({
                 </div>
                 <div className="px-3 py-1 text-xs font-medium text-right">
                   {g.rateType === "piece"
-                    ? `${g.totalPieces.toFixed(2)} pcs`
+                    ? `${g.totalPieces.toFixed(4)} pcs`
                     : `${g.totalHours.toFixed(2)} hrs`}
                 </div>
                 <div className="px-3 py-1 text-xs font-semibold text-right">

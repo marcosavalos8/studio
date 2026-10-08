@@ -212,7 +212,7 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                                                                         </span>
                                                                       )}
                                                                     </TableCell>
-                                                                    <TableCell className="text-right text-sm text-indigo-600">{quantity.toFixed(2)}{isHourly ? " hrs" : ""}</TableCell>
+                                                                    <TableCell className="text-right text-sm text-indigo-600">{isHourly ? quantity.toFixed(2) : quantity.toFixed(4)}{isHourly ? " hrs" : ""}</TableCell>
                                                                     <TableCell className="text-right text-sm text-indigo-600">${(item.price ?? 0).toFixed(2)}</TableCell>
                                                                     <TableCell className="text-right text-sm text-indigo-600 font-medium">${rowTotal.toFixed(2)}</TableCell>
                                                                   </TableRow>

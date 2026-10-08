@@ -748,7 +748,11 @@ export async function generatePayrollReport({
           ...piecesByVarietyArray.map(item => ({
             taskName: item.taskName,
             variety: item.variety,
-            totalPieces: parseFloat(item.totalPieces.toFixed(2)),
+            // Full precision on purpose — rounding here (e.g. a shared-piece split
+            // like 2.75/4 = 0.6875) made qty × price on this row disagree with the
+            // Raw Task Earnings total below it, which sums at full precision.
+            // Only round for display, never before multiplying.
+            totalPieces: item.totalPieces,
             price: item.price ?? 0,
             rateType: "piece" as const,
             totalHours: undefined,
