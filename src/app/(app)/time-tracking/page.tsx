@@ -492,6 +492,9 @@ function TimeTrackingPage() {
   const [editPieceCount, setEditPieceCount] = useState<number | string>(1);
   const [editTaskId, setEditTaskId] = useState<string>("");
   const [editEmployeeId, setEditEmployeeId] = useState<string>("");
+  const [editEmployeeSearch, setEditEmployeeSearch] = useState("");
+  const [showEditEmployeeSearch, setShowEditEmployeeSearch] = useState(false);
+  const [focusedEditEmployeeIdx, setFocusedEditEmployeeIdx] = useState(-1);
   const [editClient, setEditClient] = useState<string>("");
   const [editRanch, setEditRanch] = useState<string>("");
   const [editBlock, setEditBlock] = useState<string>("");
@@ -1210,6 +1213,20 @@ function TimeTrackingPage() {
     setChangeEmployeeSearch("");
     setFocusedChangeEmployeeIdx(-1);
   };
+
+  // Employee field inside the History tab's "Edit Time Entry" / "Edit Piecework
+  // Record" dialogs — a search box instead of a plain dropdown (the employee
+  // list is long enough that scrolling a <Select> on mobile is painful).
+  const filteredEditEmployeeOptions = useMemo(() => {
+    if (!activeEmployees) return [];
+    if (!editEmployeeSearch) return [];
+    const query = editEmployeeSearch.trim();
+    return activeEmployees.filter((emp) => {
+      const matchesName = emp.name.toLowerCase().includes(query.toLowerCase());
+      const matchesNumber = /^\d+$/.test(query) && (emp.employeeNumber ?? "").endsWith(query);
+      return matchesName || matchesNumber;
+    });
+  }, [activeEmployees, editEmployeeSearch]);
 
   const handleChangeEmployee = (newEmployee: Employee) => {
     if (changeEmployeeIdx === null) return;
@@ -7113,6 +7130,8 @@ function TimeTrackingPage() {
                                   setEditPaymentModality(initialModality);
                                   setEditRelatedPiecework(relatedPieces);
                                   setEditEmployeeId(entry.employeeId);
+                                  setShowEditEmployeeSearch(false);
+                                  setEditEmployeeSearch("");
 
                                   // Initialize task selection (don't pre-set ranch/block so all client tasks are visible)
                                   setEditTaskId(entry.taskId);
@@ -7327,6 +7346,8 @@ function TimeTrackingPage() {
                                   setEditTimestamp(pieceTime);
                                   setEditPieceCount(piece.pieceCount || 1);
                                   setEditEmployeeId(piece.employeeId);
+                                  setShowEditEmployeeSearch(false);
+                                  setEditEmployeeSearch("");
 
                                   // Inicializar selección de tarea COMPLETA (don't pre-set ranch/block so all client tasks are visible)
                                   setEditTaskId(piece.taskId);
@@ -7543,19 +7564,108 @@ function TimeTrackingPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-employee">Employee</Label>
-              <Select value={editEmployeeId || ""} onValueChange={setEditEmployeeId}>
-                <SelectTrigger id="edit-employee">
-                  <SelectValue placeholder="Select an employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeEmployees?.map((employee) => (
-                    <SelectItem key={employee.id} value={employee.id}>
-                      {employee.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="edit-employee-search">Employee</Label>
+              {!showEditEmployeeSearch ? (
+                <div className="flex items-center gap-2 rounded-md border p-2 bg-muted">
+                  <User className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 truncate">
+                    {activeEmployees?.find((e) => e.id === editEmployeeId)
+                      ?.name ?? "Select an employee"}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowEditEmployeeSearch(true);
+                      setEditEmployeeSearch("");
+                      setFocusedEditEmployeeIdx(-1);
+                    }}
+                  >
+                    Change
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Input
+                    id="edit-employee-search"
+                    autoFocus
+                    placeholder="Search by name or short ID..."
+                    value={editEmployeeSearch}
+                    onChange={(e) => {
+                      setEditEmployeeSearch(e.target.value);
+                      setFocusedEditEmployeeIdx(-1);
+                    }}
+                    onKeyDown={(e) => {
+                      if (!filteredEditEmployeeOptions.length) return;
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setFocusedEditEmployeeIdx((prev) =>
+                          Math.min(
+                            prev + 1,
+                            filteredEditEmployeeOptions.length - 1,
+                          ),
+                        );
+                      } else if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setFocusedEditEmployeeIdx((prev) =>
+                          Math.max(prev - 1, -1),
+                        );
+                      } else if (
+                        e.key === "Enter" &&
+                        focusedEditEmployeeIdx >= 0
+                      ) {
+                        e.preventDefault();
+                        const emp =
+                          filteredEditEmployeeOptions[focusedEditEmployeeIdx];
+                        if (emp) {
+                          setEditEmployeeId(emp.id);
+                          setShowEditEmployeeSearch(false);
+                          setEditEmployeeSearch("");
+                          setFocusedEditEmployeeIdx(-1);
+                        }
+                      } else if (e.key === "Escape") {
+                        setShowEditEmployeeSearch(false);
+                        setEditEmployeeSearch("");
+                        setFocusedEditEmployeeIdx(-1);
+                      }
+                    }}
+                  />
+                  {editEmployeeSearch &&
+                    filteredEditEmployeeOptions.length > 0 && (
+                      <div className="border rounded-md max-h-48 overflow-y-auto">
+                        {filteredEditEmployeeOptions.map((employee, idx) => (
+                          <Button
+                            key={employee.id}
+                            type="button"
+                            tabIndex={-1}
+                            variant={
+                              idx === focusedEditEmployeeIdx
+                                ? "secondary"
+                                : "ghost"
+                            }
+                            className="w-full justify-start"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setEditEmployeeId(employee.id);
+                              setShowEditEmployeeSearch(false);
+                              setEditEmployeeSearch("");
+                              setFocusedEditEmployeeIdx(-1);
+                            }}
+                          >
+                            {employee.name}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                  {editEmployeeSearch &&
+                    filteredEditEmployeeOptions.length === 0 && (
+                      <p className="p-4 text-sm text-muted-foreground">
+                        No employees found.
+                      </p>
+                    )}
+                </>
+              )}
             </div>
 
             {/* Task Selection Fields */}
