@@ -333,7 +333,9 @@ function TimeTrackingPage() {
   const [manualEmployeeSearch, setManualEmployeeSearch] = useState("");
   const [manualSelectedEmployee, setManualSelectedEmployee] =
     useState<Employee | null>(null);
-  // Multi-employee list for manual entry: each entry has the employee and their individual PC count
+  // Multi-employee list for manual entry: each entry has the employee and their individual PC count.
+  // Entries created via "Create Shared Group" share a groupId (and the group's original
+  // total), so the group can be reopened and edited as a whole later via its pencil icon.
   const [manualEmployees, setManualEmployees] = useState<
     Array<{
       employee: Employee;
@@ -341,6 +343,8 @@ function TimeTrackingPage() {
       clockIn?: string;
       clockOut?: string;
       hours?: string;
+      groupId?: string;
+      groupTotal?: number;
     }>
   >([]);
   const [manualAddEmployeeSearch, setManualAddEmployeeSearch] = useState("");
@@ -378,6 +382,18 @@ function TimeTrackingPage() {
   const [sharedGroupSearch, setSharedGroupSearch] = useState("");
   const [focusedSharedGroupIdx, setFocusedSharedGroupIdx] = useState(-1);
   const sharedGroupInputRef = useRef<HTMLInputElement>(null);
+  // Set when the dialog was opened via the pencil on an existing group's member
+  // (instead of "Create Shared Group"), so saving replaces that group instead of
+  // adding a new one.
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  // "Change Employee" dialog: pencil on a non-group (individual) row lets you swap
+  // who that row is for, keeping its already-entered clock-in/out/hours/pieces.
+  const [changeEmployeeIdx, setChangeEmployeeIdx] = useState<number | null>(
+    null,
+  );
+  const [changeEmployeeSearch, setChangeEmployeeSearch] = useState("");
+  const [focusedChangeEmployeeIdx, setFocusedChangeEmployeeIdx] = useState(-1);
+  const changeEmployeeInputRef = useRef<HTMLInputElement>(null);
   const manualEmployeeListRef = useRef<HTMLDivElement>(null);
   const [manualPieceQuantity, setManualPieceQuantity] = useState<
     number | string
@@ -475,6 +491,7 @@ function TimeTrackingPage() {
   >("Hourly");
   const [editPieceCount, setEditPieceCount] = useState<number | string>(1);
   const [editTaskId, setEditTaskId] = useState<string>("");
+  const [editEmployeeId, setEditEmployeeId] = useState<string>("");
   const [editClient, setEditClient] = useState<string>("");
   const [editRanch, setEditRanch] = useState<string>("");
   const [editBlock, setEditBlock] = useState<string>("");
@@ -1058,19 +1075,30 @@ function TimeTrackingPage() {
 
   // Filtered employees for the Shared Group dialog (excludes workers already in
   // the group being built, and anyone already added to the main list).
+  // Returns matches sorted with not-yet-added employees first, then employees
+  // already somewhere in manualEmployees (individual or another group) grayed
+  // out at the end — so e.g. someone already logged individually earlier in the
+  // day can still be pulled into a group later, without cluttering the top of
+  // the list. Anyone already in THIS group being built is hard-excluded (no
+  // reason to add them twice to the same split).
   const filteredSharedGroupEmployees = useMemo(() => {
     if (!activeEmployees) return [];
     if (!sharedGroupSearch) return [];
-    const addedIds = new Set([
-      ...sharedGroupMemberIds,
-      ...manualEmployees.map((e) => e.employee.id),
-    ]);
+    const inThisDraft = new Set(sharedGroupMemberIds);
+    const elsewhereInList = new Set(manualEmployees.map((e) => e.employee.id));
     const query = sharedGroupSearch.trim();
-    return activeEmployees.filter((emp) => {
+    const matches = activeEmployees.filter((emp) => {
+      if (inThisDraft.has(emp.id)) return false;
       const matchesName = emp.name.toLowerCase().includes(query.toLowerCase());
       const matchesNumber = /^\d+$/.test(query) && (emp.employeeNumber ?? "").endsWith(query);
-      return (matchesName || matchesNumber) && !addedIds.has(emp.id);
+      return matchesName || matchesNumber;
     });
+    return matches
+      .map((employee) => ({
+        employee,
+        alreadyAdded: elsewhereInList.has(employee.id),
+      }))
+      .sort((a, b) => Number(a.alreadyAdded) - Number(b.alreadyAdded));
   }, [activeEmployees, sharedGroupSearch, sharedGroupMemberIds, manualEmployees]);
 
   const sharedGroupTotalNum =
@@ -1090,6 +1118,18 @@ function TimeTrackingPage() {
     setSharedGroupMemberIds([]);
     setSharedGroupSearch("");
     setFocusedSharedGroupIdx(-1);
+    setEditingGroupId(null);
+  };
+
+  // Pencil on a grouped worker: reopen this dialog pre-filled with that group's
+  // current total and members, so it can be edited as a whole.
+  const openEditGroup = (groupId: string) => {
+    const members = manualEmployees.filter((e) => e.groupId === groupId);
+    if (members.length === 0) return;
+    setEditingGroupId(groupId);
+    setSharedGroupTotalPieces(members[0].groupTotal ?? "");
+    setSharedGroupMemberIds(members.map((m) => m.employee.id));
+    setSharedGroupDialogOpen(true);
   };
 
   const handleSaveSharedGroup = () => {
@@ -1113,24 +1153,72 @@ function TimeTrackingPage() {
     // Full float precision on purpose — only rounded for display (Labor Report/
     // Invoices round separately), so N workers always sum back to the exact total.
     const perWorker = sharedGroupTotalNum / sharedGroupMemberIds.length;
+    const groupId = editingGroupId ?? `group-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    // Keep each existing member's own clock-in/out/hours if they were already in
+    // this group (they may have been edited individually) — only brand-new
+    // members get the section's default Clock-In Time and blank clock-out.
+    const existingByEmployeeId = new Map(
+      manualEmployees
+        .filter((e) => e.groupId === groupId)
+        .map((e) => [e.employee.id, e]),
+    );
     const newEntries = sharedGroupMemberIds
       .map((id) => activeEmployees?.find((e) => e.id === id))
       .filter((e): e is Employee => !!e)
-      .map((employee) => ({
-        employee,
-        pieces: perWorker,
-        clockIn: pastRecordClockInTime,
-        clockOut: "",
-        hours: "",
-      }));
+      .map((employee) => {
+        const existing = existingByEmployeeId.get(employee.id);
+        return {
+          employee,
+          pieces: perWorker,
+          clockIn: existing?.clockIn ?? pastRecordClockInTime,
+          clockOut: existing?.clockOut ?? "",
+          hours: existing?.hours ?? "",
+          groupId,
+          groupTotal: sharedGroupTotalNum,
+        };
+      });
 
-    setManualEmployees((prev) => [...prev, ...newEntries]);
+    setManualEmployees((prev) => [
+      ...prev.filter((e) => e.groupId !== groupId),
+      ...newEntries,
+    ]);
+    const wasEditing = editingGroupId !== null;
     closeSharedGroupDialog();
 
     toast({
-      title: "Shared Group Created",
+      title: wasEditing ? "Shared Group Updated" : "Shared Group Created",
       description: `${sharedGroupTotalNum} piece(s) split across ${newEntries.length} worker${newEntries.length !== 1 ? "s" : ""} (${perWorker.toFixed(4)} each).`,
     });
+  };
+
+  // "Change Employee" dialog (pencil on an individual row): swap who a row is
+  // for, keeping its already-entered clock-in/out/hours/pieces.
+  const filteredChangeEmployeeOptions = useMemo(() => {
+    if (!activeEmployees) return [];
+    if (!changeEmployeeSearch) return [];
+    const addedIds = new Set(manualEmployees.map((e) => e.employee.id));
+    const query = changeEmployeeSearch.trim();
+    return activeEmployees.filter((emp) => {
+      const matchesName = emp.name.toLowerCase().includes(query.toLowerCase());
+      const matchesNumber = /^\d+$/.test(query) && (emp.employeeNumber ?? "").endsWith(query);
+      return (matchesName || matchesNumber) && !addedIds.has(emp.id);
+    });
+  }, [activeEmployees, changeEmployeeSearch, manualEmployees]);
+
+  const closeChangeEmployeeDialog = () => {
+    setChangeEmployeeIdx(null);
+    setChangeEmployeeSearch("");
+    setFocusedChangeEmployeeIdx(-1);
+  };
+
+  const handleChangeEmployee = (newEmployee: Employee) => {
+    if (changeEmployeeIdx === null) return;
+    setManualEmployees((prev) =>
+      prev.map((item, i) =>
+        i === changeEmployeeIdx ? { ...item, employee: newEmployee } : item,
+      ),
+    );
+    closeChangeEmployeeDialog();
   };
 
   // Validation for the Manual Entry submit button
@@ -3279,6 +3367,15 @@ function TimeTrackingPage() {
       return;
     }
 
+    if (!editEmployeeId) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Data",
+        description: "Employee is required.",
+      });
+      return;
+    }
+
     if (editEndTime && editEndTime < editTimestamp) {
       toast({
         variant: "destructive",
@@ -3293,6 +3390,7 @@ function TimeTrackingPage() {
         timestamp: editTimestamp,
         paymentModality: editPaymentModality,
         taskId: editTaskId,
+        employeeId: editEmployeeId,
       };
 
       if (editEndTime) {
@@ -3311,7 +3409,8 @@ function TimeTrackingPage() {
         updateData,
       );
 
-      // Update all related piecework records
+      // Update all related piecework records — move them to the same employee
+      // when it changed, so they stay attached to whoever this entry now belongs to.
       for (const piece of editRelatedPiecework) {
         const validPieceCount =
           typeof piece.pieceCount === "number"
@@ -3320,6 +3419,7 @@ function TimeTrackingPage() {
 
         await updateDoc(doc(firestore, "piecework", piece.id), {
           pieceCount: validPieceCount,
+          employeeId: editEmployeeId,
           // Keep the timestamp and other fields as they were
         });
       }
@@ -3378,6 +3478,15 @@ function TimeTrackingPage() {
       return;
     }
 
+    if (!editEmployeeId) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Data",
+        description: "Employee is required.",
+      });
+      return;
+    }
+
     // Validate piece count
     const pieceCount =
       typeof editPieceCount === "number"
@@ -3397,6 +3506,7 @@ function TimeTrackingPage() {
         timestamp: editTimestamp,
         pieceCount: pieceCount,
         taskId: editTaskId,
+        employeeId: editEmployeeId,
       });
 
       toast({
@@ -4427,12 +4537,17 @@ function TimeTrackingPage() {
                   <div className="space-y-1">
                     {manualEmployees.map((entry, idx) => (
                       <div
-                        key={entry.employee.id}
+                        key={`${entry.employee.id}-${entry.groupId ?? "solo"}-${idx}`}
                         className="flex flex-wrap items-center gap-2 rounded-md border p-2 bg-muted"
                       >
                         <User className="h-4 w-4 shrink-0" />
                         <span className="flex-1 min-w-[120px] text-sm font-medium truncate">
                           {entry.employee.name}
+                          {entry.groupId && (
+                            <span className="ml-1 text-xs font-normal text-muted-foreground">
+                              (group)
+                            </span>
+                          )}
                         </span>
                         <span className="text-xs text-muted-foreground">In</span>
                         <Input
@@ -4493,6 +4608,28 @@ function TimeTrackingPage() {
                               />
                             </div>
                           )}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 shrink-0"
+                          title={
+                            entry.groupId
+                              ? "Edit shared group"
+                              : "Change employee"
+                          }
+                          onClick={() => {
+                            if (entry.groupId) {
+                              openEditGroup(entry.groupId);
+                            } else {
+                              setChangeEmployeeIdx(idx);
+                              setChangeEmployeeSearch("");
+                              setFocusedChangeEmployeeIdx(-1);
+                            }
+                          }}
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
                         <Button
                           type="button"
                           variant="ghost"
@@ -4733,7 +4870,9 @@ function TimeTrackingPage() {
               >
                 <DialogContent className="max-w-md">
                   <DialogHeader>
-                    <DialogTitle>Create Shared Group</DialogTitle>
+                    <DialogTitle>
+                      {editingGroupId ? "Edit Shared Group" : "Create Shared Group"}
+                    </DialogTitle>
                     <DialogDescription>
                       Split one piece count evenly across several workers for
                       this task and date.
@@ -4793,14 +4932,14 @@ function TimeTrackingPage() {
                             focusedSharedGroupIdx >= 0
                           ) {
                             e.preventDefault();
-                            const emp =
+                            const match =
                               filteredSharedGroupEmployees[
                                 focusedSharedGroupIdx
                               ];
-                            if (emp) {
+                            if (match) {
                               setSharedGroupMemberIds((prev) => [
                                 ...prev,
-                                emp.id,
+                                match.employee.id,
                               ]);
                               setSharedGroupSearch("");
                               setFocusedSharedGroupIdx(-1);
@@ -4815,7 +4954,7 @@ function TimeTrackingPage() {
                         filteredSharedGroupEmployees.length > 0 && (
                           <div className="border rounded-md max-h-40 overflow-y-auto">
                             {filteredSharedGroupEmployees.map(
-                              (employee, idx) => (
+                              ({ employee, alreadyAdded }, idx) => (
                                 <Button
                                   key={employee.id}
                                   type="button"
@@ -4825,7 +4964,7 @@ function TimeTrackingPage() {
                                       ? "secondary"
                                       : "ghost"
                                   }
-                                  className="w-full justify-start"
+                                  className={`w-full justify-start ${alreadyAdded ? "text-muted-foreground" : ""}`}
                                   onMouseDown={(e) => e.preventDefault()}
                                   onClick={() => {
                                     setSharedGroupMemberIds((prev) => [
@@ -4838,6 +4977,11 @@ function TimeTrackingPage() {
                                   }}
                                 >
                                   {employee.name}
+                                  {alreadyAdded && (
+                                    <span className="ml-auto text-xs">
+                                      already in list
+                                    </span>
+                                  )}
                                 </Button>
                               ),
                             )}
@@ -4915,7 +5059,115 @@ function TimeTrackingPage() {
                         sharedGroupTotalNum <= 0
                       }
                     >
-                      Save Group
+                      {editingGroupId ? "Update Group" : "Save Group"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog
+                open={changeEmployeeIdx !== null}
+                onOpenChange={(open) => {
+                  if (!open) closeChangeEmployeeDialog();
+                }}
+              >
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Change Employee</DialogTitle>
+                    <DialogDescription>
+                      {changeEmployeeIdx !== null &&
+                        manualEmployees[changeEmployeeIdx] && (
+                          <>
+                            Replace{" "}
+                            <strong>
+                              {manualEmployees[changeEmployeeIdx].employee.name}
+                            </strong>{" "}
+                            on this row — their clock-in, clock-out, hours and
+                            pieces stay as entered.
+                          </>
+                        )}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-2">
+                    <Label htmlFor="change-employee-search">
+                      Search by name or short ID
+                    </Label>
+                    <Input
+                      id="change-employee-search"
+                      ref={changeEmployeeInputRef}
+                      autoFocus
+                      placeholder="Search for an active employee..."
+                      value={changeEmployeeSearch}
+                      onChange={(e) => {
+                        setChangeEmployeeSearch(e.target.value);
+                        setFocusedChangeEmployeeIdx(-1);
+                      }}
+                      onKeyDown={(e) => {
+                        if (!filteredChangeEmployeeOptions.length) return;
+                        if (e.key === "ArrowDown") {
+                          e.preventDefault();
+                          setFocusedChangeEmployeeIdx((prev) =>
+                            Math.min(
+                              prev + 1,
+                              filteredChangeEmployeeOptions.length - 1,
+                            ),
+                          );
+                        } else if (e.key === "ArrowUp") {
+                          e.preventDefault();
+                          setFocusedChangeEmployeeIdx((prev) =>
+                            Math.max(prev - 1, -1),
+                          );
+                        } else if (
+                          e.key === "Enter" &&
+                          focusedChangeEmployeeIdx >= 0
+                        ) {
+                          e.preventDefault();
+                          const emp =
+                            filteredChangeEmployeeOptions[
+                              focusedChangeEmployeeIdx
+                            ];
+                          if (emp) handleChangeEmployee(emp);
+                        } else if (e.key === "Escape") {
+                          closeChangeEmployeeDialog();
+                        }
+                      }}
+                    />
+                    {changeEmployeeSearch &&
+                      filteredChangeEmployeeOptions.length > 0 && (
+                        <div className="border rounded-md max-h-48 overflow-y-auto">
+                          {filteredChangeEmployeeOptions.map((employee, idx) => (
+                            <Button
+                              key={employee.id}
+                              type="button"
+                              tabIndex={-1}
+                              variant={
+                                idx === focusedChangeEmployeeIdx
+                                  ? "secondary"
+                                  : "ghost"
+                              }
+                              className="w-full justify-start"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => handleChangeEmployee(employee)}
+                            >
+                              {employee.name}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    {changeEmployeeSearch &&
+                      filteredChangeEmployeeOptions.length === 0 && (
+                        <p className="p-4 text-sm text-muted-foreground">
+                          No employees found.
+                        </p>
+                      )}
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={closeChangeEmployeeDialog}
+                    >
+                      Cancel
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -6860,6 +7112,7 @@ function TimeTrackingPage() {
                                   setEditPiecesWorked(entry.piecesWorked || 0);
                                   setEditPaymentModality(initialModality);
                                   setEditRelatedPiecework(relatedPieces);
+                                  setEditEmployeeId(entry.employeeId);
 
                                   // Initialize task selection (don't pre-set ranch/block so all client tasks are visible)
                                   setEditTaskId(entry.taskId);
@@ -7073,6 +7326,7 @@ function TimeTrackingPage() {
                                   });
                                   setEditTimestamp(pieceTime);
                                   setEditPieceCount(piece.pieceCount || 1);
+                                  setEditEmployeeId(piece.employeeId);
 
                                   // Inicializar selección de tarea COMPLETA (don't pre-set ranch/block so all client tasks are visible)
                                   setEditTaskId(piece.taskId);
@@ -7286,6 +7540,22 @@ function TimeTrackingPage() {
                 label=""
                 placeholder="Select date and time"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-employee">Employee</Label>
+              <Select value={editEmployeeId || ""} onValueChange={setEditEmployeeId}>
+                <SelectTrigger id="edit-employee">
+                  <SelectValue placeholder="Select an employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeEmployees?.map((employee) => (
+                    <SelectItem key={employee.id} value={employee.id}>
+                      {employee.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Task Selection Fields */}
