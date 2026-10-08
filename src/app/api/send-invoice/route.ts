@@ -596,8 +596,12 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
   const invoiceTotal = body.total ?? 0;
 
   // ── MAIN LABOR TABLE ─────────────────────────────────────────────────────
-  const tFS = 8;
-  const rowH = 14;
+  // 9pt / 16pt row height match report-display.tsx's table exactly (12px font,
+  // "4px 8px" cell padding) — this used to be smaller (8pt/14pt) than the real
+  // on-screen/printed invoice, which is why the emailed/combined PDF looked
+  // different from the browser-printed one.
+  const tFS = 9;
+  const rowH = 16;
 
   // Column layout: DATE | DESCRIPTION | QUANTITY | UNIT | PRICE | TOTAL
   const dateW = 72;
@@ -720,7 +724,7 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
   const leftX = margin;
   const rightX = margin + halfW + gap;
   const subRowH = 16;
-  const subFS = 8;
+  const subFS = 9; // matches report-display.tsx's 12px for this grid
 
   // This grid + the footer right under it must stay together — check its real
   // height against the real remaining space (instead of a flat buffer, which
@@ -867,7 +871,7 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
     }
     doc.rect(rightX, ry, halfW, subRowH);
     doc.setFont("helvetica", row.bold ? "bold" : "normal");
-    doc.setFontSize(row.large ? 10 : subFS);
+    doc.setFontSize(row.large ? 10.5 : subFS); // 14px on screen for the Invoice Total row
     doc.setTextColor(row.red ? 220 : 0, row.red ? 38 : 0, row.red ? 38 : 0);
     doc.text(truncateToFit(doc, row.label, halfW - 70), rightX + 8, ry + 11);
     doc.setTextColor(0);
@@ -890,8 +894,8 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
   doc.line(margin, y, pageW - margin, y);
   y += 14;
 
-  // Footer: 3 centered lines
-  doc.setFontSize(9);
+  // Footer: 3 centered lines (11px on screen)
+  doc.setFontSize(8.25);
   doc.setTextColor(55, 65, 81);
   doc.setFont("helvetica", "normal");
   doc.text(
