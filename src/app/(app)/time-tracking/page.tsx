@@ -365,6 +365,19 @@ function TimeTrackingPage() {
   const addEmployeeInputRef = useRef<HTMLInputElement>(null);
   const addEmployeeListRef = useRef<HTMLDivElement>(null);
   const [focusedManualEmployeeIdx, setFocusedManualEmployeeIdx] = useState(-1);
+  // Shared Group dialog (Past Records only): splits one total piece count evenly
+  // across whichever workers are added here, at full float precision — only
+  // rounded for display elsewhere (Labor Report/Invoices), never at storage time.
+  const [sharedGroupDialogOpen, setSharedGroupDialogOpen] = useState(false);
+  const [sharedGroupTotalPieces, setSharedGroupTotalPieces] = useState<
+    number | string
+  >("");
+  const [sharedGroupMemberIds, setSharedGroupMemberIds] = useState<string[]>(
+    [],
+  );
+  const [sharedGroupSearch, setSharedGroupSearch] = useState("");
+  const [focusedSharedGroupIdx, setFocusedSharedGroupIdx] = useState(-1);
+  const sharedGroupInputRef = useRef<HTMLInputElement>(null);
   const manualEmployeeListRef = useRef<HTMLDivElement>(null);
   const [manualPieceQuantity, setManualPieceQuantity] = useState<
     number | string
@@ -1042,6 +1055,83 @@ function TimeTrackingPage() {
       return (matchesName || matchesNumber) && !addedIds.has(emp.id);
     });
   }, [activeEmployees, manualAddEmployeeSearch, manualEmployees]);
+
+  // Filtered employees for the Shared Group dialog (excludes workers already in
+  // the group being built, and anyone already added to the main list).
+  const filteredSharedGroupEmployees = useMemo(() => {
+    if (!activeEmployees) return [];
+    if (!sharedGroupSearch) return [];
+    const addedIds = new Set([
+      ...sharedGroupMemberIds,
+      ...manualEmployees.map((e) => e.employee.id),
+    ]);
+    const query = sharedGroupSearch.trim();
+    return activeEmployees.filter((emp) => {
+      const matchesName = emp.name.toLowerCase().includes(query.toLowerCase());
+      const matchesNumber = /^\d+$/.test(query) && (emp.employeeNumber ?? "").endsWith(query);
+      return (matchesName || matchesNumber) && !addedIds.has(emp.id);
+    });
+  }, [activeEmployees, sharedGroupSearch, sharedGroupMemberIds, manualEmployees]);
+
+  const sharedGroupTotalNum =
+    typeof sharedGroupTotalPieces === "number"
+      ? sharedGroupTotalPieces
+      : parseFloat(String(sharedGroupTotalPieces));
+  const sharedGroupPerWorker =
+    sharedGroupMemberIds.length > 0 &&
+    !isNaN(sharedGroupTotalNum) &&
+    sharedGroupTotalNum > 0
+      ? sharedGroupTotalNum / sharedGroupMemberIds.length
+      : 0;
+
+  const closeSharedGroupDialog = () => {
+    setSharedGroupDialogOpen(false);
+    setSharedGroupTotalPieces("");
+    setSharedGroupMemberIds([]);
+    setSharedGroupSearch("");
+    setFocusedSharedGroupIdx(-1);
+  };
+
+  const handleSaveSharedGroup = () => {
+    if (isNaN(sharedGroupTotalNum) || sharedGroupTotalNum <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Missing Total",
+        description: "Enter the total shared pieces for the group.",
+      });
+      return;
+    }
+    if (sharedGroupMemberIds.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "No Workers Added",
+        description: "Add at least one worker to the shared group.",
+      });
+      return;
+    }
+
+    // Full float precision on purpose — only rounded for display (Labor Report/
+    // Invoices round separately), so N workers always sum back to the exact total.
+    const perWorker = sharedGroupTotalNum / sharedGroupMemberIds.length;
+    const newEntries = sharedGroupMemberIds
+      .map((id) => activeEmployees?.find((e) => e.id === id))
+      .filter((e): e is Employee => !!e)
+      .map((employee) => ({
+        employee,
+        pieces: perWorker,
+        clockIn: pastRecordClockInTime,
+        clockOut: "",
+        hours: "",
+      }));
+
+    setManualEmployees((prev) => [...prev, ...newEntries]);
+    closeSharedGroupDialog();
+
+    toast({
+      title: "Shared Group Created",
+      description: `${sharedGroupTotalNum} piece(s) split across ${newEntries.length} worker${newEntries.length !== 1 ? "s" : ""} (${perWorker.toFixed(4)} each).`,
+    });
+  };
 
   // Validation for the Manual Entry submit button
   const manualSubmitIssues = useMemo(() => {
@@ -4314,6 +4404,20 @@ function TimeTrackingPage() {
                       <Plus className="h-3 w-3" />
                       Add employee
                     </Button>
+                    {selectedTask &&
+                      allTasks?.find((t) => t.id === selectedTask)
+                        ?.clientRateType === "piece" && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-1"
+                          onClick={() => setSharedGroupDialogOpen(true)}
+                        >
+                          <Users className="h-3 w-3" />
+                          Create Shared Group
+                        </Button>
+                      )}
                   </div>
                   )}
                 </div>
@@ -4616,6 +4720,206 @@ function TimeTrackingPage() {
                   </>
                 )}
               </div>
+
+              <Dialog
+                open={sharedGroupDialogOpen}
+                onOpenChange={(open) => {
+                  if (open) {
+                    setSharedGroupDialogOpen(true);
+                  } else {
+                    closeSharedGroupDialog();
+                  }
+                }}
+              >
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Create Shared Group</DialogTitle>
+                    <DialogDescription>
+                      Split one piece count evenly across several workers for
+                      this task and date.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="shared-group-total">
+                        Total Shared Pieces
+                      </Label>
+                      <Input
+                        id="shared-group-total"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="e.g. 4 bins"
+                        value={sharedGroupTotalPieces}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setSharedGroupTotalPieces(
+                            value === "" ? "" : parseFloat(value),
+                          );
+                        }}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="shared-group-search">
+                        Add Workers
+                      </Label>
+                      <Input
+                        id="shared-group-search"
+                        ref={sharedGroupInputRef}
+                        placeholder="Search by name or short ID..."
+                        value={sharedGroupSearch}
+                        onChange={(e) => {
+                          setSharedGroupSearch(e.target.value);
+                          setFocusedSharedGroupIdx(-1);
+                        }}
+                        onKeyDown={(e) => {
+                          if (!filteredSharedGroupEmployees.length) return;
+                          if (e.key === "ArrowDown") {
+                            e.preventDefault();
+                            setFocusedSharedGroupIdx((prev) =>
+                              Math.min(
+                                prev + 1,
+                                filteredSharedGroupEmployees.length - 1,
+                              ),
+                            );
+                          } else if (e.key === "ArrowUp") {
+                            e.preventDefault();
+                            setFocusedSharedGroupIdx((prev) =>
+                              Math.max(prev - 1, -1),
+                            );
+                          } else if (
+                            e.key === "Enter" &&
+                            focusedSharedGroupIdx >= 0
+                          ) {
+                            e.preventDefault();
+                            const emp =
+                              filteredSharedGroupEmployees[
+                                focusedSharedGroupIdx
+                              ];
+                            if (emp) {
+                              setSharedGroupMemberIds((prev) => [
+                                ...prev,
+                                emp.id,
+                              ]);
+                              setSharedGroupSearch("");
+                              setFocusedSharedGroupIdx(-1);
+                            }
+                          } else if (e.key === "Escape") {
+                            setSharedGroupSearch("");
+                            setFocusedSharedGroupIdx(-1);
+                          }
+                        }}
+                      />
+                      {sharedGroupSearch &&
+                        filteredSharedGroupEmployees.length > 0 && (
+                          <div className="border rounded-md max-h-40 overflow-y-auto">
+                            {filteredSharedGroupEmployees.map(
+                              (employee, idx) => (
+                                <Button
+                                  key={employee.id}
+                                  type="button"
+                                  tabIndex={-1}
+                                  variant={
+                                    idx === focusedSharedGroupIdx
+                                      ? "secondary"
+                                      : "ghost"
+                                  }
+                                  className="w-full justify-start"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    setSharedGroupMemberIds((prev) => [
+                                      ...prev,
+                                      employee.id,
+                                    ]);
+                                    setSharedGroupSearch("");
+                                    setFocusedSharedGroupIdx(-1);
+                                    sharedGroupInputRef.current?.focus();
+                                  }}
+                                >
+                                  {employee.name}
+                                </Button>
+                              ),
+                            )}
+                          </div>
+                        )}
+                      {sharedGroupSearch &&
+                        filteredSharedGroupEmployees.length === 0 && (
+                          <p className="p-4 text-sm text-muted-foreground">
+                            No employees found.
+                          </p>
+                        )}
+                    </div>
+
+                    {sharedGroupMemberIds.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="flex items-center gap-1">
+                            <Users className="h-4 w-4" />
+                            Group ({sharedGroupMemberIds.length})
+                          </Label>
+                          {sharedGroupPerWorker > 0 && (
+                            <span className="text-xs text-muted-foreground">
+                              {sharedGroupPerWorker.toFixed(4)} each
+                            </span>
+                          )}
+                        </div>
+                        <ul className="space-y-1">
+                          {sharedGroupMemberIds.map((id) => {
+                            const name =
+                              activeEmployees?.find((e) => e.id === id)
+                                ?.name || id;
+                            return (
+                              <li
+                                key={id}
+                                className="flex items-center gap-2 rounded-md border p-2 bg-muted text-sm"
+                              >
+                                <User className="h-4 w-4 shrink-0" />
+                                <span className="flex-1 truncate">
+                                  {name}
+                                </span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 shrink-0"
+                                  onClick={() =>
+                                    setSharedGroupMemberIds((prev) =>
+                                      prev.filter((m) => m !== id),
+                                    )
+                                  }
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={closeSharedGroupDialog}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleSaveSharedGroup}
+                      disabled={
+                        sharedGroupMemberIds.length === 0 ||
+                        isNaN(sharedGroupTotalNum) ||
+                        sharedGroupTotalNum <= 0
+                      }
+                    >
+                      Save Group
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
 
               {manualSubmitIssues.length > 0 && (
                 <div className="rounded-md border border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950/30 px-3 py-2">
