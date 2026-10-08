@@ -371,6 +371,11 @@ function TimeTrackingPage() {
   >("");
   const [manualNotes, setManualNotes] = useState("");
   const [isManualSubmitting, setIsManualSubmitting] = useState(false);
+  // Shared-piece (multiple workers) employee list for the Manual Entry piecework tab —
+  // mirrors scannedSharedEmployees, but built by searching/adding instead of QR scanning.
+  const [manualPieceSharedEmployees, setManualPieceSharedEmployees] = useState<
+    string[]
+  >([]);
 
   // Manual Date/Time Selection State
   const [useManualDateTime, setUseManualDateTime] = useState(false);
@@ -1013,9 +1018,17 @@ function TimeTrackingPage() {
       if (!matchesName && !matchesNumber) return false;
       // For clock-in: exclude employees who already have an entry for this date
       if (manualLogType === "clock-in" && duplicateEntryEmployeeIds.has(emp.id)) return false;
+      // Shared-piece manual entry: exclude employees already added to the list
+      if (manualPieceSharedEmployees.includes(emp.id)) return false;
       return true;
     });
-  }, [activeEmployees, manualEmployeeSearch, manualLogType, duplicateEntryEmployeeIds]);
+  }, [
+    activeEmployees,
+    manualEmployeeSearch,
+    manualLogType,
+    duplicateEntryEmployeeIds,
+    manualPieceSharedEmployees,
+  ]);
 
   // Filtered employees for adding to multi-employee list (excludes already added)
   const filteredAddEmployees = useMemo(() => {
@@ -2815,6 +2828,97 @@ function TimeTrackingPage() {
       setIsManualSubmitting(false);
     } catch (error) {
       console.error("Error in handlePieceWorkSubmit:", error);
+      toast({
+        variant: "destructive",
+        title: "Submission Error",
+        description: "An unexpected error occurred. Please try again.",
+      });
+      setIsManualSubmitting(false);
+    }
+  };
+
+  // Same Shared Piece (multiple workers) submission as handlePieceWorkSubmit, but for
+  // the Manual Entry piecework tab's search-and-add employee list instead of QR scans.
+  const handleManualSharedPieceSubmit = async () => {
+    if (
+      !firestore ||
+      !pieceWorkSelectedTask ||
+      manualPieceSharedEmployees.length === 0
+    ) {
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please select a task and add at least one employee.",
+      });
+      return;
+    }
+
+    const pieceCount =
+      typeof manualPieceQuantity === "number"
+        ? manualPieceQuantity
+        : parseFloat(String(manualPieceQuantity));
+
+    if (isNaN(pieceCount) || pieceCount <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Quantity",
+        description: "Please enter a valid number of pieces.",
+      });
+      return;
+    }
+
+    setIsManualSubmitting(true);
+
+    try {
+      if (!isOnline) {
+        const employeeNames = manualPieceSharedEmployees
+          .map(
+            (id) =>
+              activeEmployees?.find((e) => e.id === id)?.name || "Unknown",
+          )
+          .join(", ");
+
+        const pieceCountPerEmployee = pieceCount / manualPieceSharedEmployees.length;
+
+        toast({
+          title: "Piecework Recorded",
+          description: addOfflineIndicator(
+            `${pieceCount} piece(s) recorded for ${employeeNames}. (${pieceCountPerEmployee.toFixed(2)} each)`,
+            isOnline,
+          ),
+        });
+
+        const employeeIdsToRecord = [...manualPieceSharedEmployees];
+        recordPieceworkWithQuantity(
+          employeeIdsToRecord,
+          pieceWorkSelectedTask.id,
+          pieceCount,
+          undefined,
+        ).catch((error) => {
+          console.warn("Background piecework sync queued for later:", error);
+        });
+
+        setManualPieceSharedEmployees([]);
+        setManualPieceQuantity("");
+        setIsManualSubmitting(false);
+        return;
+      }
+
+      const success = await recordPieceworkWithQuantity(
+        manualPieceSharedEmployees,
+        pieceWorkSelectedTask.id,
+        pieceCount,
+        undefined,
+      );
+
+      if (success) {
+        setManualPieceSharedEmployees([]);
+        setManualPieceQuantity("");
+      }
+
+      setIsManualSubmitting(false);
+    } catch (error) {
+      console.error("Error in handleManualSharedPieceSubmit:", error);
       toast({
         variant: "destructive",
         title: "Submission Error",
@@ -5474,6 +5578,18 @@ function TimeTrackingPage() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      <div className="p-4 border rounded-lg flex items-center space-x-2">
+                        <Switch
+                          id="piece-manual-shared-piece-switch"
+                          checked={isSharedPiece}
+                          onCheckedChange={setIsSharedPiece}
+                        />
+                        <Label htmlFor="piece-manual-shared-piece-switch">
+                          Shared Piece (Multiple Workers)
+                        </Label>
+                      </div>
+
+                      {!isSharedPiece && (
                       <div className="space-y-2">
                         <Label htmlFor="piece-manual-employee-search">
                           Employee
@@ -5589,6 +5705,138 @@ function TimeTrackingPage() {
                           </>
                         )}
                       </div>
+                      )}
+
+                      {isSharedPiece && (
+                      <div className="space-y-2">
+                        <Label htmlFor="piece-manual-shared-employee-search">
+                          Employees
+                        </Label>
+                        <Input
+                          id="piece-manual-shared-employee-search"
+                          placeholder="Search for an active employee to add..."
+                          value={manualEmployeeSearch}
+                          onChange={(e) =>
+                            setManualEmployeeSearch(e.target.value)
+                          }
+                          onKeyDown={(e) => {
+                            if (!filteredManualEmployees?.length) return;
+                            if (e.key === "ArrowDown") {
+                              e.preventDefault();
+                              setFocusedManualEmployeeIdx((prev) =>
+                                Math.min(prev + 1, filteredManualEmployees.length - 1),
+                              );
+                            } else if (e.key === "ArrowUp") {
+                              e.preventDefault();
+                              setFocusedManualEmployeeIdx((prev) =>
+                                Math.max(prev - 1, -1),
+                              );
+                            } else if (e.key === "Enter" && focusedManualEmployeeIdx >= 0) {
+                              e.preventDefault();
+                              const emp = filteredManualEmployees[focusedManualEmployeeIdx];
+                              const isActiveInTask = emp && activeTimeEntries?.some(
+                                (entry) =>
+                                  entry.employeeId === emp.id &&
+                                  entry.taskId === pieceWorkSelectedTask?.id &&
+                                  entry.endTime === null,
+                              );
+                              if (emp && isActiveInTask) {
+                                setManualPieceSharedEmployees((prev) => [...prev, emp.id]);
+                                setManualEmployeeSearch("");
+                                setFocusedManualEmployeeIdx(-1);
+                              }
+                            } else if (e.key === "Escape") {
+                              setManualEmployeeSearch("");
+                              setFocusedManualEmployeeIdx(-1);
+                            }
+                          }}
+                        />
+                        {manualEmployeeSearch &&
+                          filteredManualEmployees &&
+                          filteredManualEmployees.length > 0 && (
+                            <div className="border rounded-md max-h-48 overflow-y-auto">
+                              {filteredManualEmployees.map((employee, idx) => {
+                                const isActiveInTask = activeTimeEntries?.some(
+                                  (entry) =>
+                                    entry.employeeId === employee.id &&
+                                    entry.taskId === pieceWorkSelectedTask?.id &&
+                                    entry.endTime === null,
+                                );
+                                return (
+                                  <Button
+                                    key={employee.id}
+                                    tabIndex={-1}
+                                    variant={idx === focusedManualEmployeeIdx && isActiveInTask ? "secondary" : "ghost"}
+                                    className="w-full justify-start"
+                                    disabled={!isActiveInTask}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => {
+                                      if (isActiveInTask) {
+                                        setManualPieceSharedEmployees((prev) => [...prev, employee.id]);
+                                        setManualEmployeeSearch("");
+                                        setFocusedManualEmployeeIdx(-1);
+                                      }
+                                    }}
+                                  >
+                                    {employee.name}
+                                    {!isActiveInTask && (
+                                      <span className="ml-auto text-xs text-muted-foreground">
+                                        (Not active in task)
+                                      </span>
+                                    )}
+                                  </Button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        {manualEmployeeSearch &&
+                          filteredManualEmployees &&
+                          filteredManualEmployees.length === 0 && (
+                            <p className="p-4 text-sm text-muted-foreground">
+                              No employees found.
+                            </p>
+                          )}
+
+                        {manualPieceSharedEmployees.length > 0 && (
+                          <Card>
+                            <CardHeader>
+                              <CardTitle className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Users />
+                                  Selected Employees (
+                                  {manualPieceSharedEmployees.length})
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setManualPieceSharedEmployees([])}
+                                >
+                                  Clear List
+                                </Button>
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <ul className="space-y-1">
+                                {manualPieceSharedEmployees.map((id) => {
+                                  const name =
+                                    activeEmployees?.find((e) => e.id === id)
+                                      ?.name || id;
+                                  return (
+                                    <li
+                                      key={id}
+                                      className="flex items-center gap-2 text-green-600"
+                                    >
+                                      <CheckCircle className="h-5 w-5" />
+                                      <p className="font-mono text-sm">{name}</p>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </div>
+                      )}
 
                       <div className="space-y-2">
                         <Label htmlFor="piece-manual-quantity">
@@ -5610,6 +5858,7 @@ function TimeTrackingPage() {
                         />
                       </div>
 
+                      {!isSharedPiece && (
                       <div className="space-y-2">
                         <Label htmlFor="piece-manual-notes">
                           Notes (Optional)
@@ -5621,7 +5870,66 @@ function TimeTrackingPage() {
                           onChange={(e) => setManualNotes(e.target.value)}
                         />
                       </div>
+                      )}
 
+                      {isSharedPiece && manualPieceSharedEmployees.length > 0 && (
+                        <div>
+                          <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md mb-3">
+                            <p className="text-sm text-blue-700 dark:text-blue-300">
+                              <strong>Division:</strong>{" "}
+                              {(typeof manualPieceQuantity === "number"
+                                ? manualPieceQuantity
+                                : manualPieceQuantity
+                                  ? parseFloat(manualPieceQuantity)
+                                  : 0) > 0 ? (
+                                <>
+                                  {manualPieceQuantity} piece(s) will be
+                                  divided equally among{" "}
+                                  {manualPieceSharedEmployees.length} worker
+                                  {manualPieceSharedEmployees.length !== 1
+                                    ? "s"
+                                    : ""}
+                                  . Each will receive{" "}
+                                  {(
+                                    (typeof manualPieceQuantity === "number"
+                                      ? manualPieceQuantity
+                                      : parseFloat(manualPieceQuantity)) /
+                                    manualPieceSharedEmployees.length
+                                  ).toFixed(2)}{" "}
+                                  piece(s).
+                                </>
+                              ) : (
+                                <>
+                                  Enter a quantity above — it will be divided
+                                  equally among{" "}
+                                  {manualPieceSharedEmployees.length} worker
+                                  {manualPieceSharedEmployees.length !== 1
+                                    ? "s"
+                                    : ""}
+                                  .
+                                </>
+                              )}
+                            </p>
+                          </div>
+                          <Button
+                            className="w-full"
+                            onClick={handleManualSharedPieceSubmit}
+                            disabled={
+                              isManualSubmitting ||
+                              !manualPieceQuantity ||
+                              manualPieceSharedEmployees.length === 0 ||
+                              !pieceWorkSelectedTask
+                            }
+                          >
+                            {isManualSubmitting && (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            )}
+                            Submit Pieces
+                          </Button>
+                        </div>
+                      )}
+
+                      {!isSharedPiece && (
                       <Button
                         className="w-full"
                         onClick={async () => {
@@ -5738,6 +6046,7 @@ function TimeTrackingPage() {
                         )}
                         Submit Piecework
                       </Button>
+                      )}
                     </CardContent>
                   </Card>
                 </TabsContent>
