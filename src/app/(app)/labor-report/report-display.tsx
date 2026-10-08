@@ -773,7 +773,7 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
               checked={!newDesign}
               onChange={(e) => setNewDesign(!e.target.checked)}
             />
-            Diseño antiguo
+            Old Version
           </label>
           <Button variant="outline" onClick={handleExportExcel}>
             <Download className="mr-2 h-4 w-4" />
