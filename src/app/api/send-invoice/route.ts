@@ -677,20 +677,27 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
   y += 8;
 
   // ── TOTAL HOURS WORKED PER WEEK (exact replica of report-display.tsx) ────
+  // Breaks line-by-line like the main table above, instead of as one all-or-
+  // nothing block — this is what lets it pack onto the same page as the table
+  // whenever there's room for even part of it, matching how the on-screen/
+  // browser-printed version naturally flows instead of jumping to a blank page.
   const weeklyHoursByTask = body.weeklyHoursByTask ?? [];
   if (weeklyHoursByTask.length > 0) {
     const whFS = 9; // 12px on screen/print ≈ 9pt
-    const estLines = weeklyHoursByTask.reduce((n, w) => n + 1 + w.tasks.length, 1);
-    if (y + estLines * 13 + 8 > pageH - 200) {
-      doc.addPage();
-      y = margin;
-    }
+    const breakIfNeeded = (neededHeight: number) => {
+      if (y + neededHeight > pageH - margin) {
+        doc.addPage();
+        y = margin;
+      }
+    };
+    breakIfNeeded(16);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(whFS);
     doc.setTextColor(0);
     doc.text("Total Hours Worked per Week", margin, y + 9);
     y += 16;
     weeklyHoursByTask.forEach((week) => {
+      breakIfNeeded(13);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(whFS);
       doc.setTextColor(55, 65, 81);
@@ -699,6 +706,7 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
       doc.setFont("helvetica", "normal");
       doc.setTextColor(0);
       week.tasks.forEach((t) => {
+        breakIfNeeded(12);
         doc.text(`${t.taskName}: ${fmtNum(t.hours)} hrs`, margin + 12, y + 9);
         y += 12;
       });
@@ -713,6 +721,25 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
   const rightX = margin + halfW + gap;
   const subRowH = 16;
   const subFS = 8;
+
+  // This grid + the footer right under it must stay together — check its real
+  // height against the real remaining space (instead of a flat buffer, which
+  // either wasted space on short invoices or didn't reserve enough on long
+  // ones) and start a fresh page only when it genuinely doesn't fit.
+  const summaryRowsEst = 4 + (overdueInterest > 0 ? 1 : 0);
+  const bottomSectionHeight =
+    Math.max(
+      47 + subRowH * subtotalRows.length,
+      31 + subRowH * summaryRowsEst,
+    ) +
+    12 + // gap after the subtotal/summary grid
+    14 + // divider + spacing before the footer text
+    24; // 3 footer lines at 12pt
+  if (y + bottomSectionHeight > pageH - margin) {
+    doc.addPage();
+    y = margin;
+  }
+
   const sectionStartY = y;
 
   // === LEFT: Labor Subtotal ===
