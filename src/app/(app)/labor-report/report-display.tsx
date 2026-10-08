@@ -100,7 +100,8 @@ const truncateWorkerName = (fullName: string): string => {
 export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
   const { companyInfo } = useCompanyInfo();
   const { toast } = useToast();
-  const [newDesign, setNewDesign] = React.useState(false);
+  // Defaults to the new design since it's downloaded far more often than the old one.
+  const [newDesign, setNewDesign] = React.useState(true);
   const [isDownloadingPdf, setIsDownloadingPdf] = React.useState(false);
   const handlePrint = () => {
     window.print();
@@ -769,10 +770,10 @@ export function LabelReportDisplay({ report, onBack }: ReportDisplayProps) {
           <label className="flex items-center gap-2 text-sm mr-2">
             <input
               type="checkbox"
-              checked={newDesign}
-              onChange={(e) => setNewDesign(e.target.checked)}
+              checked={!newDesign}
+              onChange={(e) => setNewDesign(!e.target.checked)}
             />
-            Nuevo diseño
+            Diseño antiguo
           </label>
           <Button variant="outline" onClick={handleExportExcel}>
             <Download className="mr-2 h-4 w-4" />

@@ -86,7 +86,8 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
   const [laborReportData, setLaborReportData] =
     React.useState<DetailedLabelReportData | null>(null);
   const [includeLaborReport, setIncludeLaborReport] = React.useState(false);
-  const [laborReportNewDesign, setLaborReportNewDesign] = React.useState(false);
+  // Defaults to the new design since it's used far more often than the old one.
+  const [laborReportNewDesign, setLaborReportNewDesign] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isSaved, setIsSaved] = React.useState(false);
   // Stores the pending Firestore payload while the user previews
@@ -1037,14 +1038,14 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         <div className="mt-2 ml-6 flex items-center space-x-2">
           <Checkbox
             id="labor-report-new-design"
-            checked={laborReportNewDesign}
-            onCheckedChange={(checked) => setLaborReportNewDesign(checked === true)}
+            checked={!laborReportNewDesign}
+            onCheckedChange={(checked) => setLaborReportNewDesign(checked !== true)}
           />
           <label
             htmlFor="labor-report-new-design"
             className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
           >
-            Nuevo diseño (one row per task, landscape PDF)
+            Diseño antiguo
           </label>
         </div>
       )}
