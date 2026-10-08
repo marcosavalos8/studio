@@ -66,6 +66,7 @@ type InvoiceFirestorePayload = {
   paidAt: null;
   emailSentCount: number;
   dailyBreakdown: DetailedInvoiceData["dailyBreakdown"];
+  weeklyHoursByTask: DetailedInvoiceData["weeklyHoursByTask"];
   employeeDetails: DetailedInvoiceData["employeeDetails"];
   invoiceClientData: SavedInvoiceClientSnapshot;
   includeLaborReport: boolean;
@@ -868,6 +869,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         paidAt: null,
         emailSentCount: 0,
         dailyBreakdown,
+        weeklyHoursByTask,
         employeeDetails,
         invoiceClientData: {
           name: clientData.name,
@@ -958,6 +960,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           subtotal: payload.subtotal,
           commission: payload.commission,
           dailyBreakdown: payload.dailyBreakdown ?? null,
+          weeklyHoursByTask: payload.weeklyHoursByTask ?? [],
           invoiceClientData: payload.invoiceClientData ?? null,
           employeeDetails: payload.employeeDetails ?? [],
           includeLaborReport,

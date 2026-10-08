@@ -253,6 +253,7 @@ export interface SavedInvoice {
   paidAt?: Timestamp | Date | null;
   emailSentCount?: number;
   dailyBreakdown?: Record<string, SavedInvoiceDayBreakdown>;
+  weeklyHoursByTask?: WeeklyTaskHours;
   employeeDetails?: unknown[];
   invoiceClientData?: SavedInvoiceClientSnapshot;
   /** When true, late fees have been waived and are treated as $0 */

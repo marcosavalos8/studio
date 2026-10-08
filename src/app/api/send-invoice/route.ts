@@ -120,6 +120,7 @@ interface SendInvoiceBody {
   overdueInterestDueDate?: string;
   overdueInterestCurrentDate?: string;
   dailyBreakdown?: Record<string, InvoiceDayBreakdown>;
+  weeklyHoursByTask?: Array<{ from: string; to: string; tasks: Array<{ taskName: string; hours: number }> }>;
   invoiceClientData?: InvoiceClientData;
   employeeDetails?: Array<{ minimumWageTopUp?: number }>;
   includeLaborReport?: boolean;
@@ -334,13 +335,14 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
     doc.text(line, pageW - margin, y + i * 12, { align: "right" });
   });
 
-  // Left side: "INVOICE" (larger) + " | J&M AGRICULTURAL LABOR LLC" (smaller)
+  // Left side: "INVOICE | J&M AGRICULTURAL LABOR LLC" — both at 12pt (16px on
+  // screen/print, same as report-display.tsx), not the oversized 20pt this used
+  // to draw at, which crowded the company address block to its right.
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
+  doc.setFontSize(12);
   doc.setTextColor(21, 128, 61);
   doc.text("INVOICE", margin, y + 4);
   const invTextW = doc.getTextWidth("INVOICE");
-  doc.setFontSize(20);
   doc.text(` | ${co.companyName}`, margin + invTextW, y + 4);
 
   y += 16;
@@ -673,6 +675,36 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
   });
 
   y += 8;
+
+  // ── TOTAL HOURS WORKED PER WEEK (exact replica of report-display.tsx) ────
+  const weeklyHoursByTask = body.weeklyHoursByTask ?? [];
+  if (weeklyHoursByTask.length > 0) {
+    const whFS = 9; // 12px on screen/print ≈ 9pt
+    const estLines = weeklyHoursByTask.reduce((n, w) => n + 1 + w.tasks.length, 1);
+    if (y + estLines * 13 + 8 > pageH - 200) {
+      doc.addPage();
+      y = margin;
+    }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(whFS);
+    doc.setTextColor(0);
+    doc.text("Total Hours Worked per Week", margin, y + 9);
+    y += 16;
+    weeklyHoursByTask.forEach((week) => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(whFS);
+      doc.setTextColor(55, 65, 81);
+      doc.text(`${formatDateMDY(week.from)} – ${formatDateMDY(week.to)}`, margin, y + 9);
+      y += 13;
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(0);
+      week.tasks.forEach((t) => {
+        doc.text(`${t.taskName}: ${fmtNum(t.hours)} hrs`, margin + 12, y + 9);
+        y += 12;
+      });
+    });
+    y += 4;
+  }
 
   // ── BOTTOM SECTION: Labor Subtotal (left) + Invoice Summary (right) ──────
   const gap = 24;

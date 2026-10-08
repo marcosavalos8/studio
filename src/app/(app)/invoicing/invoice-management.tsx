@@ -499,6 +499,7 @@ export function InvoiceManagement() {
           commission: invoice.commission,
           overdueInterestAccrued: invoice.overdueInterestAccrued ?? 0,
           dailyBreakdown: invoice.dailyBreakdown ?? null,
+          weeklyHoursByTask: invoice.weeklyHoursByTask ?? [],
           invoiceClientData: invoice.invoiceClientData ?? null,
           employeeDetails: invoice.employeeDetails ?? [],
           includeLaborReport: invoice.includeLaborReport ?? false,
