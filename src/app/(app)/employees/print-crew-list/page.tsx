@@ -53,7 +53,7 @@ export default function PrintCrewListPage() {
           .print-controls { display: none !important; }
           body * { visibility: hidden !important; }
           .crew-list-root, .crew-list-root * { visibility: visible !important; }
-          .crew-list-root { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; padding: 0 !important; box-sizing: border-box !important; }
+          .crew-list-root { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; padding: 0 !important; box-sizing: border-box !important; filter: grayscale(1) !important; }
           body { margin: 0 !important; padding: 0 !important; background: white !important; }
         }
         .print-controls {
