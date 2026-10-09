@@ -19,6 +19,12 @@ const money = (value: number) =>
 const num = (value: number) =>
   value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// Piece quantities (not hours) get 4 decimals — a shared-piece split like
+// 2.75/4 = 0.4167 would otherwise display as 0.42, which doesn't visibly
+// multiply back to the row's own total and invites questions from workers.
+const numPieces = (value: number) =>
+  value.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+
 type DayRow = {
   date: string;
   task: DailyTaskDetail;
@@ -113,7 +119,7 @@ export function PayStub({ summary, employeeNumber, companyName, startDate, endDa
               <td>{task.taskName}</td>
               <td className="r">{task.hours > 0 ? num(task.hours) : "-"}</td>
               {hasPieces && (
-                <td className="r">{task.taskType === "piece" ? num(task.pieceworkCount) : "-"}</td>
+                <td className="r">{task.taskType === "piece" ? numPieces(task.pieceworkCount) : "-"}</td>
               )}
               <td className="r">{money(task.rate ?? 0)}</td>
               <td className="r">{money(task.totalEarnings)}</td>
@@ -141,7 +147,7 @@ export function PayStub({ summary, employeeNumber, companyName, startDate, endDa
             {taskRows.map((r, idx) => (
               <tr key={idx}>
                 <td>{r.label}</td>
-                <td className="r">{r.type === "piece" ? num(r.qty) : `${num(r.qty)} hrs`}</td>
+                <td className="r">{r.type === "piece" ? numPieces(r.qty) : `${num(r.qty)} hrs`}</td>
                 <td className="r">{money(r.price)}</td>
                 <td className="r">{money(r.total)}</td>
               </tr>
