@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/alert"
 import { VideoOff, Loader2 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
 import jsQR from "jsqr";
 
 type QrScannerComponentProps = {
@@ -21,11 +22,18 @@ export function QrScannerComponent({ onScanResult, isProcessing = false }: QrSca
     const [error, setError] = useState<string | null>(null);
     const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
     const [isClient, setIsClient] = useState(false);
+    const [retryCount, setRetryCount] = useState(0);
     const lastScanTime = useRef(0);
     const lastScanData = useRef<string | null>(null);
 
     const DEBOUNCE_TIME = 3000; // 3 seconds
-    
+    // Some Safari/iOS versions can leave getUserMedia's promise neither
+    // resolved nor rejected (e.g. when the permission prompt is requested
+    // without a direct, immediate user gesture). Without a timeout, the
+    // "Initializing camera..." spinner would then spin forever with no way
+    // for the user to recover short of reloading the page.
+    const CAMERA_INIT_TIMEOUT = 10000; // 10 seconds
+
     useEffect(() => {
         setIsClient(true);
     }, []);
@@ -43,14 +51,36 @@ export function QrScannerComponent({ onScanResult, isProcessing = false }: QrSca
     useEffect(() => {
         if (!isClient) return;
 
+        let settled = false;
+        setError(null);
+        setHasCameraPermission(null);
+
+        const timeoutId = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            console.error("Camera access timed out after", CAMERA_INIT_TIMEOUT, "ms");
+            setHasCameraPermission(false);
+            setError('Camera took too long to start. Tap Retry, or check that no other app is using the camera.');
+        }, CAMERA_INIT_TIMEOUT);
+
         const getCameraPermission = async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                if (settled) {
+                    // Timed out already — don't leave this stream open unused.
+                    stream.getTracks().forEach(track => track.stop());
+                    return;
+                }
+                settled = true;
+                clearTimeout(timeoutId);
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
                 }
                 setHasCameraPermission(true);
             } catch (err) {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timeoutId);
                 console.error("Camera access error:", err);
                 setHasCameraPermission(false);
                 if ((err as Error).name === 'NotAllowedError') {
@@ -64,12 +94,14 @@ export function QrScannerComponent({ onScanResult, isProcessing = false }: QrSca
         getCameraPermission();
 
         return () => {
+            settled = true;
+            clearTimeout(timeoutId);
             if (videoRef.current && videoRef.current.srcObject) {
                 const stream = videoRef.current.srcObject as MediaStream;
                 stream.getTracks().forEach(track => track.stop());
             }
         };
-    }, [isClient]);
+    }, [isClient, retryCount]);
 
     useEffect(() => {
         if (!hasCameraPermission || !videoRef.current) return;
@@ -119,8 +151,19 @@ export function QrScannerComponent({ onScanResult, isProcessing = false }: QrSca
             <Alert variant="destructive">
                 <VideoOff className="h-4 w-4" />
                 <AlertTitle>Camera Error</AlertTitle>
-                <AlertDescription>
-                    {error} You may need to refresh the page after granting permission.
+                <AlertDescription className="space-y-3">
+                    <p>{error}</p>
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                            setError(null);
+                            setRetryCount((c) => c + 1);
+                        }}
+                    >
+                        Retry
+                    </Button>
                 </AlertDescription>
             </Alert>
         )
