@@ -173,6 +173,33 @@ function roundToNearestQuarterHour(date: Date): Date {
   return rounded;
 }
 
+// Clock-in/out/piece writes never reject on their own (they catch their own
+// errors and show their own toast) — but if the underlying network request
+// itself never settles (e.g. a flaky connection, or a service worker
+// swallowing the response even though the write reached the server), the
+// awaited promise can hang forever with nothing telling the user what
+// happened. This races it against a timeout so the UI always has something
+// concrete to say, instead of a "Processing..." spinner stuck indefinitely.
+// It never cancels or replaces the original operation — if it resolves
+// later, its own toast/state updates still fire normally.
+async function awaitOrWarnIfSlow<T>(
+  promise: Promise<T>,
+  ms: number,
+): Promise<{ status: "settled"; value: T } | { status: "slow" }> {
+  let timedOut = false;
+  const timeout = new Promise<{ status: "slow" }>((resolve) => {
+    setTimeout(() => {
+      timedOut = true;
+      resolve({ status: "slow" });
+    }, ms);
+  });
+  const settled = promise.then(
+    (value) => ({ status: "settled" as const, value }),
+  );
+  const result = await Promise.race([settled, timeout]);
+  return timedOut ? { status: "slow" } : result;
+}
+
 function TimeTrackingPage() {
   const { username } = useAuth();
   const [soundSettings, setSoundSettings] = useState<SoundSettings | null>(
@@ -2229,13 +2256,23 @@ function TimeTrackingPage() {
                   : parseFloat(String(pastRecordPiecesCount))
                 : 0;
 
-            await createPastRecord(
-              scannedEmployee,
-              selectedTask,
-              pastRecordClockInDate,
-              pastRecordClockOutDate,
-              piecesCount > 0 ? piecesCount : undefined,
+            const pastRecordOutcome = await awaitOrWarnIfSlow(
+              createPastRecord(
+                scannedEmployee,
+                selectedTask,
+                pastRecordClockInDate,
+                pastRecordClockOutDate,
+                piecesCount > 0 ? piecesCount : undefined,
+              ),
+              15000,
             );
+            if (pastRecordOutcome.status === "slow") {
+              toast({
+                variant: "destructive",
+                title: "Taking longer than expected",
+                description: `Still trying to save the past record for ${scannedEmployee.name} — check History in a moment before scanning again, in case it already saved.`,
+              });
+            }
           } else if (scanMode === "clock-in") {
             // When offline, show toast immediately to match Manual Entry UX pattern
             // This provides instant feedback and prevents UI from appearing frozen
@@ -2258,12 +2295,22 @@ function TimeTrackingPage() {
 
             const timestamp = useManualDateTime ? manualClockInDate : undefined;
 
-            await clockInEmployee(
-              scannedEmployee,
-              selectedTask,
-              timestamp,
-              useSickHoursForPayment,
+            const clockInOutcome = await awaitOrWarnIfSlow(
+              clockInEmployee(
+                scannedEmployee,
+                selectedTask,
+                timestamp,
+                useSickHoursForPayment,
+              ),
+              15000,
             );
+            if (clockInOutcome.status === "slow") {
+              toast({
+                variant: "destructive",
+                title: "Taking longer than expected",
+                description: `Still trying to clock in ${scannedEmployee.name} — check History in a moment before scanning again, in case it already saved.`,
+              });
+            }
           } else if (scanMode === "clock-out") {
             // When offline, show toast immediately to match Manual Entry behavior
             if (!isOnline) {
@@ -2280,7 +2327,17 @@ function TimeTrackingPage() {
             const timestamp = useManualDateTime
               ? manualClockOutDate
               : undefined;
-            await clockOutEmployee(scannedEmployee, selectedTask, timestamp);
+            const clockOutOutcome = await awaitOrWarnIfSlow(
+              clockOutEmployee(scannedEmployee, selectedTask, timestamp),
+              15000,
+            );
+            if (clockOutOutcome.status === "slow") {
+              toast({
+                variant: "destructive",
+                title: "Taking longer than expected",
+                description: `Still trying to clock out ${scannedEmployee.name} — check History in a moment before scanning again, in case it already saved.`,
+              });
+            }
           } else if (scanMode === "piece") {
             if (isSharedPiece) {
               setScannedSharedEmployees((prev) => {
@@ -2603,14 +2660,23 @@ function TimeTrackingPage() {
             return;
           }
 
-          const success = await recordPieceworkWithQuantity(
-            employeeIds,
-            pieceWorkSelectedTask.id,
-            1,
-            undefined,
+          const pieceOutcome = await awaitOrWarnIfSlow(
+            recordPieceworkWithQuantity(
+              employeeIds,
+              pieceWorkSelectedTask.id,
+              1,
+              undefined,
+            ),
+            15000,
           );
 
-          if (success) {
+          if (pieceOutcome.status === "slow") {
+            toast({
+              variant: "destructive",
+              title: "Taking longer than expected",
+              description: `Still trying to record the piece for ${scannedEmployee.name} — check History in a moment before scanning again, in case it already saved.`,
+            });
+          } else if (pieceOutcome.value) {
             playSound("piece");
           }
         } finally {
