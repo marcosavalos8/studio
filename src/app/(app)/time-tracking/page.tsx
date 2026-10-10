@@ -2770,22 +2770,30 @@ function TimeTrackingPage() {
         setIsManualSubmitting(false);
       }
 
-      // Submit for each employee
-      for (const { entry, clockInDate, clockOutDate } of timedEntries) {
-        const piecesCount = isPiece
-          ? typeof entry.pieces === "number"
-            ? entry.pieces
-            : parseFloat(String(entry.pieces))
-          : 0;
+      // Submit all employees in parallel instead of one at a time — each
+      // writes to its own employee/time_entries documents, so there's no
+      // risk of two employees' writes colliding, and createPastRecord
+      // already catches its own errors internally (never rejects), so one
+      // employee failing doesn't stop the others. For a batch of 15-60
+      // people with the same clock-in/out, this turns N sequential network
+      // round trips into roughly 1.
+      await Promise.all(
+        timedEntries.map(({ entry, clockInDate, clockOutDate }) => {
+          const piecesCount = isPiece
+            ? typeof entry.pieces === "number"
+              ? entry.pieces
+              : parseFloat(String(entry.pieces))
+            : 0;
 
-        await createPastRecord(
-          entry.employee,
-          selectedTask,
-          clockInDate,
-          clockOutDate,
-          piecesCount > 0 ? piecesCount : undefined,
-        );
-      }
+          return createPastRecord(
+            entry.employee,
+            selectedTask,
+            clockInDate,
+            clockOutDate,
+            piecesCount > 0 ? piecesCount : undefined,
+          );
+        }),
+      );
 
       // Reset form after Firestore operation
       setManualSelectedEmployee(null);
