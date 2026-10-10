@@ -645,32 +645,68 @@ export function AccountingCenterClient() {
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [stubIds, setStubIds] = React.useState<string[]>([]);
   const [stubEmployeeNumbers, setStubEmployeeNumbers] = React.useState<Record<string, string>>({});
+  const [isPreparingStubs, setIsPreparingStubs] = React.useState(false);
+  const [stubRenderCount, setStubRenderCount] = React.useState(0);
+  const STUB_BATCH_SIZE = 5;
 
   const handlePrintStubs = async () => {
     if (!reportData || selectedIds.size === 0) return;
-    let numbers: Record<string, string> = {};
-    if (firestore) {
-      const snap = await getDocs(collection(firestore, "employees"));
-      numbers = Object.fromEntries(
-        snap.docs.map((d) => [d.id, (d.data().employeeNumber as string) ?? ""]),
+    setIsPreparingStubs(true);
+    try {
+      let numbers: Record<string, string> = {};
+      if (firestore) {
+        const snap = await getDocs(collection(firestore, "employees"));
+        numbers = Object.fromEntries(
+          snap.docs.map((d) => [d.id, (d.data().employeeNumber as string) ?? ""]),
+        );
+      }
+      setStubEmployeeNumbers(numbers);
+      setStubRenderCount(0);
+      setStubIds(
+        reportData.employeeSummaries
+          .map((e) => e.employeeId)
+          .filter((id) => selectedIds.has(id)),
       );
+      // isPreparingStubs stays true — the render-progress effect below
+      // clears it once all stubs are mounted and window.print() has fired.
+    } catch (err) {
+      console.error("Error preparing pay stubs:", err);
+      toast({
+        variant: "destructive",
+        title: "Could not prepare pay stubs",
+        description: "Please check your connection and try again.",
+      });
+      setIsPreparingStubs(false);
     }
-    setStubEmployeeNumbers(numbers);
-    setStubIds(
-      reportData.employeeSummaries
-        .map((e) => e.employeeId)
-        .filter((id) => selectedIds.has(id)),
-    );
   };
 
+  // Mount the selected stubs a handful at a time (instead of all ~60 at once)
+  // so the browser gets to paint between batches — on an iPad, committing
+  // dozens of full stub tables in one React update can block the main
+  // thread long enough that window.print() fires before anything is on
+  // screen, or before the tap-highlight even clears, looking like the app
+  // froze. This also gives a real "Generating X of Y" progress readout
+  // instead of a fixed, guessed timeout.
   React.useEffect(() => {
     if (stubIds.length === 0) return;
-    const timer = setTimeout(() => {
+    if (stubRenderCount < stubIds.length) {
+      const frame = requestAnimationFrame(() => {
+        setStubRenderCount((prev) =>
+          Math.min(prev + STUB_BATCH_SIZE, stubIds.length),
+        );
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+    // All stubs are mounted — wait one more frame so the last batch is
+    // actually painted before asking the browser to print.
+    const frame = requestAnimationFrame(() => {
       window.print();
       setStubIds([]);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [stubIds]);
+      setStubRenderCount(0);
+      setIsPreparingStubs(false);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [stubIds, stubRenderCount]);
 
   // ── Fetch data & generate report ─────────────────────────────────────────
   React.useEffect(() => {
@@ -982,11 +1018,17 @@ export function AccountingCenterClient() {
               variant="outline"
               size="sm"
               className="h-8 text-sm"
-              disabled={selectedIds.size === 0}
+              disabled={selectedIds.size === 0 || isPreparingStubs}
               onClick={handlePrintStubs}
             >
-              <Printer className="mr-2 h-3.5 w-3.5" />
-              Print Pay Stubs{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+              {isPreparingStubs ? (
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Printer className="mr-2 h-3.5 w-3.5" />
+              )}
+              {isPreparingStubs
+                ? "Generando…"
+                : `Print Pay Stubs${selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}`}
             </Button>
             <div className="relative">
               <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -1054,6 +1096,25 @@ export function AccountingCenterClient() {
         </div>
       )}
 
+      {isPreparingStubs && stubIds.length > 0 && typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-3 bg-background/90 backdrop-blur-sm print:hidden">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <p className="text-base font-medium">
+              Generando talones… {Math.min(stubRenderCount, stubIds.length)} de {stubIds.length}
+            </p>
+            <div className="h-2 w-64 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full bg-primary transition-all duration-150"
+                style={{
+                  width: `${(Math.min(stubRenderCount, stubIds.length) / stubIds.length) * 100}%`,
+                }}
+              />
+            </div>
+          </div>,
+          document.body,
+        )}
+
       {stubIds.length > 0 && reportData && typeof document !== "undefined" &&
         createPortal(
           <div className="pay-stub-root">
@@ -1066,7 +1127,7 @@ export function AccountingCenterClient() {
                 .pay-stub-root { display: none; }
               }
             `}</style>
-            {stubIds.map((id) => {
+            {stubIds.slice(0, stubRenderCount).map((id) => {
               const summary = reportData.employeeSummaries.find((e) => e.employeeId === id);
               if (!summary) return null;
               return (
