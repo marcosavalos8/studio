@@ -89,26 +89,26 @@ export function PayStub({ summary, employeeNumber, companyName, startDate, endDa
       `}</style>
 
       <div style={{ textAlign: "center", fontWeight: 700, fontSize: 13 }}>{companyName}</div>
-      <div style={{ textAlign: "center", marginTop: 4 }}>Pay Stub</div>
+      <div style={{ textAlign: "center", marginTop: 4 }}>Recibo de nómina</div>
 
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14 }}>
         <div>
-          <div style={{ fontWeight: 700 }}>Employee: {summary.employeeName}</div>
-          <div style={{ fontWeight: 700 }}>Emp #: {employeeNumber || "—"}</div>
+          <div style={{ fontWeight: 700 }}>Empleado: {summary.employeeName}</div>
+          <div style={{ fontWeight: 700 }}># Emp: {employeeNumber || "—"}</div>
         </div>
         <div style={{ fontWeight: 700 }}>
-          Pay Period: {fmt(startDate)} - {fmt(endDate)}
+          Periodo de pago: {fmt(startDate)} - {fmt(endDate)}
         </div>
       </div>
 
       <table style={{ marginTop: 10 }}>
         <thead>
           <tr>
-            <th>Date</th>
-            <th>Task Description</th>
-            <th className="r">Hours</th>
-            {hasPieces && <th className="r">Pieces</th>}
-            <th className="r">Rate</th>
+            <th>Fecha</th>
+            <th>Descripción de la tarea</th>
+            <th className="r">Horas</th>
+            {hasPieces && <th className="r">Piezas</th>}
+            <th className="r">Tarifa</th>
             <th className="r">Subtotal</th>
           </tr>
         </thead>
@@ -129,7 +129,7 @@ export function PayStub({ summary, employeeNumber, companyName, startDate, endDa
       </table>
 
       <div className="sec" style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
-        <span>Total Hours Worked</span>
+        <span>Total de Horas Trabajadas</span>
         <span>{num(totalHours)} hrs</span>
       </div>
 
@@ -137,9 +137,9 @@ export function PayStub({ summary, employeeNumber, companyName, startDate, endDa
         <table>
           <thead>
             <tr>
-              <th>Weekly Summary by Task</th>
-              <th className="r">Quantity</th>
-              <th className="r">Price</th>
+              <th>Resumen semanal por tarea</th>
+              <th className="r">Cantidad</th>
+              <th className="r">Precio</th>
               <th className="r">Total</th>
             </tr>
           </thead>
@@ -153,7 +153,7 @@ export function PayStub({ summary, employeeNumber, companyName, startDate, endDa
               </tr>
             ))}
             <tr className="total">
-              <td colSpan={3}>Gross Earnings by Task</td>
+              <td colSpan={3}>Ganancias Brutas por Tarea</td>
               <td className="r">{money(grossEarnings)}</td>
             </tr>
           </tbody>
@@ -162,39 +162,39 @@ export function PayStub({ summary, employeeNumber, companyName, startDate, endDa
 
       {breaks > 0 && (
         <div className="sec" style={{ display: "flex", justifyContent: "space-between" }}>
-          <span>Paid Rest Breaks (10 min/4 hrs)</span>
+          <span>Descansos Pagados (10 min/4 hrs)</span>
           <span>{money(breaks)}</span>
         </div>
       )}
       {otHours > 0 && (
         <>
           <div className="sec" style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>Overtime Hours</span>
+            <span>Horas de Overtime</span>
             <span>{num(otHours)} hrs</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>Regular Rate for Overtime Calculation</span>
+            <span>Tarifa ordinaria para el cálculo de Overtime</span>
             <span>{money(otRegularRate)}</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>Overtime Premium (0.5x Regular Rate)</span>
+            <span>Prima de Overtime (0.5x Tarifa ordinaria)</span>
             <span>{money(otPremium)}</span>
           </div>
         </>
       )}
       {minWage > 0 && (
         <div className="sec" style={{ display: "flex", justifyContent: "space-between" }}>
-          <span>Minimum Wage Adjustment</span>
+          <span>Ajuste al Salario Mínimo</span>
           <span>{money(minWage)}</span>
         </div>
       )}
 
       <div className="sec-title" style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
-        <span>Gross Total Pay</span>
+        <span>Pago Total Bruto</span>
         <span>{money(summary.finalPay)}</span>
       </div>
 
-      <div className="note">Gross Total Pay is exempt from applicable deductions.</div>
+      <div className="note">El Pago Total Bruto está exento de deducciones aplicables.</div>
     </div>
   );
 }
