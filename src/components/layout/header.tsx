@@ -20,9 +20,14 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from '@/contexts/auth-context'
 import { navItems } from '@/lib/nav-items'
+import { useFirestore } from '@/firebase'
+import { useCollection } from '@/firebase/firestore/use-collection'
+import { useMemo } from 'react'
+import { collection, query, where } from 'firebase/firestore'
+import type { AppUser } from '@/app/(app)/users/page'
 
 const pageTitles: { [key: string]: string } = {
   '/dashboard': 'Dashboard',
@@ -44,6 +49,18 @@ export function AppHeader() {
   const router = useRouter()
   const { logout, username, userRole, isAdmin } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
+  const firestore = useFirestore()
+
+  // The logged-in user's own Firestore doc, found by displayName since
+  // that's what auth-context stores as `username` for every real login
+  // (see src/app/login/page.tsx) — used only to show their profile photo,
+  // if they've set one.
+  const ownUserQuery = useMemo(() => {
+    if (!firestore || !username) return null
+    return query(collection(firestore, 'users'), where('displayName', '==', username))
+  }, [firestore, username])
+  const { data: ownUserDocs } = useCollection<AppUser>(ownUserQuery)
+  const ownPhotoURL = ownUserDocs?.[0]?.photoURL
 
   const getTitle = () => {
     for (const path in pageTitles) {
@@ -140,6 +157,7 @@ export function AppHeader() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
               <Avatar className="h-8 w-8">
+                {ownPhotoURL && <AvatarImage src={ownPhotoURL} alt={username || 'User'} />}
                 <AvatarFallback>{username?.charAt(0).toUpperCase() || 'J'}</AvatarFallback>
               </Avatar>
             </Button>

@@ -27,6 +27,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PlusCircle, MoreHorizontal, Search, Shield } from "lucide-react";
 
 import { useFirestore } from "@/firebase";
@@ -46,6 +47,7 @@ export interface AppUser {
   role: "Admin" | "User";
   status: "Active" | "Inactive";
   noAuth?: boolean;
+  photoURL?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -152,6 +154,14 @@ export default function UsersPage() {
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
+                          <Avatar className="h-7 w-7">
+                            {user.photoURL && (
+                              <AvatarImage src={user.photoURL} alt={user.displayName} />
+                            )}
+                            <AvatarFallback className="text-xs">
+                              {user.displayName.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
                           {user.role === "Admin" && (
                             <Shield className="h-4 w-4 text-primary" />
                           )}

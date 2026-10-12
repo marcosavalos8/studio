@@ -34,6 +34,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { generateSalt, hashPassword } from '@/lib/auth-utils'
+import { AvatarUpload } from '@/components/avatar-upload'
 
 const userSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
@@ -43,6 +44,7 @@ const userSchema = z.object({
   email: z.string().optional(),
   password: z.string().optional(),
   confirmPassword: z.string().optional(),
+  photoURL: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (data.role === 'Admin') {
     if (!data.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
@@ -84,10 +86,12 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
       email: '',
       password: '',
       confirmPassword: '',
+      photoURL: undefined,
     },
   })
 
   const selectedRole = form.watch('role')
+  const photoURL = form.watch('photoURL')
 
   const onSubmit = async (values: z.infer<typeof userSchema>) => {
     if (!firestore) {
@@ -149,6 +153,7 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
           role: values.role,
           status: values.status,
           noAuth: false,
+          ...(values.photoURL ? { photoURL: values.photoURL } : {}),
           createdAt: new Date(),
           updatedAt: new Date(),
         })
@@ -166,6 +171,7 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
           noAuth: true,
           passwordHash,
           passwordSalt: salt,
+          ...(values.photoURL ? { photoURL: values.photoURL } : {}),
           createdAt: new Date(),
           updatedAt: new Date(),
         })
@@ -201,6 +207,11 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <AvatarUpload
+              value={photoURL}
+              onChange={(dataUrl) => form.setValue('photoURL', dataUrl, { shouldDirty: true })}
+              fallback="?"
+            />
             <FormField
               control={form.control}
               name="role"

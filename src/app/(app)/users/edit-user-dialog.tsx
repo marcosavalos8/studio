@@ -29,15 +29,17 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useFirestore } from '@/firebase'
-import { doc, updateDoc } from 'firebase/firestore'
+import { doc, updateDoc, deleteField } from 'firebase/firestore'
 import { useToast } from '@/hooks/use-toast'
 import { Loader2 } from 'lucide-react'
 import { AppUser } from './page'
+import { AvatarUpload } from '@/components/avatar-upload'
 
 const userSchema = z.object({
   displayName: z.string().min(1, 'Display name is required'),
   role: z.enum(['Admin', 'User']),
   status: z.enum(['Active', 'Inactive']),
+  photoURL: z.string().optional(),
 })
 
 type EditUserDialogProps = {
@@ -56,10 +58,12 @@ export function EditUserDialog({ open, onOpenChange, user }: EditUserDialogProps
       displayName: user.displayName,
       role: user.role,
       status: user.status,
+      photoURL: user.photoURL,
     },
   })
 
   const { isSubmitting } = form.formState
+  const photoURL = form.watch('photoURL')
 
   const onSubmit = async (values: z.infer<typeof userSchema>) => {
     if (!firestore) {
@@ -73,8 +77,10 @@ export function EditUserDialog({ open, onOpenChange, user }: EditUserDialogProps
 
     try {
       const userDocRef = doc(firestore, 'users', user.id)
+      const { photoURL: newPhotoURL, ...rest } = values
       await updateDoc(userDocRef, {
-        ...values,
+        ...rest,
+        photoURL: newPhotoURL || deleteField(),
         updatedAt: new Date(),
       })
 
@@ -105,6 +111,11 @@ export function EditUserDialog({ open, onOpenChange, user }: EditUserDialogProps
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <AvatarUpload
+              value={photoURL}
+              onChange={(dataUrl) => form.setValue('photoURL', dataUrl, { shouldDirty: true })}
+              fallback={user.displayName.charAt(0).toUpperCase()}
+            />
             <FormField
               control={form.control}
               name="displayName"
