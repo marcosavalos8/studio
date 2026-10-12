@@ -173,6 +173,13 @@ function roundToNearestQuarterHour(date: Date): Date {
   return rounded;
 }
 
+// History tab renders one rich card per record; rendering thousands at once
+// (plus the per-card related-piecework lookup each one does) is what freezes
+// the screen. Paginating the already-fetched/filtered list keeps every
+// existing filter and bulk action working against the full result set while
+// only the visible page actually gets rendered.
+const HISTORY_RECORDS_PER_PAGE = 50;
+
 // Clock-in/out/piece writes never reject on their own (they catch their own
 // errors and show their own toast) — but if the underlying network request
 // itself never settles (e.g. a flaky connection, or a service worker
@@ -529,6 +536,8 @@ function TimeTrackingPage() {
     undefined,
   );
   const [historyNameFilter, setHistoryNameFilter] = useState<string>("");
+  const [historyClientFilter, setHistoryClientFilter] = useState<string>("all");
+  const [historyPage, setHistoryPage] = useState(1);
 
   // Delete confirmation state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -762,39 +771,78 @@ function TimeTrackingPage() {
     });
   }, [allTimeEntries, allPiecework]);
 
-  // Filter merged records by employee name or employee number
+  // Filter merged records by employee name/number and by client
   const filteredMergedRecords = useMemo(() => {
-    if (!historyNameFilter.trim()) {
-      return mergedRecords;
+    let filtered = mergedRecords;
+
+    if (historyClientFilter !== "all") {
+      filtered = filtered.filter((record) => {
+        const task = allTasks?.find((t) => t.id === record.data.taskId);
+        return task?.clientId === historyClientFilter;
+      });
     }
 
-    const searchTerm = historyNameFilter.toLowerCase().trim();
+    if (historyNameFilter.trim()) {
+      const searchTerm = historyNameFilter.toLowerCase().trim();
 
-    return mergedRecords.filter((record) => {
-      if (record.type === "time") {
-        const employee = activeEmployees?.find(
-          (e) => e.id === record.data.employeeId,
-        );
-        return (
-          employee?.name.toLowerCase().includes(searchTerm) ||
-          (employee?.employeeNumber ?? "").includes(searchTerm)
-        );
-      } else {
-        // Piecework - handle multiple employees (comma-separated IDs)
-        const employeeIds = record.data.employeeId.split(",");
-        const employees = employeeIds
-          .map((id) =>
-            activeEmployees?.find((e) => e.id === id || e.qrCode === id),
-          )
-          .filter(Boolean);
-        return employees.some(
-          (emp) =>
-            emp?.name.toLowerCase().includes(searchTerm) ||
-            (emp?.employeeNumber ?? "").includes(searchTerm),
-        );
-      }
-    });
-  }, [mergedRecords, historyNameFilter, activeEmployees]);
+      filtered = filtered.filter((record) => {
+        if (record.type === "time") {
+          const employee = activeEmployees?.find(
+            (e) => e.id === record.data.employeeId,
+          );
+          return (
+            employee?.name.toLowerCase().includes(searchTerm) ||
+            (employee?.employeeNumber ?? "").includes(searchTerm)
+          );
+        } else {
+          // Piecework - handle multiple employees (comma-separated IDs)
+          const employeeIds = record.data.employeeId.split(",");
+          const employees = employeeIds
+            .map((id) =>
+              activeEmployees?.find((e) => e.id === id || e.qrCode === id),
+            )
+            .filter(Boolean);
+          return employees.some(
+            (emp) =>
+              emp?.name.toLowerCase().includes(searchTerm) ||
+              (emp?.employeeNumber ?? "").includes(searchTerm),
+          );
+        }
+      });
+    }
+
+    return filtered;
+  }, [
+    mergedRecords,
+    historyNameFilter,
+    historyClientFilter,
+    activeEmployees,
+    allTasks,
+  ]);
+
+  // Only the current page is actually rendered — the Delete All / Delete
+  // Selected / bulk-edit features below still operate on the full
+  // filteredMergedRecords (or on exactly what the user checked), never on
+  // just this page's slice.
+  const historyTotalPages = Math.max(
+    1,
+    Math.ceil(filteredMergedRecords.length / HISTORY_RECORDS_PER_PAGE),
+  );
+  const paginatedMergedRecords = useMemo(() => {
+    const start = (historyPage - 1) * HISTORY_RECORDS_PER_PAGE;
+    return filteredMergedRecords.slice(start, start + HISTORY_RECORDS_PER_PAGE);
+  }, [filteredMergedRecords, historyPage]);
+
+  // Jump back to page 1 whenever a filter changes, so the list shown always
+  // starts from the top of the new result set instead of an out-of-range page.
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [historyStartDate, historyEndDate, historyNameFilter, historyClientFilter]);
+
+  // Clamp if the result set shrinks (e.g. after a delete) past the current page.
+  useEffect(() => {
+    setHistoryPage((prev) => Math.min(prev, historyTotalPages));
+  }, [historyTotalPages]);
 
   // Query for active time entries (for history tab)
   const activeTimeEntriesQuery = useMemo(() => {
@@ -6955,7 +7003,33 @@ function TimeTrackingPage() {
                   />
                 </div>
 
-                {(historyStartDate || historyEndDate || historyNameFilter) && (
+                {/* Client Filter */}
+                <div className="space-y-2 pt-2 border-t">
+                  <Label htmlFor="history-client-filter">
+                    Filter by Client
+                  </Label>
+                  <Select
+                    value={historyClientFilter}
+                    onValueChange={(value) => setHistoryClientFilter(value)}
+                  >
+                    <SelectTrigger id="history-client-filter">
+                      <SelectValue placeholder="All Clients" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Clients</SelectItem>
+                      {clients?.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {(historyStartDate ||
+                  historyEndDate ||
+                  historyNameFilter ||
+                  historyClientFilter !== "all") && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -6963,6 +7037,7 @@ function TimeTrackingPage() {
                       setHistoryStartDate(undefined);
                       setHistoryEndDate(undefined);
                       setHistoryNameFilter("");
+                      setHistoryClientFilter("all");
                     }}
                   >
                     Clear Filters
@@ -7058,15 +7133,17 @@ function TimeTrackingPage() {
                     <p>No records found.</p>
                     {(historyStartDate ||
                       historyEndDate ||
-                      historyNameFilter) && (
+                      historyNameFilter ||
+                      historyClientFilter !== "all") && (
                       <p className="text-sm mt-2">
                         Try adjusting your filters.
                       </p>
                     )}
                   </div>
                 ) : (
+                  <>
                   <div className="space-y-3">
-                    {filteredMergedRecords.map((record) => {
+                    {paginatedMergedRecords.map((record) => {
                       if (record.type === "time") {
                         const entry = record.data;
                         const employee = activeEmployees?.find(
@@ -7624,6 +7701,47 @@ function TimeTrackingPage() {
                       }
                     })}
                   </div>
+                  {historyTotalPages > 1 && (
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                      <p className="text-sm text-muted-foreground">
+                        Showing{" "}
+                        {(historyPage - 1) * HISTORY_RECORDS_PER_PAGE + 1}-
+                        {Math.min(
+                          historyPage * HISTORY_RECORDS_PER_PAGE,
+                          filteredMergedRecords.length,
+                        )}{" "}
+                        of {filteredMergedRecords.length} records
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={historyPage <= 1}
+                          onClick={() =>
+                            setHistoryPage((p) => Math.max(1, p - 1))
+                          }
+                        >
+                          Previous
+                        </Button>
+                        <span className="text-sm text-muted-foreground">
+                          Page {historyPage} of {historyTotalPages}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={historyPage >= historyTotalPages}
+                          onClick={() =>
+                            setHistoryPage((p) =>
+                              Math.min(historyTotalPages, p + 1),
+                            )
+                          }
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  </>
                 )}
               </div>
             </CardContent>
