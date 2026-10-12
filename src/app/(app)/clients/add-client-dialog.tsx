@@ -36,6 +36,7 @@ import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { useNetworkStatus } from '@/hooks/use-network-status'
 import { addOfflineIndicator } from '@/lib/offline-utils'
+import { normalizeNameInput } from '@/lib/utils'
 
 const clientSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -83,6 +84,12 @@ export function AddClientDialog({ isOpen, onOpenChange }: AddClientDialogProps) 
         description: 'Firestore is not available. Please try again later.',
       })
       return
+    }
+
+    values = {
+      ...values,
+      name: normalizeNameInput(values.name),
+      billingAddress: normalizeNameInput(values.billingAddress),
     }
 
     const newClient = { ...values, email: values.email || '' }

@@ -58,6 +58,43 @@ export function parseLocalDateOrDateTime(dateString: string): Date {
 }
 
 /**
+ * Normalizes free-text names/addresses entered in forms (employee, client,
+ * task/ranch/block, address fields): strips accented vowels and Title
+ * Cases each word, regardless of how the user typed it. "ñ"/"Ñ" is a
+ * distinct Spanish letter, not an accent, so it is preserved. Apostrophes
+ * and hyphens are kept and treated as word boundaries for capitalization
+ * (e.g. "o'brien" -> "O'Brien"), but are not stripped.
+ * This is for INPUT normalization only (called before saving a new/edited
+ * record) — it must not be applied upstream of search/autocomplete inputs
+ * or anything that compares/groups records by their raw stored name.
+ */
+export function normalizeNameInput(input: string): string {
+  if (!input) return input;
+
+  const collapsed = input.trim().replace(/\s+/g, " ");
+  if (!collapsed) return collapsed;
+
+  const withPlaceholders = collapsed.replace(/ñ/gi, (m) =>
+    m === "Ñ" ? "\u0002" : "\u0001",
+  );
+
+  const withoutAccents = withPlaceholders
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .normalize("NFC");
+
+  const restored = withoutAccents
+    .replace(/\u0001/g, "ñ")
+    .replace(/\u0002/g, "Ñ");
+
+  return restored
+    .toLowerCase()
+    .replace(/(^|[\s'-])(\p{L})/gu, (_, boundary, letter) =>
+      boundary + letter.toUpperCase(),
+    );
+}
+
+/**
  * Returns a human-readable relative time string in Spanish.
  * e.g. "hace 2 días", "hace 1 hora", "hace 3 semanas"
  */

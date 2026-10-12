@@ -26,6 +26,7 @@ import type { Client, Task } from "@/lib/types";
 import { Loader2 } from "lucide-react";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { addOfflineIndicator } from "@/lib/offline-utils";
+import { normalizeNameInput } from "@/lib/utils";
 
 type AddTaskDialogProps = {
   isOpen: boolean;
@@ -87,10 +88,10 @@ export function AddTaskDialog({
     setIsSubmitting(true);
 
     const newTask: Omit<Task, "id"> = {
-      name: name || "Untitled Task",
+      name: name ? normalizeNameInput(name) : "Untitled Task",
       variety: variety || "",
-      ranch: ranch || "",
-      block: block || "",
+      ranch: ranch ? normalizeNameInput(ranch) : "",
+      block: block ? normalizeNameInput(block) : "",
       clientId: clientId || "",
       clientRateType,
       status,

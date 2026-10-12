@@ -26,6 +26,7 @@ import type { Client, Task } from "@/lib/types";
 import { Loader2 } from "lucide-react";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { addOfflineIndicator } from "@/lib/offline-utils";
+import { normalizeNameInput } from "@/lib/utils";
 
 type EditTaskDialogProps = {
   isOpen: boolean;
@@ -95,10 +96,10 @@ export function EditTaskDialog({
       const taskRef = doc(firestore, "tasks", task.id);
 
       const updatedData: Partial<Task> = {
-        name: name || "Untitled Task",
+        name: name ? normalizeNameInput(name) : "Untitled Task",
         variety: variety || "",
-        ranch: ranch || "",
-        block: block || "",
+        ranch: ranch ? normalizeNameInput(ranch) : "",
+        block: block ? normalizeNameInput(block) : "",
         clientId: clientId || "",
         clientRateType,
         status,

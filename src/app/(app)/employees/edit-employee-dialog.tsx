@@ -38,6 +38,7 @@ import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { useNetworkStatus } from '@/hooks/use-network-status'
 import { addOfflineIndicator } from '@/lib/offline-utils'
+import { normalizeNameInput } from '@/lib/utils'
 
 const employeeSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -85,6 +86,8 @@ export function EditEmployeeDialog({ isOpen, onOpenChange, employee }: EditEmplo
       })
       return
     }
+
+    values = { ...values, name: normalizeNameInput(values.name) }
 
     try {
       const employeeRef = doc(firestore, 'employees', employee.id)

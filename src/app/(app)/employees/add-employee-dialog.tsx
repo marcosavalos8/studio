@@ -37,6 +37,7 @@ import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { useNetworkStatus } from '@/hooks/use-network-status'
 import { addOfflineIndicator } from '@/lib/offline-utils'
+import { normalizeNameInput } from '@/lib/utils'
 
 const employeeSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -73,6 +74,11 @@ export function AddEmployeeDialog({ isOpen, onOpenChange }: AddEmployeeDialogPro
       })
       return
     }
+
+    // Normalize the name (strip accents, Title Case each word) before the
+    // duplicate check and the save, so both compare/store the same form
+    // regardless of how it was typed.
+    values = { ...values, name: normalizeNameInput(values.name) }
 
     // Case-insensitive duplicate check, also when offline (uses the local cache)
     const normalizedInput = values.name.trim().toLowerCase()
