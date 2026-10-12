@@ -76,8 +76,8 @@ export default function SoundTestTab({ audioContext, onSettingsSaved, username: 
       console.log("Settings saved successfully to key:", `sound_settings_${username}`);
       
       toast({
-        title: "Configuración Guardada",
-        description: "Tu configuración de sonido se ha guardado correctamente.",
+        title: "Settings Saved",
+        description: "Your sound settings have been saved successfully.",
         duration: 2000,
       });
 
@@ -90,7 +90,7 @@ export default function SoundTestTab({ audioContext, onSettingsSaved, username: 
       toast({
         variant: "destructive",
         title: "Error",
-        description: "No se pudo guardar la configuración. Revisa la consola para más detalles.",
+        description: "Could not save settings. Check the console for more details.",
         duration: 3000,
       });
     }
@@ -173,7 +173,7 @@ export default function SoundTestTab({ audioContext, onSettingsSaved, username: 
           🔊 Sound Control Center
         </CardTitle>
         <CardDescription>
-          Configura los sonidos de producción y prueba diferentes opciones. Haz clic en "Guardar Configuración" para guardar tus cambios.
+          Configure production sounds and test different options. Click "Save Settings" to save your changes.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -347,7 +347,7 @@ export default function SoundTestTab({ audioContext, onSettingsSaved, username: 
               disabled={!hasUnsavedChanges}
               className="flex-1"
             >
-              💾 Guardar Configuración
+              💾 Save Settings
             </Button>
             <Button
               variant="outline"
@@ -361,8 +361,8 @@ export default function SoundTestTab({ audioContext, onSettingsSaved, username: 
                   setSettings(defaultSettings);
                   setHasUnsavedChanges(false);
                   toast({
-                    title: "Configuración Restablecida",
-                    description: "La configuración de sonido se ha restablecido a los valores predeterminados.",
+                    title: "Settings Reset",
+                    description: "Sound settings have been reset to the default values.",
                   });
                   // Notify parent to reload settings
                   if (onSettingsSaved) {
@@ -373,13 +373,13 @@ export default function SoundTestTab({ audioContext, onSettingsSaved, username: 
                   toast({
                     variant: "destructive",
                     title: "Error",
-                    description: "No se pudo restablecer la configuración.",
+                    description: "Could not reset settings.",
                     duration: 3000,
                   });
                 }
               }}
             >
-              🔄 Restablecer
+              🔄 Reset
             </Button>
           </div>
         </div>

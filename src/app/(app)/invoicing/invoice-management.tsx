@@ -881,7 +881,7 @@ export function InvoiceManagement() {
                           : false
                     }
                     onCheckedChange={toggleSelectAll}
-                    aria-label="Seleccionar todos"
+                    aria-label="Select all"
                   />
                 </TableHead>
                 <SortableHead
@@ -980,7 +980,7 @@ export function InvoiceManagement() {
                       <Checkbox
                         checked={isSelected}
                         onCheckedChange={() => toggleSelect(id)}
-                        aria-label={`Seleccionar invoice #${invoice.invoiceNumber}`}
+                        aria-label={`Select invoice #${invoice.invoiceNumber}`}
                       />
                     </TableCell>
                     <TableCell className="font-mono font-medium whitespace-nowrap">
@@ -1050,8 +1050,8 @@ export function InvoiceManagement() {
                           disabled={isActing || !invoice.clientEmail}
                           title={
                             !invoice.clientEmail
-                              ? "El cliente no tiene email registrado"
-                              : `Enviar a ${invoice.clientEmail}`
+                              ? "The client has no email on file"
+                              : `Send to ${invoice.clientEmail}`
                           }
                         >
                           {loadingActions[`email-${id}`] ? (

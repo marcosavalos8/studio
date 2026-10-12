@@ -368,7 +368,7 @@ export default function EmployeesPage() {
           {/* Search bar */}
           <div className="flex gap-2">
             <Input
-              placeholder="Buscar por nombre o número de empleado..."
+              placeholder="Search by name or employee number..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1"

@@ -126,7 +126,7 @@ export default function PrintCrewListPage() {
           disabled={loading}
         >
           <Printer size={20} />
-          {loading ? "Cargando..." : "Imprimir Crew List"}
+          {loading ? "Loading..." : "Print Crew List"}
         </button>
       </div>
 

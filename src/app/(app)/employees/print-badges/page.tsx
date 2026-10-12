@@ -216,24 +216,24 @@ export default function PrintBadgesPage() {
         {!allLoaded && (
           <>
             <div className="loading-indicator">
-              Cargando badges... {loadedIds.size} de {employeeIds.length}
+              Loading badges... {loadedIds.size} of {employeeIds.length}
             </div>
             <div className="progress-bar">
               <div className="progress-fill" style={{ width: `${loadingProgress}%` }} />
             </div>
           </>
         )}
-        <button 
-          className="print-button" 
+        <button
+          className="print-button"
           onClick={handlePrint}
           disabled={!allLoaded}
         >
           <Printer size={20} />
-          {allLoaded ? 'Imprimir Badges' : 'Cargando...'}
+          {allLoaded ? 'Print Badges' : 'Loading...'}
         </button>
         {allLoaded && (
           <div className="loading-indicator" style={{ color: '#10b981' }}>
-            ✓ Todos los badges cargados
+            ✓ All badges loaded
           </div>
         )}
       </div>

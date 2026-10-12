@@ -92,7 +92,7 @@ export function withAuth<P extends object>(
         setIsDialogOpen(false);
         setError("");
       } else {
-        setError("Contraseña incorrecta. Intenta de nuevo.");
+        setError("Incorrect password. Please try again.");
         setPassword("");
       }
     };
@@ -116,17 +116,17 @@ export function withAuth<P extends object>(
         <div className="flex min-h-[300px] items-center justify-center">
           <div className="text-center space-y-4">
             <h2 className="text-lg font-semibold">
-              No tienes permiso para ver esta sección
+              You don't have permission to view this section
             </h2>
             <p className="text-sm text-muted-foreground">
-              Ingresa la contraseña para continuar.
+              Enter the password to continue.
             </p>
             <div className="flex items-center justify-center gap-2">
               <Button
                 variant="outline"
                 onClick={() => router.push("/dashboard")}
               >
-                Volver al dashboard
+                Back to dashboard
               </Button>
               <Button
                 onClick={() => {
@@ -136,7 +136,7 @@ export function withAuth<P extends object>(
                   setError("");
                 }}
               >
-                Ingresar contraseña
+                Enter password
               </Button>
             </div>
           </div>
@@ -159,15 +159,15 @@ export function withAuth<P extends object>(
       >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Autorización requerida</DialogTitle>
+            <DialogTitle>Authorization Required</DialogTitle>
             <DialogDescription>
-              Ingresa la contraseña de acceso.
+              Enter the access password.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="password-input" className="text-right">
-                Contraseña
+                Password
               </Label>
               <Input
                 id="password-input"
@@ -187,10 +187,10 @@ export function withAuth<P extends object>(
           </div>
           <DialogFooter className="flex gap-2">
             <Button variant="outline" type="button" onClick={handleCloseDialog}>
-              Cerrar
+              Close
             </Button>
             <Button type="button" onClick={handlePasswordSubmit}>
-              Enviar
+              Submit
             </Button>
           </DialogFooter>
         </DialogContent>
