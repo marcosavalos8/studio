@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { RequireAdmin } from "@/components/require-admin";
 import {
   Card,
   CardContent,
@@ -63,7 +64,7 @@ interface EmployeeWithCalculatedHours extends Employee {
   calculatedTotalHours?: number;
 }
 
-export default function EmployeesPage() {
+function EmployeesPage() {
   const firestore = useFirestore();
   const [isAddDialogOpen, setAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
@@ -686,5 +687,13 @@ export default function EmployeesPage() {
         </>
       )}
     </>
+  );
+}
+
+export default function ProtectedEmployeesPage() {
+  return (
+    <RequireAdmin>
+      <EmployeesPage />
+    </RequireAdmin>
   );
 }

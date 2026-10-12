@@ -37,6 +37,7 @@ import { useState, useMemo } from "react";
 import { AddUserDialog } from "./add-user-dialog";
 import { EditUserDialog } from "./edit-user-dialog";
 import { DeleteUserDialog } from "./delete-user-dialog";
+import { RequireAdmin } from "@/components/require-admin";
 
 export interface AppUser {
   id: string;
@@ -52,7 +53,7 @@ export interface AppUser {
   updatedAt?: Date;
 }
 
-export default function UsersPage() {
+function UsersPage() {
   const firestore = useFirestore();
   const [isAddDialogOpen, setAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
@@ -236,5 +237,13 @@ export default function UsersPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function ProtectedUsersPage() {
+  return (
+    <RequireAdmin>
+      <UsersPage />
+    </RequireAdmin>
   );
 }

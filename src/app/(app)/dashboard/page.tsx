@@ -17,16 +17,29 @@ import { OverviewChart } from "./overview-chart"
 import { WeatherWidget } from "./weather-widget"
 import { LiveActivity } from "./live-activity"
 import { useDashboardData } from "@/hooks/use-dashboard-data"
+import { useAuth } from "@/contexts/auth-context"
 
+function MaybeLink({
+  href,
+  enabled,
+  children,
+}: {
+  href: string
+  enabled: boolean
+  children: React.ReactNode
+}) {
+  return enabled ? <Link href={href}>{children}</Link> : <>{children}</>
+}
 
 export default function DashboardPage() {
   const { totalEmployees, employeeGrowth, activeClients, activeTasks, isLoading } = useDashboardData()
+  const { isAdmin } = useAuth()
 
   return (
     <div className="grid gap-3 md:gap-6 lg:gap-8">
       <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        <Link href="/employees">
-          <Card className="transition-colors hover:bg-accent/50 hover:border-primary/50 cursor-pointer">
+        <MaybeLink href="/employees" enabled={isAdmin}>
+          <Card className={isAdmin ? "transition-colors hover:bg-accent/50 hover:border-primary/50 cursor-pointer" : undefined}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
@@ -38,9 +51,9 @@ export default function DashboardPage() {
               </p>
             </CardContent>
           </Card>
-        </Link>
-        <Link href="/clients">
-          <Card className="transition-colors hover:bg-accent/50 hover:border-primary/50 cursor-pointer">
+        </MaybeLink>
+        <MaybeLink href="/clients" enabled={isAdmin}>
+          <Card className={isAdmin ? "transition-colors hover:bg-accent/50 hover:border-primary/50 cursor-pointer" : undefined}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Clients</CardTitle>
               <Briefcase className="h-4 w-4 text-muted-foreground" />
@@ -52,7 +65,7 @@ export default function DashboardPage() {
               </p>
             </CardContent>
           </Card>
-        </Link>
+        </MaybeLink>
         <Link href="/tasks">
           <Card className="transition-colors hover:bg-accent/50 hover:border-primary/50 cursor-pointer">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

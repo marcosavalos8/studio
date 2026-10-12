@@ -1,5 +1,6 @@
 "use client";
 
+import { RequireAdmin } from "@/components/require-admin";
 import React, { useState, useMemo } from "react";
 import {
   Card,
@@ -36,7 +37,7 @@ import { AddClientDialog } from "./add-client-dialog";
 import { EditClientDialog } from "./edit-client-dialog";
 import { DeleteClientDialog } from "./delete-client-dialog";
 
-export default function ClientsPage() {
+function ClientsPage() {
   const firestore = useFirestore();
   const [isAddDialogOpen, setAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
@@ -186,5 +187,13 @@ export default function ClientsPage() {
         </>
       )}
     </>
+  );
+}
+
+export default function ProtectedClientsPage() {
+  return (
+    <RequireAdmin>
+      <ClientsPage />
+    </RequireAdmin>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { RequireAdmin } from "@/components/require-admin";
 import {
   Card,
   CardContent,
@@ -37,7 +38,7 @@ import { useCompanyInfo } from "@/hooks/use-company-info";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 
-export default function SettingsPage() {
+function SettingsPage() {
   const { settings, updateSetting, resetSettings } = useSettings();
   const { companyInfo, isLoading: loadingCompany, isSaving: savingCompany, saveCompanyInfo } = useCompanyInfo();
   const { toast } = useToast();
@@ -589,5 +590,13 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function ProtectedSettingsPage() {
+  return (
+    <RequireAdmin>
+      <SettingsPage />
+    </RequireAdmin>
   );
 }
