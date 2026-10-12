@@ -138,12 +138,7 @@ export function PayrollForm() {
             const activeEmployees = Array.from(employeeIdsWithActivity)
                 .map(id => allEmployeesMap.get(id))
                 .filter((e): e is Employee => !!e)
-                .sort((a, b) => {
-                  if (a.employeeNumber && b.employeeNumber) return a.employeeNumber.localeCompare(b.employeeNumber);
-                  if (a.employeeNumber) return -1;
-                  if (b.employeeNumber) return 1;
-                  return a.name.localeCompare(b.name);
-                });
+                .sort((a, b) => a.name.localeCompare(b.name));
             
             setAllData({ allEmployees, tasks, clients, timeEntries, piecework });
             setEmployeesInRange(activeEmployees);

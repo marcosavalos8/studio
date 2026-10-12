@@ -231,14 +231,10 @@ export default function EmployeesPage() {
   // Use calculated hours if available, otherwise use stored values
   const baseEmployees =
     employeesWithHours.length > 0 ? employeesWithHours : employees || [];
-  // Sort by employeeNumber (oldest first); employees without number go to the end
-  const displayEmployees = [...baseEmployees].sort((a, b) => {
-    if (a.employeeNumber && b.employeeNumber)
-      return a.employeeNumber.localeCompare(b.employeeNumber);
-    if (a.employeeNumber) return -1;
-    if (b.employeeNumber) return 1;
-    return a.name.localeCompare(b.name);
-  });
+  // Sort alphabetically by name (A-Z)
+  const displayEmployees = [...baseEmployees].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
   const hasMissingNumbers = (employees || []).some((e) => !e.employeeNumber);
 
   // Filter employees based on search filter

@@ -820,6 +820,13 @@ export async function generatePayrollReport({
       }
     }
 
+    // Sort alphabetically by name (A-Z) for display. Purely a reordering of
+    // the finished rows — every total below is a sum/reduce over this same
+    // array, so it's unaffected by the order.
+    employeeSummaries.sort((a, b) =>
+      a.employeeName.localeCompare(b.employeeName),
+    );
+
     return {
       employeeSummaries,
       periodTotal: employeeSummaries.reduce(

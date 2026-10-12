@@ -31,7 +31,9 @@ export default function PrintCrewListPage() {
         return null;
       })
     ).then((results) => {
-      setEmployees(results.filter(Boolean) as Employee[]);
+      const found = results.filter(Boolean) as Employee[];
+      found.sort((a, b) => a.name.localeCompare(b.name));
+      setEmployees(found);
       setLoading(false);
     });
   }, [firestore, idsParam]);
