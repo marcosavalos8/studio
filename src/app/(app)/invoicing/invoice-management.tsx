@@ -492,6 +492,7 @@ export function InvoiceManagement() {
           dueDate: dueDateStr,
           minimumWageTopUp: invoice.minimumWageTopUp,
           paidRestBreaks: invoice.paidRestBreaks,
+          breakHours: invoice.breakHours,
           overtimePremium: invoice.overtimePremium,
           overtimeHours: invoice.overtimeHours,
           overtimeLines: invoice.overtimeLines ?? null,

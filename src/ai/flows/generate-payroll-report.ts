@@ -311,8 +311,10 @@ export async function generatePayrollReport({
           hours: number;
         }> = [];
 
-        // Accumulator for weekly break pay (computed per day)
+        // Accumulators for weekly break pay and the real break hours behind
+        // it (computed per day, same gating condition for both)
         let weeklyRestBreaksPay = 0;
+        let weeklyBreakHours = 0;
 
         const sortedDays = Object.keys(dailyWork).sort(
           (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime()
@@ -527,15 +529,22 @@ export async function generatePayrollReport({
           // IF(AND(piece_hours>0, piece_earn>piece_hours*minWage, piece_hours>=hourly_hours, piece_hours+hourly_hours>4),
           //   ((piece_earn/piece_hours)*(10/60))*MAX(1,FLOOR(piece_hours/4)), 0)
           const requiredPayForPieceHours = dailyPieceworkHours * applicableMinWage;
-          const dailyBreakPay =
+          const breakEligibleToday =
             dailyPieceworkHours > 0 &&
             dailyPieceworkEarnings > requiredPayForPieceHours &&
             dailyPieceworkHours >= dailyHourlyHours &&
-            dailyPieceworkHours + dailyHourlyHours > 4
-              ? ((dailyPieceworkEarnings / dailyPieceworkHours) * (10 / 60)) *
-                Math.max(1, Math.floor(dailyPieceworkHours / 4))
-              : 0;
+            dailyPieceworkHours + dailyHourlyHours > 4;
+          // The actual paid-break TIME (10 min per 4-hr block) behind that
+          // dollar figure — kept separate so invoices can show real break
+          // hours instead of an approximation of total piecework hours.
+          const dailyBreakHours = breakEligibleToday
+            ? (10 / 60) * Math.max(1, Math.floor(dailyPieceworkHours / 4))
+            : 0;
+          const dailyBreakPay = breakEligibleToday
+            ? (dailyPieceworkEarnings / dailyPieceworkHours) * dailyBreakHours
+            : 0;
           weeklyRestBreaksPay += dailyBreakPay;
+          weeklyBreakHours += dailyBreakHours;
 
           dailyBreakdownsForWeek.push({
             date: dayKey,
@@ -577,6 +586,7 @@ export async function generatePayrollReport({
         // (piece_hours>0, piece_earn>piece_hours*minWage, piece_hours>=hourly_hours, piece_hours+hourly_hours>=4)
         // ((piece_earn/piece_hours)*(10/60))*MAX(1,FLOOR(piece_hours/4))
         const pieceworkRestBreaksPay = parseFloat(weeklyRestBreaksPay.toFixed(2));
+        const pieceworkBreakHours = parseFloat(weeklyBreakHours.toFixed(2));
         console.log("  Rest breaks pay:", pieceworkRestBreaksPay.toFixed(2));
         
         // 2.3: Sumar ganancias de piecework + descansos
@@ -608,6 +618,7 @@ export async function generatePayrollReport({
         
         // Para reporte: mostrar solo los descansos y ajustes de piecework
         const totalRestBreaksPay = pieceworkRestBreaksPay;
+        const totalBreakHours = pieceworkBreakHours;
         const totalMinimumWageTopUp = pieceworkMinimumWageTopUp;
 
         // PASO 3.5: CALCULAR OVERTIME (HORAS EXTRAS)
@@ -779,6 +790,7 @@ export async function generatePayrollReport({
           totalEarnings: parseFloat(weeklyTotalRawEarnings.toFixed(2)),
           minimumWageTopUp: parseFloat(totalMinimumWageTopUp.toFixed(2)),
           paidRestBreaks: parseFloat(totalRestBreaksPay.toFixed(2)),
+          breakHours: parseFloat(totalBreakHours.toFixed(2)),
           overtimeHours: overtimeHours > 0 ? parseFloat(overtimeHours.toFixed(2)) : undefined,
           overtimePremium: overtimePremium > 0 ? parseFloat(overtimePremium.toFixed(2)) : undefined,
           regularRate: regularRate > 0 ? parseFloat(regularRate.toFixed(2)) : undefined,

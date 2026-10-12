@@ -51,6 +51,7 @@ export type DetailedInvoiceData = {
   laborCost: number;
   minimumWageTopUp: number;
   paidRestBreaks: number;
+  breakHours: number;
   overtimePremium?: number;
   overtimeHours?: number;
   subtotal: number;

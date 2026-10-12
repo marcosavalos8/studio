@@ -56,6 +56,7 @@ type InvoiceFirestorePayload = {
   laborCost: number;
   minimumWageTopUp: number;
   paidRestBreaks: number;
+  breakHours: number;
   overtimePremium: number;
   overtimeHours: number;
   subtotal: number;
@@ -404,6 +405,20 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         );
       }, 0);
 
+      // Real total break hours behind totalRestBreaks (not an approximation
+      // of total piecework hours) — used for the invoice's P/W BREAK row so
+      // "Hrs" reflects actual break time instead of ~4% of every worker's
+      // piecework hours combined.
+      const totalBreakHours = filteredSummaries.reduce((acc, emp) => {
+        return (
+          acc +
+          emp.weeklySummaries.reduce(
+            (weekAcc, week) => weekAcc + (week.breakHours ?? 0),
+            0
+          )
+        );
+      }, 0);
+
       // Overtime has to be figured out from the worker's FULL week across every
       // client, not just this one — otherwise no single client's invoice ever
       // sees more than 40 hrs and overtime never gets billed to anyone, even
@@ -653,6 +668,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         laborCost,
         minimumWageTopUp: totalTopUp,
         paidRestBreaks: totalRestBreaks,
+        breakHours: totalBreakHours,
         overtimePremium: totalOvertimePremium,
         overtimeHours: totalOvertimeHours,
         subtotal,
@@ -859,6 +875,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         laborCost,
         minimumWageTopUp: totalTopUp,
         paidRestBreaks: totalRestBreaks,
+        breakHours: totalBreakHours,
         overtimePremium: totalOvertimePremium,
         overtimeHours: totalOvertimeHours,
         subtotal,
@@ -954,6 +971,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           total: payload.total,
           minimumWageTopUp: payload.minimumWageTopUp,
           paidRestBreaks: payload.paidRestBreaks,
+          breakHours: payload.breakHours,
           overtimePremium: payload.overtimePremium,
           overtimeHours: payload.overtimeHours,
           overtimeLines: payload.overtimeLines ?? null,

@@ -111,6 +111,7 @@ interface SendInvoiceBody {
   dueDate?: string;
   minimumWageTopUp?: number;
   paidRestBreaks?: number;
+  breakHours?: number;
   overtimePremium?: number;
   overtimeHours?: number;
   overtimeLines?: Array<{ taskName: string; rateType: "piece" | "hourly"; overtimeHours: number; overtimePremium: number }> | null;
@@ -491,7 +492,13 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
   const mwQuantity = numWorkersMW;
   const mwPrice = mwQuantity > 0 ? mwTopUp / mwQuantity : 0;
 
-  // Paid rest breaks
+  // Paid rest breaks. breakQuantity is the real break hours behind
+  // paidRestBreaks (10 min per 4-hr piecework block, same formula as
+  // generate-payroll-report.ts) — not an approximation of total piecework
+  // hours, which used to make the invoice show ~40+ "break hours" for a
+  // crew where only one worker actually earned a few dollars of break pay.
+  // Older invoices saved before breakHours existed fall back to that old
+  // approximation so they can still be resent.
   const paidRestBreaks = body.paidRestBreaks ?? 0;
   const totalPieceworkHours = sortedDates.reduce((sum, date) => {
     const day = dailyBreakdown[date];
@@ -503,7 +510,8 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
         .reduce((s, t) => s + t.hours, 0)
     );
   }, 0);
-  const breakQuantity = totalPieceworkHours * 0.0417;
+  const breakQuantity =
+    body.breakHours ?? totalPieceworkHours * 0.0417;
   const breakPrice = breakQuantity > 0 ? paidRestBreaks / breakQuantity : 0;
 
   // Adjustment rows (same order as report-display.tsx, only include when total > 0)

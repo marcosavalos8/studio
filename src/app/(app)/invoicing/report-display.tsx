@@ -179,15 +179,12 @@ export function InvoiceReportDisplay({
   const mwQuantity = numWorkersMW;
   const mwPrice = mwQuantity > 0 ? mwTopUp / mwQuantity : 0;
 
-  const totalPieceworkHours = sortedDates.reduce((sum, date) => {
-    return (
-      sum +
-      Object.values(report.dailyBreakdown[date].tasks)
-        .filter((task) => task.clientRateType === "piece")
-        .reduce((s, task) => s + task.hours, 0)
-    );
-  }, 0);
-  const breakQuantity = totalPieceworkHours * 0.0417;
+  // The real break hours behind paidRestBreaks (10 min per 4-hr piecework
+  // block, same formula as generate-payroll-report.ts) — not an
+  // approximation of the whole crew's total piecework hours, which used to
+  // show ~40+ "break hours" even when only one worker actually earned a
+  // few dollars of break pay.
+  const breakQuantity = report.breakHours;
   const breakPrice =
     breakQuantity > 0 ? report.paidRestBreaks / breakQuantity : 0;
 

@@ -118,6 +118,7 @@ export type WeeklySummary = {
   totalEarnings: number; // Raw earnings from tasks
   minimumWageTopUp: number;
   paidRestBreaks: number;
+  breakHours?: number; // Real paid-break time behind paidRestBreaks (10 min per 4-hr block), for honest invoice display
   overtimeHours?: number; // Hours worked over 40 in the week
   overtimePremium?: number; // Additional pay for overtime (0.5x regular rate)
   regularRate?: number; // Calculated regular rate for the week
@@ -241,6 +242,7 @@ export interface SavedInvoice {
   laborCost: number;
   minimumWageTopUp: number;
   paidRestBreaks: number;
+  breakHours?: number;
   overtimePremium?: number;
   overtimeHours?: number;
   overtimeLines?: OvertimeLine[];
