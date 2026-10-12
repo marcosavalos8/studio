@@ -273,19 +273,26 @@ async function fetchEmployeeTimeEntriesForDate(
   employeeId: string,
   date: Date,
 ): Promise<TimeEntry[]> {
+  // Filters by employeeId only (a single-field equality query, which
+  // Firestore always has an index for automatically) and narrows to the
+  // ±1-day window in JS afterward, rather than adding a timestamp range to
+  // the query itself — that would need a new employeeId+timestamp composite
+  // index that doesn't exist in this project, which made this throw
+  // "FAILED_PRECONDITION: query requires an index" the first time it ran.
   const dayMs = 24 * 60 * 60 * 1000;
   const rangeStart = startOfDay(new Date(date.getTime() - dayMs));
   const rangeEnd = endOfDay(new Date(date.getTime() + dayMs));
   const q = query(
     collection(firestore, "time_entries"),
     where("employeeId", "==", employeeId),
-    where("timestamp", ">=", rangeStart),
-    where("timestamp", "<=", rangeEnd),
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(
-    (d) => ({ id: d.id, ...d.data() }) as TimeEntry,
-  );
+  return snapshot.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as TimeEntry)
+    .filter((entry) => {
+      const ts = toJsDate(entry.timestamp);
+      return ts.getTime() >= rangeStart.getTime() && ts.getTime() <= rangeEnd.getTime();
+    });
 }
 
 function TimeTrackingPage() {
@@ -2974,16 +2981,31 @@ function TimeTrackingPage() {
       // this doesn't add a network round trip per employee.
       if (firestore) {
         const entriesByEmployeeId = new Map<string, TimeEntry[]>();
-        await Promise.all(
-          timedEntries.map(async ({ entry, clockInDate }) => {
-            const entries = await fetchEmployeeTimeEntriesForDate(
-              firestore,
-              entry.employee.id,
-              clockInDate,
-            );
-            entriesByEmployeeId.set(entry.employee.id, entries);
-          }),
-        );
+        try {
+          await Promise.all(
+            timedEntries.map(async ({ entry, clockInDate }) => {
+              const entries = await fetchEmployeeTimeEntriesForDate(
+                firestore,
+                entry.employee.id,
+                clockInDate,
+              );
+              entriesByEmployeeId.set(entry.employee.id, entries);
+            }),
+          );
+        } catch (lookupError) {
+          // Fail safe, not open: if this check can't be verified, block the
+          // submit instead of silently skipping the duplicate/overlap
+          // validation — otherwise a failed lookup here would have gone
+          // unnoticed and never hit the finally below (the original bug).
+          console.error("Failed to check for duplicate/overlapping entries:", lookupError);
+          toast({
+            variant: "destructive",
+            title: "Could Not Verify Entries",
+            description: "Couldn't check for duplicate or overlapping time entries. Please try again.",
+          });
+          setIsManualSubmitting(false);
+          return;
+        }
 
         for (const { entry, clockInDate, clockOutDate } of timedEntries) {
           const empToCheck = entry.employee;
