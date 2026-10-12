@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
 import {
   Search,
@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useAuth } from '@/contexts/auth-context'
+import { navItems } from '@/lib/nav-items'
 
 const pageTitles: { [key: string]: string } = {
   '/dashboard': 'Dashboard',
@@ -40,6 +41,7 @@ const pageTitles: { [key: string]: string } = {
 
 export function AppHeader() {
   const pathname = usePathname()
+  const router = useRouter()
   const { logout, username, userRole, isAdmin } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -55,8 +57,25 @@ export function AppHeader() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     if (searchQuery.trim()) {
-      // Simple search functionality - you can enhance this
       const searchText = searchQuery.toLowerCase()
+
+      // If what was typed names a page (e.g. "time tracking", "clients"),
+      // jump straight there instead of searching for that text on the
+      // current page. An admin-only page is skipped for a non-admin user,
+      // same as it's hidden from them in the sidebar.
+      const matchedPage = navItems.find(
+        (item) =>
+          (!item.adminOnly || isAdmin) &&
+          item.label.toLowerCase().includes(searchText),
+      )
+      if (matchedPage) {
+        setSearchQuery('')
+        router.push(matchedPage.href)
+        return
+      }
+
+      // Otherwise, fall back to finding and highlighting that text on the
+      // current page.
       const pageElement = document.querySelector('main') || document.body
       const walker = document.createTreeWalker(
         pageElement,

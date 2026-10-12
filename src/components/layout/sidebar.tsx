@@ -14,33 +14,14 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Logo } from "@/components/icons/logo";
-import {
-  LayoutDashboard,
-  Users,
-  Briefcase,
-  ClipboardList,
-  FileText,
-  DollarSign,
-  Settings,
-  LifeBuoy,
-  QrCode,
-  Tag,
-  UserCog,
-  Calculator,
-} from "lucide-react";
+import { Settings, LifeBuoy } from "lucide-react";
+import { navItems } from "@/lib/nav-items";
 
-const menuItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, adminOnly: false },
-  { href: "/time-tracking", label: "Time Tracking", icon: QrCode, adminOnly: false },
-  { href: "/employees", label: "Employees", icon: Users, adminOnly: true },
-  { href: "/clients", label: "Clients", icon: Briefcase, adminOnly: true },
-  { href: "/tasks", label: "Tasks", icon: ClipboardList, adminOnly: false },
-  { href: "/payroll", label: "Payroll", icon: FileText, adminOnly: true },
-  { href: "/invoicing", label: "Invoicing", icon: DollarSign, adminOnly: true },
-  { label: "Labor Report", href: "/labor-report", icon: Tag, adminOnly: true },
-  { href: "/accounting-center", label: "Accounting Center", icon: Calculator, adminOnly: true },
-  { href: "/users", label: "User Management", icon: UserCog, adminOnly: true },
-];
+// Support and Settings render in the footer below with their own layout, so
+// the main menu excludes them here.
+const menuItems = navItems.filter(
+  (item) => item.href !== "/support" && item.href !== "/settings",
+);
 
 export function AppSidebar() {
   const pathname = usePathname();

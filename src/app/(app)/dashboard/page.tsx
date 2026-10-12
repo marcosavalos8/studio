@@ -1,5 +1,6 @@
 'use client'
 
+import Link from "next/link"
 import {
   Card,
   CardContent,
@@ -24,42 +25,48 @@ export default function DashboardPage() {
   return (
     <div className="grid gap-3 md:gap-6 lg:gap-8">
       <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{isLoading ? '...' : totalEmployees}</div>
-            <p className="text-xs text-muted-foreground">
-              {employeeGrowth > 0 ? `+${employeeGrowth}` : employeeGrowth === 0 ? 'No change' : employeeGrowth} since last month
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Clients</CardTitle>
-            <Briefcase className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{isLoading ? '...' : activeClients}</div>
-            <p className="text-xs text-muted-foreground">
-              {activeClients === 0 ? 'No active clients' : activeClients === 1 ? 'Client has active tasks' : 'All clients have active tasks'}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Tasks</CardTitle>
-            <ClipboardList className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{isLoading ? '...' : activeTasks}</div>
-            <p className="text-xs text-muted-foreground">
-              {activeTasks === 0 ? 'No active tasks' : activeClients > 1 ? 'Across all clients' : 'For current client'}
-            </p>
-          </CardContent>
-        </Card>
+        <Link href="/employees">
+          <Card className="transition-colors hover:bg-accent/50 hover:border-primary/50 cursor-pointer">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{isLoading ? '...' : totalEmployees}</div>
+              <p className="text-xs text-muted-foreground">
+                {employeeGrowth > 0 ? `+${employeeGrowth}` : employeeGrowth === 0 ? 'No change' : employeeGrowth} since last month
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/clients">
+          <Card className="transition-colors hover:bg-accent/50 hover:border-primary/50 cursor-pointer">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Clients</CardTitle>
+              <Briefcase className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{isLoading ? '...' : activeClients}</div>
+              <p className="text-xs text-muted-foreground">
+                {activeClients === 0 ? 'No active clients' : activeClients === 1 ? 'Client has active tasks' : 'All clients have active tasks'}
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/tasks">
+          <Card className="transition-colors hover:bg-accent/50 hover:border-primary/50 cursor-pointer">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Tasks</CardTitle>
+              <ClipboardList className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{isLoading ? '...' : activeTasks}</div>
+              <p className="text-xs text-muted-foreground">
+                {activeTasks === 0 ? 'No active tasks' : activeClients > 1 ? 'Across all clients' : 'For current client'}
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
         <WeatherWidget />
       </div>
 

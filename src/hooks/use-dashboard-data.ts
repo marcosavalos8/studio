@@ -99,31 +99,35 @@ interface MonthlyData {
   employees: number
 }
 
-export function useWorkActivityData() {
+export function useWorkActivityData(anchorDate: Date = new Date()) {
   const firestore = useFirestore()
   const [chartData, setChartData] = useState<MonthlyData[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  // Fetch time entries from last 6 months
+  // Fetch time entries for the 6-month window ending at anchorDate's month
   const timeEntriesQuery = useMemo(() => {
     if (!firestore) return null
-    const sixMonthsAgo = subMonths(new Date(), 6)
+    const windowStart = startOfMonth(subMonths(anchorDate, 5))
+    const windowEnd = endOfMonth(anchorDate)
     return query(
       collection(firestore, 'time_entries'),
-      where('timestamp', '>=', Timestamp.fromDate(startOfDay(sixMonthsAgo)))
+      where('timestamp', '>=', Timestamp.fromDate(startOfDay(windowStart))),
+      where('timestamp', '<=', Timestamp.fromDate(endOfDay(windowEnd)))
     )
-  }, [firestore])
+  }, [firestore, anchorDate])
   const { data: timeEntries, isLoading: loadingTimeEntries } = useCollection<TimeEntry>(timeEntriesQuery)
 
-  // Fetch piecework from last 6 months
+  // Fetch piecework for the same window
   const pieceworkQuery = useMemo(() => {
     if (!firestore) return null
-    const sixMonthsAgo = subMonths(new Date(), 6)
+    const windowStart = startOfMonth(subMonths(anchorDate, 5))
+    const windowEnd = endOfMonth(anchorDate)
     return query(
       collection(firestore, 'piecework'),
-      where('timestamp', '>=', Timestamp.fromDate(startOfDay(sixMonthsAgo)))
+      where('timestamp', '>=', Timestamp.fromDate(startOfDay(windowStart))),
+      where('timestamp', '<=', Timestamp.fromDate(endOfDay(windowEnd)))
     )
-  }, [firestore])
+  }, [firestore, anchorDate])
   const { data: piecework, isLoading: loadingPiecework } = useCollection<Piecework>(pieceworkQuery)
 
   useEffect(() => {
@@ -136,9 +140,9 @@ export function useWorkActivityData() {
     // Group data by month
     const monthlyStats: Record<string, { hours: number; pieces: number; employees: Set<string> }> = {}
 
-    // Initialize last 6 months
+    // Initialize the 6 months ending at anchorDate's month
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-    const now = new Date()
+    const now = anchorDate
     for (let i = 5; i >= 0; i--) {
       const monthDate = subMonths(now, i)
       const monthKey = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`
@@ -214,7 +218,7 @@ export function useWorkActivityData() {
 
     setChartData(chartDataArray)
     setIsLoading(false)
-  }, [timeEntries, piecework, firestore, loadingTimeEntries, loadingPiecework])
+  }, [timeEntries, piecework, firestore, loadingTimeEntries, loadingPiecework, anchorDate])
 
   return { chartData, isLoading }
 }
