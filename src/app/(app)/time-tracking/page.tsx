@@ -200,6 +200,46 @@ async function awaitOrWarnIfSlow<T>(
   return timedOut ? { status: "slow" } : result;
 }
 
+function toJsDate(value: unknown): Date {
+  if (value instanceof Date) return value;
+  const maybeTimestamp = value as { toDate?: () => Date } | null | undefined;
+  if (maybeTimestamp?.toDate) return maybeTimestamp.toDate();
+  return new Date(value as string | number);
+}
+
+// A worker can't physically be clocked in for two different tasks at once —
+// the existing exact-duplicate check elsewhere only catches re-submitting
+// the identical record for the SAME task, so it never caught someone's time
+// getting entered for two different clients at an overlapping time (e.g.
+// re-entering the same crew/schedule under the wrong client by mistake).
+// This finds any OTHER time entry (different task) for the same employee
+// whose window overlaps the one being entered.
+function findOverlappingEntryForOtherTask(
+  allTimeEntries: TimeEntry[],
+  employeeId: string,
+  taskId: string,
+  clockInDate: Date,
+  clockOutDate: Date,
+): TimeEntry | undefined {
+  return allTimeEntries.find((existing) => {
+    if (existing.employeeId !== employeeId || existing.taskId === taskId) {
+      return false;
+    }
+    const existingStart = toJsDate(existing.timestamp);
+    if (!existing.endTime) {
+      // Still clocked in elsewhere — anything starting after that blocks it,
+      // since we don't yet know when it really ends.
+      return clockOutDate.getTime() > existingStart.getTime();
+    }
+    const existingEnd = toJsDate(existing.endTime);
+    // Standard interval overlap test.
+    return (
+      clockInDate.getTime() < existingEnd.getTime() &&
+      existingStart.getTime() < clockOutDate.getTime()
+    );
+  });
+}
+
 function TimeTrackingPage() {
   const { username } = useAuth();
   const [soundSettings, setSoundSettings] = useState<SoundSettings | null>(
@@ -2246,6 +2286,31 @@ function TimeTrackingPage() {
                 });
                 return;
               }
+
+              // A worker can't be in two places at once — block entering this
+              // time for a different client/task while they already have an
+              // overlapping record elsewhere.
+              const overlapping = findOverlappingEntryForOtherTask(
+                allTimeEntries,
+                scannedEmployee.id,
+                selectedTask,
+                pastRecordClockInDate,
+                pastRecordClockOutDate,
+              );
+              if (overlapping) {
+                const otherTask = allTasks?.find((t) => t.id === overlapping.taskId);
+                const otherClient = clients?.find((c) => c.id === otherTask?.clientId);
+                toast({
+                  variant: "destructive",
+                  title: "Overlapping Time Entry",
+                  description: `${scannedEmployee.name} already has a time entry for ${
+                    otherTask?.name || "another task"
+                  } (${
+                    otherClient?.name || "another client"
+                  }) that overlaps this time. A worker can't be clocked in for two clients at once.`,
+                });
+                return;
+              }
             }
 
             const task = allTasks?.find((t) => t.id === selectedTask);
@@ -2816,6 +2881,32 @@ function TimeTrackingPage() {
               )} with the same clock-in and clock-out times for ${
                 task?.name || "this task"
               } (${client?.name || "this client"}).`,
+            });
+            setIsManualSubmitting(false);
+            return;
+          }
+
+          // A worker can't be in two places at once — block entering this
+          // time for a different client/task while they already have an
+          // overlapping record elsewhere.
+          const overlapping = findOverlappingEntryForOtherTask(
+            allTimeEntries,
+            empToCheck.id,
+            selectedTask,
+            clockInDate,
+            clockOutDate,
+          );
+          if (overlapping) {
+            const otherTask = allTasks?.find((t) => t.id === overlapping.taskId);
+            const otherClient = clients?.find((c) => c.id === otherTask?.clientId);
+            toast({
+              variant: "destructive",
+              title: "Overlapping Time Entry",
+              description: `${empToCheck.name} already has a time entry for ${
+                otherTask?.name || "another task"
+              } (${
+                otherClient?.name || "another client"
+              }) that overlaps this time. A worker can't be clocked in for two clients at once.`,
             });
             setIsManualSubmitting(false);
             return;
