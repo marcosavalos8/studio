@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { useFirestore } from "@/firebase";
 import { Employee } from "@/lib/types";
 import { useSearchParams } from "next/navigation";
@@ -24,14 +24,15 @@ export default function PrintCrewListPage() {
       setLoading(false);
       return;
     }
-    Promise.all(
-      employeeIds.map(async (id) => {
-        const snap = await getDoc(doc(firestore, "employees", id));
-        if (snap.exists()) return { id: snap.id, ...snap.data() } as Employee;
-        return null;
-      })
-    ).then((results) => {
-      const found = results.filter(Boolean) as Employee[];
+    // One read of the whole (small) employees collection instead of a
+    // separate getDoc() per selected worker — with a few hundred employees
+    // selected, that was a few hundred individual round trips and is what
+    // made this page so slow to load.
+    const wantedIds = new Set(employeeIds);
+    getDocs(collection(firestore, "employees")).then((snapshot) => {
+      const found = snapshot.docs
+        .filter((d) => wantedIds.has(d.id))
+        .map((d) => ({ id: d.id, ...d.data() }) as Employee);
       found.sort((a, b) => a.name.localeCompare(b.name));
       setEmployees(found);
       setLoading(false);
