@@ -2,7 +2,13 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
-import { format, startOfDay, endOfDay } from "date-fns";
+import {
+  format,
+  startOfDay,
+  endOfDay,
+  startOfWeek,
+  endOfWeek,
+} from "date-fns";
 import {
   Card,
   CardContent,
@@ -66,6 +72,9 @@ import {
   Edit,
   Plus,
   X,
+  ChevronDown,
+  ChevronUp,
+  CheckSquare,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
@@ -83,6 +92,7 @@ import {
   updateDoc,
   deleteDoc,
   Timestamp,
+  type Firestore,
 } from "firebase/firestore";
 import type {
   Task,
@@ -173,13 +183,6 @@ function roundToNearestQuarterHour(date: Date): Date {
   return rounded;
 }
 
-// History tab renders one rich card per record; rendering thousands at once
-// (plus the per-card related-piecework lookup each one does) is what freezes
-// the screen. Paginating the already-fetched/filtered list keeps every
-// existing filter and bulk action working against the full result set while
-// only the visible page actually gets rendered.
-const HISTORY_RECORDS_PER_PAGE = 50;
-
 // Clock-in/out/piece writes never reject on their own (they catch their own
 // errors and show their own toast) — but if the underlying network request
 // itself never settles (e.g. a flaky connection, or a service worker
@@ -205,6 +208,16 @@ async function awaitOrWarnIfSlow<T>(
   );
   const result = await Promise.race([settled, timeout]);
   return timedOut ? { status: "slow" } : result;
+}
+
+// History defaults to showing one week (Sun-Sat, matching the payroll
+// report's own week convention) instead of the whole collection, so opening
+// the tab only ever fetches that week's documents from Firestore.
+function getWeekBounds(date: Date): { start: Date; end: Date } {
+  return {
+    start: startOfWeek(date, { weekStartsOn: 0 }),
+    end: endOfWeek(date, { weekStartsOn: 0 }),
+  };
 }
 
 function toJsDate(value: unknown): Date {
@@ -245,6 +258,34 @@ function findOverlappingEntryForOtherTask(
       existingStart.getTime() < clockOutDate.getTime()
     );
   });
+}
+
+// The duplicate-entry and cross-client overlap checks above used to scan
+// the entire preloaded `allTimeEntries` array. That array is being scoped
+// to "whatever week History is currently showing" so the History tab stops
+// fetching the whole collection on every load — which means it can no
+// longer be trusted to contain a given employee's past entries. This fetches
+// just that one employee's entries in a window around the date being
+// submitted (±1 day, to also catch an overnight shift crossing midnight),
+// so both checks stay fully correct no matter what History has loaded.
+async function fetchEmployeeTimeEntriesForDate(
+  firestore: Firestore,
+  employeeId: string,
+  date: Date,
+): Promise<TimeEntry[]> {
+  const dayMs = 24 * 60 * 60 * 1000;
+  const rangeStart = startOfDay(new Date(date.getTime() - dayMs));
+  const rangeEnd = endOfDay(new Date(date.getTime() + dayMs));
+  const q = query(
+    collection(firestore, "time_entries"),
+    where("employeeId", "==", employeeId),
+    where("timestamp", ">=", rangeStart),
+    where("timestamp", "<=", rangeEnd),
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(
+    (d) => ({ id: d.id, ...d.data() }) as TimeEntry,
+  );
 }
 
 function TimeTrackingPage() {
@@ -528,16 +569,28 @@ function TimeTrackingPage() {
   const [mbQuantity, setMbQuantity] = useState<string>("");
   const [isSubmittingMb, setIsSubmittingMb] = useState(false);
 
-  // History filtering state
+  // History filtering state — defaults to the current week so the tab only
+  // fetches one week's worth of records instead of the whole collection.
   const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>(
-    undefined,
+    () => getWeekBounds(new Date()).start,
   );
   const [historyEndDate, setHistoryEndDate] = useState<Date | undefined>(
-    undefined,
+    () => getWeekBounds(new Date()).end,
   );
   const [historyNameFilter, setHistoryNameFilter] = useState<string>("");
   const [historyClientFilter, setHistoryClientFilter] = useState<string>("all");
-  const [historyPage, setHistoryPage] = useState(1);
+  const shiftHistoryWeek = (direction: 1 | -1) => {
+    const base = historyStartDate ?? new Date();
+    const shifted = new Date(base.getTime() + direction * 7 * 24 * 60 * 60 * 1000);
+    const bounds = getWeekBounds(shifted);
+    setHistoryStartDate(bounds.start);
+    setHistoryEndDate(bounds.end);
+  };
+  const goToCurrentWeek = () => {
+    const bounds = getWeekBounds(new Date());
+    setHistoryStartDate(bounds.start);
+    setHistoryEndDate(bounds.end);
+  };
 
   // Delete confirmation state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -820,29 +873,56 @@ function TimeTrackingPage() {
     allTasks,
   ]);
 
-  // Only the current page is actually rendered — the Delete All / Delete
-  // Selected / bulk-edit features below still operate on the full
-  // filteredMergedRecords (or on exactly what the user checked), never on
-  // just this page's slice.
-  const historyTotalPages = Math.max(
-    1,
-    Math.ceil(filteredMergedRecords.length / HISTORY_RECORDS_PER_PAGE),
+  // Group the filtered records by week (Sun-Sat, matching the payroll
+  // report's own week convention) so the list reads the way the crew
+  // actually enters data — by week — instead of one long chronological feed.
+  // Only the already-fetched/filtered records are grouped here; nothing new
+  // is requested from Firestore and Delete All / Delete Selected / Edit
+  // keep operating on filteredMergedRecords / selectedRecordsList exactly
+  // as before, never on a single week's slice.
+  const historyWeekGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        weekStart: Date;
+        weekEnd: Date;
+        records: typeof filteredMergedRecords;
+      }
+    >();
+    for (const record of filteredMergedRecords) {
+      const ts = toJsDate(record.data.timestamp);
+      const weekStart = startOfWeek(ts, { weekStartsOn: 0 });
+      const key = weekStart.toISOString();
+      let group = groups.get(key);
+      if (!group) {
+        group = {
+          weekStart,
+          weekEnd: endOfWeek(ts, { weekStartsOn: 0 }),
+          records: [],
+        };
+        groups.set(key, group);
+      }
+      group.records.push(record);
+    }
+    return Array.from(groups.entries())
+      .map(([key, group]) => ({ key, ...group }))
+      .sort((a, b) => b.weekStart.getTime() - a.weekStart.getTime());
+  }, [filteredMergedRecords]);
+
+  // Only the current week is expanded by default — every other week starts
+  // collapsed so the DOM never has to render the full history at once. The
+  // user expands whichever week(s) they actually need to look at.
+  const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(
+    () => new Set([startOfWeek(new Date(), { weekStartsOn: 0 }).toISOString()]),
   );
-  const paginatedMergedRecords = useMemo(() => {
-    const start = (historyPage - 1) * HISTORY_RECORDS_PER_PAGE;
-    return filteredMergedRecords.slice(start, start + HISTORY_RECORDS_PER_PAGE);
-  }, [filteredMergedRecords, historyPage]);
-
-  // Jump back to page 1 whenever a filter changes, so the list shown always
-  // starts from the top of the new result set instead of an out-of-range page.
-  useEffect(() => {
-    setHistoryPage(1);
-  }, [historyStartDate, historyEndDate, historyNameFilter, historyClientFilter]);
-
-  // Clamp if the result set shrinks (e.g. after a delete) past the current page.
-  useEffect(() => {
-    setHistoryPage((prev) => Math.min(prev, historyTotalPages));
-  }, [historyTotalPages]);
+  const toggleHistoryWeek = (key: string) => {
+    setExpandedWeeks((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   // Query for active time entries (for history tab)
   const activeTimeEntriesQuery = useMemo(() => {
@@ -2285,8 +2365,13 @@ function TimeTrackingPage() {
             }
 
             // Check for duplicate time entries (same employee, task, clock-in and clock-out times)
-            if (allTimeEntries) {
-              const duplicate = allTimeEntries.find((entry) => {
+            if (firestore) {
+              const employeeEntriesForDate = await fetchEmployeeTimeEntriesForDate(
+                firestore,
+                scannedEmployee.id,
+                pastRecordClockInDate,
+              );
+              const duplicate = employeeEntriesForDate.find((entry) => {
                 if (
                   entry.employeeId !== scannedEmployee.id ||
                   entry.taskId !== selectedTask
@@ -2346,7 +2431,7 @@ function TimeTrackingPage() {
               // time for a different client/task while they already have an
               // overlapping record elsewhere.
               const overlapping = findOverlappingEntryForOtherTask(
-                allTimeEntries,
+                employeeEntriesForDate,
                 scannedEmployee.id,
                 selectedTask,
                 pastRecordClockInDate,
@@ -2881,11 +2966,30 @@ function TimeTrackingPage() {
       const task = allTasks?.find((t) => t.id === selectedTask);
       const isPiece = task?.clientRateType === "piece";
 
-      // Check for duplicate time entries for each employee
-      if (allTimeEntries) {
+      // Check for duplicate time entries for each employee. Each employee's
+      // nearby entries are fetched directly from Firestore (instead of
+      // scanning the in-memory allTimeEntries) so this stays correct even
+      // though allTimeEntries itself is now scoped to whichever week History
+      // currently has loaded. All employees are fetched in parallel first so
+      // this doesn't add a network round trip per employee.
+      if (firestore) {
+        const entriesByEmployeeId = new Map<string, TimeEntry[]>();
+        await Promise.all(
+          timedEntries.map(async ({ entry, clockInDate }) => {
+            const entries = await fetchEmployeeTimeEntriesForDate(
+              firestore,
+              entry.employee.id,
+              clockInDate,
+            );
+            entriesByEmployeeId.set(entry.employee.id, entries);
+          }),
+        );
+
         for (const { entry, clockInDate, clockOutDate } of timedEntries) {
           const empToCheck = entry.employee;
-          const duplicate = allTimeEntries.find((existing) => {
+          const employeeEntriesForDate =
+            entriesByEmployeeId.get(empToCheck.id) ?? [];
+          const duplicate = employeeEntriesForDate.find((existing) => {
             if (
               existing.employeeId !== empToCheck.id ||
               existing.taskId !== selectedTask
@@ -2945,7 +3049,7 @@ function TimeTrackingPage() {
           // time for a different client/task while they already have an
           // overlapping record elsewhere.
           const overlapping = findOverlappingEntryForOtherTask(
-            allTimeEntries,
+            employeeEntriesForDate,
             empToCheck.id,
             selectedTask,
             clockInDate,
@@ -3917,8 +4021,17 @@ function TimeTrackingPage() {
   const handleDeleteAllMovements = async () => {
     if (!firestore) return;
 
-    // Check if filters are applied
-    const hasFilters = historyStartDate || historyEndDate || historyNameFilter;
+    // Check if filters are applied. historyStartDate/historyEndDate now
+    // default to the current week (so History doesn't fetch the whole
+    // collection on open) instead of being unset — if that default counted
+    // as "a filter", the password requirement below would almost never
+    // trigger anymore. So being on the untouched default week still counts
+    // as "no filters", exactly like before this default existed.
+    const thisWeek = getWeekBounds(new Date());
+    const isDefaultDateRange =
+      historyStartDate?.getTime() === thisWeek.start.getTime() &&
+      historyEndDate?.getTime() === thisWeek.end.getTime();
+    const hasFilters = !isDefaultDateRange || historyNameFilter;
 
     // If no filters, require password
     if (!hasFilters) {
@@ -6940,6 +7053,25 @@ function TimeTrackingPage() {
                   <Filter className="h-4 w-4" />
                   <Label className="font-semibold">Filter by Date Range</Label>
                 </div>
+                <div className="flex items-center justify-between gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => shiftHistoryWeek(-1)}
+                  >
+                    ← Previous Week
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={goToCurrentWeek}>
+                    This Week
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => shiftHistoryWeek(1)}
+                  >
+                    Next Week →
+                  </Button>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="history-start-date">Start Date</Label>
@@ -7026,16 +7158,24 @@ function TimeTrackingPage() {
                   </Select>
                 </div>
 
-                {(historyStartDate ||
-                  historyEndDate ||
-                  historyNameFilter ||
-                  historyClientFilter !== "all") && (
+                {(() => {
+                  const thisWeek = getWeekBounds(new Date());
+                  const isDefaultRange =
+                    historyStartDate?.getTime() === thisWeek.start.getTime() &&
+                    historyEndDate?.getTime() === thisWeek.end.getTime();
+                  return (
+                    !isDefaultRange ||
+                    historyNameFilter ||
+                    historyClientFilter !== "all"
+                  );
+                })() && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      setHistoryStartDate(undefined);
-                      setHistoryEndDate(undefined);
+                      const thisWeek = getWeekBounds(new Date());
+                      setHistoryStartDate(thisWeek.start);
+                      setHistoryEndDate(thisWeek.end);
                       setHistoryNameFilter("");
                       setHistoryClientFilter("all");
                     }}
@@ -7053,6 +7193,41 @@ function TimeTrackingPage() {
                     All Records (Clock-In/Clock-Out &amp; Piecework)
                   </h3>
                   <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={filteredMergedRecords.length === 0}
+                    onClick={() => {
+                      const allKeys = new Set(
+                        filteredMergedRecords.map((r) =>
+                          r.type === "time"
+                            ? `time-${r.data.id}`
+                            : `piece-${r.data.id}`,
+                        ),
+                      );
+                      const allSelected = filteredMergedRecords.every((r) =>
+                        selectedRecords.has(
+                          r.type === "time"
+                            ? `time-${r.data.id}`
+                            : `piece-${r.data.id}`,
+                        ),
+                      );
+                      setSelectedRecords(allSelected ? new Set() : allKeys);
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <CheckSquare className="h-4 w-4" />
+                    {filteredMergedRecords.length > 0 &&
+                    filteredMergedRecords.every((r) =>
+                      selectedRecords.has(
+                        r.type === "time"
+                          ? `time-${r.data.id}`
+                          : `piece-${r.data.id}`,
+                      ),
+                    )
+                      ? "Deselect All"
+                      : `Select All (${filteredMergedRecords.length})`}
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -7141,9 +7316,36 @@ function TimeTrackingPage() {
                     )}
                   </div>
                 ) : (
-                  <>
                   <div className="space-y-3">
-                    {paginatedMergedRecords.map((record) => {
+                    {historyWeekGroups.map(({ key, weekStart, weekEnd, records }) => {
+                      const isWeekExpanded = expandedWeeks.has(key);
+                      return (
+                        <div
+                          key={key}
+                          className="border rounded-lg overflow-hidden"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => toggleHistoryWeek(key)}
+                            className="w-full flex items-center justify-between p-3 bg-muted/50 hover:bg-muted transition-colors text-left"
+                          >
+                            <span className="font-semibold flex items-center gap-2">
+                              {isWeekExpanded ? (
+                                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              )}
+                              Week of {format(weekStart, "MMM d")} –{" "}
+                              {format(weekEnd, "MMM d, yyyy")}
+                            </span>
+                            <span className="text-sm text-muted-foreground">
+                              {records.length} record
+                              {records.length === 1 ? "" : "s"}
+                            </span>
+                          </button>
+                          {isWeekExpanded && (
+                            <div className="p-3 space-y-3 border-t">
+                              {records.map((record) => {
                       if (record.type === "time") {
                         const entry = record.data;
                         const employee = activeEmployees?.find(
@@ -7699,49 +7901,13 @@ function TimeTrackingPage() {
                           </div>
                         );
                       }
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
                     })}
                   </div>
-                  {historyTotalPages > 1 && (
-                    <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                      <p className="text-sm text-muted-foreground">
-                        Showing{" "}
-                        {(historyPage - 1) * HISTORY_RECORDS_PER_PAGE + 1}-
-                        {Math.min(
-                          historyPage * HISTORY_RECORDS_PER_PAGE,
-                          filteredMergedRecords.length,
-                        )}{" "}
-                        of {filteredMergedRecords.length} records
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={historyPage <= 1}
-                          onClick={() =>
-                            setHistoryPage((p) => Math.max(1, p - 1))
-                          }
-                        >
-                          Previous
-                        </Button>
-                        <span className="text-sm text-muted-foreground">
-                          Page {historyPage} of {historyTotalPages}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={historyPage >= historyTotalPages}
-                          onClick={() =>
-                            setHistoryPage((p) =>
-                              Math.min(historyTotalPages, p + 1),
-                            )
-                          }
-                        >
-                          Next
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                  </>
                 )}
               </div>
             </CardContent>
