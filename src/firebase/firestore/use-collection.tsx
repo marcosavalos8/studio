@@ -149,61 +149,92 @@ export function useCollection<T = any>(
     setIsLoading(true);
     setError(null);
 
-    // Subscribe to Firestore updates
-    const unsubscribe = onSnapshot(
-      targetRefOrQuery,
-      (snapshot: QuerySnapshot<DocumentData>) => {
-        const results: ResultItemType[] = [];
-        for (const doc of snapshot.docs) {
-          results.push({ ...(doc.data() as T), id: doc.id });
-        }
-        
-        setData(results);
-        setError(null);
-        setIsLoading(false);
+    // onSnapshot's error callback ends that listener for good — Firestore
+    // does not retry it on its own. Without the retry loop below, a single
+    // transient drop (weak signal, the tab backgrounded on a phone, a
+    // service worker hiccup) would silently freeze this collection for the
+    // rest of the browser session: whatever had already loaded stays
+    // visible, but no new or changed document would ever show up again
+    // until a full page reload. That's what made Ranch/Block/Task look
+    // "stuck" after switching clients — allTasks had quietly stopped
+    // updating, so a client whose tasks weren't already in that last good
+    // snapshot never appeared.
+    let unsubscribe: (() => void) | undefined;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let retryDelayMs = 3000;
+    let cancelled = false;
 
-        // Update cache on successful fetch
-        if (typeof window !== "undefined") {
-          try {
-            const cacheEntry: CacheEntry<T> = {
-              data: results,
-              timestamp: Date.now(),
-            };
-            const serialized = serializeForCache([cacheEntry]);
-            const parsed = JSON.parse(serialized);
-            sessionStorage.setItem(cacheKey, JSON.stringify(parsed[0]));
-          } catch (err) {
-            console.warn("Failed to update cache:", err);
+    const subscribe = () => {
+      unsubscribe = onSnapshot(
+        targetRefOrQuery,
+        (snapshot: QuerySnapshot<DocumentData>) => {
+          retryDelayMs = 3000; // reset backoff after a successful update
+
+          const results: ResultItemType[] = [];
+          for (const doc of snapshot.docs) {
+            results.push({ ...(doc.data() as T), id: doc.id });
+          }
+
+          setData(results);
+          setError(null);
+          setIsLoading(false);
+
+          // Update cache on successful fetch
+          if (typeof window !== "undefined") {
+            try {
+              const cacheEntry: CacheEntry<T> = {
+                data: results,
+                timestamp: Date.now(),
+              };
+              const serialized = serializeForCache([cacheEntry]);
+              const parsed = JSON.parse(serialized);
+              sessionStorage.setItem(cacheKey, JSON.stringify(parsed[0]));
+            } catch (err) {
+              console.warn("Failed to update cache:", err);
+            }
+          }
+        },
+        (error: FirestoreError) => {
+          const contextualError = new FirestorePermissionError({
+            operation: "list",
+            path,
+          });
+
+          setError(contextualError);
+
+          // Don't clear data if we have cached data - keep it for offline use
+          // Only set data to null if we truly have no data
+          setData((currentData) => {
+            // If we have current data (from cache or previous fetch), keep it
+            if (currentData && currentData.length > 0) {
+              return currentData;
+            }
+            // Otherwise, return null
+            return null;
+          });
+
+          setIsLoading(false);
+
+          // trigger global error propagation
+          errorEmitter.emit("permission-error", contextualError);
+
+          if (!cancelled) {
+            retryTimer = setTimeout(() => {
+              if (!cancelled) subscribe();
+            }, retryDelayMs);
+            retryDelayMs = Math.min(retryDelayMs * 2, 30000);
           }
         }
-      },
-      (error: FirestoreError) => {
-        const contextualError = new FirestorePermissionError({
-          operation: "list",
-          path,
-        });
+      );
+    };
 
-        setError(contextualError);
-        
-        // Don't clear data if we have cached data - keep it for offline use
-        // Only set data to null if we truly have no data
-        setData((currentData) => {
-          // If we have current data (from cache or previous fetch), keep it
-          if (currentData && currentData.length > 0) {
-            return currentData;
-          }
-          // Otherwise, return null
-          return null;
-        });
-        
-        setIsLoading(false);
+    subscribe();
 
-        // trigger global error propagation
-        errorEmitter.emit("permission-error", contextualError);
-      }
-    );
-
-    return () => unsubscribe();
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      unsubscribe?.();
+    };
   }, [targetRefOrQuery]); // Re-run if the target query/reference changes.
 
   return { data, isLoading, error };

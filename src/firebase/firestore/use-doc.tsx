@@ -51,34 +51,59 @@ export function useDoc<T = any>(
     setError(null);
     // Optional: setData(null); // Clear previous data instantly
 
-    const unsubscribe = onSnapshot(
-      memoizedDocRef,
-      (snapshot: DocumentSnapshot<DocumentData>) => {
-        if (snapshot.exists()) {
-          setData({ ...(snapshot.data() as T), id: snapshot.id });
-        } else {
-          // Document does not exist
+    // Same self-healing retry as useCollection: onSnapshot's error callback
+    // ends that listener for good, so without a retry, a transient drop
+    // would freeze this document for the rest of the session instead of
+    // recovering on its own.
+    let unsubscribe: (() => void) | undefined;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let retryDelayMs = 3000;
+    let cancelled = false;
+
+    const subscribe = () => {
+      unsubscribe = onSnapshot(
+        memoizedDocRef,
+        (snapshot: DocumentSnapshot<DocumentData>) => {
+          retryDelayMs = 3000;
+          if (snapshot.exists()) {
+            setData({ ...(snapshot.data() as T), id: snapshot.id });
+          } else {
+            // Document does not exist
+            setData(null);
+          }
+          setError(null); // Clear any previous error on successful snapshot (even if doc doesn't exist)
+          setIsLoading(false);
+        },
+        (error: FirestoreError) => {
+          const contextualError = new FirestorePermissionError({
+            operation: "get",
+            path: memoizedDocRef.path,
+          });
+
+          setError(contextualError);
           setData(null);
+          setIsLoading(false);
+
+          // trigger global error propagation
+          errorEmitter.emit("permission-error", contextualError);
+
+          if (!cancelled) {
+            retryTimer = setTimeout(() => {
+              if (!cancelled) subscribe();
+            }, retryDelayMs);
+            retryDelayMs = Math.min(retryDelayMs * 2, 30000);
+          }
         }
-        setError(null); // Clear any previous error on successful snapshot (even if doc doesn't exist)
-        setIsLoading(false);
-      },
-      (error: FirestoreError) => {
-        const contextualError = new FirestorePermissionError({
-          operation: "get",
-          path: memoizedDocRef.path,
-        });
+      );
+    };
 
-        setError(contextualError);
-        setData(null);
-        setIsLoading(false);
+    subscribe();
 
-        // trigger global error propagation
-        errorEmitter.emit("permission-error", contextualError);
-      }
-    );
-
-    return () => unsubscribe();
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      unsubscribe?.();
+    };
   }, [memoizedDocRef]); // Re-run if the memoizedDocRef changes.
 
   return { data, isLoading, error };
