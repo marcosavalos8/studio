@@ -542,6 +542,13 @@ function TimeTrackingPage() {
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [deleteAllPassword, setDeleteAllPassword] = useState("");
 
+  // Delete Selected: fully independent from Delete All above — separate
+  // state, separate handler, no shared password gate. Only ever touches
+  // the records the user explicitly checked (selectedRecordsList).
+  const [deleteSelectedConfirmOpen, setDeleteSelectedConfirmOpen] =
+    useState(false);
+  const [isDeletingSelected, setIsDeletingSelected] = useState(false);
+
   // Edit state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<{
@@ -3938,6 +3945,65 @@ function TimeTrackingPage() {
     }
   };
 
+  // Deletes ONLY the records the user checked in the History list.
+  // Intentionally separate from handleDeleteAllMovements: no password gate,
+  // no dependency on historyStartDate/historyEndDate/historyNameFilter, and
+  // it reads selectedRecordsList (the checked records) instead of
+  // filteredMergedRecords (the currently visible/filtered records).
+  const handleDeleteSelectedRecords = async () => {
+    if (!firestore) return;
+    if (selectedRecordsList.length === 0) {
+      setDeleteSelectedConfirmOpen(false);
+      return;
+    }
+
+    setIsDeletingSelected(true);
+
+    try {
+      const batch = writeBatch(firestore);
+      let deleteCount = 0;
+
+      selectedRecordsList.forEach((record) => {
+        if (record.type === "time") {
+          const entryRef = doc(firestore, "time_entries", record.data.id);
+          batch.delete(entryRef);
+          deleteCount++;
+        } else {
+          const pieceRef = doc(firestore, "piecework", record.data.id);
+          batch.delete(pieceRef);
+          deleteCount++;
+        }
+      });
+
+      await batch.commit();
+
+      toast({
+        title: "Selected Records Deleted",
+        description: addOfflineIndicator(
+          `Successfully deleted ${deleteCount} selected record(s).`,
+          isOnline,
+        ),
+      });
+
+      setSelectedRecords(new Set());
+      setDeleteSelectedConfirmOpen(false);
+    } catch (serverError) {
+      const permissionError = new FirestorePermissionError({
+        path: "time_entries, piecework",
+        operation: "delete",
+        requestResourceData: { message: "Bulk delete selected records" },
+      });
+      errorEmitter.emit("permission-error", permissionError);
+      toast({
+        variant: "destructive",
+        title: "Delete Failed",
+        description: "Failed to delete the selected records.",
+      });
+    } finally {
+      setIsDeletingSelected(false);
+    }
+  };
+
   const handleMissingBucketsSubmit = async () => {
     if (!firestore || !mbEmployee || !mbTaskId || !mbDate || !mbQuantity) {
       toast({
@@ -6911,6 +6977,7 @@ function TimeTrackingPage() {
                     <History className="h-5 w-5 text-blue-600" />
                     All Records (Clock-In/Clock-Out &amp; Piecework)
                   </h3>
+                  <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -6973,6 +7040,17 @@ function TimeTrackingPage() {
                     <Edit className="h-4 w-4" />
                     Edit ({selectedRecords.size} selected)
                   </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={selectedRecords.size === 0}
+                    onClick={() => setDeleteSelectedConfirmOpen(true)}
+                    className="flex items-center gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete Selected ({selectedRecords.size})
+                  </Button>
+                  </div>
                 </div>
                 {!filteredMergedRecords ||
                 filteredMergedRecords.length === 0 ? (
@@ -7696,6 +7774,64 @@ function TimeTrackingPage() {
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
               Delete All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Selected Confirmation Dialog — independent from "Delete All"
+          above: no password, acts only on the records checked in the list. */}
+      <AlertDialog
+        open={deleteSelectedConfirmOpen}
+        onOpenChange={setDeleteSelectedConfirmOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {selectedRecordsList.length} Selected Record
+              {selectedRecordsList.length === 1 ? "" : "s"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const totalTimeEntries = selectedRecordsList.filter(
+                  (r) => r.type === "time",
+                ).length;
+                const totalPiecework = selectedRecordsList.filter(
+                  (r) => r.type === "piecework",
+                ).length;
+                return (
+                  <p>
+                    This action cannot be undone. This will permanently delete{" "}
+                    <strong>
+                      {selectedRecordsList.length} record(s)
+                    </strong>{" "}
+                    ({totalTimeEntries} time{" "}
+                    {totalTimeEntries === 1 ? "entry" : "entries"} and{" "}
+                    {totalPiecework} piecework record
+                    {totalPiecework === 1 ? "" : "s"}) — only the records you
+                    selected, nothing else. These records will not appear in
+                    any reports.
+                  </p>
+                );
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => setDeleteSelectedConfirmOpen(false)}
+              disabled={isDeletingSelected}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteSelectedRecords}
+              disabled={isDeletingSelected}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingSelected && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Delete Selected
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
