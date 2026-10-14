@@ -820,11 +820,14 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
             });
           });
 
-          const laborTasksSummary = Array.from(laborTasksSummaryMap.values()).map((taskSummary) => {
+          // flatMap so an hourly task with a piece bonus contributes a
+          // second "Piece Bonus" row, same split as the invoice's own
+          // tasksSummary above.
+          const laborTasksSummary = Array.from(laborTasksSummaryMap.values()).flatMap((taskSummary) => {
             const originalTask = tasks.find((t) => t.id === taskSummary.taskId);
             if (!originalTask) {
               const isHours = taskSummary.hours >= taskSummary.pieces;
-              return {
+              return [{
                 taskName: taskSummary.taskName,
                 quantity: isHours ? taskSummary.hours : taskSummary.pieces,
                 rate: 0,
@@ -832,7 +835,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
                 cost: 0,
                 hours: taskSummary.hours,
                 pieces: taskSummary.pieces,
-              };
+              }];
             }
             const isHourly = originalTask.clientRateType === "hourly";
             const quantity = isHourly ? taskSummary.hours : taskSummary.pieces;
@@ -840,7 +843,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
             if (!isHourly && (!rate || rate === 0)) {
               rate = originalTask.piecePrice || 0;
             }
-            return {
+            const rows = [{
               taskName: taskSummary.taskName,
               quantity,
               rate,
@@ -848,7 +851,20 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
               cost: quantity * rate,
               hours: taskSummary.hours,
               pieces: taskSummary.pieces,
-            };
+            }];
+            if (isHourly && originalTask.hasPieceBonus && taskSummary.pieces > 0) {
+              const bonusRate = originalTask.bonusPerPiece || 0;
+              rows.push({
+                taskName: `${taskSummary.taskName} - Piece Bonus`,
+                quantity: taskSummary.pieces,
+                rate: bonusRate,
+                rateType: "piece" as const,
+                cost: taskSummary.pieces * bonusRate,
+                hours: 0,
+                pieces: taskSummary.pieces,
+              });
+            }
+            return rows;
           });
 
           const laborMissingBucketsSummary = Array.from(laborMissingBucketsMap.values()).map((mb) => {

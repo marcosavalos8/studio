@@ -253,7 +253,37 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
               }
               const taskDetail = dailyBreakdown[day.date].tasks[task.taskName];
               taskDetail.hours += task.hours;
-              taskDetail.pieces += task.pieceworkCount;
+              // Only a genuine piecework task's pieces count on its own
+              // hours row — an hourly task's pieces are a bonus, billed as
+              // its own line below.
+              if (originalTask.clientRateType === "piece") {
+                taskDetail.pieces += task.pieceworkCount;
+              }
+
+              // Hourly task with a piece bonus enabled and bonus pieces
+              // recorded: give it its own "Pcs" line (quantity × bonus
+              // rate), same as invoicing-form.tsx does, so it doesn't
+              // disappear into the hourly total.
+              if (
+                originalTask.clientRateType === "hourly" &&
+                originalTask.hasPieceBonus &&
+                task.pieceworkCount > 0
+              ) {
+                const bonusKey = `${task.taskName}|BONUS`;
+                const bonusRate = originalTask.bonusPerPiece || 0;
+                if (!dailyBreakdown[day.date].tasks[bonusKey]) {
+                  dailyBreakdown[day.date].tasks[bonusKey] = {
+                    taskName: `${task.taskName} - Piece Bonus`,
+                    hours: 0,
+                    pieces: 0,
+                    cost: 0,
+                    clientRate: bonusRate,
+                    clientRateType: "piece",
+                  };
+                }
+                dailyBreakdown[day.date].tasks[bonusKey].pieces +=
+                  task.pieceworkCount;
+              }
             });
           });
         });
@@ -419,17 +449,20 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
           });
         });
 
-        const tasksSummary = Array.from(tasksSummaryMap.values()).map((taskSummary) => {
+        // flatMap so an hourly task with a piece bonus contributes a second
+        // "Piece Bonus" row instead of hiding those pieces inside the
+        // hourly total (same split as invoicing-form.tsx).
+        const tasksSummary = Array.from(tasksSummaryMap.values()).flatMap((taskSummary) => {
           const originalTask = tasks.find((t) => t.id === taskSummary.taskId);
-          
+
           if (!originalTask) {
-            const quantity = taskSummary.hours >= taskSummary.pieces 
-              ? taskSummary.hours 
+            const quantity = taskSummary.hours >= taskSummary.pieces
+              ? taskSummary.hours
               : taskSummary.pieces;
-            const rateType = taskSummary.hours >= taskSummary.pieces 
+            const rateType = taskSummary.hours >= taskSummary.pieces
               ? "hourly" as const
               : "piece" as const;
-            return {
+            return [{
               taskName: taskSummary.taskName,
               quantity,
               rate: 0,
@@ -438,7 +471,7 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
               hours: taskSummary.hours,
               pieces: taskSummary.pieces,
               isMissingBuckets: taskSummary.isMissingBuckets,
-            };
+            }];
           }
 
           const isHourly = originalTask.clientRateType === "hourly";
@@ -449,7 +482,7 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
             effectiveClientRate = originalTask.piecePrice || 0;
           }
 
-          return {
+          const rows = [{
             taskName: taskSummary.taskName,
             quantity,
             rate: effectiveClientRate,
@@ -458,7 +491,23 @@ export function LabelReportForm({ clients }: LabelReportFormProps) {
             hours: taskSummary.hours,
             pieces: taskSummary.pieces,
             isMissingBuckets: taskSummary.isMissingBuckets,
-          };
+          }];
+
+          if (isHourly && originalTask.hasPieceBonus && taskSummary.pieces > 0) {
+            const bonusRate = originalTask.bonusPerPiece || 0;
+            rows.push({
+              taskName: `${taskSummary.taskName} - Piece Bonus`,
+              quantity: taskSummary.pieces,
+              rate: bonusRate,
+              rateType: "piece" as const,
+              cost: taskSummary.pieces * bonusRate,
+              hours: 0,
+              pieces: taskSummary.pieces,
+              isMissingBuckets: undefined,
+            });
+          }
+
+          return rows;
         });
 
         const missingBucketsSummary = Array.from(missingBucketsMap.values()).map((mb) => {

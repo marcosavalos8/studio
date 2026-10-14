@@ -96,6 +96,12 @@ export type DailyTaskDetail = {
   totalEarnings: number;
   taskType?: "hourly" | "piece"; // Task rate type for display
   rate?: number; // Hourly rate or piece price for display
+  // Set only for an hourly task with its piece bonus enabled: the bonus
+  // rate used for `pieceworkCount` pieces that day, kept separate from
+  // `rate` (the hourly rate) so a consumer that only has this one merged
+  // entry can still split "hours worked" from "bonus earned" without
+  // looking the task back up.
+  bonusRate?: number;
   isMissingBuckets?: boolean;
   originalDate?: string;
 };

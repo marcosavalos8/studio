@@ -508,6 +508,31 @@ export async function generatePayrollReport({
               hoursByRate.set(rate, (hoursByRate.get(rate) ?? 0) + hours);
             }
 
+            // Track bonus pieces the same way piecework pieces are tracked
+            // above, so an hourly task's piece bonus shows up as its own
+            // row on the pay stub / Accounting Center / payroll task
+            // summary tables instead of disappearing into the hourly total.
+            if (
+              task.clientRateType === "hourly" &&
+              task.hasPieceBonus &&
+              pieces > 0 &&
+              effectiveBonusPerPiece
+            ) {
+              const bonusRateKey = effectiveBonusPerPiece.toFixed(2);
+              const bonusVarietyKey = `${task.name}|BONUS|${bonusRateKey}`;
+              if (piecesByTaskVariety.has(bonusVarietyKey)) {
+                const existing = piecesByTaskVariety.get(bonusVarietyKey)!;
+                existing.totalPieces += pieces;
+              } else {
+                piecesByTaskVariety.set(bonusVarietyKey, {
+                  taskName: `${task.name} - Piece Bonus`,
+                  variety: "Bonus",
+                  totalPieces: pieces,
+                  price: effectiveBonusPerPiece,
+                });
+              }
+            }
+
             // Determine task type label and rate for display
             const taskTypeLabel =
               task.clientRateType === "piece"
@@ -531,6 +556,11 @@ export async function generatePayrollReport({
               totalEarnings: earningsForTask,
               taskType: task.clientRateType,
               rate: taskRate,
+              ...(task.clientRateType === "hourly" &&
+              task.hasPieceBonus &&
+              pieces > 0
+                ? { bonusRate: effectiveBonusPerPiece || 0 }
+                : {}),
               isMissingBuckets: taskWork.isMissingBuckets,
               originalDate: taskWork.originalDate,
             });

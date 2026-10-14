@@ -36,16 +36,31 @@ export function PayStub({ summary, employeeNumber, companyName, startDate, endDa
     .flatMap((day) => day.tasks.map((task) => ({ date: day.date, task })))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const hasPieces = days.some((d) => d.task.taskType === "piece");
+  const hasPieces = days.some(
+    (d) =>
+      d.task.taskType === "piece" ||
+      (d.task.taskType === "hourly" && (d.task.bonusRate ?? 0) > 0),
+  );
   const totalHours = summary.weeklySummaries.reduce(
     (acc, week) => acc + week.dailyBreakdown.reduce((s, day) => s + day.totalDailyHours, 0),
     0,
   );
 
-  // Weekly summary by task and rate
+  // Weekly summary by task and rate. An hourly task with its piece bonus
+  // enabled contributes to two rows — its normal hours row (using only the
+  // hours×rate portion of totalEarnings) and a separate "Piece Bonus" row —
+  // instead of one row whose total wouldn't match qty×price.
   const byTask = new Map<string, { label: string; type: string; qty: number; price: number; total: number }>();
   days.forEach(({ task }) => {
     const isPiece = task.taskType === "piece";
+    const hasBonus =
+      task.taskType === "hourly" &&
+      (task.bonusRate ?? 0) > 0 &&
+      task.pieceworkCount > 0;
+    const bonusEarnings = hasBonus
+      ? task.pieceworkCount * (task.bonusRate ?? 0)
+      : 0;
+
     const key = `${task.taskName}|${task.taskType}|${task.rate ?? 0}`;
     const row = byTask.get(key) ?? {
       label: task.taskName,
@@ -55,8 +70,22 @@ export function PayStub({ summary, employeeNumber, companyName, startDate, endDa
       total: 0,
     };
     row.qty += isPiece ? task.pieceworkCount : task.hours;
-    row.total += task.totalEarnings;
+    row.total += task.totalEarnings - bonusEarnings;
     byTask.set(key, row);
+
+    if (hasBonus) {
+      const bonusKey = `${task.taskName}|BONUS|${task.bonusRate}`;
+      const bonusRow = byTask.get(bonusKey) ?? {
+        label: `${task.taskName} - Piece Bonus`,
+        type: "piece",
+        qty: 0,
+        price: task.bonusRate ?? 0,
+        total: 0,
+      };
+      bonusRow.qty += task.pieceworkCount;
+      bonusRow.total += bonusEarnings;
+      byTask.set(bonusKey, bonusRow);
+    }
   });
   const taskRows = Array.from(byTask.values());
   const grossEarnings = taskRows.reduce((acc, r) => acc + r.total, 0);
@@ -119,7 +148,12 @@ export function PayStub({ summary, employeeNumber, companyName, startDate, endDa
               <td>{task.taskName}</td>
               <td className="r">{task.hours > 0 ? num(task.hours) : "-"}</td>
               {hasPieces && (
-                <td className="r">{task.taskType === "piece" ? numPieces(task.pieceworkCount) : "-"}</td>
+                <td className="r">
+                  {task.taskType === "piece" ||
+                  (task.taskType === "hourly" && (task.bonusRate ?? 0) > 0)
+                    ? numPieces(task.pieceworkCount)
+                    : "-"}
+                </td>
               )}
               <td className="r">{money(task.rate ?? 0)}</td>
               <td className="r">{money(task.totalEarnings)}</td>
