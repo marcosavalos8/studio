@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -57,6 +58,9 @@ export function AddTaskDialog({
   );
   const [piecePrice, setPiecePrice] = useState("");
   const [piecePriceForPayroll, setPiecePriceForPayroll] = useState("");
+  const [hasPieceBonus, setHasPieceBonus] = useState(false);
+  const [bonusPerPiece, setBonusPerPiece] = useState("");
+  const [bonusPerPieceForPayroll, setBonusPerPieceForPayroll] = useState("");
   const [status, setStatus] = useState<"Active" | "Inactive" | "Completed">(
     "Active"
   );
@@ -72,6 +76,9 @@ export function AddTaskDialog({
     setClientRateType("hourly");
     setPiecePrice("");
     setPiecePriceForPayroll("");
+    setHasPieceBonus(false);
+    setBonusPerPiece("");
+    setBonusPerPieceForPayroll("");
     setStatus("Active");
   };
 
@@ -105,6 +112,15 @@ export function AddTaskDialog({
         : {}),
       ...(clientRateType === "piece" && piecePriceForPayroll !== ""
         ? { piecePriceForPayroll: parseFloat(piecePriceForPayroll) || 0 }
+        : {}),
+      ...(clientRateType === "hourly" && hasPieceBonus
+        ? {
+            hasPieceBonus: true,
+            bonusPerPiece: parseFloat(bonusPerPiece) || 0,
+            ...(bonusPerPieceForPayroll !== ""
+              ? { bonusPerPieceForPayroll: parseFloat(bonusPerPieceForPayroll) || 0 }
+              : {}),
+          }
         : {}),
     };
 
@@ -314,6 +330,53 @@ export function AddTaskDialog({
                 <p className="text-xs text-muted-foreground">
                   Hourly rate used for payroll calculations.
                 </p>
+              </div>
+            )}
+
+            {clientRateType === "hourly" && (
+              <div className="space-y-2 md:col-span-2 border rounded-md p-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="hasPieceBonus">Enable Piece Bonus</Label>
+                  <Switch
+                    id="hasPieceBonus"
+                    checked={hasPieceBonus}
+                    onCheckedChange={setHasPieceBonus}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Pay an extra bonus per piece (e.g. per bin) on top of the hourly rate.
+                </p>
+                {hasPieceBonus && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="bonusPerPiece">Bonus Per Piece ($)</Label>
+                      <Input
+                        id="bonusPerPiece"
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g., 8.00"
+                        value={bonusPerPiece}
+                        onChange={(e) => setBonusPerPiece(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="bonusPerPieceForPayroll">
+                        Bonus Per Piece for Payroll ($)
+                      </Label>
+                      <Input
+                        id="bonusPerPieceForPayroll"
+                        type="number"
+                        step="0.01"
+                        placeholder="Defaults to the bonus above"
+                        value={bonusPerPieceForPayroll}
+                        onChange={(e) => setBonusPerPieceForPayroll(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Bonus per piece actually paid to the worker, if different.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

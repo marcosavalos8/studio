@@ -349,9 +349,42 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
               }
               const taskDetail = dailyBreakdown[day.date].tasks[taskKey];
               taskDetail.hours += task.hours;
-              taskDetail.pieces += task.pieceworkCount;
+              // Only count pieces on the hours row itself for a genuine
+              // piecework task. For an hourly task, any pieces are a piece
+              // bonus, billed as its own line below — the hours row's own
+              // `pieces`/cost stay untouched by the bonus.
+              if (originalTask.clientRateType === "piece") {
+                taskDetail.pieces += task.pieceworkCount;
+              }
               if (task.isMissingBuckets) taskDetail.isMissingBuckets = true;
               if (task.originalDate) taskDetail.originalDate = task.originalDate;
+
+              // Hourly task with a piece bonus enabled and bonus pieces
+              // recorded: bill it as its own "Pcs" line (quantity × bonus
+              // rate) right below the hours line, so the client sees
+              // exactly what the bonus was for instead of it disappearing
+              // into the hourly total.
+              if (
+                originalTask.clientRateType === "hourly" &&
+                originalTask.hasPieceBonus &&
+                task.pieceworkCount > 0
+              ) {
+                const bonusKey = `${taskKey}|BONUS`;
+                const bonusRate = originalTask.bonusPerPiece || 0;
+                if (!dailyBreakdown[day.date].tasks[bonusKey]) {
+                  dailyBreakdown[day.date].tasks[bonusKey] = {
+                    taskName: `${task.taskName} - Piece Bonus`,
+                    block: task.block,
+                    hours: 0,
+                    pieces: 0,
+                    cost: 0,
+                    clientRate: bonusRate,
+                    clientRateType: "piece",
+                  };
+                }
+                dailyBreakdown[day.date].tasks[bonusKey].pieces +=
+                  task.pieceworkCount;
+              }
             });
           });
         });
@@ -597,44 +630,60 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           });
         });
 
-        // Convert task summary to array with costs
-        const tasksSummary = Array.from(tasksSummaryMap.values()).map((taskSummary) => {
+        // Convert task summary to array with costs. flatMap so an hourly
+        // task with a piece bonus can contribute two rows (hours, then the
+        // bonus billed separately) instead of one row that would otherwise
+        // hide the bonus inside the hourly total.
+        const tasksSummary = Array.from(tasksSummaryMap.values()).flatMap((taskSummary) => {
           const originalTask = tasks.find((t) => t.id === taskSummary.taskId);
-          
+
           if (!originalTask) {
             console.warn("Task not found for summary:", taskSummary);
             // Determine rate type based on which quantity is greater
             // If both exist, prioritize the larger value as the primary work type
-            const quantity = taskSummary.hours >= taskSummary.pieces 
-              ? taskSummary.hours 
+            const quantity = taskSummary.hours >= taskSummary.pieces
+              ? taskSummary.hours
               : taskSummary.pieces;
-            const rateType = taskSummary.hours >= taskSummary.pieces 
+            const rateType = taskSummary.hours >= taskSummary.pieces
               ? "hourly" as const
               : "piece" as const;
-            return {
+            return [{
               taskName: taskSummary.taskName,
               quantity,
               rate: 0,
               rateType,
               cost: 0,
-            };
+            }];
           }
 
           const isHourly = originalTask.clientRateType === "hourly";
           const quantity = isHourly ? taskSummary.hours : taskSummary.pieces;
           let effectiveClientRate = originalTask.clientRate;
-          
+
           if (!isHourly && (!effectiveClientRate || effectiveClientRate === 0)) {
             effectiveClientRate = originalTask.piecePrice || 0;
           }
 
-          return {
+          const rows = [{
             taskName: taskSummary.taskName,
             quantity,
             rate: effectiveClientRate,
             rateType: originalTask.clientRateType,
             cost: quantity * effectiveClientRate,
-          };
+          }];
+
+          if (isHourly && originalTask.hasPieceBonus && taskSummary.pieces > 0) {
+            const bonusRate = originalTask.bonusPerPiece || 0;
+            rows.push({
+              taskName: `${taskSummary.taskName} - Piece Bonus`,
+              quantity: taskSummary.pieces,
+              rate: bonusRate,
+              rateType: "piece" as const,
+              cost: taskSummary.pieces * bonusRate,
+            });
+          }
+
+          return rows;
         });
 
         return {

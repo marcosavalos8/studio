@@ -220,6 +220,16 @@ function getWeekBounds(date: Date): { start: Date; end: Date } {
   };
 }
 
+// An hourly task with its piece bonus enabled accepts pieces the same way a
+// pure piecework task does (QR scan or manual entry) — the pieces just get
+// paid as a bonus on top of the hourly rate instead of being the sole pay.
+// Used everywhere the UI decides whether to show/accept a pieces count, so
+// a pure piecework task and an hourly+bonus task stay in sync automatically.
+function taskAcceptsPieces(task: Task | null | undefined): boolean {
+  if (!task) return false;
+  return task.clientRateType === "piece" || task.hasPieceBonus === true;
+}
+
 function toJsDate(value: unknown): Date {
   if (value instanceof Date) return value;
   const maybeTimestamp = value as { toDate?: () => Date } | null | undefined;
@@ -967,10 +977,11 @@ function TimeTrackingPage() {
   const activePieceworkTask = useMemo(() => {
     if (!activeTimeEntries || !allTasks) return null;
 
-    // Find any active time entry where the task is a piecework task
+    // Find any active time entry where the task accepts pieces (pure
+    // piecework, or hourly with a piece bonus enabled)
     for (const entry of activeTimeEntries) {
       const task = allTasks.find((t) => t.id === entry.taskId);
-      if (task && task.clientRateType === "piece") {
+      if (taskAcceptsPieces(task)) {
         return task;
       }
     }
@@ -981,14 +992,15 @@ function TimeTrackingPage() {
   const selectedPieceworkTask = useMemo(() => {
     if (!selectedTask || !allTasks) return null;
     const task = allTasks.find((t) => t.id === selectedTask);
-    // Only return if it's a piecework task
-    if (task && task.clientRateType === "piece") {
+    // Only return if it accepts pieces (piecework, or hourly + bonus)
+    if (taskAcceptsPieces(task)) {
       return task;
     }
     return null;
   }, [selectedTask, allTasks]);
 
-  // Get active piecework tasks by client (tasks with active clock-ins and piecework type)
+  // Get active piecework tasks by client (tasks with active clock-ins that
+  // accept pieces — pure piecework, or hourly with a piece bonus enabled)
   const activePieceworkTasksByClient = useMemo(() => {
     if (!activeTimeEntries || !allTasks || !pieceWorkClient) return [];
 
@@ -998,12 +1010,12 @@ function TimeTrackingPage() {
     );
 
     // Filter tasks that are:
-    // 1. Piecework type
+    // 1. Accept pieces (piecework, or hourly + bonus)
     // 2. Have active clock-ins
     // 3. Belong to selected client
     return allTasks.filter(
       (task) =>
-        task.clientRateType === "piece" &&
+        taskAcceptsPieces(task) &&
         activeTaskIds.has(task.id) &&
         task.clientId === pieceWorkClient,
     );
@@ -1027,7 +1039,7 @@ function TimeTrackingPage() {
       .map((client) => {
         const activeTasksCount = allTasks.filter(
           (task) =>
-            task.clientRateType === "piece" &&
+            taskAcceptsPieces(task) &&
             activeTaskIds.has(task.id) &&
             task.clientId === client.id,
         ).length;
@@ -2461,12 +2473,11 @@ function TimeTrackingPage() {
             }
 
             const task = allTasks?.find((t) => t.id === selectedTask);
-            const piecesCount =
-              task?.clientRateType === "piece"
-                ? typeof pastRecordPiecesCount === "number"
-                  ? pastRecordPiecesCount
-                  : parseFloat(String(pastRecordPiecesCount))
-                : 0;
+            const piecesCount = taskAcceptsPieces(task)
+              ? typeof pastRecordPiecesCount === "number"
+                ? pastRecordPiecesCount
+                : parseFloat(String(pastRecordPiecesCount))
+              : 0;
 
             const pastRecordOutcome = await awaitOrWarnIfSlow(
               createPastRecord(
@@ -2971,7 +2982,7 @@ function TimeTrackingPage() {
       }
 
       const task = allTasks?.find((t) => t.id === selectedTask);
-      const isPiece = task?.clientRateType === "piece";
+      const isPiece = taskAcceptsPieces(task);
 
       // Check for duplicate time entries for each employee. Each employee's
       // nearby entries are fetched directly from Firestore (instead of
@@ -4601,8 +4612,9 @@ function TimeTrackingPage() {
                     </div>
 
                     {selectedTask &&
-                      allTasks?.find((t) => t.id === selectedTask)
-                        ?.clientRateType === "piece" && (
+                      taskAcceptsPieces(
+                        allTasks?.find((t) => t.id === selectedTask),
+                      ) && (
                         <div className="space-y-2">
                           <Label htmlFor="past-pieces-count">
                             Pieces Completed
@@ -5010,8 +5022,9 @@ function TimeTrackingPage() {
                           }
                         />
                         {selectedTask &&
-                          allTasks?.find((t) => t.id === selectedTask)
-                            ?.clientRateType === "piece" && (
+                          taskAcceptsPieces(
+                            allTasks?.find((t) => t.id === selectedTask),
+                          ) && (
                             <div className="flex items-center gap-1">
                               <Input
                                 type="number"
@@ -5182,8 +5195,9 @@ function TimeTrackingPage() {
                         <User className="h-4 w-4 shrink-0" />
                         <span className="flex-1">{manualSelectedEmployee.name}</span>
                         {usePastRecords && selectedTask &&
-                          allTasks?.find((t) => t.id === selectedTask)
-                            ?.clientRateType === "piece" && (
+                          taskAcceptsPieces(
+                            allTasks?.find((t) => t.id === selectedTask),
+                          ) && (
                             <Input
                               type="number"
                               step="0.01"
@@ -6288,6 +6302,11 @@ function TimeTrackingPage() {
                                     ${task.piecePrice.toFixed(2)}/piece
                                   </span>
                                 )}
+                                {task.hasPieceBonus && task.bonusPerPiece && (
+                                  <span className="font-medium text-green-600 dark:text-green-400">
+                                    +${task.bonusPerPiece.toFixed(2)}/piece bonus
+                                  </span>
+                                )}
                               </div>
                             </div>
                             {pieceWorkTask === task.id && (
@@ -6329,6 +6348,12 @@ function TimeTrackingPage() {
                             ${pieceWorkSelectedTask.piecePrice.toFixed(2)}/piece
                           </span>
                         )}
+                        {pieceWorkSelectedTask.hasPieceBonus &&
+                          pieceWorkSelectedTask.bonusPerPiece && (
+                            <span className="ml-auto text-sm font-medium text-green-600 dark:text-green-400">
+                              +${pieceWorkSelectedTask.bonusPerPiece.toFixed(2)}/piece bonus
+                            </span>
+                          )}
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">

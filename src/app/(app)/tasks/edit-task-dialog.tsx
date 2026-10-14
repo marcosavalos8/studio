@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -59,6 +60,9 @@ export function EditTaskDialog({
   );
   const [piecePrice, setPiecePrice] = useState("");
   const [piecePriceForPayroll, setPiecePriceForPayroll] = useState("");
+  const [hasPieceBonus, setHasPieceBonus] = useState(false);
+  const [bonusPerPiece, setBonusPerPiece] = useState("");
+  const [bonusPerPieceForPayroll, setBonusPerPieceForPayroll] = useState("");
   const [status, setStatus] = useState<"Active" | "Inactive" | "Completed">(
     "Active"
   );
@@ -76,6 +80,9 @@ export function EditTaskDialog({
       setClientRateType(task.clientRateType || "hourly");
       setPiecePrice(task.piecePrice?.toString() || "");
       setPiecePriceForPayroll(task.piecePriceForPayroll?.toString() || "");
+      setHasPieceBonus(task.hasPieceBonus || false);
+      setBonusPerPiece(task.bonusPerPiece?.toString() || "");
+      setBonusPerPieceForPayroll(task.bonusPerPieceForPayroll?.toString() || "");
       setStatus(task.status || "Active");
     }
   }, [task, isOpen]);
@@ -115,6 +122,18 @@ export function EditTaskDialog({
         piecePriceForPayroll:
           clientRateType === "piece" && piecePriceForPayroll !== ""
             ? parseFloat(piecePriceForPayroll) || 0
+            : deleteField(),
+        hasPieceBonus:
+          clientRateType === "hourly" && hasPieceBonus ? true : deleteField(),
+        bonusPerPiece:
+          clientRateType === "hourly" && hasPieceBonus
+            ? parseFloat(bonusPerPiece) || 0
+            : deleteField(),
+        bonusPerPieceForPayroll:
+          clientRateType === "hourly" &&
+          hasPieceBonus &&
+          bonusPerPieceForPayroll !== ""
+            ? parseFloat(bonusPerPieceForPayroll) || 0
             : deleteField(),
       };
 
@@ -319,6 +338,53 @@ export function EditTaskDialog({
                 <p className="text-xs text-muted-foreground">
                   Hourly rate used for payroll calculations.
                 </p>
+              </div>
+            )}
+
+            {clientRateType === "hourly" && (
+              <div className="space-y-2 md:col-span-2 border rounded-md p-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="hasPieceBonus">Enable Piece Bonus</Label>
+                  <Switch
+                    id="hasPieceBonus"
+                    checked={hasPieceBonus}
+                    onCheckedChange={setHasPieceBonus}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Pay an extra bonus per piece (e.g. per bin) on top of the hourly rate.
+                </p>
+                {hasPieceBonus && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="bonusPerPiece">Bonus Per Piece ($)</Label>
+                      <Input
+                        id="bonusPerPiece"
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g., 8.00"
+                        value={bonusPerPiece}
+                        onChange={(e) => setBonusPerPiece(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="bonusPerPieceForPayroll">
+                        Bonus Per Piece for Payroll ($)
+                      </Label>
+                      <Input
+                        id="bonusPerPieceForPayroll"
+                        type="number"
+                        step="0.01"
+                        placeholder="Defaults to the bonus above"
+                        value={bonusPerPieceForPayroll}
+                        onChange={(e) => setBonusPerPieceForPayroll(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Bonus per piece actually paid to the worker, if different.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

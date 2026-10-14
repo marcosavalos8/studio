@@ -38,6 +38,13 @@ export type Task = {
   piecePrice?: number;
   clientRateForPayroll?: number;
   piecePriceForPayroll?: number;
+  // Piece bonus on top of an hourly task's base rate (e.g. $8/bin picked),
+  // billed to the client as its own line and paid to the worker on top of
+  // their hourly pay — never used to satisfy minimum wage or break
+  // eligibility, which stay based on the hourly rate alone.
+  hasPieceBonus?: boolean;
+  bonusPerPiece?: number;
+  bonusPerPieceForPayroll?: number;
   status: "Active" | "Inactive" | "Completed";
 };
 

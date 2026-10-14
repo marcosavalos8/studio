@@ -377,6 +377,8 @@ export async function generatePayrollReport({
             // Use payroll-specific rates when available, fall back to client rates
             const effectivePiecePrice = task.piecePriceForPayroll ?? task.piecePrice;
             const effectiveHourlyRate = task.clientRateForPayroll ?? task.clientRate;
+            const effectiveBonusPerPiece =
+              task.bonusPerPieceForPayroll ?? task.bonusPerPiece;
 
             if (
               task.clientRateType === "piece" &&
@@ -394,13 +396,24 @@ export async function generatePayrollReport({
                 earnings: earningsForTask,
               });
             } else if (task.clientRateType === "hourly" && hours > 0) {
-              // Hourly task: calculate based on hours and clientRate
-              earningsForTask = hours * (effectiveHourlyRate || 0);
+              // Hourly task: hours × hourly rate, plus an optional piece
+              // bonus on top (e.g. $8/bin picked). The bonus never affects
+              // minimum-wage top-up or break eligibility below — those stay
+              // keyed on dailyHourlyHours/dailyPieceworkHours, which this
+              // task's hours still feed into exactly as before.
+              const bonusEarnings =
+                task.hasPieceBonus && pieces > 0 && effectiveBonusPerPiece
+                  ? pieces * effectiveBonusPerPiece
+                  : 0;
+              earningsForTask = hours * (effectiveHourlyRate || 0) + bonusEarnings;
               isHourlyTask = true;
               console.log("Calculated hourly earnings:", {
                 taskName: task.name,
                 hours,
                 clientRate: effectiveHourlyRate,
+                pieces,
+                bonusPerPiece: effectiveBonusPerPiece,
+                bonusEarnings,
                 earnings: earningsForTask,
               });
             } else if (hours > 0) {
