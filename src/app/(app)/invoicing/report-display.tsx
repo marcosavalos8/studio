@@ -443,9 +443,9 @@ export function InvoiceReportDisplay({
             </div>
             {/* Right: Company address + contact */}
             <div style={{ textAlign: "right", fontSize: "12px" }}>
-              {companyInfo.address.split(",").map((part, i) => (
-                <div key={i}>{part.trim()}{i === 0 ? "" : "."}</div>
-              ))}
+              <div>
+                {companyInfo.address.split(",").map((p) => p.trim()).join(", ")}.
+              </div>
               <div>PH #: {companyInfo.phone}</div>
               <div>e-mail: {companyInfo.email}</div>
               <div>EIN #: {companyInfo.ein} &nbsp; UBI #: {companyInfo.ubi}</div>

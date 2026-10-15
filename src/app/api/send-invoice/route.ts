@@ -320,10 +320,12 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
 
   // ── HEADER: "INVOICE | J&M AGRICULTURAL LABOR LLC" + logo + company addr ─
 
-  // Right side: company address block (right-aligned)
+  // Right side: company address block (right-aligned). The whole address
+  // stays on one line (e.g. "250 Country Haven Loop, Pasco, WA 99301."),
+  // not one line per comma-separated part.
   const addrParts = co.address.split(",").map((p) => p.trim());
   const addrLines = [
-    ...addrParts,
+    `${addrParts.join(", ")}.`,
     `PH #: ${co.phone}`,
     `e-mail: ${co.email}`,
     `EIN #: ${co.ein}   UBI #: ${co.ubi}`,
