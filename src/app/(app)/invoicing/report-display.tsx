@@ -389,9 +389,20 @@ export function InvoiceReportDisplay({
           }
         `}</style>
 
+        {/* overflow-x-auto + a fixed min-width keeps this card's own layout
+            (how much the Description column wraps, etc.) consistent on a
+            narrow phone screen whether or not a Labor Report table is
+            attached below it. Without this, the invoice's width:"100%" was
+            relative to its actual container, so it rendered noticeably
+            wider — and wrapped far less — only when LaborNewDesignTable's
+            own min-w-[880px] table happened to be sitting next to it and
+            stretching that shared container; with no Labor Report, there
+            was nothing forcing that width and it fell back to the device's
+            narrow viewport instead. */}
+        <div className="overflow-x-auto">
         <div
           className="print-page report-container bg-white text-black rounded-lg border shadow-sm"
-          style={{ padding: "24px" }}
+          style={{ padding: "24px", minWidth: "880px" }}
         >
           {/* ── TOP HEADER: Title row + Logo below + Company info ── */}
           {/* Row 1: INVOICE title (left) + Company address (right) */}
@@ -970,6 +981,8 @@ export function InvoiceReportDisplay({
           </div>
         </div>
         {/* end .print-page (invoice) */}
+        </div>
+        {/* end overflow-x-auto wrapper */}
 
         {/* ── LABOR REPORT: second printed page ── */}
         {laborReport && (
