@@ -91,6 +91,7 @@ export function LaborNewDesignTable({ report }: { report: Report }) {
 
   const hasPieces = employees.some((e) => e.rows.some((r) => r.rateType === "piece"));
   const hasOvertime = employees.some((e) => e.otHours > 0);
+  const hasBreaksOrMinWage = employees.some((e) => e.breaks > 0 || e.minWage > 0);
 
   // Per task, totals across all workers (same grouping as the labor report's Piece A, B, C…)
   const taskOrder: string[] = [];
@@ -148,8 +149,8 @@ export function LaborNewDesignTable({ report }: { report: Report }) {
                 <th className={headCell}>Overtime Premium (0.5x rate)</th>
               </>
             )}
-            {hasPieces && <th className={headCell}>Break</th>}
-            {hasPieces && <th className={headCell}>Min. Wage</th>}
+            {hasBreaksOrMinWage && <th className={headCell}>Break</th>}
+            {hasBreaksOrMinWage && <th className={headCell}>Min. Wage</th>}
             <th className={headCell}>PAY REQ</th>
           </tr>
         </thead>
@@ -195,12 +196,12 @@ export function LaborNewDesignTable({ report }: { report: Report }) {
                         </td>
                       </>
                     )}
-                    {hasPieces && first && (
+                    {hasBreaksOrMinWage && first && (
                       <td rowSpan={span} className={groupCell(numeric, first, last)}>
                         {e.breaks > 0 ? money(e.breaks) : "-"}
                       </td>
                     )}
-                    {hasPieces && first && (
+                    {hasBreaksOrMinWage && first && (
                       <td rowSpan={span} className={groupCell(numeric, first, last)}>
                         {e.minWage > 0 ? money(e.minWage) : "-"}
                       </td>
