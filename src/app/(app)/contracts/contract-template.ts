@@ -18,7 +18,10 @@ const SANITIZE_CONFIG: Config = {
     "li",
     "br",
   ],
-  ALLOWED_ATTR: [],
+  // "class" is the only attribute allowed, and only ever to select a CSS
+  // rule (e.g. "text-center") — it can never carry executable content, so
+  // it's safe even though a user could in principle type any class name.
+  ALLOWED_ATTR: ["class"],
 };
 
 // Sanitizes clause HTML before it's ever saved to Firestore or rendered
@@ -62,11 +65,13 @@ const blank = (value: string | number | undefined, suffix = "") =>
 export function buildContractTemplateHtml(params: ContractTemplateParams): string {
   const { companyInfo } = params;
 
+  const clientNameUpper = params.clientName ? params.clientName.toUpperCase() : "";
+
   const html = `
 <h1>MASTER SERVICE AGREEMENT (MSA)</h1>
-<p><strong>${escapeHtml(companyInfo.companyName)}</strong></p>
+<p class="text-center"><strong>${escapeHtml(companyInfo.companyName)}</strong></p>
 <p><strong>Effective Date:</strong> ${blank(params.effectiveDateDisplay)}</p>
-<p><strong>Between Client (Grower):</strong> ${escapeHtml(params.clientName) || "____________________"}</p>
+<p><strong>Between Client (Grower):</strong><br><strong>${escapeHtml(clientNameUpper) || "____________________"}</strong></p>
 <p>${blank(params.clientAddress)}</p>
 <p><strong>And Service Provider (FLC):</strong></p>
 <p><strong>${escapeHtml(companyInfo.companyName)}</strong><br>${escapeHtml(companyInfo.address)}<br>(UBI: ${escapeHtml(companyInfo.ubi)} | EIN: ${escapeHtml(companyInfo.ein)} | License: #172-25)</p>

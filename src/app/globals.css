@@ -196,3 +196,44 @@
     --primary: 221, 100%, 60%;
   }
 }
+
+/* Shared rendering for contract clause HTML (rich text editor, read-only
+   view, and the print window all use this exact class) — kept global
+   rather than injected per-component so it's always present regardless of
+   which contract component happens to be mounted. */
+.prose-contract h1 {
+  font-size: 1.375rem;
+  font-weight: 700;
+  text-align: center;
+  margin: 0.5rem 0 1rem;
+}
+.prose-contract h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 1.25rem 0 0.5rem;
+}
+.prose-contract h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 1rem 0 0.4rem;
+}
+.prose-contract p {
+  margin: 0.5rem 0;
+  line-height: 1.5;
+}
+.prose-contract ul,
+.prose-contract ol {
+  margin: 0.4rem 0 0.6rem 1.25rem;
+}
+.prose-contract ul {
+  list-style: disc;
+}
+.prose-contract ol {
+  list-style: decimal;
+}
+.prose-contract li {
+  margin: 0.2rem 0;
+}
+.prose-contract .text-center {
+  text-align: center;
+}

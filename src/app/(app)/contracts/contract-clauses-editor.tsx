@@ -180,41 +180,9 @@ export function ContractClausesEditor({ value, onChange, disabled }: ContractCla
   return (
     <div className="rounded-md border">
       <Toolbar editor={editor} />
-      <style jsx global>{`
-        .prose-contract h1 {
-          font-size: 1.375rem;
-          font-weight: 700;
-          text-align: center;
-          margin: 0.5rem 0 1rem;
-        }
-        .prose-contract h2 {
-          font-size: 1.05rem;
-          font-weight: 700;
-          margin: 1.25rem 0 0.5rem;
-        }
-        .prose-contract h3 {
-          font-size: 0.95rem;
-          font-weight: 600;
-          margin: 1rem 0 0.4rem;
-        }
-        .prose-contract p {
-          margin: 0.5rem 0;
-          line-height: 1.5;
-        }
-        .prose-contract ul,
-        .prose-contract ol {
-          margin: 0.4rem 0 0.6rem 1.25rem;
-        }
-        .prose-contract ul {
-          list-style: disc;
-        }
-        .prose-contract ol {
-          list-style: decimal;
-        }
-        .prose-contract li {
-          margin: 0.2rem 0;
-        }
-      `}</style>
+      {/* .prose-contract rules live in globals.css — shared with the
+          read-only view and the print window, so they're always present
+          regardless of which contract component happens to be mounted. */}
       <EditorContent editor={editor} />
     </div>
   );
