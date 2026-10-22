@@ -73,6 +73,11 @@ export type Contract = {
   paymentDueDays?: number;
   lateFeeInterestPercent?: number;
   terminationNoticeDays?: number;
+  // Clause 2 (Work Volume and Duration Commitment): cancellation notice
+  // period, shortfall penalty %, and an optional flat per-worker/day fee.
+  cancellationNoticeDays?: number;
+  shortfallPenaltyPercent?: number;
+  shortfallFeePerWorkerDay?: number;
   // Sanitized HTML from the clauses rich text editor.
   clauses: string;
   createdAt: Timestamp | null;

@@ -32,19 +32,16 @@ import { Badge } from "@/components/ui/badge";
 import { useFirestore } from "@/firebase";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import { collection, query, orderBy } from "firebase/firestore";
-import type { Client, Contract } from "@/lib/types";
+import type { Client } from "@/lib/types";
 import { AddClientDialog } from "./add-client-dialog";
 import { EditClientDialog } from "./edit-client-dialog";
 import { DeleteClientDialog } from "./delete-client-dialog";
-import { ClientContractsDialog } from "./contracts/client-contracts-dialog";
-import { FileText } from "lucide-react";
 
 function ClientsPage() {
   const firestore = useFirestore();
   const [isAddDialogOpen, setAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [isContractsSheetOpen, setContractsSheetOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
   const clientsQuery = useMemo(() => {
@@ -52,28 +49,6 @@ function ClientsPage() {
     return query(collection(firestore, "clients"), orderBy("name"));
   }, [firestore]);
   const { data: clients, isLoading } = useCollection<Client>(clientsQuery);
-
-  // A single listener over the whole collection — not one query per client
-  // row — grouped client-side into a per-client count for the "Contracts"
-  // column. Contract volume for this business is modest, so this one read
-  // beats maintaining a denormalized counter field on each client doc just
-  // to avoid it.
-  const contractsQuery = useMemo(() => {
-    if (!firestore) return null;
-    return collection(firestore, "contracts");
-  }, [firestore]);
-  const { data: allContracts } = useCollection<Contract>(contractsQuery);
-
-  const contractCountsByClient = useMemo(() => {
-    const counts = new Map<string, { total: number; active: number }>();
-    (allContracts ?? []).forEach((c) => {
-      const entry = counts.get(c.clientId) ?? { total: 0, active: 0 };
-      entry.total += 1;
-      if (c.status === "Active") entry.active += 1;
-      counts.set(c.clientId, entry);
-    });
-    return counts;
-  }, [allContracts]);
 
   const handleEdit = (client: Client) => {
     setSelectedClient(client);
@@ -83,11 +58,6 @@ function ClientsPage() {
   const handleDelete = (client: Client) => {
     setSelectedClient(client);
     setDeleteDialogOpen(true);
-  };
-
-  const handleViewContracts = (client: Client) => {
-    setSelectedClient(client);
-    setContractsSheetOpen(true);
   };
 
   return (
@@ -117,14 +87,13 @@ function ClientsPage() {
                 <TableHead className="hidden lg:table-cell">Min. Wage</TableHead>
                 <TableHead className="hidden lg:table-cell">Min. Wage for Payroll</TableHead>
                 <TableHead className="hidden lg:table-cell">Commission</TableHead>
-                <TableHead className="hidden md:table-cell">Contracts</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center">
+                  <TableCell colSpan={6} className="text-center">
                     Loading...
                   </TableCell>
                 </TableRow>
@@ -141,23 +110,6 @@ function ClientsPage() {
                         <span className="md:hidden text-xs text-muted-foreground mt-1">
                           {client.contractType || "Standard"}
                         </span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewContracts(client);
-                          }}
-                          className="md:hidden mt-1 inline-flex w-fit items-center gap-1 text-xs text-muted-foreground hover:underline"
-                        >
-                          <FileText className="h-3 w-3" />
-                          {contractCountsByClient.get(client.id)?.total ?? 0} contract
-                          {(contractCountsByClient.get(client.id)?.total ?? 0) === 1 ? "" : "s"}
-                          {(contractCountsByClient.get(client.id)?.active ?? 0) > 0 && (
-                            <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px]">
-                              {contractCountsByClient.get(client.id)?.active} active
-                            </Badge>
-                          )}
-                        </button>
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
@@ -187,21 +139,6 @@ function ClientsPage() {
                         ? `${client.commissionRate}%`
                         : "-"}
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <button
-                        type="button"
-                        onClick={() => handleViewContracts(client)}
-                        className="inline-flex items-center gap-1.5 text-sm hover:underline"
-                      >
-                        <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                        {contractCountsByClient.get(client.id)?.total ?? 0}
-                        {(contractCountsByClient.get(client.id)?.active ?? 0) > 0 && (
-                          <Badge variant="secondary" className="ml-1">
-                            {contractCountsByClient.get(client.id)?.active} active
-                          </Badge>
-                        )}
-                      </button>
-                    </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -214,12 +151,6 @@ function ClientsPage() {
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuItem onClick={() => handleEdit(client)}>
                             Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleViewContracts(client)}>
-                            View Contracts
-                            {(contractCountsByClient.get(client.id)?.total ?? 0) > 0
-                              ? ` (${contractCountsByClient.get(client.id)?.total})`
-                              : ""}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
@@ -251,11 +182,6 @@ function ClientsPage() {
           <DeleteClientDialog
             isOpen={isDeleteDialogOpen}
             onOpenChange={setDeleteDialogOpen}
-            client={selectedClient}
-          />
-          <ClientContractsDialog
-            isOpen={isContractsSheetOpen}
-            onOpenChange={setContractsSheetOpen}
             client={selectedClient}
           />
         </>

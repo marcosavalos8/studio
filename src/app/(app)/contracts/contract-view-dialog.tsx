@@ -98,6 +98,24 @@ export function ContractViewDialog({
               <div className="font-medium">{contract.terminationNoticeDays} days</div>
             </div>
           )}
+          {contract.cancellationNoticeDays !== undefined && (
+            <div>
+              <div className="text-muted-foreground">Cancellation Notice</div>
+              <div className="font-medium">{contract.cancellationNoticeDays} days</div>
+            </div>
+          )}
+          {contract.shortfallPenaltyPercent !== undefined && (
+            <div>
+              <div className="text-muted-foreground">Shortfall Penalty</div>
+              <div className="font-medium">{contract.shortfallPenaltyPercent}%</div>
+            </div>
+          )}
+          {contract.shortfallFeePerWorkerDay !== undefined && (
+            <div>
+              <div className="text-muted-foreground">Fixed Fee ($/worker/day)</div>
+              <div className="font-medium">${contract.shortfallFeePerWorkerDay}</div>
+            </div>
+          )}
         </div>
 
         <Separator />

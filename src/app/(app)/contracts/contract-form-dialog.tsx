@@ -113,6 +113,9 @@ const contractFormSchema = z
     paymentDueDays: z.coerce.number().min(0).optional(),
     lateFeeInterestPercent: z.coerce.number().min(0).optional(),
     terminationNoticeDays: z.coerce.number().min(0).optional(),
+    cancellationNoticeDays: z.coerce.number().min(0).optional(),
+    shortfallPenaltyPercent: z.coerce.number().min(0).optional(),
+    shortfallFeePerWorkerDay: z.coerce.number().min(0).optional(),
     clauses: z.string().min(1, "Contract content cannot be empty"),
   })
   .refine((data) => !data.endDate || data.endDate >= data.effectiveDate, {
@@ -163,6 +166,9 @@ function valuesFromContract(contract: Contract): ContractFormValues {
     paymentDueDays: contract.paymentDueDays,
     lateFeeInterestPercent: contract.lateFeeInterestPercent,
     terminationNoticeDays: contract.terminationNoticeDays,
+    cancellationNoticeDays: contract.cancellationNoticeDays,
+    shortfallPenaltyPercent: contract.shortfallPenaltyPercent,
+    shortfallFeePerWorkerDay: contract.shortfallFeePerWorkerDay,
     clauses: contract.clauses || EMPTY_CLAUSES,
   };
 }
@@ -241,6 +247,9 @@ export function ContractFormDialog({
       paymentDueDays: values.paymentDueDays,
       lateFeeInterestPercent: values.lateFeeInterestPercent,
       terminationNoticeDays: values.terminationNoticeDays,
+      cancellationNoticeDays: values.cancellationNoticeDays,
+      shortfallPenaltyPercent: values.shortfallPenaltyPercent,
+      shortfallFeePerWorkerDay: values.shortfallFeePerWorkerDay,
     });
     form.setValue("clauses", html, { shouldDirty: true });
   };
@@ -276,6 +285,9 @@ export function ContractFormDialog({
         paymentDueDays: values.paymentDueDays,
         lateFeeInterestPercent: values.lateFeeInterestPercent,
         terminationNoticeDays: values.terminationNoticeDays,
+        cancellationNoticeDays: values.cancellationNoticeDays,
+        shortfallPenaltyPercent: values.shortfallPenaltyPercent,
+        shortfallFeePerWorkerDay: values.shortfallFeePerWorkerDay,
         clauses: sanitizeContractHtml(values.clauses),
       });
 
@@ -671,6 +683,50 @@ export function ContractFormDialog({
                         <FormLabel>Termination Notice (days)</FormLabel>
                         <FormControl>
                           <Input type="number" placeholder="e.g., 30" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormDescription>
+                  Clause 2 — Work Volume and Duration Commitment (cancellation / shortfall protection)
+                </FormDescription>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <FormField
+                    control={form.control}
+                    name="cancellationNoticeDays"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Cancellation Notice (days)</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="e.g., 7" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="shortfallPenaltyPercent"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Shortfall Penalty (%)</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.01" placeholder="e.g., 50" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="shortfallFeePerWorkerDay"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fixed Fee ($/worker/day)</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.01" placeholder="optional" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
