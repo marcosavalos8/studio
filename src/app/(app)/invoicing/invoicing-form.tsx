@@ -90,6 +90,10 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
     React.useState<DetailedLabelReportData | null>(null);
   const [includeLaborReport, setIncludeLaborReport] = React.useState(false);
   const [includeWorkerColumns, setIncludeWorkerColumns] = React.useState(false);
+  // Mutually exclusive: checking one clears the other. Both unchecked (the
+  // default) keeps the invoice exactly as it's always been.
+  const [breakOnlyMode, setBreakOnlyMode] = React.useState(false);
+  const [excludeBreakMode, setExcludeBreakMode] = React.useState(false);
   // Defaults to the new design since it's used far more often than the old one.
   const [laborReportNewDesign, setLaborReportNewDesign] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -648,6 +652,31 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         return acc + (overtimeForThisClientByEmployee.get(emp.employeeId)?.hours || 0);
       }, 0);
 
+      // "Bill Break Only" / "Exclude Break" (mutually exclusive, optional):
+      // adjust what's billed on the CLIENT-FACING invoice only. The Labor
+      // Report attachment (finalLaborReportData, below) keeps using the
+      // original, unadjusted totals — it's an internal payroll document,
+      // not what the client is actually billed. When neither checkbox is
+      // on, every "invoice*" value below is identical to its raw source.
+      const invoiceDailyBreakdown = breakOnlyMode ? {} : dailyBreakdown;
+      const invoiceWeeklyHoursByTask = breakOnlyMode ? [] : weeklyHoursByTask;
+      const invoiceOvertimeLines = breakOnlyMode ? [] : overtimeLines;
+      const invoiceLaborCost = breakOnlyMode ? 0 : laborCost;
+      const invoiceMinimumWageTopUp = breakOnlyMode ? 0 : totalTopUp;
+      const invoiceOvertimePremium = breakOnlyMode ? 0 : totalOvertimePremium;
+      const invoiceOvertimeHours = breakOnlyMode ? 0 : totalOvertimeHours;
+      const invoicePaidRestBreaks = excludeBreakMode ? 0 : totalRestBreaks;
+      const invoiceBreakHours = excludeBreakMode ? 0 : totalBreakHours;
+      const invoiceSubtotal =
+        invoiceLaborCost +
+        invoiceMinimumWageTopUp +
+        invoicePaidRestBreaks +
+        invoiceOvertimePremium;
+      const invoiceCommission = clientData.commissionRate
+        ? invoiceSubtotal * (clientData.commissionRate / 100)
+        : 0;
+      const invoiceTotal = invoiceSubtotal + invoiceCommission;
+
       // Build employee details for the optional second page
       const employeeDetails = filteredSummaries.map((emp) => {
         const employee = allEmployees.find((e) => e.id === emp.employeeId);
@@ -805,18 +834,18 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         },
         invoiceNumber,
         invoiceDate: format(new Date(), "MM/dd/yyyy"),
-        dailyBreakdown,
-        weeklyHoursByTask,
-        overtimeLines,
-        laborCost,
-        minimumWageTopUp: totalTopUp,
-        paidRestBreaks: totalRestBreaks,
-        breakHours: totalBreakHours,
-        overtimePremium: totalOvertimePremium,
-        overtimeHours: totalOvertimeHours,
-        subtotal,
-        commission,
-        total,
+        dailyBreakdown: invoiceDailyBreakdown,
+        weeklyHoursByTask: invoiceWeeklyHoursByTask,
+        overtimeLines: invoiceOvertimeLines,
+        laborCost: invoiceLaborCost,
+        minimumWageTopUp: invoiceMinimumWageTopUp,
+        paidRestBreaks: invoicePaidRestBreaks,
+        breakHours: invoiceBreakHours,
+        overtimePremium: invoiceOvertimePremium,
+        overtimeHours: invoiceOvertimeHours,
+        subtotal: invoiceSubtotal,
+        commission: invoiceCommission,
+        total: invoiceTotal,
         employeeDetails,
         includeWorkerColumns,
       };
@@ -1032,21 +1061,21 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         clientEmail: clientData.email || null,
         dateFrom: format(startDate, "yyyy-MM-dd"),
         dateTo: format(endDate, "yyyy-MM-dd"),
-        laborCost,
-        minimumWageTopUp: totalTopUp,
-        paidRestBreaks: totalRestBreaks,
-        breakHours: totalBreakHours,
-        overtimePremium: totalOvertimePremium,
-        overtimeHours: totalOvertimeHours,
-        subtotal,
-        commission,
-        total,
+        laborCost: invoiceLaborCost,
+        minimumWageTopUp: invoiceMinimumWageTopUp,
+        paidRestBreaks: invoicePaidRestBreaks,
+        breakHours: invoiceBreakHours,
+        overtimePremium: invoiceOvertimePremium,
+        overtimeHours: invoiceOvertimeHours,
+        subtotal: invoiceSubtotal,
+        commission: invoiceCommission,
+        total: invoiceTotal,
         status: "pending",
         sentAt: null,
         paidAt: null,
         emailSentCount: 0,
-        dailyBreakdown,
-        weeklyHoursByTask,
+        dailyBreakdown: invoiceDailyBreakdown,
+        weeklyHoursByTask: invoiceWeeklyHoursByTask,
         employeeDetails,
         invoiceClientData: {
           name: clientData.name,
@@ -1060,7 +1089,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         includeLaborReport,
         laborReportNewDesign,
         laborReportEmployeeDetails: finalLaborReportData?.employeeDetails ?? null,
-        overtimeLines,
+        overtimeLines: invoiceOvertimeLines,
         includeWorkerColumns,
       };
 
@@ -1325,6 +1354,42 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
         >
           Add Worker Count &amp; Time In/Out
+        </label>
+      </div>
+
+      <div className="mt-2 flex items-center space-x-2">
+        <Checkbox
+          id="break-only"
+          checked={breakOnlyMode}
+          onCheckedChange={(checked) => {
+            const value = checked === true;
+            setBreakOnlyMode(value);
+            if (value) setExcludeBreakMode(false);
+          }}
+        />
+        <label
+          htmlFor="break-only"
+          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+        >
+          Bill Break Only (nothing else)
+        </label>
+      </div>
+
+      <div className="mt-2 flex items-center space-x-2">
+        <Checkbox
+          id="exclude-break"
+          checked={excludeBreakMode}
+          onCheckedChange={(checked) => {
+            const value = checked === true;
+            setExcludeBreakMode(value);
+            if (value) setBreakOnlyMode(false);
+          }}
+        />
+        <label
+          htmlFor="exclude-break"
+          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+        >
+          Exclude Break (billed separately)
         </label>
       </div>
 

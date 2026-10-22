@@ -164,6 +164,10 @@ export function InvoiceReportDisplay({
         ),
       ) ??
     sortedDates[sortedDates.length - 1] ??
+    // "Bill Break Only" mode empties dailyBreakdown entirely, so there's no
+    // task date to borrow — fall back to the billing period's end date
+    // instead of leaving the P/W BREAK row's date blank.
+    report.date.to ??
     "";
 
   const lastHourlyDate =
