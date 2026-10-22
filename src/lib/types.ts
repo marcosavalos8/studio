@@ -26,6 +26,63 @@ export type Client = {
   contractType?: "Standard" | "H2A";
 };
 
+// A client can have zero, one, or many Contract documents over time — each
+// one its own independent record of a service agreement (e.g. a pruning
+// job, then months later a separate field-maintenance job for the same
+// client). Finishing or terminating a contract never deletes it; it's just
+// a status change, so the client's full contract history stays queryable.
+export type ContractStatus =
+  | "Draft"
+  | "Active"
+  | "Completed"
+  | "Terminated"
+  | "Expired";
+
+// Copy of the client fields a contract's terms actually depend on, captured
+// at the moment the contract is created (or last edited) — so editing the
+// client's own record later never silently rewrites an already-issued
+// contract, and editing a contract's copy here never touches the client.
+export type ContractClientSnapshot = {
+  name: string;
+  email?: string;
+  phone?: string;
+  billingAddress: string;
+  paymentTerms: string;
+  contractType?: "Standard" | "H2A";
+  minimumWage?: number;
+  minimumWageForPayroll?: number;
+  commissionRate?: number;
+};
+
+export type Contract = {
+  id: string;
+  clientId: string;
+  // Globally unique, assigned once at creation via a transactional counter
+  // (settings/contractCounter) — e.g. "CON-2026-00001". Never reused or
+  // reassigned.
+  contractNumber: string;
+  title: string;
+  status: ContractStatus;
+  effectiveDate: string; // yyyy-MM-dd; can differ from createdAt
+  endDate?: string | null; // yyyy-MM-dd; optional, open-ended contracts allowed
+  clientSnapshot: ContractClientSnapshot;
+  // The MSA's own fill-in-the-blank terms (payment due days, late fee
+  // interest %, termination notice days) — also substituted into the
+  // generated template text, but kept as their own fields too so they can
+  // be read without parsing the clauses HTML.
+  paymentDueDays?: number;
+  lateFeeInterestPercent?: number;
+  terminationNoticeDays?: number;
+  // Sanitized HTML from the clauses rich text editor.
+  clauses: string;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+  createdByUid?: string;
+  createdByName?: string;
+  updatedByUid?: string;
+  updatedByName?: string;
+};
+
 export type Task = {
   id: string;
   name: string;

@@ -10,6 +10,7 @@
  * - /clients/{clientId}: Stores client data.
  * - /tasks/{taskId}: Stores task data.
  * - /users/{userId}: Stores user account data with roles.
+ * - /contracts/{contractId}: Stores client service contracts (zero, one, or many per client).
  *
  * Key Security Decisions:
  * - Role-based access control: only admins can write to the employees, clients and tasks collections.
@@ -139,9 +140,36 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
+    /**
+     * @description Transactional counter backing Contract folio numbers
+     *   (e.g. "CON-2026-00001"). Only admins create contracts, so only
+     *   admins may advance this counter.
+     * @path /settings/contractCounter
+     */
+    match /settings/contractCounter {
+      allow get: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     match /settings/{settingId} {
       allow get, list: if isSignedIn();
       allow write: if isAdmin();
+    }
+
+    /**
+     * @description Manages client service contracts. A client can have zero,
+     *   one, or many contracts over time; "completing" or "terminating" one
+     *   is a status update, never a delete.
+     * @path /contracts/{contractId}
+     * @allow (get, list) - Any authenticated user can read contract data.
+     * @allow (create, update) - Only an admin can create or edit a contract.
+     * @deny (delete) - Contracts are never hard-deleted, by anyone.
+     */
+    match /contracts/{contractId} {
+      allow get, list: if isSignedIn();
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if false;
     }
 
     /**
