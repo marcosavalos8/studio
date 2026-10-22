@@ -37,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileText, Loader2, MoreHorizontal, Trash2 } from "lucide-react";
+import { FileText, Loader2, MoreHorizontal, Printer, Trash2 } from "lucide-react";
 import { useFirestore } from "@/firebase";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +48,7 @@ import { parseLocalDate } from "@/lib/utils";
 import { ContractStatusBadge } from "./contract-status-badge";
 import { ContractFormDialog } from "./contract-form-dialog";
 import { ContractViewDialog } from "./contract-view-dialog";
+import { printContract } from "./contract-print";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
@@ -321,6 +322,10 @@ export function ContractManagement({ clients }: ContractManagementProps) {
                         View
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleEdit(contract)}>Edit</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => printContract(contract)}>
+                        <Printer className="mr-2 h-4 w-4" />
+                        Print
+                      </DropdownMenuItem>
                       {contract.status === "Active" && (
                         <>
                           <DropdownMenuSeparator />

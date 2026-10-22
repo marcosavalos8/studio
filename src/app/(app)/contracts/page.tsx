@@ -1,6 +1,6 @@
 "use client";
 
-import { RequireAdmin } from "@/components/require-admin";
+import { withAuth } from "@/components/withAuth";
 import {
   Card,
   CardContent,
@@ -74,10 +74,4 @@ function ContractsPage() {
   );
 }
 
-export default function ProtectedContractsPage() {
-  return (
-    <RequireAdmin>
-      <ContractsPage />
-    </RequireAdmin>
-  );
-}
+export default withAuth(ContractsPage, { askEveryVisit: true });

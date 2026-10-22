@@ -23,6 +23,7 @@ export interface Settings {
   laborReportPassword: string;
   payrollPassword: string;
   accountingCenterPassword: string;
+  contractsPassword: string;
 }
 
 interface SettingsContextType {
@@ -48,6 +49,7 @@ const defaultSettings: Settings = {
   laborReportPassword: "4321",
   payrollPassword: "4321",
   accountingCenterPassword: "4321",
+  contractsPassword: "4321",
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(

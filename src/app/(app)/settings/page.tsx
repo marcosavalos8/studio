@@ -49,9 +49,10 @@ function SettingsPage() {
     laborReport: false,
     payroll: false,
     accountingCenter: false,
+    contracts: false,
   });
 
-  const toggleShowPassword = (field: "invoice" | "laborReport" | "payroll" | "accountingCenter") => {
+  const toggleShowPassword = (field: "invoice" | "laborReport" | "payroll" | "accountingCenter" | "contracts") => {
     setShowPasswords((prev) => ({ ...prev, [field]: !prev[field] }));
   };
 
@@ -427,6 +428,35 @@ function SettingsPage() {
                   aria-label={showPasswords.accountingCenter ? "Hide password" : "Show password"}
                 >
                   {showPasswords.accountingCenter ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Contracts Password */}
+            <div className="flex items-center justify-between space-x-4">
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="contracts-password" className="text-sm font-medium">
+                  Password – Contracts
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Access password for the Contracts section
+                </p>
+              </div>
+              <div className="relative w-[180px]">
+                <Input
+                  id="contracts-password"
+                  type={showPasswords.contracts ? "text" : "password"}
+                  value={settings.contractsPassword}
+                  onChange={(e) => updateSetting("contractsPassword", e.target.value)}
+                  className="pr-9"
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => toggleShowPassword("contracts")}
+                  aria-label={showPasswords.contracts ? "Hide password" : "Show password"}
+                >
+                  {showPasswords.contracts ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>

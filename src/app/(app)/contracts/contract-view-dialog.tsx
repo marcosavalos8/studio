@@ -11,11 +11,12 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Pencil } from "lucide-react";
+import { Pencil, Printer } from "lucide-react";
 import type { Contract } from "@/lib/types";
 import { parseLocalDate } from "@/lib/utils";
 import { ContractStatusBadge } from "./contract-status-badge";
 import { sanitizeContractHtml } from "./contract-template";
+import { printContract } from "./contract-print";
 
 type ContractViewDialogProps = {
   isOpen: boolean;
@@ -128,6 +129,10 @@ export function ContractViewDialog({
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Close
+          </Button>
+          <Button variant="outline" onClick={() => printContract(contract)}>
+            <Printer className="mr-2 h-4 w-4" />
+            Print
           </Button>
           <Button onClick={onEdit}>
             <Pencil className="mr-2 h-4 w-4" />
