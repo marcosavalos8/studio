@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { format } from "date-fns";
-import { collection, doc, query, serverTimestamp, updateDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, query, serverTimestamp, updateDoc } from "firebase/firestore";
 import {
   Table,
   TableBody,
@@ -37,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileText, Loader2, MoreHorizontal } from "lucide-react";
+import { FileText, Loader2, MoreHorizontal, Trash2 } from "lucide-react";
 import { useFirestore } from "@/firebase";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import { useToast } from "@/hooks/use-toast";
@@ -89,6 +89,8 @@ export function ContractManagement({ clients }: ContractManagementProps) {
     status: "Completed" | "Terminated";
   } | null>(null);
   const [isClosing, setIsClosing] = React.useState(false);
+  const [deletingContract, setDeletingContract] = React.useState<Contract | null>(null);
+  const [isDeleting, setIsDeleting] = React.useState(false);
 
   const contractsQuery = React.useMemo(() => {
     if (!firestore) return null;
@@ -182,6 +184,37 @@ export function ContractManagement({ clients }: ContractManagementProps) {
       });
     } finally {
       setIsClosing(false);
+    }
+  };
+
+  // Permanent, irreversible: removes the contract document entirely, which
+  // also drops it out of the client's history (there is no soft-delete or
+  // recovery — unlike Complete/Terminate, this cannot be undone).
+  const confirmDeleteContract = async () => {
+    if (!firestore || !deletingContract) return;
+    setIsDeleting(true);
+    try {
+      await deleteDoc(doc(firestore, "contracts", deletingContract.id));
+      toast({
+        title: "Contract deleted",
+        description: `${deletingContract.contractNumber} has been permanently deleted.`,
+      });
+      if (viewingContract?.id === deletingContract.id) setViewingContract(null);
+      if (editingContract?.id === deletingContract.id) setEditingContract(null);
+      setDeletingContract(null);
+    } catch {
+      const permissionError = new FirestorePermissionError({
+        path: `contracts/${deletingContract.id}`,
+        operation: "delete",
+      });
+      errorEmitter.emit("permission-error", permissionError);
+      toast({
+        variant: "destructive",
+        title: "Delete error",
+        description: "Could not delete the contract. Please try again.",
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -304,6 +337,14 @@ export function ContractManagement({ clients }: ContractManagementProps) {
                           </DropdownMenuItem>
                         </>
                       )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                        onClick={() => setDeletingContract(contract)}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
@@ -356,6 +397,38 @@ export function ContractManagement({ clients }: ContractManagementProps) {
             >
               {isClosing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!deletingContract}
+        onOpenChange={(open) => !open && setDeletingContract(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete contract{" "}
+              <span className="font-semibold">{deletingContract?.contractNumber}</span> (
+              {deletingContract?.title}) and remove it from{" "}
+              <span className="font-semibold">{deletingContract?.clientSnapshot.name}</span>'s
+              history.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmDeleteContract();
+              }}
+            >
+              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

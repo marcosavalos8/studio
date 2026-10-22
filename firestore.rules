@@ -158,18 +158,18 @@ service cloud.firestore {
 
     /**
      * @description Manages client service contracts. A client can have zero,
-     *   one, or many contracts over time; "completing" or "terminating" one
-     *   is a status update, never a delete.
+     *   one, or many contracts over time. "Completing" or "terminating" one
+     *   is a status update; an admin can also permanently delete one.
      * @path /contracts/{contractId}
      * @allow (get, list) - Any authenticated user can read contract data.
-     * @allow (create, update) - Only an admin can create or edit a contract.
-     * @deny (delete) - Contracts are never hard-deleted, by anyone.
+     * @allow (create, update, delete) - Only an admin can create, edit, or
+     *   permanently delete a contract.
      */
     match /contracts/{contractId} {
       allow get, list: if isSignedIn();
       allow create: if isAdmin();
       allow update: if isAdmin() && resource != null;
-      allow delete: if false;
+      allow delete: if isAdmin();
     }
 
     /**
