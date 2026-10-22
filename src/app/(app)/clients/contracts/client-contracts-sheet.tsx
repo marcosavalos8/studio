@@ -205,10 +205,10 @@ export function ClientContractsSheet({ isOpen, onOpenChange, client }: ClientCon
               placeholder="Search by folio or title…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 min-w-[160px]"
+              className="flex-1 min-w-[140px]"
             />
             <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as ContractStatus | "All")}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-full sm:w-[140px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

@@ -141,6 +141,23 @@ function ClientsPage() {
                         <span className="md:hidden text-xs text-muted-foreground mt-1">
                           {client.contractType || "Standard"}
                         </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewContracts(client);
+                          }}
+                          className="md:hidden mt-1 inline-flex w-fit items-center gap-1 text-xs text-muted-foreground hover:underline"
+                        >
+                          <FileText className="h-3 w-3" />
+                          {contractCountsByClient.get(client.id)?.total ?? 0} contract
+                          {(contractCountsByClient.get(client.id)?.total ?? 0) === 1 ? "" : "s"}
+                          {(contractCountsByClient.get(client.id)?.active ?? 0) > 0 && (
+                            <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px]">
+                              {contractCountsByClient.get(client.id)?.active} active
+                            </Badge>
+                          )}
+                        </button>
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
