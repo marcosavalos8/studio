@@ -4,12 +4,12 @@ import * as React from "react";
 import { format } from "date-fns";
 import { collection, doc, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -50,7 +50,7 @@ import { ContractViewDialog } from "./contract-view-dialog";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
-type ClientContractsSheetProps = {
+type ClientContractsDialogProps = {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   client: Client;
@@ -74,7 +74,7 @@ function fmtDate(value?: string | null) {
   }
 }
 
-export function ClientContractsSheet({ isOpen, onOpenChange, client }: ClientContractsSheetProps) {
+export function ClientContractsDialog({ isOpen, onOpenChange, client }: ClientContractsDialogProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
   const { username } = useAuth();
@@ -174,14 +174,14 @@ export function ClientContractsSheet({ isOpen, onOpenChange, client }: ClientCon
 
   return (
     <>
-      <Sheet open={isOpen} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>{client.name} — Contracts</SheetTitle>
-            <SheetDescription>
+      <Dialog open={isOpen} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{client.name} — Contracts</DialogTitle>
+            <DialogDescription>
               {client.email || "No email on file"} · {client.billingAddress}
-            </SheetDescription>
-          </SheetHeader>
+            </DialogDescription>
+          </DialogHeader>
 
           <div className="mt-4 flex items-center justify-between flex-wrap gap-2">
             <div className="flex gap-4 text-sm">
@@ -297,8 +297,8 @@ export function ClientContractsSheet({ isOpen, onOpenChange, client }: ClientCon
               </div>
             ))}
           </div>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
       <ContractFormDialog
         isOpen={isFormOpen}

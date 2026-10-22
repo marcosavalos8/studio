@@ -36,7 +36,7 @@ import type { Client, Contract } from "@/lib/types";
 import { AddClientDialog } from "./add-client-dialog";
 import { EditClientDialog } from "./edit-client-dialog";
 import { DeleteClientDialog } from "./delete-client-dialog";
-import { ClientContractsSheet } from "./contracts/client-contracts-sheet";
+import { ClientContractsDialog } from "./contracts/client-contracts-dialog";
 import { FileText } from "lucide-react";
 
 function ClientsPage() {
@@ -253,7 +253,7 @@ function ClientsPage() {
             onOpenChange={setDeleteDialogOpen}
             client={selectedClient}
           />
-          <ClientContractsSheet
+          <ClientContractsDialog
             isOpen={isContractsSheetOpen}
             onOpenChange={setContractsSheetOpen}
             client={selectedClient}
