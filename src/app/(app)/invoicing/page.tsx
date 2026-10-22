@@ -31,6 +31,8 @@ export type DailyBreakdown = {
         block?: string;
         isMissingBuckets?: boolean;
         originalDate?: string;
+        activeWorkers?: number;
+        timeRange?: string;
       };
     };
     total: number;
@@ -46,6 +48,7 @@ export type DetailedInvoiceData = {
   invoiceNumber: string;
   invoiceDate: string;
   dailyBreakdown: DailyBreakdown;
+  includeWorkerColumns?: boolean;
   weeklyHoursByTask?: WeeklyTaskHours;
   overtimeLines?: OvertimeLine[];
   laborCost: number;

@@ -49,6 +49,8 @@ interface InvoiceTaskDetail {
   cost: number;
   clientRate: number;
   clientRateType: "hourly" | "piece";
+  activeWorkers?: number;
+  timeRange?: string;
 }
 
 interface InvoiceDayBreakdown {
@@ -127,6 +129,7 @@ interface SendInvoiceBody {
   includeLaborReport?: boolean;
   laborReportNewDesign?: boolean;
   laborReportData?: LaborReportData | null;
+  includeWorkerColumns?: boolean;
   // "download" skips sending the email and instead returns a single merged
   // PDF (invoice pages as-is + labor report pages, each keeping its own
   // page orientation) for the caller to download directly.
@@ -423,8 +426,11 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
     unit: string;
     price: number;
     total: number;
+    activeWorkers?: number;
+    timeRange?: string;
   };
 
+  const showWorkerColumns = !!body.includeWorkerColumns;
   const dailyBreakdown = body.dailyBreakdown ?? {};
   const sortedDates = Object.keys(dailyBreakdown).sort();
 
@@ -442,6 +448,8 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
         unit: isHourly ? "Hrs" : "Pcs",
         price: task.clientRate,
         total: task.cost,
+        activeWorkers: task.activeWorkers,
+        timeRange: task.timeRange,
       });
     });
   });
@@ -613,21 +621,29 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
   const tFS = 9;
   const rowH = 16;
 
-  // Column layout: DATE | DESCRIPTION | QUANTITY | UNIT | PRICE | TOTAL
+  // Column layout: DATE | DESCRIPTION | [ACTIVE WORKERS | TIME IN-OUT] | QUANTITY | UNIT | PRICE | TOTAL
+  // The two bracketed columns only take up space when showWorkerColumns is
+  // on — all widths below collapse back to their original values when it's
+  // off, so an invoice generated without the checkbox renders byte-for-byte
+  // like it did before this feature existed.
   const dateW = 72;
-  const qtyW = 60;
-  const unitW = 42;
-  const priceW = 62;
-  const totW = 60;
-  const descW = contentW - dateW - qtyW - unitW - priceW - totW;
+  const workersW = showWorkerColumns ? 50 : 0;
+  const timeW = showWorkerColumns ? 85 : 0;
+  const qtyW = showWorkerColumns ? 52 : 60;
+  const unitW = showWorkerColumns ? 38 : 42;
+  const priceW = showWorkerColumns ? 54 : 62;
+  const totW = showWorkerColumns ? 54 : 60;
+  const descW = contentW - dateW - workersW - timeW - qtyW - unitW - priceW - totW;
 
   const colX = {
     date: margin,
     desc: margin + dateW,
-    qty: margin + dateW + descW,
-    unit: margin + dateW + descW + qtyW,
-    price: margin + dateW + descW + qtyW + unitW,
-    total: margin + dateW + descW + qtyW + unitW + priceW,
+    workers: margin + dateW + descW,
+    time: margin + dateW + descW + workersW,
+    qty: margin + dateW + descW + workersW + timeW,
+    unit: margin + dateW + descW + workersW + timeW + qtyW,
+    price: margin + dateW + descW + workersW + timeW + qtyW + unitW,
+    total: margin + dateW + descW + workersW + timeW + qtyW + unitW + priceW,
   };
 
   const drawMainHeader = () => {
@@ -641,6 +657,22 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
     doc.setTextColor(0);
     doc.text("DATE", colX.date + 4, y + 10);
     doc.text("DESCRIPTION", colX.desc + 4, y + 10);
+    if (showWorkerColumns) {
+      doc.setFontSize(6.5);
+      doc.text(
+        truncateToFit(doc, "ACTIVE WORKERS ON SITE", workersW - 4),
+        colX.workers + workersW / 2,
+        y + 10,
+        { align: "center" },
+      );
+      doc.text(
+        truncateToFit(doc, "TIME IN - TIME OUT", timeW - 4),
+        colX.time + timeW / 2,
+        y + 10,
+        { align: "center" },
+      );
+      doc.setFontSize(tFS);
+    }
     doc.text("QUANTITY", colX.qty + qtyW - 4, y + 10, { align: "right" });
     doc.text("UNIT", colX.unit + unitW / 2, y + 10, { align: "center" });
     doc.text("PRICE", colX.price + priceW - 4, y + 10, { align: "right" });
@@ -674,6 +706,21 @@ function generateInvoicePdf(body: SendInvoiceBody, co: CompanyInfo = DEFAULT_COM
       colX.desc + 4,
       y + 10,
     );
+
+    if (showWorkerColumns) {
+      doc.text(
+        row.activeWorkers != null ? String(row.activeWorkers) : "-",
+        colX.workers + workersW / 2,
+        y + 10,
+        { align: "center" },
+      );
+      doc.text(
+        truncateToFit(doc, row.timeRange ?? "-", timeW - 4),
+        colX.time + timeW / 2,
+        y + 10,
+        { align: "center" },
+      );
+    }
 
     doc.text(fmtNum(row.quantity), colX.qty + qtyW - 4, y + 10, {
       align: "right",

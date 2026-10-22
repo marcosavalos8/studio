@@ -113,7 +113,11 @@ export function InvoiceReportDisplay({
     total: number;
     isMissingBuckets?: boolean;
     originalDate?: string;
+    activeWorkers?: number;
+    timeRange?: string;
   };
+
+  const showWorkerColumns = !!report.includeWorkerColumns;
 
   const regularRows: TableRow[] = [];
   sortedDates.forEach((date) => {
@@ -130,6 +134,8 @@ export function InvoiceReportDisplay({
         total: task.cost,
         isMissingBuckets: task.isMissingBuckets,
         originalDate: task.originalDate,
+        activeWorkers: task.activeWorkers,
+        timeRange: task.timeRange,
       });
     });
   });
@@ -608,6 +614,28 @@ export function InvoiceReportDisplay({
                 >
                   DESCRIPTION
                 </th>
+                {showWorkerColumns && (
+                  <th
+                    style={{
+                      border: "1px solid #d1d5db",
+                      padding: "4px 8px",
+                      textAlign: "center",
+                    }}
+                  >
+                    ACTIVE WORKERS ON SITE
+                  </th>
+                )}
+                {showWorkerColumns && (
+                  <th
+                    style={{
+                      border: "1px solid #d1d5db",
+                      padding: "4px 8px",
+                      textAlign: "center",
+                    }}
+                  >
+                    TIME IN - TIME OUT
+                  </th>
+                )}
                 <th
                   style={{
                     border: "1px solid #d1d5db",
@@ -677,6 +705,29 @@ export function InvoiceReportDisplay({
                       </span>
                     )}
                   </td>
+                  {showWorkerColumns && (
+                    <td
+                      style={{
+                        border: "1px solid #e5e7eb",
+                        padding: "4px 8px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {row.activeWorkers ?? "-"}
+                    </td>
+                  )}
+                  {showWorkerColumns && (
+                    <td
+                      style={{
+                        border: "1px solid #e5e7eb",
+                        padding: "4px 8px",
+                        textAlign: "center",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {row.timeRange ?? "-"}
+                    </td>
+                  )}
                   <td
                     style={{
                       border: "1px solid #e5e7eb",

@@ -503,6 +503,7 @@ export function InvoiceManagement() {
           weeklyHoursByTask: invoice.weeklyHoursByTask ?? [],
           invoiceClientData: invoice.invoiceClientData ?? null,
           employeeDetails: invoice.employeeDetails ?? [],
+          includeWorkerColumns: invoice.includeWorkerColumns ?? false,
           includeLaborReport: invoice.includeLaborReport ?? false,
           laborReportNewDesign: invoice.laborReportNewDesign ?? false,
           laborReportData: invoice.includeLaborReport

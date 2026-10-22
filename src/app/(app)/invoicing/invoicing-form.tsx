@@ -73,6 +73,7 @@ type InvoiceFirestorePayload = {
   includeLaborReport: boolean;
   laborReportEmployeeDetails: DetailedLabelReportData["employeeDetails"] | null;
   overtimeLines: OvertimeLine[];
+  includeWorkerColumns: boolean;
 };
 
 export function InvoicingForm({ clients }: InvoicingFormProps) {
@@ -88,6 +89,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
   const [laborReportData, setLaborReportData] =
     React.useState<DetailedLabelReportData | null>(null);
   const [includeLaborReport, setIncludeLaborReport] = React.useState(false);
+  const [includeWorkerColumns, setIncludeWorkerColumns] = React.useState(false);
   // Defaults to the new design since it's used far more often than the old one.
   const [laborReportNewDesign, setLaborReportNewDesign] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -403,6 +405,98 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         });
         day.total = dailyTotal;
       });
+
+      // "Active Workers on Site" / "Time In - Time Out" columns (optional,
+      // gated by includeWorkerColumns): computed straight from the raw clock
+      // in/out entries, not from the payroll engine's per-employee totals,
+      // since those don't carry employeeId or real timestamps. For each
+      // task+date, track every worker's on-site window (earliest clock-in to
+      // latest clock-out, break entries included so a break doesn't shrink
+      // the window), then take the most common ("majority") rounded clock-in
+      // and clock-out time so a single early/late outlier doesn't show up on
+      // the invoice instead of what most workers actually did.
+      if (includeWorkerColumns) {
+        const windowsByTaskDate = new Map<
+          string,
+          Map<string, { start: Date; end: Date }>
+        >();
+        timeEntries.forEach((te) => {
+          if (!te.timestamp) return;
+          const start = new Date(te.timestamp as unknown as string);
+          const end = te.endTime
+            ? new Date(te.endTime as unknown as string)
+            : start;
+          const dateKey = (te.timestamp as unknown as string).slice(0, 10);
+          const key = `${te.taskId}|${dateKey}`;
+          if (!windowsByTaskDate.has(key)) windowsByTaskDate.set(key, new Map());
+          const empWindows = windowsByTaskDate.get(key)!;
+          const existing = empWindows.get(te.employeeId);
+          if (!existing) {
+            empWindows.set(te.employeeId, { start, end });
+          } else {
+            if (start < existing.start) existing.start = start;
+            if (end > existing.end) existing.end = end;
+          }
+        });
+
+        // Rounds to the nearest `roundMinutes` and returns the most common
+        // bucket across all given times (ties keep the first bucket seen).
+        const modeRoundedTime = (dates: Date[], roundMinutes: number): Date | null => {
+          if (dates.length === 0) return null;
+          const counts = new Map<number, number>();
+          dates.forEach((d) => {
+            const minutes = d.getHours() * 60 + d.getMinutes();
+            const rounded = Math.round(minutes / roundMinutes) * roundMinutes;
+            counts.set(rounded, (counts.get(rounded) || 0) + 1);
+          });
+          let bestMinutes = 0;
+          let bestCount = -1;
+          counts.forEach((count, minutes) => {
+            if (count > bestCount) {
+              bestCount = count;
+              bestMinutes = minutes;
+            }
+          });
+          const result = new Date(0);
+          result.setHours(Math.floor(bestMinutes / 60), bestMinutes % 60, 0, 0);
+          return result;
+        };
+
+        const workerStatsByTaskDate = new Map<
+          string,
+          { activeWorkers: number; timeRange: string }
+        >();
+        windowsByTaskDate.forEach((empWindows, key) => {
+          const modeStart = modeRoundedTime(
+            Array.from(empWindows.values()).map((w) => w.start),
+            15
+          );
+          const modeEnd = modeRoundedTime(
+            Array.from(empWindows.values()).map((w) => w.end),
+            15
+          );
+          if (modeStart && modeEnd) {
+            workerStatsByTaskDate.set(key, {
+              activeWorkers: empWindows.size,
+              timeRange: `${format(modeStart, "h:mm a")} - ${format(modeEnd, "h:mm a")}`,
+            });
+          }
+        });
+
+        Object.entries(dailyBreakdown).forEach(([dateKey, day]) => {
+          Object.entries(day.tasks).forEach(([taskKey, task]) => {
+            if (taskKey.endsWith("|BONUS")) return;
+            const actualTaskId = taskKey.split("|")[0];
+            const lookupDate =
+              task.isMissingBuckets && task.originalDate ? task.originalDate : dateKey;
+            const stats = workerStatsByTaskDate.get(`${actualTaskId}|${lookupDate}`);
+            if (stats) {
+              task.activeWorkers = stats.activeWorkers;
+              task.timeRange = stats.timeRange;
+            }
+          });
+        });
+      }
 
       const laborCost = Object.values(dailyBreakdown).reduce(
         (acc, day) => acc + day.total,
@@ -724,6 +818,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         commission,
         total,
         employeeDetails,
+        includeWorkerColumns,
       };
 
       // Build labor report data if requested (same data, extended per-employee overtime fields)
@@ -966,6 +1061,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         laborReportNewDesign,
         laborReportEmployeeDetails: finalLaborReportData?.employeeDetails ?? null,
         overtimeLines,
+        includeWorkerColumns,
       };
 
       setPendingFirestorePayload(firestorePayload);
@@ -1046,6 +1142,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           weeklyHoursByTask: payload.weeklyHoursByTask ?? [],
           invoiceClientData: payload.invoiceClientData ?? null,
           employeeDetails: payload.employeeDetails ?? [],
+          includeWorkerColumns: payload.includeWorkerColumns,
           includeLaborReport,
           laborReportNewDesign,
           laborReportData: includeLaborReport
@@ -1216,6 +1313,20 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           </label>
         </div>
       )}
+
+      <div className="mt-2 flex items-center space-x-2">
+        <Checkbox
+          id="worker-columns"
+          checked={includeWorkerColumns}
+          onCheckedChange={(checked) => setIncludeWorkerColumns(checked === true)}
+        />
+        <label
+          htmlFor="worker-columns"
+          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+        >
+          Add Worker Count &amp; Time In/Out
+        </label>
+      </div>
 
       {isGenerating && (
         <div className="mt-6 text-center">

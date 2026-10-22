@@ -226,6 +226,8 @@ export interface SavedInvoiceTaskDetail {
   cost: number;
   clientRate: number;
   clientRateType: "hourly" | "piece";
+  activeWorkers?: number;
+  timeRange?: string;
 }
 
 export interface SavedInvoiceDayBreakdown {
@@ -277,6 +279,8 @@ export interface SavedInvoice {
   overdueInterestAccrued?: number;
   /** Whether this invoice was generated together with a Labor Report */
   includeLaborReport?: boolean;
+  /** Whether the invoice includes the "Active Workers on Site" / "Time In - Time Out" columns */
+  includeWorkerColumns?: boolean;
   /** Whether the Labor Report PDF should use the new one-row-per-task layout */
   laborReportNewDesign?: boolean;
   /** Employee details used for the labor report PDF (includes overtime fields) */
