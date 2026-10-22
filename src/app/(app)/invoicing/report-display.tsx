@@ -2,6 +2,8 @@
 
 import React from "react";
 import { type DetailedInvoiceData } from "./page";
+import { applyInvoiceBreakMode } from "./invoice-break-mode";
+import { Checkbox } from "@/components/ui/checkbox";
 import { type DetailedLabelReportData } from "../labor-report/page";
 import { format } from "date-fns";
 import { parseLocalDate } from "@/lib/utils";
@@ -17,13 +19,13 @@ interface ReportDisplayProps {
   onBack: () => void;
   laborReport?: DetailedLabelReportData | null;
   laborReportNewDesign?: boolean;
-  onSave?: () => Promise<void>;
+  onSave?: (breakOnlyMode: boolean, excludeBreakMode: boolean) => Promise<void>;
   isSaving?: boolean;
   isSaved?: boolean;
   // When a labor report is attached, printing via the browser can't reliably
   // mix the invoice's portrait pages with the labor report's landscape pages
   // in one job, so that case downloads a server-merged PDF instead.
-  onDownloadUnifiedPdf?: () => Promise<void>;
+  onDownloadUnifiedPdf?: (breakOnlyMode: boolean, excludeBreakMode: boolean) => Promise<void>;
   isDownloadingPdf?: boolean;
 }
 
@@ -99,7 +101,24 @@ export function InvoiceReportDisplay({
   };
   const hasLaborReport = !!laborReport;
 
-  const sortedDates = Object.keys(report.dailyBreakdown).sort(
+  // "Bill Break Only" / "Exclude Break": live, on-screen toggles — exactly
+  // like the Labor Report's own "Old Version" live toggle — so switching
+  // them updates the preview immediately, with no regeneration needed.
+  // Mutually exclusive; both off (the default) renders the invoice exactly
+  // like it's always rendered. Create Record / Print-as-PDF read whatever
+  // is selected here at the moment they're clicked (see the Button
+  // handlers below), so what gets saved/downloaded always matches what's
+  // on screen.
+  const [breakOnlyMode, setBreakOnlyMode] = React.useState(false);
+  const [excludeBreakMode, setExcludeBreakMode] = React.useState(false);
+  const effectiveReport = applyInvoiceBreakMode(
+    report,
+    report.client.commissionRate,
+    breakOnlyMode,
+    excludeBreakMode,
+  );
+
+  const sortedDates = Object.keys(effectiveReport.dailyBreakdown).sort(
     (a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime(),
   );
 
@@ -121,7 +140,7 @@ export function InvoiceReportDisplay({
 
   const regularRows: TableRow[] = [];
   sortedDates.forEach((date) => {
-    Object.values(report.dailyBreakdown[date].tasks).forEach((task) => {
+    Object.values(effectiveReport.dailyBreakdown[date].tasks).forEach((task) => {
       const isHourly = task.clientRateType === "hourly";
       const quantity = isHourly ? task.hours : task.pieces;
       const unit = isHourly ? "Hrs" : "Pcs";
@@ -143,7 +162,7 @@ export function InvoiceReportDisplay({
   // Find unique piecework task names for adjustment row description prefix
   const pieceworkTaskNames = new Set<string>();
   sortedDates.forEach((date) => {
-    Object.values(report.dailyBreakdown[date].tasks).forEach((task) => {
+    Object.values(effectiveReport.dailyBreakdown[date].tasks).forEach((task) => {
       if (task.clientRateType === "piece") {
         pieceworkTaskNames.add(task.taskName);
       }
@@ -159,7 +178,7 @@ export function InvoiceReportDisplay({
     [...sortedDates]
       .reverse()
       .find((date) =>
-        Object.values(report.dailyBreakdown[date].tasks).some(
+        Object.values(effectiveReport.dailyBreakdown[date].tasks).some(
           (task) => task.clientRateType === "piece",
         ),
       ) ??
@@ -172,17 +191,17 @@ export function InvoiceReportDisplay({
 
   const lastHourlyDate =
     [...sortedDates].reverse().find((date) =>
-      Object.values(report.dailyBreakdown[date].tasks).some(
+      Object.values(effectiveReport.dailyBreakdown[date].tasks).some(
         (task) => task.clientRateType === "hourly",
       ),
     ) ?? lastPieceworkDate;
 
   // Compute adjustment rows: P/W BREAK, OT Premium, MW
-  const otHours = report.overtimeHours ?? 0;
-  const otPremium = report.overtimePremium ?? 0;
+  const otHours = effectiveReport.overtimeHours ?? 0;
+  const otPremium = effectiveReport.overtimePremium ?? 0;
   const otPrice = otHours > 0 ? otPremium / otHours : 0;
 
-  const mwTopUp = report.minimumWageTopUp;
+  const mwTopUp = effectiveReport.minimumWageTopUp;
   const numWorkersMW = (report.employeeDetails ?? []).filter(
     (e) => e.minimumWageTopUp > 0,
   ).length;
@@ -194,9 +213,9 @@ export function InvoiceReportDisplay({
   // approximation of the whole crew's total piecework hours, which used to
   // show ~40+ "break hours" even when only one worker actually earned a
   // few dollars of break pay.
-  const breakQuantity = report.breakHours;
+  const breakQuantity = effectiveReport.breakHours;
   const breakPrice =
-    breakQuantity > 0 ? report.paidRestBreaks / breakQuantity : 0;
+    breakQuantity > 0 ? effectiveReport.paidRestBreaks / breakQuantity : 0;
 
   // Only include adjustment rows where the total is > 0
   const allAdjustmentRows: TableRow[] = [
@@ -206,10 +225,10 @@ export function InvoiceReportDisplay({
       quantity: breakQuantity,
       unit: "Hrs",
       price: breakPrice,
-      total: report.paidRestBreaks,
+      total: effectiveReport.paidRestBreaks,
     },
-    ...(report.overtimeLines && report.overtimeLines.length > 0
-      ? report.overtimeLines.map((line) => ({
+    ...(effectiveReport.overtimeLines && effectiveReport.overtimeLines.length > 0
+      ? effectiveReport.overtimeLines.map((line) => ({
           date: line.rateType === "hourly" ? lastHourlyDate : lastPieceworkDate,
           description: `${line.taskName}-OT Premium (0.5x rate)`,
           quantity: line.overtimeHours,
@@ -256,15 +275,15 @@ export function InvoiceReportDisplay({
   });
 
   // Merge P/W BREAK hours into the Hrs row of the subtotal (only if > 0)
-  if (report.paidRestBreaks > 0) {
+  if (effectiveReport.paidRestBreaks > 0) {
     const existingHrs = subtotalByUnit.get("Hrs");
     if (existingHrs) {
       existingHrs.quantity += breakQuantity;
-      existingHrs.total += report.paidRestBreaks;
+      existingHrs.total += effectiveReport.paidRestBreaks;
     } else {
       subtotalByUnit.set("Hrs", {
         quantity: breakQuantity,
-        total: report.paidRestBreaks,
+        total: effectiveReport.paidRestBreaks,
       });
     }
   }
@@ -287,8 +306,8 @@ export function InvoiceReportDisplay({
     .filter((r) => r.total > 0);
 
   const invoiceSubtotal = subtotalRows.reduce((sum, row) => sum + row.total, 0);
-  const contractorsFee = report.commission;
-  const invoiceTotal = report.total;
+  const contractorsFee = effectiveReport.commission;
+  const invoiceTotal = effectiveReport.total;
 
   // Parse payment terms days for footer (e.g. "Net 30" → 30, "Net 45" → 45)
   const paymentDays = (() => {
@@ -298,39 +317,81 @@ export function InvoiceReportDisplay({
 
   return (
     <div>
-      <div className="mb-4 flex justify-between items-center print:hidden">
-        <Button variant="outline" onClick={onBack}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          {isSaved ? "Generate New Invoice" : "Back / Discard"}
-        </Button>
-        <div className="flex items-center gap-2">
-          {onSave && (
-            <Button
-              onClick={onSave}
-              disabled={isSaving || isSaved}
-              variant={isSaved ? "secondary" : "default"}
+      <div className="mb-4 print:hidden">
+        <div className="flex justify-between items-center">
+          <Button variant="outline" onClick={onBack}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            {isSaved ? "Generate New Invoice" : "Back / Discard"}
+          </Button>
+          <div className="flex items-center gap-2">
+            {onSave && (
+              <Button
+                onClick={() => onSave(breakOnlyMode, excludeBreakMode)}
+                disabled={isSaving || isSaved}
+                variant={isSaved ? "secondary" : "default"}
+              >
+                {isSaving ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : isSaved ? (
+                  <CheckCircle2 className="mr-2 h-4 w-4 text-green-600" />
+                ) : (
+                  <Save className="mr-2 h-4 w-4" />
+                )}
+                {isSaved ? "Record Created" : "Create Record"}
+              </Button>
+            )}
+            {hasLaborReport && onDownloadUnifiedPdf ? (
+              <Button
+                onClick={() => onDownloadUnifiedPdf(breakOnlyMode, excludeBreakMode)}
+                disabled={isDownloadingPdf}
+              >
+                <Printer className="mr-2 h-4 w-4" />
+                {isDownloadingPdf ? "Generando…" : "Print / Save as PDF"}
+              </Button>
+            ) : (
+              <Button onClick={handlePrint}>
+                <Printer className="mr-2 h-4 w-4" />
+                Print / Save as PDF
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="invoice-break-only"
+              checked={breakOnlyMode}
+              onCheckedChange={(checked) => {
+                const value = checked === true;
+                setBreakOnlyMode(value);
+                if (value) setExcludeBreakMode(false);
+              }}
+            />
+            <label
+              htmlFor="invoice-break-only"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
             >
-              {isSaving ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : isSaved ? (
-                <CheckCircle2 className="mr-2 h-4 w-4 text-green-600" />
-              ) : (
-                <Save className="mr-2 h-4 w-4" />
-              )}
-              {isSaved ? "Record Created" : "Create Record"}
-            </Button>
-          )}
-          {hasLaborReport && onDownloadUnifiedPdf ? (
-            <Button onClick={onDownloadUnifiedPdf} disabled={isDownloadingPdf}>
-              <Printer className="mr-2 h-4 w-4" />
-              {isDownloadingPdf ? "Generando…" : "Print / Save as PDF"}
-            </Button>
-          ) : (
-            <Button onClick={handlePrint}>
-              <Printer className="mr-2 h-4 w-4" />
-              Print / Save as PDF
-            </Button>
-          )}
+              Bill Break Only (nothing else)
+            </label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="invoice-exclude-break"
+              checked={excludeBreakMode}
+              onCheckedChange={(checked) => {
+                const value = checked === true;
+                setExcludeBreakMode(value);
+                if (value) setBreakOnlyMode(false);
+              }}
+            />
+            <label
+              htmlFor="invoice-exclude-break"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              Exclude Break (billed separately)
+            </label>
+          </div>
         </div>
       </div>
 
@@ -773,12 +834,12 @@ export function InvoiceReportDisplay({
             </tbody>
           </table>
 
-          {(report.weeklyHoursByTask ?? []).length > 0 && (
+          {(effectiveReport.weeklyHoursByTask ?? []).length > 0 && (
             <div style={{ marginTop: "16px", fontSize: "12px" }}>
               <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
                 Total Hours Worked per Week
               </div>
-              {(report.weeklyHoursByTask ?? []).map((week, wIdx) => (
+              {(effectiveReport.weeklyHoursByTask ?? []).map((week, wIdx) => (
                 <div key={wIdx} style={{ marginBottom: "8px" }}>
                   <div style={{ fontWeight: "bold", color: "#374151" }}>
                     {parseLocalDate(week.from).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}

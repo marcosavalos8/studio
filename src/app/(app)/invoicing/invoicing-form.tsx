@@ -36,6 +36,7 @@ import {
 } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { type DetailedInvoiceData } from "./page";
+import { applyInvoiceBreakMode } from "./invoice-break-mode";
 import { type DetailedLabelReportData } from "../labor-report/page";
 import { InvoiceReportDisplay } from "./report-display";
 import { generatePayrollReport } from "@/ai/flows/generate-payroll-report";
@@ -90,10 +91,6 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
     React.useState<DetailedLabelReportData | null>(null);
   const [includeLaborReport, setIncludeLaborReport] = React.useState(false);
   const [includeWorkerColumns, setIncludeWorkerColumns] = React.useState(false);
-  // Mutually exclusive: checking one clears the other. Both unchecked (the
-  // default) keeps the invoice exactly as it's always been.
-  const [breakOnlyMode, setBreakOnlyMode] = React.useState(false);
-  const [excludeBreakMode, setExcludeBreakMode] = React.useState(false);
   // Defaults to the new design since it's used far more often than the old one.
   const [laborReportNewDesign, setLaborReportNewDesign] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -652,31 +649,6 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         return acc + (overtimeForThisClientByEmployee.get(emp.employeeId)?.hours || 0);
       }, 0);
 
-      // "Bill Break Only" / "Exclude Break" (mutually exclusive, optional):
-      // adjust what's billed on the CLIENT-FACING invoice only. The Labor
-      // Report attachment (finalLaborReportData, below) keeps using the
-      // original, unadjusted totals — it's an internal payroll document,
-      // not what the client is actually billed. When neither checkbox is
-      // on, every "invoice*" value below is identical to its raw source.
-      const invoiceDailyBreakdown = breakOnlyMode ? {} : dailyBreakdown;
-      const invoiceWeeklyHoursByTask = breakOnlyMode ? [] : weeklyHoursByTask;
-      const invoiceOvertimeLines = breakOnlyMode ? [] : overtimeLines;
-      const invoiceLaborCost = breakOnlyMode ? 0 : laborCost;
-      const invoiceMinimumWageTopUp = breakOnlyMode ? 0 : totalTopUp;
-      const invoiceOvertimePremium = breakOnlyMode ? 0 : totalOvertimePremium;
-      const invoiceOvertimeHours = breakOnlyMode ? 0 : totalOvertimeHours;
-      const invoicePaidRestBreaks = excludeBreakMode ? 0 : totalRestBreaks;
-      const invoiceBreakHours = excludeBreakMode ? 0 : totalBreakHours;
-      const invoiceSubtotal =
-        invoiceLaborCost +
-        invoiceMinimumWageTopUp +
-        invoicePaidRestBreaks +
-        invoiceOvertimePremium;
-      const invoiceCommission = clientData.commissionRate
-        ? invoiceSubtotal * (clientData.commissionRate / 100)
-        : 0;
-      const invoiceTotal = invoiceSubtotal + invoiceCommission;
-
       // Build employee details for the optional second page
       const employeeDetails = filteredSummaries.map((emp) => {
         const employee = allEmployees.find((e) => e.id === emp.employeeId);
@@ -834,18 +806,18 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         },
         invoiceNumber,
         invoiceDate: format(new Date(), "MM/dd/yyyy"),
-        dailyBreakdown: invoiceDailyBreakdown,
-        weeklyHoursByTask: invoiceWeeklyHoursByTask,
-        overtimeLines: invoiceOvertimeLines,
-        laborCost: invoiceLaborCost,
-        minimumWageTopUp: invoiceMinimumWageTopUp,
-        paidRestBreaks: invoicePaidRestBreaks,
-        breakHours: invoiceBreakHours,
-        overtimePremium: invoiceOvertimePremium,
-        overtimeHours: invoiceOvertimeHours,
-        subtotal: invoiceSubtotal,
-        commission: invoiceCommission,
-        total: invoiceTotal,
+        dailyBreakdown,
+        weeklyHoursByTask,
+        overtimeLines,
+        laborCost,
+        minimumWageTopUp: totalTopUp,
+        paidRestBreaks: totalRestBreaks,
+        breakHours: totalBreakHours,
+        overtimePremium: totalOvertimePremium,
+        overtimeHours: totalOvertimeHours,
+        subtotal,
+        commission,
+        total,
         employeeDetails,
         includeWorkerColumns,
       };
@@ -1061,21 +1033,21 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         clientEmail: clientData.email || null,
         dateFrom: format(startDate, "yyyy-MM-dd"),
         dateTo: format(endDate, "yyyy-MM-dd"),
-        laborCost: invoiceLaborCost,
-        minimumWageTopUp: invoiceMinimumWageTopUp,
-        paidRestBreaks: invoicePaidRestBreaks,
-        breakHours: invoiceBreakHours,
-        overtimePremium: invoiceOvertimePremium,
-        overtimeHours: invoiceOvertimeHours,
-        subtotal: invoiceSubtotal,
-        commission: invoiceCommission,
-        total: invoiceTotal,
+        laborCost,
+        minimumWageTopUp: totalTopUp,
+        paidRestBreaks: totalRestBreaks,
+        breakHours: totalBreakHours,
+        overtimePremium: totalOvertimePremium,
+        overtimeHours: totalOvertimeHours,
+        subtotal,
+        commission,
+        total,
         status: "pending",
         sentAt: null,
         paidAt: null,
         emailSentCount: 0,
-        dailyBreakdown: invoiceDailyBreakdown,
-        weeklyHoursByTask: invoiceWeeklyHoursByTask,
+        dailyBreakdown,
+        weeklyHoursByTask,
         employeeDetails,
         invoiceClientData: {
           name: clientData.name,
@@ -1089,7 +1061,7 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
         includeLaborReport,
         laborReportNewDesign,
         laborReportEmployeeDetails: finalLaborReportData?.employeeDetails ?? null,
-        overtimeLines: invoiceOvertimeLines,
+        overtimeLines,
         includeWorkerColumns,
       };
 
@@ -1110,12 +1082,21 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
     }
   };
 
-  const handleSaveInvoice = async () => {
+  const handleSaveInvoice = async (
+    breakOnlyMode: boolean,
+    excludeBreakMode: boolean,
+  ) => {
     if (!firestore || !pendingFirestorePayload) return;
     setIsSaving(true);
     try {
+      const payloadToSave = applyInvoiceBreakMode(
+        pendingFirestorePayload,
+        pendingFirestorePayload.invoiceClientData?.commissionRate,
+        breakOnlyMode,
+        excludeBreakMode,
+      );
       await addDoc(collection(firestore, "invoices"), {
-        ...pendingFirestorePayload,
+        ...payloadToSave,
         createdAt: serverTimestamp(),
       });
       setIsSaved(true);
@@ -1142,9 +1123,21 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
   // instead ask the server for one merged PDF where the invoice pages are
   // generated exactly like always (portrait) and the labor report pages keep
   // their own landscape orientation (same jsPDF generator used for email).
-  const handleDownloadUnifiedPdf = async () => {
+  const handleDownloadUnifiedPdf = async (
+    breakOnlyMode: boolean,
+    excludeBreakMode: boolean,
+  ) => {
     if (!pendingFirestorePayload) return;
     const payload = pendingFirestorePayload;
+    // Only the invoice's own billed totals are adjusted — the Labor Report
+    // block below keeps reading from the original `payload`, since it's an
+    // internal document that always shows the full, unadjusted numbers.
+    const invoicePayload = applyInvoiceBreakMode(
+      payload,
+      payload.invoiceClientData?.commissionRate,
+      breakOnlyMode,
+      excludeBreakMode,
+    );
     setIsDownloadingPdf(true);
     try {
       const res = await fetch("/api/send-invoice", {
@@ -1158,17 +1151,17 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           clientEmail: payload.clientEmail ?? "",
           dateFrom: payload.dateFrom,
           dateTo: payload.dateTo,
-          total: payload.total,
-          minimumWageTopUp: payload.minimumWageTopUp,
-          paidRestBreaks: payload.paidRestBreaks,
-          breakHours: payload.breakHours,
-          overtimePremium: payload.overtimePremium,
-          overtimeHours: payload.overtimeHours,
-          overtimeLines: payload.overtimeLines ?? null,
-          subtotal: payload.subtotal,
-          commission: payload.commission,
-          dailyBreakdown: payload.dailyBreakdown ?? null,
-          weeklyHoursByTask: payload.weeklyHoursByTask ?? [],
+          total: invoicePayload.total,
+          minimumWageTopUp: invoicePayload.minimumWageTopUp,
+          paidRestBreaks: invoicePayload.paidRestBreaks,
+          breakHours: invoicePayload.breakHours,
+          overtimePremium: invoicePayload.overtimePremium,
+          overtimeHours: invoicePayload.overtimeHours,
+          overtimeLines: invoicePayload.overtimeLines ?? null,
+          subtotal: invoicePayload.subtotal,
+          commission: invoicePayload.commission,
+          dailyBreakdown: invoicePayload.dailyBreakdown ?? null,
+          weeklyHoursByTask: invoicePayload.weeklyHoursByTask ?? [],
           invoiceClientData: payload.invoiceClientData ?? null,
           employeeDetails: payload.employeeDetails ?? [],
           includeWorkerColumns: payload.includeWorkerColumns,
@@ -1354,42 +1347,6 @@ export function InvoicingForm({ clients }: InvoicingFormProps) {
           className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
         >
           Add Worker Count &amp; Time In/Out
-        </label>
-      </div>
-
-      <div className="mt-2 flex items-center space-x-2">
-        <Checkbox
-          id="break-only"
-          checked={breakOnlyMode}
-          onCheckedChange={(checked) => {
-            const value = checked === true;
-            setBreakOnlyMode(value);
-            if (value) setExcludeBreakMode(false);
-          }}
-        />
-        <label
-          htmlFor="break-only"
-          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-        >
-          Bill Break Only (nothing else)
-        </label>
-      </div>
-
-      <div className="mt-2 flex items-center space-x-2">
-        <Checkbox
-          id="exclude-break"
-          checked={excludeBreakMode}
-          onCheckedChange={(checked) => {
-            const value = checked === true;
-            setExcludeBreakMode(value);
-            if (value) setBreakOnlyMode(false);
-          }}
-        />
-        <label
-          htmlFor="exclude-break"
-          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-        >
-          Exclude Break (billed separately)
         </label>
       </div>
 
