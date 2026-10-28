@@ -63,6 +63,7 @@ import {
   Trash2,
   Ban,
   FilePlus,
+  Printer,
 } from "lucide-react";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -553,6 +554,95 @@ export function InvoiceManagement() {
       });
     } finally {
       setActionLoading(`email-${invoice.id}`, false);
+    }
+  };
+
+  // ── print / re-download PDF ──
+  // A saved invoice has no limit on how many times it can be printed —
+  // this only ever regenerates the PDF from the invoice's own saved data
+  // (same payload shape as the email send above, just downloaded instead
+  // of emailed) and never writes anything back to Firestore, so there's
+  // nothing here that could make the button stop working after one use.
+  const handlePrintInvoice = async (invoice: SavedInvoice) => {
+    if (!invoice.id) return;
+    setActionLoading(`print-${invoice.id}`, true);
+    try {
+      const dueDate = computeDueDate(invoice);
+      const dueDateStr = dueDate
+        ? `${String(dueDate.getMonth() + 1).padStart(2, "0")}/${String(dueDate.getDate()).padStart(2, "0")}/${dueDate.getFullYear()}`
+        : undefined;
+
+      const res = await fetch("/api/send-invoice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deliveryMode: "download",
+          invoiceNumber: invoice.invoiceNumber,
+          invoiceDate: invoice.invoiceDate,
+          clientName: invoice.clientName,
+          clientEmail: invoice.clientEmail ?? "",
+          dateFrom: invoice.dateFrom,
+          dateTo: invoice.dateTo,
+          total: invoice.total,
+          dueDate: dueDateStr,
+          minimumWageTopUp: invoice.minimumWageTopUp,
+          paidRestBreaks: invoice.paidRestBreaks,
+          breakHours: invoice.breakHours,
+          overtimePremium: invoice.overtimePremium,
+          overtimeHours: invoice.overtimeHours,
+          overtimeLines: invoice.overtimeLines ?? null,
+          subtotal: invoice.subtotal,
+          commission: invoice.commission,
+          overdueInterestAccrued: invoice.overdueInterestAccrued ?? 0,
+          dailyBreakdown: invoice.dailyBreakdown ?? null,
+          weeklyHoursByTask: invoice.weeklyHoursByTask ?? [],
+          invoiceClientData: invoice.invoiceClientData ?? null,
+          employeeDetails: invoice.employeeDetails ?? [],
+          includeWorkerColumns: invoice.includeWorkerColumns ?? false,
+          includeLaborReport: invoice.includeLaborReport ?? false,
+          laborReportNewDesign: invoice.laborReportNewDesign ?? false,
+          laborReportData: invoice.includeLaborReport
+            ? {
+                clientName: invoice.clientName,
+                dateFrom: invoice.dateFrom,
+                dateTo: invoice.dateTo,
+                minimumWage:
+                  invoice.invoiceClientData?.minimumWage ?? undefined,
+                paidRestBreaks: invoice.paidRestBreaks,
+                minimumWageTopUp: invoice.minimumWageTopUp,
+                overtimePremium: invoice.overtimePremium ?? 0,
+                subtotal: invoice.subtotal,
+                commission: invoice.commission,
+                total: invoice.total,
+                employeeDetails: invoice.laborReportEmployeeDetails ?? [],
+              }
+            : null,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(
+          (data as { error?: string }).error || "Error generating PDF",
+        );
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Invoice_${invoice.invoiceNumber}_${invoice.clientName.replace(/\s+/g, "_")}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Error generating invoice PDF:", err);
+      toast({
+        variant: "destructive",
+        title: "Could not generate PDF",
+        description: "Please try again.",
+      });
+    } finally {
+      setActionLoading(`print-${invoice.id}`, false);
     }
   };
 
@@ -1062,6 +1152,21 @@ export function InvoiceManagement() {
                             <Mail className="h-3 w-3 mr-1" />
                           )}
                           Send
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handlePrintInvoice(invoice)}
+                          disabled={isActing}
+                          className="whitespace-nowrap"
+                          title="Print / Save as PDF"
+                        >
+                          {loadingActions[`print-${id}`] ? (
+                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                          ) : (
+                            <Printer className="h-3 w-3 mr-1" />
+                          )}
+                          Print
                         </Button>
                         {!isPaid && (
                           <Button
