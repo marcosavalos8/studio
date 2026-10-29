@@ -82,6 +82,7 @@ import { Switch } from "@/components/ui/switch";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { useFirestore } from "@/firebase";
 import { useCollection } from "@/firebase/firestore/use-collection";
+import type { WithId } from "@/firebase/firestore/use-collection";
 import {
   collection,
   query,
@@ -350,6 +351,20 @@ function TimeTrackingPage() {
   const [bulkClockInDate, setBulkClockInDate] = useState<Date | undefined>(
     undefined,
   );
+
+  // Bulk lunch in
+  const [isBulkLunchingIn, setIsBulkLunchingIn] = useState(false);
+  const [selectedBulkLunchInTask, setSelectedBulkLunchInTask] =
+    useState<string>("");
+  const [selectedBulkLunchInEmployees, setSelectedBulkLunchInEmployees] =
+    useState<Set<string>>(new Set());
+
+  // Bulk lunch out
+  const [isBulkLunchingOut, setIsBulkLunchingOut] = useState(false);
+  const [selectedBulkLunchOutTask, setSelectedBulkLunchOutTask] =
+    useState<string>("");
+  const [selectedBulkLunchOutEmployees, setSelectedBulkLunchOutEmployees] =
+    useState<Set<string>>(new Set());
 
   // Load persisted selections from sessionStorage on mount
   const [selectedClient, setSelectedClient] = useState<string>(() => {
@@ -1097,6 +1112,65 @@ function TimeTrackingPage() {
       return bTime.getTime() - aTime.getTime();
     });
   }, [activeTimeEntriesRaw]);
+
+  // Employees currently clocked into the selected Lunch In task who have no
+  // recorded lunchStart yet for that open entry. This naturally shrinks to
+  // only the stragglers after a first round of Lunch In has been recorded.
+  const bulkLunchInCandidates = useMemo(() => {
+    if (!selectedBulkLunchInTask || !activeTimeEntries || !activeEmployees) {
+      return [];
+    }
+    const openEntries = activeTimeEntries.filter(
+      (entry) =>
+        entry.taskId === selectedBulkLunchInTask && !entry.lunchStart,
+    );
+    return openEntries
+      .map((entry) => activeEmployees.find((e) => e.id === entry.employeeId))
+      .filter((e): e is WithId<Employee> => !!e);
+  }, [selectedBulkLunchInTask, activeTimeEntries, activeEmployees]);
+
+  // Employees currently "on lunch" (lunchStart set, lunchEnd not yet set)
+  // for the selected Lunch Out task.
+  const bulkLunchOutCandidates = useMemo(() => {
+    if (!selectedBulkLunchOutTask || !activeTimeEntries || !activeEmployees) {
+      return [];
+    }
+    const onLunchEntries = activeTimeEntries.filter(
+      (entry) =>
+        entry.taskId === selectedBulkLunchOutTask &&
+        entry.lunchStart &&
+        !entry.lunchEnd,
+    );
+    return onLunchEntries
+      .map((entry) => activeEmployees.find((e) => e.id === entry.employeeId))
+      .filter((e): e is WithId<Employee> => !!e);
+  }, [selectedBulkLunchOutTask, activeTimeEntries, activeEmployees]);
+
+  // Re-select all current candidates by default whenever the actual set of
+  // candidates changes (task switched, or some dropped out after a round of
+  // Lunch In/Out) — but not on unrelated Firestore churn, so a supervisor's
+  // manual deselections (exceptions) aren't reset mid-session.
+  const bulkLunchInCandidateKey = bulkLunchInCandidates
+    .map((e) => e.id)
+    .sort()
+    .join(",");
+  useEffect(() => {
+    setSelectedBulkLunchInEmployees(
+      new Set(bulkLunchInCandidates.map((e) => e.id)),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bulkLunchInCandidateKey]);
+
+  const bulkLunchOutCandidateKey = bulkLunchOutCandidates
+    .map((e) => e.id)
+    .sort()
+    .join(",");
+  useEffect(() => {
+    setSelectedBulkLunchOutEmployees(
+      new Set(bulkLunchOutCandidates.map((e) => e.id)),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bulkLunchOutCandidateKey]);
 
   // Find active piecework task - check if user has any active time entry with a piecework task
   const activePieceworkTask = useMemo(() => {
@@ -2060,8 +2134,13 @@ function TimeTrackingPage() {
                 (clockOutTime.getTime() - clockInTime.getTime()) /
                 (1000 * 60 * 60);
 
-              // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (0.5 hours) unpaid meal break
-              if (hoursWorked > 5) {
+              // Apply meal break deduction: always exactly 30 minutes when
+              // a real lunch was recorded for this entry (via Lunch In,
+              // regardless of worked hours), falling back to the old
+              // "over 5 hours -> assume a 30 min break" heuristic only
+              // when no lunch was ever recorded for it — keeps this in
+              // sync with the same logic in generate-payroll-report.ts.
+              if (entry.lunchStart || hoursWorked > 5) {
                 hoursWorked -= 0.5; // Deduct 30 minutes (0.5 hours)
               }
 
@@ -2403,8 +2482,12 @@ function TimeTrackingPage() {
           (roundedClockOutTime.getTime() - roundedClockInTime.getTime()) /
           (1000 * 60 * 60);
 
-        // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (0.5 hours) unpaid meal break
-        if (hoursWorked > 5) {
+        // Apply meal break deduction: always exactly 30 minutes when a
+        // real lunch was recorded for this entry, falling back to the old
+        // "over 5 hours -> assume a 30 min break" heuristic only when no
+        // lunch was ever recorded for it — kept in sync with the same
+        // logic in generate-payroll-report.ts and clockOutEmployee.
+        if (newTimeEntry.lunchStart || hoursWorked > 5) {
           hoursWorked -= 0.5; // Deduct 30 minutes (0.5 hours)
         }
 
@@ -3782,6 +3865,154 @@ function TimeTrackingPage() {
       }
     } finally {
       setIsBulkClockingIn(false);
+    }
+  };
+
+  const handleBulkLunchIn = async () => {
+    if (
+      !firestore ||
+      !selectedBulkLunchInTask ||
+      selectedBulkLunchInEmployees.size === 0
+    ) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select a task and at least one employee.",
+      });
+      return;
+    }
+    setIsBulkLunchingIn(true);
+
+    try {
+      const lunchStartTimestamp = roundToNearestQuarterHour(new Date());
+      const batch = writeBatch(firestore);
+
+      const entriesToUpdate = (activeTimeEntries || []).filter(
+        (entry) =>
+          entry.taskId === selectedBulkLunchInTask &&
+          selectedBulkLunchInEmployees.has(entry.employeeId),
+      );
+
+      entriesToUpdate.forEach((entry) => {
+        batch.update(doc(firestore, "time_entries", entry.id), {
+          lunchStart: lunchStartTimestamp,
+        });
+      });
+
+      // ✅ OFFLINE: mostrar toast y terminar UI sin esperar
+      if (!isOnline) {
+        batch.commit().catch((err) => {
+          console.warn("Bulk lunch in queued for sync:", err);
+        });
+
+        toast({
+          title: "Lunch In Queued",
+          description: addOfflineIndicator(
+            `Lunch in queued for ${entriesToUpdate.length} employee(s).`,
+            isOnline,
+          ),
+        });
+
+        setIsBulkLunchingIn(false);
+        return;
+      }
+
+      await batch.commit();
+
+      toast({
+        title: "Lunch In Recorded",
+        description: addOfflineIndicator(
+          `Lunch started for ${entriesToUpdate.length} employee(s).`,
+          isOnline,
+        ),
+      });
+    } catch (serverError) {
+      if (isOnline) {
+        const permissionError = new FirestorePermissionError({
+          path: "time_entries",
+          operation: "update",
+          requestResourceData: {
+            message: `Bulk lunch in for ${selectedBulkLunchInEmployees.size} employees`,
+          },
+        });
+        errorEmitter.emit("permission-error", permissionError);
+      }
+    } finally {
+      setIsBulkLunchingIn(false);
+    }
+  };
+
+  const handleBulkLunchOut = async () => {
+    if (
+      !firestore ||
+      !selectedBulkLunchOutTask ||
+      selectedBulkLunchOutEmployees.size === 0
+    ) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select a task and at least one employee.",
+      });
+      return;
+    }
+    setIsBulkLunchingOut(true);
+
+    try {
+      const lunchEndTimestamp = roundToNearestQuarterHour(new Date());
+      const batch = writeBatch(firestore);
+
+      const entriesToUpdate = (activeTimeEntries || []).filter(
+        (entry) =>
+          entry.taskId === selectedBulkLunchOutTask &&
+          selectedBulkLunchOutEmployees.has(entry.employeeId),
+      );
+
+      entriesToUpdate.forEach((entry) => {
+        batch.update(doc(firestore, "time_entries", entry.id), {
+          lunchEnd: lunchEndTimestamp,
+        });
+      });
+
+      // ✅ OFFLINE: mostrar toast y terminar UI sin esperar
+      if (!isOnline) {
+        batch.commit().catch((err) => {
+          console.warn("Bulk lunch out queued for sync:", err);
+        });
+
+        toast({
+          title: "Lunch Out Queued",
+          description: addOfflineIndicator(
+            `Lunch out queued for ${entriesToUpdate.length} employee(s).`,
+            isOnline,
+          ),
+        });
+
+        setIsBulkLunchingOut(false);
+        return;
+      }
+
+      await batch.commit();
+
+      toast({
+        title: "Lunch Out Recorded",
+        description: addOfflineIndicator(
+          `Lunch ended for ${entriesToUpdate.length} employee(s).`,
+          isOnline,
+        ),
+      });
+    } catch (serverError) {
+      if (isOnline) {
+        const permissionError = new FirestorePermissionError({
+          path: "time_entries",
+          operation: "update",
+          requestResourceData: {
+            message: `Bulk lunch out for ${selectedBulkLunchOutEmployees.size} employees`,
+          },
+        });
+        errorEmitter.emit("permission-error", permissionError);
+      }
+    } finally {
+      setIsBulkLunchingOut(false);
     }
   };
 
@@ -6081,6 +6312,247 @@ function TimeTrackingPage() {
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Clock Out All
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle>Lunch In</CardTitle>
+              <CardDescription>
+                Record the start of the unpaid meal break for employees
+                currently clocked into a task.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="bulk-lunch-in-task-select">Task</Label>
+                <Select
+                  value={selectedBulkLunchInTask}
+                  onValueChange={setSelectedBulkLunchInTask}
+                >
+                  <SelectTrigger id="bulk-lunch-in-task-select">
+                    <SelectValue placeholder="Select a task" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allTasks
+                      ?.filter((t) => t.status === "Active")
+                      .map((task) => (
+                        <SelectItem key={task.id} value={task.id}>
+                          {task.name} (
+                          {clients?.find((c) => c.id === task.clientId)?.name})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {selectedBulkLunchInTask && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="font-semibold">Select Employees</Label>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="select-all-bulk-lunch-in"
+                        checked={
+                          bulkLunchInCandidates.length > 0 &&
+                          selectedBulkLunchInEmployees.size ===
+                            bulkLunchInCandidates.length
+                        }
+                        onCheckedChange={(checked: boolean) => {
+                          if (checked) {
+                            setSelectedBulkLunchInEmployees(
+                              new Set(bulkLunchInCandidates.map((e) => e.id)),
+                            );
+                          } else {
+                            setSelectedBulkLunchInEmployees(new Set());
+                          }
+                        }}
+                      />
+                      <Label
+                        htmlFor="select-all-bulk-lunch-in"
+                        className="text-sm font-medium"
+                      >
+                        Select All
+                      </Label>
+                    </div>
+                  </div>
+                  {bulkLunchInCandidates.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Everyone currently clocked into this task already has a
+                      lunch recorded.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 border rounded-md p-4 max-h-60 overflow-y-auto">
+                      {bulkLunchInCandidates.map((employee) => (
+                        <div
+                          key={employee.id}
+                          className="flex items-center space-x-2"
+                        >
+                          <Checkbox
+                            id={`bulk-lunch-in-${employee.id}`}
+                            checked={selectedBulkLunchInEmployees.has(
+                              employee.id,
+                            )}
+                            onCheckedChange={(checked: boolean) => {
+                              setSelectedBulkLunchInEmployees((prev) => {
+                                const newSet = new Set(prev);
+                                if (checked) {
+                                  newSet.add(employee.id);
+                                } else {
+                                  newSet.delete(employee.id);
+                                }
+                                return newSet;
+                              });
+                            }}
+                          />
+                          <Label
+                            htmlFor={`bulk-lunch-in-${employee.id}`}
+                            className="text-sm font-normal"
+                          >
+                            {employee.name}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              <Button
+                className="w-full"
+                onClick={handleBulkLunchIn}
+                disabled={
+                  isBulkLunchingIn ||
+                  !selectedBulkLunchInTask ||
+                  selectedBulkLunchInEmployees.size === 0
+                }
+              >
+                {isBulkLunchingIn && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Lunch In{" "}
+                {selectedBulkLunchInEmployees.size > 0
+                  ? selectedBulkLunchInEmployees.size
+                  : ""}{" "}
+                Employees
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle>Lunch Out</CardTitle>
+              <CardDescription>
+                Record the return from the unpaid meal break for employees
+                currently on lunch for a task.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="bulk-lunch-out-task-select">Task</Label>
+                <Select
+                  value={selectedBulkLunchOutTask}
+                  onValueChange={setSelectedBulkLunchOutTask}
+                >
+                  <SelectTrigger id="bulk-lunch-out-task-select">
+                    <SelectValue placeholder="Select a task" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allTasks
+                      ?.filter((t) => t.status === "Active")
+                      .map((task) => (
+                        <SelectItem key={task.id} value={task.id}>
+                          {task.name} (
+                          {clients?.find((c) => c.id === task.clientId)?.name})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {selectedBulkLunchOutTask && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="font-semibold">Select Employees</Label>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="select-all-bulk-lunch-out"
+                        checked={
+                          bulkLunchOutCandidates.length > 0 &&
+                          selectedBulkLunchOutEmployees.size ===
+                            bulkLunchOutCandidates.length
+                        }
+                        onCheckedChange={(checked: boolean) => {
+                          if (checked) {
+                            setSelectedBulkLunchOutEmployees(
+                              new Set(bulkLunchOutCandidates.map((e) => e.id)),
+                            );
+                          } else {
+                            setSelectedBulkLunchOutEmployees(new Set());
+                          }
+                        }}
+                      />
+                      <Label
+                        htmlFor="select-all-bulk-lunch-out"
+                        className="text-sm font-medium"
+                      >
+                        Select All
+                      </Label>
+                    </div>
+                  </div>
+                  {bulkLunchOutCandidates.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No one is currently on lunch for this task.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 border rounded-md p-4 max-h-60 overflow-y-auto">
+                      {bulkLunchOutCandidates.map((employee) => (
+                        <div
+                          key={employee.id}
+                          className="flex items-center space-x-2"
+                        >
+                          <Checkbox
+                            id={`bulk-lunch-out-${employee.id}`}
+                            checked={selectedBulkLunchOutEmployees.has(
+                              employee.id,
+                            )}
+                            onCheckedChange={(checked: boolean) => {
+                              setSelectedBulkLunchOutEmployees((prev) => {
+                                const newSet = new Set(prev);
+                                if (checked) {
+                                  newSet.add(employee.id);
+                                } else {
+                                  newSet.delete(employee.id);
+                                }
+                                return newSet;
+                              });
+                            }}
+                          />
+                          <Label
+                            htmlFor={`bulk-lunch-out-${employee.id}`}
+                            className="text-sm font-normal"
+                          >
+                            {employee.name}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              <Button
+                className="w-full"
+                onClick={handleBulkLunchOut}
+                disabled={
+                  isBulkLunchingOut ||
+                  !selectedBulkLunchOutTask ||
+                  selectedBulkLunchOutEmployees.size === 0
+                }
+              >
+                {isBulkLunchingOut && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Lunch Out{" "}
+                {selectedBulkLunchOutEmployees.size > 0
+                  ? selectedBulkLunchOutEmployees.size
+                  : ""}{" "}
+                Employees
               </Button>
             </CardContent>
           </Card>

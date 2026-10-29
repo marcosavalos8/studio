@@ -123,6 +123,16 @@ export type TimeEntry = {
   isSickLeave?: boolean; // Whether this entry uses sick hours
   sickHoursUsed?: number; // Number of sick hours used for this entry
   useSickHoursForPayment?: boolean; // Whether employee wants to use sick hours to pay for this shift
+  // Real clock times for this entry's unpaid meal break, recorded via the
+  // Lunch In / Lunch Out bulk actions (or typed by hand in Past Records /
+  // History's Edit Time Entry). Kept for reference only — payroll always
+  // deducts a flat 30 minutes once lunchStart is set, never the actual
+  // elapsed time between the two. When neither is set, payroll falls back
+  // to the old "worked over 5 hours -> assume 30 min" rule, so a record
+  // nobody has touched with the new Lunch buttons keeps behaving exactly
+  // like it does today.
+  lunchStart?: Date | null;
+  lunchEnd?: Date | null;
 };
 
 export type Piecework = {

@@ -233,8 +233,16 @@ export async function generatePayrollReport({
           // Skip sick leave entries - they don't count as work hours
           if (entry.isSickLeave) return;
 
-          // Apply meal break deduction: After 5 hours worked, deduct 30 minutes (unpaid meal break)
-          if (hours > 5) {
+          // Apply meal break deduction: always exactly 30 minutes, never
+          // the real elapsed time between Lunch In and Lunch Out — a
+          // recorded lunch (entry.lunchStart was set via the Lunch In
+          // bulk action, Past Records, or History's edit dialog) always
+          // triggers it, regardless of how many hours were worked. When
+          // no lunch was ever recorded for this entry, fall back to the
+          // original "worked over 5 hours -> assume a 30 min break"
+          // heuristic, so a record nobody has touched with the new Lunch
+          // tools keeps behaving exactly like it did before this existed.
+          if (entry.lunchStart || hours > 5) {
             hours -= 0.5; // Deduct 30 minutes (0.5 hours)
           }
 
