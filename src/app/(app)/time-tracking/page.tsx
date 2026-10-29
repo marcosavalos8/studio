@@ -75,6 +75,7 @@ import {
   ChevronDown,
   ChevronUp,
   CheckSquare,
+  Printer,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
@@ -596,6 +597,15 @@ function TimeTrackingPage() {
   );
   const [historyNameFilter, setHistoryNameFilter] = useState<string>("");
   const [historyClientFilter, setHistoryClientFilter] = useState<string>("all");
+
+  // Print Daily List (History tab) — fully independent of the filters/
+  // selection above: its own date, its own fetched records, its own
+  // selected-employee set, so it can't affect (or be affected by) the
+  // existing History filtering, bulk-edit, or bulk-delete state above.
+  const [printListDate, setPrintListDate] = useState<Date>(() => new Date());
+  const [selectedPrintEmployeeIds, setSelectedPrintEmployeeIds] = useState<
+    Set<string>
+  >(new Set());
   const shiftHistoryWeek = (direction: 1 | -1) => {
     const base = historyStartDate ?? new Date();
     const shifted = new Date(base.getTime() + direction * 7 * 24 * 60 * 60 * 1000);
@@ -804,6 +814,51 @@ function TimeTrackingPage() {
       return bTime.getTime() - aTime.getTime();
     });
   }, [allPieceworkRaw]);
+
+  // Print Daily List — scoped to just printListDate, completely separate
+  // from the History tab's own date-range queries above (allTimeEntries /
+  // allPiecework), so changing the print-list date never refetches or
+  // affects what History itself is showing.
+  const printListTimeEntriesQuery = useMemo(() => {
+    if (!firestore) return null;
+    return query(
+      collection(firestore, "time_entries"),
+      where("timestamp", ">=", startOfDay(printListDate)),
+      where("timestamp", "<=", endOfDay(printListDate)),
+    );
+  }, [firestore, printListDate]);
+  const { data: printListTimeEntries } = useCollection<TimeEntry>(
+    printListTimeEntriesQuery,
+  );
+
+  const printListPieceworkQuery = useMemo(() => {
+    if (!firestore) return null;
+    return query(
+      collection(firestore, "piecework"),
+      where("timestamp", ">=", startOfDay(printListDate)),
+      where("timestamp", "<=", endOfDay(printListDate)),
+    );
+  }, [firestore, printListDate]);
+  const { data: printListPiecework } = useCollection<Piecework>(
+    printListPieceworkQuery,
+  );
+
+  // Employees who actually have a record on printListDate — the
+  // selectable list for the print button, sorted by name.
+  const printListEmployees = useMemo(() => {
+    const idsWithActivity = new Set<string>();
+    (printListTimeEntries ?? []).forEach((e) => idsWithActivity.add(e.employeeId));
+    (printListPiecework ?? []).forEach((e) => idsWithActivity.add(e.employeeId));
+    return (activeEmployees ?? [])
+      .filter((e) => idsWithActivity.has(e.id))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [printListTimeEntries, printListPiecework, activeEmployees]);
+
+  // Changing the print-list date starts selection fresh, so a worker
+  // checked for one day never silently carries over to a different one.
+  useEffect(() => {
+    setSelectedPrintEmployeeIds(new Set());
+  }, [printListDate]);
 
   // Merged records - combining time entries and piecework for unified history view
   const mergedRecords = useMemo(() => {
@@ -7229,6 +7284,107 @@ function TimeTrackingPage() {
                   >
                     Clear Filters
                   </Button>
+                )}
+              </div>
+
+              {/* Print Daily List — standalone add-on: its own date, its own
+                  query, its own selection. Does not read or write any of the
+                  History filter/selection state above. */}
+              <div className="mb-6 p-4 border rounded-lg space-y-4 bg-muted/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <Printer className="h-4 w-4" />
+                  <Label className="font-semibold">Print Daily List</Label>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="print-list-date">Date</Label>
+                  <Input
+                    id="print-list-date"
+                    type="date"
+                    value={format(printListDate, "yyyy-MM-dd")}
+                    onChange={(e) => {
+                      if (!e.target.value) return;
+                      const [year, month, day] = e.target.value
+                        .split("-")
+                        .map(Number);
+                      setPrintListDate(new Date(year, month - 1, day));
+                    }}
+                    className="max-w-[200px]"
+                  />
+                </div>
+                {printListEmployees.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No workers have records for this date yet.
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <Label>
+                        Select Workers ({selectedPrintEmployeeIds.size} of{" "}
+                        {printListEmployees.length})
+                      </Label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setSelectedPrintEmployeeIds((prev) =>
+                            prev.size === printListEmployees.length
+                              ? new Set()
+                              : new Set(printListEmployees.map((e) => e.id)),
+                          )
+                        }
+                      >
+                        {selectedPrintEmployeeIds.size === printListEmployees.length
+                          ? "Deselect All"
+                          : "Select All"}
+                      </Button>
+                    </div>
+                    <div className="max-h-56 overflow-y-auto space-y-1 border rounded-md p-2 bg-background">
+                      {printListEmployees.map((employee) => (
+                        <label
+                          key={employee.id}
+                          className="flex items-center gap-2 p-1.5 rounded hover:bg-accent/50 cursor-pointer"
+                        >
+                          <Checkbox
+                            checked={selectedPrintEmployeeIds.has(employee.id)}
+                            onCheckedChange={(checked) => {
+                              setSelectedPrintEmployeeIds((prev) => {
+                                const next = new Set(prev);
+                                if (checked) next.add(employee.id);
+                                else next.delete(employee.id);
+                                return next;
+                              });
+                            }}
+                          />
+                          <span className="text-sm">
+                            {employee.name}
+                            {employee.employeeNumber && (
+                              <span className="text-xs text-muted-foreground ml-1">
+                                ({employee.employeeNumber})
+                              </span>
+                            )}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <Button
+                      size="sm"
+                      disabled={selectedPrintEmployeeIds.size === 0}
+                      onClick={() => {
+                        const idsParam = Array.from(selectedPrintEmployeeIds).join(
+                          ",",
+                        );
+                        const dateParam = format(printListDate, "yyyy-MM-dd");
+                        window.open(
+                          `/time-tracking/print-daily-list?ids=${idsParam}&date=${dateParam}`,
+                          "_blank",
+                          "noopener,noreferrer",
+                        );
+                      }}
+                    >
+                      <Printer className="h-4 w-4 mr-2" />
+                      Print List ({selectedPrintEmployeeIds.size})
+                    </Button>
+                  </>
                 )}
               </div>
 
