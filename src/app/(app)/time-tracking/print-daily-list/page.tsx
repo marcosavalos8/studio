@@ -26,6 +26,13 @@ type DailyRow = {
   end: Date | null;
   hours: number | null;
   pieces: number;
+  // Only true when this worker's own raw span (End − Start, before any
+  // lunch deduction) is over 5 hours — same threshold as the "after 5
+  // hours, a break applies" rule elsewhere. A short day (e.g. 2.5 hours)
+  // couldn't plausibly have included the crew's shared lunch, so the
+  // Lunch In/Out columns stay blank for that row instead of showing a
+  // lunch time that didn't apply to them.
+  lunchApplies: boolean;
 };
 
 type PrintGroup = {
@@ -191,7 +198,14 @@ export default function PrintDailyListPage() {
         // hidden/assumed deduction), and Pieces.
         const map = new Map<string, DailyRow>();
         employees.forEach((employee) => {
-          map.set(employee.id, { employee, start: null, end: null, hours: null, pieces: 0 });
+          map.set(employee.id, {
+            employee,
+            start: null,
+            end: null,
+            hours: null,
+            pieces: 0,
+            lunchApplies: false,
+          });
         });
 
         const taskIdsSeen: string[] = [];
@@ -222,23 +236,30 @@ export default function PrintDailyListPage() {
         });
 
         // When this group's Lunch In/Out was entered, subtract it from the
-        // raw End − Start span so Hours reads as net worked time — only
-        // when that lunch window actually falls inside the worker's own
-        // Start–End span, so entering a lunch time can never push a short
-        // day's hours negative.
+        // raw End − Start span so Hours reads as net worked time — but
+        // only for a worker whose own raw span is over 5 hours (same
+        // threshold as the "after 5 hours, a break applies" rule). A
+        // worker who only clocked 2.5 hours couldn't plausibly have taken
+        // the crew's lunch, so their Lunch In/Out columns stay blank and
+        // their Hours stays the full raw span, not force-subtracted.
         map.forEach((row) => {
           if (row.start && row.end) {
-            let ms = row.end.getTime() - row.start.getTime();
-            const lunchStart = parseClockTime(group.lunchIn, selectedDate);
-            const lunchEnd = parseClockTime(group.lunchOut, selectedDate);
-            if (
-              lunchStart &&
-              lunchEnd &&
-              lunchEnd > lunchStart &&
-              lunchStart >= row.start &&
-              lunchEnd <= row.end
-            ) {
-              ms -= lunchEnd.getTime() - lunchStart.getTime();
+            const rawMs = row.end.getTime() - row.start.getTime();
+            const rawHours = rawMs / (1000 * 60 * 60);
+            let ms = rawMs;
+            if (rawHours > 5) {
+              const lunchStart = parseClockTime(group.lunchIn, selectedDate);
+              const lunchEnd = parseClockTime(group.lunchOut, selectedDate);
+              if (
+                lunchStart &&
+                lunchEnd &&
+                lunchEnd > lunchStart &&
+                lunchStart >= row.start &&
+                lunchEnd <= row.end
+              ) {
+                ms -= lunchEnd.getTime() - lunchStart.getTime();
+                row.lunchApplies = true;
+              }
             }
             row.hours = Math.max(0, ms / (1000 * 60 * 60));
           }
@@ -455,15 +476,19 @@ export default function PrintDailyListPage() {
                           <td className="emp">{emp?.employeeNumber || ""}</td>
                           <td className="name">{emp?.name || ""}</td>
                           <td className="time">{row?.start ? format(row.start, "h:mm a") : ""}</td>
-                          <td className="time">{emp ? group.lunchInDisplay : ""}</td>
-                          <td className="time">{emp ? group.lunchOutDisplay : ""}</td>
+                          <td className="time">
+                            {!emp ? "" : row?.lunchApplies ? group.lunchInDisplay : "-"}
+                          </td>
+                          <td className="time">
+                            {!emp ? "" : row?.lunchApplies ? group.lunchOutDisplay : "-"}
+                          </td>
                           <td className="time">{row?.end ? format(row.end, "h:mm a") : ""}</td>
                           <td className="time">
                             {row?.hours !== null && row?.hours !== undefined
                               ? row.hours.toFixed(2)
                               : ""}
                           </td>
-                          <td className="bins">{row && row.pieces > 0 ? row.pieces : ""}</td>
+                          <td className="bins">{!emp ? "" : row && row.pieces > 0 ? row.pieces : "-"}</td>
                         </tr>
                       );
                     })}
