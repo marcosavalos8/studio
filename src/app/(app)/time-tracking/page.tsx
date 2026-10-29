@@ -7569,23 +7569,33 @@ function TimeTrackingPage() {
                     <Button
                       disabled={!Object.values(printClientChoices).some((c) => c.checked)}
                       onClick={() => {
+                        // One tab, one print job, one page per checked
+                        // client — opening a separate tab per client gets
+                        // every one after the first blocked as a pop-up by
+                        // most browsers, which is what made this feel like
+                        // "print twice." A single tab with multiple
+                        // page-break sections sidesteps that entirely.
                         const dateParam = format(printListDate, "yyyy-MM-dd");
-                        printListClientGroups.forEach((group) => {
-                          const choice = printClientChoices[group.clientId];
-                          if (!choice?.checked) return;
-                          const params = new URLSearchParams({
-                            ids: group.employeeIds.join(","),
-                            date: dateParam,
-                            clientId: group.clientId,
+                        const checkedGroups = printListClientGroups
+                          .filter((group) => printClientChoices[group.clientId]?.checked)
+                          .map((group) => {
+                            const choice = printClientChoices[group.clientId];
+                            return {
+                              clientId: group.clientId,
+                              employeeIds: group.employeeIds,
+                              lunchIn: choice.lunchIn,
+                              lunchOut: choice.lunchOut,
+                            };
                           });
-                          if (choice.lunchIn) params.set("lunchIn", choice.lunchIn);
-                          if (choice.lunchOut) params.set("lunchOut", choice.lunchOut);
-                          window.open(
-                            `/time-tracking/print-daily-list?${params.toString()}`,
-                            "_blank",
-                            "noopener,noreferrer",
-                          );
+                        const params = new URLSearchParams({
+                          date: dateParam,
+                          groups: JSON.stringify(checkedGroups),
                         });
+                        window.open(
+                          `/time-tracking/print-daily-list?${params.toString()}`,
+                          "_blank",
+                          "noopener,noreferrer",
+                        );
                         setPrintClientDialogOpen(false);
                       }}
                     >
