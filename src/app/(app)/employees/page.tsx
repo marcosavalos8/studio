@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -336,6 +337,12 @@ function EmployeesPage() {
 
   return (
     <>
+      <Tabs defaultValue="employees" className="w-full">
+        <TabsList>
+          <TabsTrigger value="employees">Employees</TabsTrigger>
+          <TabsTrigger value="crews">Crews</TabsTrigger>
+        </TabsList>
+        <TabsContent value="employees" className="mt-4">
       <Card>
         <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0">
           <div>
@@ -700,8 +707,10 @@ function EmployeesPage() {
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
 
-      <Card className="mt-4">
+        <TabsContent value="crews" className="mt-4">
+      <Card>
         <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0">
           <div>
             <CardTitle>Crews</CardTitle>
@@ -764,6 +773,8 @@ function EmployeesPage() {
             ))}
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
 
       <AddEmployeeDialog
         isOpen={isAddDialogOpen}
