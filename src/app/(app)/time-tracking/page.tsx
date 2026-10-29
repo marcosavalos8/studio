@@ -87,6 +87,7 @@ import {
   collection,
   query,
   where,
+  orderBy,
   getDocs,
   writeBatch,
   doc,
@@ -102,6 +103,7 @@ import type {
   Piecework,
   Employee,
   Client,
+  Crew,
   SoundSettings,
 } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -307,6 +309,73 @@ async function fetchEmployeeTimeEntriesForDate(
     });
 }
 
+// Shared Client -> Ranch -> Block -> Task cascade logic, used by every
+// independent bulk-action card (Bulk Clock In, Bulk Clock Out, Lunch In,
+// Lunch Out) so each one filters its own Task dropdown down to the
+// client/ranch/block it actually selected, instead of listing every task
+// from every client mixed together.
+function tasksForClientId(allTasks: WithId<Task>[] | null, clientId: string): WithId<Task>[] {
+  if (!allTasks || !clientId) return [];
+  return allTasks.filter((t) => t.clientId === clientId);
+}
+
+function ranchesForTasks(tasks: WithId<Task>[]): string[] {
+  return [...new Set(tasks.map((t) => t.ranch).filter(Boolean))] as string[];
+}
+
+function blocksForTasks(tasks: WithId<Task>[], ranch: string): string[] {
+  if (!ranch) return [];
+  return [
+    ...new Set(
+      tasks
+        .filter((t) => t.ranch === ranch)
+        .map((t) => t.block)
+        .filter(Boolean),
+    ),
+  ] as string[];
+}
+
+function filterTasksByRanchBlock(
+  tasks: WithId<Task>[],
+  ranch: string,
+  block: string,
+): WithId<Task>[] {
+  let filtered = tasks;
+  if (ranch) filtered = filtered.filter((t) => t.ranch === ranch);
+  if (block) filtered = filtered.filter((t) => t.block === block);
+  return filtered;
+}
+
+// Further restricts to tasks that currently have at least one active
+// (clocked-in) time entry — used for Bulk Clock Out and Lunch In/Out, since
+// those actions only make sense for a task someone is already on.
+function filterTasksWithActiveEntries(
+  tasks: WithId<Task>[],
+  activeTimeEntries: WithId<TimeEntry>[] | null,
+): WithId<Task>[] {
+  if (!activeTimeEntries) return [];
+  const activeTaskIds = new Set(activeTimeEntries.map((entry) => entry.taskId));
+  return tasks.filter(
+    (task) => task.status === "Active" && activeTaskIds.has(task.id),
+  );
+}
+
+// Name/employee-number search filter for a bulk-action employee checklist —
+// without this, picking 19 people out of 200+ active employees means
+// scrolling the entire company roster.
+function filterEmployeesBySearch<T extends { name: string; employeeNumber?: string }>(
+  employees: T[],
+  search: string,
+): T[] {
+  const q = search.trim().toLowerCase();
+  if (!q) return employees;
+  return employees.filter((e) => {
+    const matchesName = e.name.toLowerCase().includes(q);
+    const matchesNumber = (e.employeeNumber ?? "").toLowerCase().includes(q);
+    return matchesName || matchesNumber;
+  });
+}
+
 function TimeTrackingPage() {
   const { username } = useAuth();
   const [soundSettings, setSoundSettings] = useState<SoundSettings | null>(
@@ -324,6 +393,9 @@ function TimeTrackingPage() {
   const [scannedSharedEmployees, setScannedSharedEmployees] = useState<
     string[]
   >([]);
+  // Transient — resets right after loading a crew's members into the
+  // scanned-employees list, since this Select is a one-shot action.
+  const [qrLoadCrewId, setQrLoadCrewId] = useState("");
 
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
 
@@ -342,10 +414,15 @@ function TimeTrackingPage() {
 
   // Bulk clock in
   const [isBulkClockingIn, setIsBulkClockingIn] = useState(false);
+  const [selectedBulkInClient, setSelectedBulkInClient] = useState<string>("");
+  const [selectedBulkInRanch, setSelectedBulkInRanch] = useState<string>("");
+  const [selectedBulkInBlock, setSelectedBulkInBlock] = useState<string>("");
   const [selectedBulkInTask, setSelectedBulkInTask] = useState<string>("");
   const [selectedBulkInEmployees, setSelectedBulkInEmployees] = useState<
     Set<string>
   >(new Set());
+  const [bulkInEmployeeSearch, setBulkInEmployeeSearch] = useState("");
+  const [selectedBulkInCrewId, setSelectedBulkInCrewId] = useState<string>("");
   const [useBulkClockInManualDateTime, setUseBulkClockInManualDateTime] =
     useState(false);
   const [bulkClockInDate, setBulkClockInDate] = useState<Date | undefined>(
@@ -354,17 +431,37 @@ function TimeTrackingPage() {
 
   // Bulk lunch in
   const [isBulkLunchingIn, setIsBulkLunchingIn] = useState(false);
+  const [selectedBulkLunchInClient, setSelectedBulkLunchInClient] =
+    useState<string>("");
+  const [selectedBulkLunchInRanch, setSelectedBulkLunchInRanch] =
+    useState<string>("");
+  const [selectedBulkLunchInBlock, setSelectedBulkLunchInBlock] =
+    useState<string>("");
   const [selectedBulkLunchInTask, setSelectedBulkLunchInTask] =
     useState<string>("");
   const [selectedBulkLunchInEmployees, setSelectedBulkLunchInEmployees] =
     useState<Set<string>>(new Set());
+  const [bulkLunchInEmployeeSearch, setBulkLunchInEmployeeSearch] =
+    useState("");
+  const [selectedBulkLunchInCrewId, setSelectedBulkLunchInCrewId] =
+    useState<string>("");
 
   // Bulk lunch out
   const [isBulkLunchingOut, setIsBulkLunchingOut] = useState(false);
+  const [selectedBulkLunchOutClient, setSelectedBulkLunchOutClient] =
+    useState<string>("");
+  const [selectedBulkLunchOutRanch, setSelectedBulkLunchOutRanch] =
+    useState<string>("");
+  const [selectedBulkLunchOutBlock, setSelectedBulkLunchOutBlock] =
+    useState<string>("");
   const [selectedBulkLunchOutTask, setSelectedBulkLunchOutTask] =
     useState<string>("");
   const [selectedBulkLunchOutEmployees, setSelectedBulkLunchOutEmployees] =
     useState<Set<string>>(new Set());
+  const [bulkLunchOutEmployeeSearch, setBulkLunchOutEmployeeSearch] =
+    useState("");
+  const [selectedBulkLunchOutCrewId, setSelectedBulkLunchOutCrewId] =
+    useState<string>("");
 
   // Load persisted selections from sessionStorage on mount
   const [selectedClient, setSelectedClient] = useState<string>(() => {
@@ -502,6 +599,10 @@ function TimeTrackingPage() {
     }>
   >([]);
   const [manualAddEmployeeSearch, setManualAddEmployeeSearch] = useState("");
+  // Transient — resets right after loading a crew's members into
+  // manualEmployees, since this Select is a one-shot action, not a
+  // persistent selection.
+  const [manualLoadCrewId, setManualLoadCrewId] = useState("");
   const updateManualEntry = (
     idx: number,
     field: "clockIn" | "clockOut" | "hours" | "lunchIn",
@@ -543,6 +644,46 @@ function TimeTrackingPage() {
         return updated;
       }),
     );
+  };
+  // Appends an entire crew's members (skipping anyone already in the list)
+  // into manualEmployees, pre-filled the same way the "Add employee" search
+  // does. Stays fully editable afterward — this is just a bulk shortcut.
+  const handleLoadCrew = (crewId: string) => {
+    const crew = crews?.find((c) => c.id === crewId);
+    if (crew && activeEmployees) {
+      const alreadyAddedIds = new Set(manualEmployees.map((e) => e.employee.id));
+      const toAdd = crew.employeeIds
+        .filter((id) => !alreadyAddedIds.has(id))
+        .map((id) => activeEmployees.find((e) => e.id === id))
+        .filter((e): e is WithId<Employee> => !!e);
+      if (toAdd.length > 0) {
+        setManualEmployees((prev) => [
+          ...prev,
+          ...toAdd.map((employee) => ({
+            employee,
+            pieces: "" as number | string,
+            clockIn: pastRecordClockInTime,
+            clockOut: "",
+            hours: "",
+            lunchIn: pastRecordLunchInTime,
+            lunchBreak: pastRecordLunchInTime ? true : undefined,
+          })),
+        ]);
+      }
+    }
+    setManualLoadCrewId("");
+  };
+  // Same idea for the QR Scanner's Shared Piece employee list: appends a
+  // crew's members (skipping duplicates) instead of scanning each badge.
+  const handleLoadCrewIntoScanned = (crewId: string) => {
+    const crew = crews?.find((c) => c.id === crewId);
+    if (crew) {
+      setScannedSharedEmployees((prev) => {
+        const existing = new Set(prev);
+        return [...prev, ...crew.employeeIds.filter((id) => !existing.has(id))];
+      });
+    }
+    setQrLoadCrewId("");
   };
   const [showAddEmployeeSearch, setShowAddEmployeeSearch] = useState(false);
   const [focusedAddEmployeeIdx, setFocusedAddEmployeeIdx] = useState(-1);
@@ -838,6 +979,12 @@ function TimeTrackingPage() {
     );
   }, [firestore]);
   const { data: activeEmployees } = useCollection<Employee>(employeesQuery);
+
+  const crewsQuery = useMemo(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, "crews"), orderBy("name"));
+  }, [firestore]);
+  const { data: crews } = useCollection<Crew>(crewsQuery);
 
   // Query for ALL time entries (for history tab) with date filtering
   const allTimeEntriesQuery = useMemo(() => {
@@ -1219,6 +1366,58 @@ function TimeTrackingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bulkLunchOutCandidateKey]);
 
+  // Name/number search filter applied on top of each checklist, purely for
+  // what's displayed — the underlying selection Sets above are untouched.
+  const bulkInSearchFilteredEmployees = useMemo(
+    () => filterEmployeesBySearch(activeEmployees ?? [], bulkInEmployeeSearch),
+    [activeEmployees, bulkInEmployeeSearch],
+  );
+  const bulkLunchInSearchFilteredCandidates = useMemo(
+    () => filterEmployeesBySearch(bulkLunchInCandidates, bulkLunchInEmployeeSearch),
+    [bulkLunchInCandidates, bulkLunchInEmployeeSearch],
+  );
+  const bulkLunchOutSearchFilteredCandidates = useMemo(
+    () =>
+      filterEmployeesBySearch(bulkLunchOutCandidates, bulkLunchOutEmployeeSearch),
+    [bulkLunchOutCandidates, bulkLunchOutEmployeeSearch],
+  );
+
+  // Selecting a crew pre-checks its members in that card's checklist (only
+  // among who the task actually makes eligible); it stays fully editable
+  // afterward since this only runs again if the crew dropdown itself changes.
+  useEffect(() => {
+    if (!selectedBulkInCrewId) return;
+    const crew = crews?.find((c) => c.id === selectedBulkInCrewId);
+    if (!crew || !activeEmployees) return;
+    const eligibleIds = new Set(activeEmployees.map((e) => e.id));
+    setSelectedBulkInEmployees(
+      new Set(crew.employeeIds.filter((id) => eligibleIds.has(id))),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBulkInCrewId]);
+
+  useEffect(() => {
+    if (!selectedBulkLunchInCrewId) return;
+    const crew = crews?.find((c) => c.id === selectedBulkLunchInCrewId);
+    if (!crew) return;
+    const eligibleIds = new Set(bulkLunchInCandidates.map((e) => e.id));
+    setSelectedBulkLunchInEmployees(
+      new Set(crew.employeeIds.filter((id) => eligibleIds.has(id))),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBulkLunchInCrewId]);
+
+  useEffect(() => {
+    if (!selectedBulkLunchOutCrewId) return;
+    const crew = crews?.find((c) => c.id === selectedBulkLunchOutCrewId);
+    if (!crew) return;
+    const eligibleIds = new Set(bulkLunchOutCandidates.map((e) => e.id));
+    setSelectedBulkLunchOutEmployees(
+      new Set(crew.employeeIds.filter((id) => eligibleIds.has(id))),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBulkLunchOutCrewId]);
+
   // Find active piecework task - check if user has any active time entry with a piecework task
   const activePieceworkTask = useMemo(() => {
     if (!activeTimeEntries || !allTasks) return null;
@@ -1406,6 +1605,95 @@ function TimeTrackingPage() {
       (task) => task.status === "Active" && activeTaskIds.has(task.id),
     );
   }, [bulkFilteredTasks, activeTimeEntries]);
+
+  // Bulk Clock In's own independent Client -> Ranch -> Block -> Task
+  // cascade. Unlike clock-out/lunch, clock-in isn't restricted to tasks
+  // that already have someone on them.
+  const bulkInTasksForClient = useMemo(
+    () => tasksForClientId(allTasks, selectedBulkInClient),
+    [allTasks, selectedBulkInClient],
+  );
+  const bulkInRanches = useMemo(
+    () => ranchesForTasks(bulkInTasksForClient),
+    [bulkInTasksForClient],
+  );
+  const bulkInBlocks = useMemo(
+    () => blocksForTasks(bulkInTasksForClient, selectedBulkInRanch),
+    [bulkInTasksForClient, selectedBulkInRanch],
+  );
+  const bulkInFilteredTasks = useMemo(
+    () =>
+      filterTasksByRanchBlock(
+        bulkInTasksForClient,
+        selectedBulkInRanch,
+        selectedBulkInBlock,
+      ),
+    [bulkInTasksForClient, selectedBulkInRanch, selectedBulkInBlock],
+  );
+
+  // Lunch In's own cascade, restricted to tasks with an active clock-in
+  // (lunch only makes sense for a task someone is already on).
+  const bulkLunchInTasksForClient = useMemo(
+    () => tasksForClientId(allTasks, selectedBulkLunchInClient),
+    [allTasks, selectedBulkLunchInClient],
+  );
+  const bulkLunchInRanches = useMemo(
+    () => ranchesForTasks(bulkLunchInTasksForClient),
+    [bulkLunchInTasksForClient],
+  );
+  const bulkLunchInBlocks = useMemo(
+    () => blocksForTasks(bulkLunchInTasksForClient, selectedBulkLunchInRanch),
+    [bulkLunchInTasksForClient, selectedBulkLunchInRanch],
+  );
+  const bulkLunchInFilteredTasks = useMemo(
+    () =>
+      filterTasksWithActiveEntries(
+        filterTasksByRanchBlock(
+          bulkLunchInTasksForClient,
+          selectedBulkLunchInRanch,
+          selectedBulkLunchInBlock,
+        ),
+        activeTimeEntries,
+      ),
+    [
+      bulkLunchInTasksForClient,
+      selectedBulkLunchInRanch,
+      selectedBulkLunchInBlock,
+      activeTimeEntries,
+    ],
+  );
+
+  // Lunch Out's own cascade, same restriction as Lunch In.
+  const bulkLunchOutTasksForClient = useMemo(
+    () => tasksForClientId(allTasks, selectedBulkLunchOutClient),
+    [allTasks, selectedBulkLunchOutClient],
+  );
+  const bulkLunchOutRanches = useMemo(
+    () => ranchesForTasks(bulkLunchOutTasksForClient),
+    [bulkLunchOutTasksForClient],
+  );
+  const bulkLunchOutBlocks = useMemo(
+    () =>
+      blocksForTasks(bulkLunchOutTasksForClient, selectedBulkLunchOutRanch),
+    [bulkLunchOutTasksForClient, selectedBulkLunchOutRanch],
+  );
+  const bulkLunchOutFilteredTasks = useMemo(
+    () =>
+      filterTasksWithActiveEntries(
+        filterTasksByRanchBlock(
+          bulkLunchOutTasksForClient,
+          selectedBulkLunchOutRanch,
+          selectedBulkLunchOutBlock,
+        ),
+        activeTimeEntries,
+      ),
+    [
+      bulkLunchOutTasksForClient,
+      selectedBulkLunchOutRanch,
+      selectedBulkLunchOutBlock,
+      activeTimeEntries,
+    ],
+  );
 
   // Filtered tasks for edit dialog
   const editTasksForClient = useMemo(() => {
@@ -5400,6 +5688,24 @@ function TimeTrackingPage() {
                       <Plus className="h-3 w-3" />
                       Add employee
                     </Button>
+                    {crews && crews.length > 0 && (
+                      <Select
+                        value={manualLoadCrewId}
+                        onValueChange={handleLoadCrew}
+                      >
+                        <SelectTrigger className="h-8 w-auto gap-1 text-sm">
+                          <Users className="h-3 w-3" />
+                          <SelectValue placeholder="Load Crew" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {crews.map((crew) => (
+                            <SelectItem key={crew.id} value={crew.id}>
+                              {crew.name} ({crew.employeeIds.length})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                     {selectedTask &&
                       allTasks?.find((t) => t.id === selectedTask)
                         ?.clientRateType === "piece" && (
@@ -6159,45 +6465,184 @@ function TimeTrackingPage() {
               </div> */}
 
               <div className="space-y-2">
+                <Label htmlFor="bulk-in-client-select">Client</Label>
+                <Select
+                  value={selectedBulkInClient || ""}
+                  onValueChange={(value) => {
+                    setSelectedBulkInClient(
+                      value === CLEAR_SELECTION_VALUE ? "" : value,
+                    );
+                    setSelectedBulkInRanch("");
+                    setSelectedBulkInBlock("");
+                    setSelectedBulkInTask("");
+                    setSelectedBulkInCrewId("");
+                  }}
+                >
+                  <SelectTrigger id="bulk-in-client-select">
+                    <SelectValue placeholder="Select a client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
+                    {clients?.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bulk-in-ranch-select">Ranch (Optional)</Label>
+                <Select
+                  value={selectedBulkInRanch || ""}
+                  onValueChange={(value) => {
+                    setSelectedBulkInRanch(
+                      value === CLEAR_SELECTION_VALUE ? "" : value,
+                    );
+                    setSelectedBulkInBlock("");
+                    setSelectedBulkInTask("");
+                    setSelectedBulkInCrewId("");
+                  }}
+                  disabled={!selectedBulkInClient || bulkInRanches.length === 0}
+                >
+                  <SelectTrigger id="bulk-in-ranch-select">
+                    <SelectValue placeholder="Select a ranch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
+                    {bulkInRanches.map((ranch) => (
+                      <SelectItem key={ranch} value={ranch}>
+                        {ranch}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bulk-in-block-select">Block (Optional)</Label>
+                <Select
+                  value={selectedBulkInBlock || ""}
+                  onValueChange={(value) => {
+                    setSelectedBulkInBlock(
+                      value === CLEAR_SELECTION_VALUE ? "" : value,
+                    );
+                    setSelectedBulkInTask("");
+                    setSelectedBulkInCrewId("");
+                  }}
+                  disabled={!selectedBulkInRanch || bulkInBlocks.length === 0}
+                >
+                  <SelectTrigger id="bulk-in-block-select">
+                    <SelectValue placeholder="Select a block" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
+                    {bulkInBlocks.map((block) => (
+                      <SelectItem key={block} value={block}>
+                        {block}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="bulk-in-task-select">Task</Label>
                 <Select
                   value={selectedBulkInTask}
-                  onValueChange={setSelectedBulkInTask}
+                  onValueChange={(value) => {
+                    setSelectedBulkInTask(value);
+                    setSelectedBulkInCrewId("");
+                  }}
+                  disabled={!selectedBulkInClient}
                 >
                   <SelectTrigger id="bulk-in-task-select">
-                    <SelectValue placeholder="Select a task for bulk clock-in" />
+                    <SelectValue
+                      placeholder={
+                        !selectedBulkInClient
+                          ? "Select a client first to view tasks"
+                          : "Select a task for bulk clock-in"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    {allTasks
-                      ?.filter((t) => t.status === "Active")
-                      .map((task) => (
-                        <SelectItem key={task.id} value={task.id}>
-                          {task.name} (
-                          {clients?.find((c) => c.id === task.clientId)?.name})
-                        </SelectItem>
-                      ))}
+                    {bulkInFilteredTasks.map((task) => (
+                      <SelectItem key={task.id} value={task.id}>
+                        {task.name}
+                        {task.variety && ` (${task.variety})`}
+                        {task.ranch && ` - ${task.ranch}`}
+                        {task.block && ` - ${task.block}`}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               {selectedBulkInTask && activeEmployees && (
                 <div className="space-y-4">
+                  {crews && crews.length > 0 && (
+                    <div className="space-y-2">
+                      <Label htmlFor="bulk-in-crew-select">
+                        Select Crew (optional)
+                      </Label>
+                      <Select
+                        value={selectedBulkInCrewId || ""}
+                        onValueChange={(value) =>
+                          setSelectedBulkInCrewId(
+                            value === CLEAR_SELECTION_VALUE ? "" : value,
+                          )
+                        }
+                      >
+                        <SelectTrigger id="bulk-in-crew-select">
+                          <SelectValue placeholder="Pre-fill from a crew" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={CLEAR_SELECTION_VALUE}>
+                            -- Clear selection --
+                          </SelectItem>
+                          {crews.map((crew) => (
+                            <SelectItem key={crew.id} value={crew.id}>
+                              {crew.name} ({crew.employeeIds.length})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <Input
+                    placeholder="Search by name or employee number..."
+                    value={bulkInEmployeeSearch}
+                    onChange={(e) => setBulkInEmployeeSearch(e.target.value)}
+                  />
                   <div className="flex items-center justify-between">
                     <Label className="font-semibold">Select Employees</Label>
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="select-all-bulk-in"
                         checked={
-                          selectedBulkInEmployees.size ===
-                          activeEmployees.length
+                          bulkInSearchFilteredEmployees.length > 0 &&
+                          bulkInSearchFilteredEmployees.every((e) =>
+                            selectedBulkInEmployees.has(e.id),
+                          )
                         }
                         onCheckedChange={(checked: boolean) => {
-                          if (checked) {
-                            setSelectedBulkInEmployees(
-                              new Set(activeEmployees.map((e) => e.id)),
-                            );
-                          } else {
-                            setSelectedBulkInEmployees(new Set());
-                          }
+                          setSelectedBulkInEmployees((prev) => {
+                            const next = new Set(prev);
+                            bulkInSearchFilteredEmployees.forEach((e) => {
+                              if (checked) {
+                                next.add(e.id);
+                              } else {
+                                next.delete(e.id);
+                              }
+                            });
+                            return next;
+                          });
                         }}
                       />
                       <Label
@@ -6209,7 +6654,7 @@ function TimeTrackingPage() {
                     </div>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2 border rounded-md p-4 max-h-60 overflow-y-auto">
-                    {activeEmployees.map((employee) => (
+                    {bulkInSearchFilteredEmployees.map((employee) => (
                       <div
                         key={employee.id}
                         className="flex items-center space-x-2"
@@ -6237,6 +6682,11 @@ function TimeTrackingPage() {
                         </Label>
                       </div>
                     ))}
+                    {bulkInSearchFilteredEmployees.length === 0 && (
+                      <p className="col-span-2 md:col-span-3 text-sm text-muted-foreground">
+                        No employees found.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -6440,46 +6890,200 @@ function TimeTrackingPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
+                <Label htmlFor="bulk-lunch-in-client-select">Client</Label>
+                <Select
+                  value={selectedBulkLunchInClient || ""}
+                  onValueChange={(value) => {
+                    setSelectedBulkLunchInClient(
+                      value === CLEAR_SELECTION_VALUE ? "" : value,
+                    );
+                    setSelectedBulkLunchInRanch("");
+                    setSelectedBulkLunchInBlock("");
+                    setSelectedBulkLunchInTask("");
+                    setSelectedBulkLunchInCrewId("");
+                  }}
+                >
+                  <SelectTrigger id="bulk-lunch-in-client-select">
+                    <SelectValue placeholder="Select a client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
+                    {clients?.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bulk-lunch-in-ranch-select">
+                  Ranch (Optional)
+                </Label>
+                <Select
+                  value={selectedBulkLunchInRanch || ""}
+                  onValueChange={(value) => {
+                    setSelectedBulkLunchInRanch(
+                      value === CLEAR_SELECTION_VALUE ? "" : value,
+                    );
+                    setSelectedBulkLunchInBlock("");
+                    setSelectedBulkLunchInTask("");
+                    setSelectedBulkLunchInCrewId("");
+                  }}
+                  disabled={
+                    !selectedBulkLunchInClient ||
+                    bulkLunchInRanches.length === 0
+                  }
+                >
+                  <SelectTrigger id="bulk-lunch-in-ranch-select">
+                    <SelectValue placeholder="Select a ranch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
+                    {bulkLunchInRanches.map((ranch) => (
+                      <SelectItem key={ranch} value={ranch}>
+                        {ranch}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bulk-lunch-in-block-select">
+                  Block (Optional)
+                </Label>
+                <Select
+                  value={selectedBulkLunchInBlock || ""}
+                  onValueChange={(value) => {
+                    setSelectedBulkLunchInBlock(
+                      value === CLEAR_SELECTION_VALUE ? "" : value,
+                    );
+                    setSelectedBulkLunchInTask("");
+                    setSelectedBulkLunchInCrewId("");
+                  }}
+                  disabled={
+                    !selectedBulkLunchInRanch ||
+                    bulkLunchInBlocks.length === 0
+                  }
+                >
+                  <SelectTrigger id="bulk-lunch-in-block-select">
+                    <SelectValue placeholder="Select a block" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
+                    {bulkLunchInBlocks.map((block) => (
+                      <SelectItem key={block} value={block}>
+                        {block}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="bulk-lunch-in-task-select">Task</Label>
                 <Select
                   value={selectedBulkLunchInTask}
-                  onValueChange={setSelectedBulkLunchInTask}
+                  onValueChange={(value) => {
+                    setSelectedBulkLunchInTask(value);
+                    setSelectedBulkLunchInCrewId("");
+                  }}
+                  disabled={!selectedBulkLunchInClient}
                 >
                   <SelectTrigger id="bulk-lunch-in-task-select">
-                    <SelectValue placeholder="Select a task" />
+                    <SelectValue
+                      placeholder={
+                        !selectedBulkLunchInClient
+                          ? "Select a client first to view tasks"
+                          : bulkLunchInFilteredTasks.length > 0
+                            ? "Select a task"
+                            : "No active tasks with clock-ins available"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    {allTasks
-                      ?.filter((t) => t.status === "Active")
-                      .map((task) => (
-                        <SelectItem key={task.id} value={task.id}>
-                          {task.name} (
-                          {clients?.find((c) => c.id === task.clientId)?.name})
-                        </SelectItem>
-                      ))}
+                    {bulkLunchInFilteredTasks.map((task) => (
+                      <SelectItem key={task.id} value={task.id}>
+                        {task.name}
+                        {task.variety && ` (${task.variety})`}
+                        {task.ranch && ` - ${task.ranch}`}
+                        {task.block && ` - ${task.block}`}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               {selectedBulkLunchInTask && (
                 <div className="space-y-4">
+                  {crews && crews.length > 0 && (
+                    <div className="space-y-2">
+                      <Label htmlFor="bulk-lunch-in-crew-select">
+                        Select Crew (optional)
+                      </Label>
+                      <Select
+                        value={selectedBulkLunchInCrewId || ""}
+                        onValueChange={(value) =>
+                          setSelectedBulkLunchInCrewId(
+                            value === CLEAR_SELECTION_VALUE ? "" : value,
+                          )
+                        }
+                      >
+                        <SelectTrigger id="bulk-lunch-in-crew-select">
+                          <SelectValue placeholder="Pre-fill from a crew" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={CLEAR_SELECTION_VALUE}>
+                            -- Clear selection --
+                          </SelectItem>
+                          {crews.map((crew) => (
+                            <SelectItem key={crew.id} value={crew.id}>
+                              {crew.name} ({crew.employeeIds.length})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <Input
+                    placeholder="Search by name or employee number..."
+                    value={bulkLunchInEmployeeSearch}
+                    onChange={(e) =>
+                      setBulkLunchInEmployeeSearch(e.target.value)
+                    }
+                  />
                   <div className="flex items-center justify-between">
                     <Label className="font-semibold">Select Employees</Label>
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="select-all-bulk-lunch-in"
                         checked={
-                          bulkLunchInCandidates.length > 0 &&
-                          selectedBulkLunchInEmployees.size ===
-                            bulkLunchInCandidates.length
+                          bulkLunchInSearchFilteredCandidates.length > 0 &&
+                          bulkLunchInSearchFilteredCandidates.every((e) =>
+                            selectedBulkLunchInEmployees.has(e.id),
+                          )
                         }
                         onCheckedChange={(checked: boolean) => {
-                          if (checked) {
-                            setSelectedBulkLunchInEmployees(
-                              new Set(bulkLunchInCandidates.map((e) => e.id)),
+                          setSelectedBulkLunchInEmployees((prev) => {
+                            const next = new Set(prev);
+                            bulkLunchInSearchFilteredCandidates.forEach(
+                              (e) => {
+                                if (checked) {
+                                  next.add(e.id);
+                                } else {
+                                  next.delete(e.id);
+                                }
+                              },
                             );
-                          } else {
-                            setSelectedBulkLunchInEmployees(new Set());
-                          }
+                            return next;
+                          });
                         }}
                       />
                       <Label
@@ -6497,7 +7101,7 @@ function TimeTrackingPage() {
                     </p>
                   ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2 border rounded-md p-4 max-h-60 overflow-y-auto">
-                      {bulkLunchInCandidates.map((employee) => (
+                      {bulkLunchInSearchFilteredCandidates.map((employee) => (
                         <div
                           key={employee.id}
                           className="flex items-center space-x-2"
@@ -6527,6 +7131,11 @@ function TimeTrackingPage() {
                           </Label>
                         </div>
                       ))}
+                      {bulkLunchInSearchFilteredCandidates.length === 0 && (
+                        <p className="col-span-2 md:col-span-3 text-sm text-muted-foreground">
+                          No employees found.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -6561,46 +7170,200 @@ function TimeTrackingPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
+                <Label htmlFor="bulk-lunch-out-client-select">Client</Label>
+                <Select
+                  value={selectedBulkLunchOutClient || ""}
+                  onValueChange={(value) => {
+                    setSelectedBulkLunchOutClient(
+                      value === CLEAR_SELECTION_VALUE ? "" : value,
+                    );
+                    setSelectedBulkLunchOutRanch("");
+                    setSelectedBulkLunchOutBlock("");
+                    setSelectedBulkLunchOutTask("");
+                    setSelectedBulkLunchOutCrewId("");
+                  }}
+                >
+                  <SelectTrigger id="bulk-lunch-out-client-select">
+                    <SelectValue placeholder="Select a client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
+                    {clients?.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bulk-lunch-out-ranch-select">
+                  Ranch (Optional)
+                </Label>
+                <Select
+                  value={selectedBulkLunchOutRanch || ""}
+                  onValueChange={(value) => {
+                    setSelectedBulkLunchOutRanch(
+                      value === CLEAR_SELECTION_VALUE ? "" : value,
+                    );
+                    setSelectedBulkLunchOutBlock("");
+                    setSelectedBulkLunchOutTask("");
+                    setSelectedBulkLunchOutCrewId("");
+                  }}
+                  disabled={
+                    !selectedBulkLunchOutClient ||
+                    bulkLunchOutRanches.length === 0
+                  }
+                >
+                  <SelectTrigger id="bulk-lunch-out-ranch-select">
+                    <SelectValue placeholder="Select a ranch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
+                    {bulkLunchOutRanches.map((ranch) => (
+                      <SelectItem key={ranch} value={ranch}>
+                        {ranch}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bulk-lunch-out-block-select">
+                  Block (Optional)
+                </Label>
+                <Select
+                  value={selectedBulkLunchOutBlock || ""}
+                  onValueChange={(value) => {
+                    setSelectedBulkLunchOutBlock(
+                      value === CLEAR_SELECTION_VALUE ? "" : value,
+                    );
+                    setSelectedBulkLunchOutTask("");
+                    setSelectedBulkLunchOutCrewId("");
+                  }}
+                  disabled={
+                    !selectedBulkLunchOutRanch ||
+                    bulkLunchOutBlocks.length === 0
+                  }
+                >
+                  <SelectTrigger id="bulk-lunch-out-block-select">
+                    <SelectValue placeholder="Select a block" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLEAR_SELECTION_VALUE}>
+                      -- Clear selection --
+                    </SelectItem>
+                    {bulkLunchOutBlocks.map((block) => (
+                      <SelectItem key={block} value={block}>
+                        {block}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="bulk-lunch-out-task-select">Task</Label>
                 <Select
                   value={selectedBulkLunchOutTask}
-                  onValueChange={setSelectedBulkLunchOutTask}
+                  onValueChange={(value) => {
+                    setSelectedBulkLunchOutTask(value);
+                    setSelectedBulkLunchOutCrewId("");
+                  }}
+                  disabled={!selectedBulkLunchOutClient}
                 >
                   <SelectTrigger id="bulk-lunch-out-task-select">
-                    <SelectValue placeholder="Select a task" />
+                    <SelectValue
+                      placeholder={
+                        !selectedBulkLunchOutClient
+                          ? "Select a client first to view tasks"
+                          : bulkLunchOutFilteredTasks.length > 0
+                            ? "Select a task"
+                            : "No active tasks with clock-ins available"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    {allTasks
-                      ?.filter((t) => t.status === "Active")
-                      .map((task) => (
-                        <SelectItem key={task.id} value={task.id}>
-                          {task.name} (
-                          {clients?.find((c) => c.id === task.clientId)?.name})
-                        </SelectItem>
-                      ))}
+                    {bulkLunchOutFilteredTasks.map((task) => (
+                      <SelectItem key={task.id} value={task.id}>
+                        {task.name}
+                        {task.variety && ` (${task.variety})`}
+                        {task.ranch && ` - ${task.ranch}`}
+                        {task.block && ` - ${task.block}`}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               {selectedBulkLunchOutTask && (
                 <div className="space-y-4">
+                  {crews && crews.length > 0 && (
+                    <div className="space-y-2">
+                      <Label htmlFor="bulk-lunch-out-crew-select">
+                        Select Crew (optional)
+                      </Label>
+                      <Select
+                        value={selectedBulkLunchOutCrewId || ""}
+                        onValueChange={(value) =>
+                          setSelectedBulkLunchOutCrewId(
+                            value === CLEAR_SELECTION_VALUE ? "" : value,
+                          )
+                        }
+                      >
+                        <SelectTrigger id="bulk-lunch-out-crew-select">
+                          <SelectValue placeholder="Pre-fill from a crew" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={CLEAR_SELECTION_VALUE}>
+                            -- Clear selection --
+                          </SelectItem>
+                          {crews.map((crew) => (
+                            <SelectItem key={crew.id} value={crew.id}>
+                              {crew.name} ({crew.employeeIds.length})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <Input
+                    placeholder="Search by name or employee number..."
+                    value={bulkLunchOutEmployeeSearch}
+                    onChange={(e) =>
+                      setBulkLunchOutEmployeeSearch(e.target.value)
+                    }
+                  />
                   <div className="flex items-center justify-between">
                     <Label className="font-semibold">Select Employees</Label>
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="select-all-bulk-lunch-out"
                         checked={
-                          bulkLunchOutCandidates.length > 0 &&
-                          selectedBulkLunchOutEmployees.size ===
-                            bulkLunchOutCandidates.length
+                          bulkLunchOutSearchFilteredCandidates.length > 0 &&
+                          bulkLunchOutSearchFilteredCandidates.every((e) =>
+                            selectedBulkLunchOutEmployees.has(e.id),
+                          )
                         }
                         onCheckedChange={(checked: boolean) => {
-                          if (checked) {
-                            setSelectedBulkLunchOutEmployees(
-                              new Set(bulkLunchOutCandidates.map((e) => e.id)),
+                          setSelectedBulkLunchOutEmployees((prev) => {
+                            const next = new Set(prev);
+                            bulkLunchOutSearchFilteredCandidates.forEach(
+                              (e) => {
+                                if (checked) {
+                                  next.add(e.id);
+                                } else {
+                                  next.delete(e.id);
+                                }
+                              },
                             );
-                          } else {
-                            setSelectedBulkLunchOutEmployees(new Set());
-                          }
+                            return next;
+                          });
                         }}
                       />
                       <Label
@@ -6617,7 +7380,7 @@ function TimeTrackingPage() {
                     </p>
                   ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2 border rounded-md p-4 max-h-60 overflow-y-auto">
-                      {bulkLunchOutCandidates.map((employee) => (
+                      {bulkLunchOutSearchFilteredCandidates.map((employee) => (
                         <div
                           key={employee.id}
                           className="flex items-center space-x-2"
@@ -6647,6 +7410,11 @@ function TimeTrackingPage() {
                           </Label>
                         </div>
                       ))}
+                      {bulkLunchOutSearchFilteredCandidates.length === 0 && (
+                        <p className="col-span-2 md:col-span-3 text-sm text-muted-foreground">
+                          No employees found.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -7131,6 +7899,24 @@ function TimeTrackingPage() {
                             Shared Piece (Multiple Workers)
                           </Label>
                         </div>
+                        {isSharedPiece && crews && crews.length > 0 && (
+                          <Select
+                            value={qrLoadCrewId}
+                            onValueChange={handleLoadCrewIntoScanned}
+                          >
+                            <SelectTrigger className="h-8 w-auto gap-1 text-sm">
+                              <Users className="h-3 w-3" />
+                              <SelectValue placeholder="Load Crew" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {crews.map((crew) => (
+                                <SelectItem key={crew.id} value={crew.id}>
+                                  {crew.name} ({crew.employeeIds.length})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                         <RadioGroup
                           value={pieceEntryMode}
                           onValueChange={(v: string) =>

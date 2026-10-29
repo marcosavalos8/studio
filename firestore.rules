@@ -11,6 +11,7 @@
  * - /tasks/{taskId}: Stores task data.
  * - /users/{userId}: Stores user account data with roles.
  * - /contracts/{contractId}: Stores client service contracts (zero, one, or many per client).
+ * - /crews/{crewId}: Stores reusable employee crews ("cuadrillas").
  *
  * Key Security Decisions:
  * - Role-based access control: only admins can write to the employees, clients and tasks collections.
@@ -108,6 +109,22 @@ service cloud.firestore {
      * @principle Enforces role-based access control; only admins can modify task data.
      */
     match /tasks/{taskId} {
+      allow get, list: if isSignedIn();
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description Manages reusable employee crews ("cuadrillas") — a named
+     *   group of employeeIds, not tied to any task/ranch/client.
+     * @path /crews/{crewId}
+     * @allow (get, list) - Any authenticated user can read crew data (so
+     *   supervisors can use the crew picker in Time Tracking).
+     * @allow (create, update, delete) - Only an admin can manage crews.
+     * @principle Enforces role-based access control; only admins can modify crew data.
+     */
+    match /crews/{crewId} {
       allow get, list: if isSignedIn();
       allow create: if isAdmin();
       allow update: if isAdmin() && resource != null;

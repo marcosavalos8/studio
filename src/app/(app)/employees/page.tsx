@@ -36,9 +36,12 @@ import {
   MoreHorizontal,
   Hash,
   Loader2,
+  Users,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 
-import type { Employee } from "@/lib/types";
+import type { Crew, Employee } from "@/lib/types";
 
 import { useFirestore } from "@/firebase";
 import { useCollection } from "@/firebase/firestore/use-collection";
@@ -57,6 +60,8 @@ import { cn } from "@/lib/utils";
 import { AddEmployeeDialog } from "./add-employee-dialog";
 import { EditEmployeeDialog } from "./edit-employee-dialog";
 import { DeleteEmployeeDialog } from "./delete-employee-dialog";
+import { CrewFormDialog } from "./crew-form-dialog";
+import { DeleteCrewDialog } from "./delete-crew-dialog";
 import Link from "next/link";
 
 interface EmployeeWithCalculatedHours extends Employee {
@@ -80,10 +85,22 @@ function EmployeesPage() {
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [isMigrating, setIsMigrating] = useState(false);
 
+  // Crews ("cuadrillas"): reusable named groups of employees, managed here.
+  const [isCrewDialogOpen, setCrewDialogOpen] = useState(false);
+  const [isDeleteCrewDialogOpen, setDeleteCrewDialogOpen] = useState(false);
+  const [selectedCrew, setSelectedCrew] = useState<Crew | null>(null);
+
   const employeesQuery = useMemo(() => {
     if (!firestore) return null;
     return query(collection(firestore, "employees"), orderBy("name"));
   }, [firestore]);
+
+  const crewsQuery = useMemo(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, "crews"), orderBy("name"));
+  }, [firestore]);
+  const { data: crews, isLoading: isLoadingCrews } =
+    useCollection<Crew>(crewsQuery);
 
   const handleMigrateEmployeeNumbers = async () => {
     if (!firestore) return;
@@ -300,6 +317,21 @@ function EmployeesPage() {
         "noopener,noreferrer",
       );
     }, 100);
+  };
+
+  const handleAddCrew = () => {
+    setSelectedCrew(null);
+    setCrewDialogOpen(true);
+  };
+
+  const handleEditCrew = (crew: Crew) => {
+    setSelectedCrew(crew);
+    setCrewDialogOpen(true);
+  };
+
+  const handleDeleteCrew = (crew: Crew) => {
+    setSelectedCrew(crew);
+    setDeleteCrewDialogOpen(true);
   };
 
   return (
@@ -668,6 +700,71 @@ function EmployeesPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Card className="mt-4">
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0">
+          <div>
+            <CardTitle>Crews</CardTitle>
+            <CardDescription>
+              Reusable groups of employees ("cuadrillas") you can assign to
+              any task later in Time Tracking.
+            </CardDescription>
+          </div>
+          <Button size="sm" className="gap-1" onClick={handleAddCrew}>
+            <PlusCircle className="h-4 w-4" />
+            <span className="hidden sm:inline">Create Crew</span>
+            <span className="sm:hidden">Add</span>
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {isLoadingCrews && (
+            <p className="text-sm text-muted-foreground">Loading crews...</p>
+          )}
+          {!isLoadingCrews && (!crews || crews.length === 0) && (
+            <p className="text-sm text-muted-foreground">
+              No crews yet. Create one to speed up bulk clock-in/out and
+              lunch actions in Time Tracking.
+            </p>
+          )}
+          {!isLoadingCrews &&
+            crews &&
+            crews.length > 0 &&
+            crews.map((crew) => (
+              <div
+                key={crew.id}
+                className="flex items-center justify-between gap-2 rounded-md border p-3"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="font-medium truncate">{crew.name}</span>
+                  <Badge variant="secondary" className="shrink-0">
+                    {crew.employeeIds.length} employee
+                    {crew.employeeIds.length !== 1 ? "s" : ""}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => handleEditCrew(crew)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                    onClick={() => handleDeleteCrew(crew)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+        </CardContent>
+      </Card>
+
       <AddEmployeeDialog
         isOpen={isAddDialogOpen}
         onOpenChange={setAddDialogOpen}
@@ -685,6 +782,19 @@ function EmployeesPage() {
             employee={selectedEmployee}
           />
         </>
+      )}
+      <CrewFormDialog
+        isOpen={isCrewDialogOpen}
+        onOpenChange={setCrewDialogOpen}
+        crew={selectedCrew}
+        employees={displayEmployees}
+      />
+      {selectedCrew && (
+        <DeleteCrewDialog
+          isOpen={isDeleteCrewDialogOpen}
+          onOpenChange={setDeleteCrewDialogOpen}
+          crew={selectedCrew}
+        />
       )}
     </>
   );

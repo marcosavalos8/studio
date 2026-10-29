@@ -88,6 +88,19 @@ export type Contract = {
   updatedByName?: string;
 };
 
+// A reusable, named group of employees (e.g. "Cuadrilla 1") that is not
+// tied to any specific task, ranch, or client — the same crew can be
+// assigned to whatever task it's working that day. Selecting a crew in
+// Time Tracking just pre-fills its members into that screen's employee
+// picker; it never locks or restricts who can be added/removed there.
+export type Crew = {
+  id: string;
+  name: string;
+  employeeIds: string[];
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+};
+
 export type Task = {
   id: string;
   name: string;
