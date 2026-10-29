@@ -488,7 +488,9 @@ export default function PrintDailyListPage() {
                               ? row.hours.toFixed(2)
                               : ""}
                           </td>
-                          <td className="bins">{!emp ? "" : row && row.pieces > 0 ? row.pieces : "-"}</td>
+                          <td className="bins">
+                            {!emp ? "" : row && row.pieces > 0 ? row.pieces.toFixed(2) : "-"}
+                          </td>
                         </tr>
                       );
                     })}
@@ -505,7 +507,7 @@ export default function PrintDailyListPage() {
                       </tr>
                       <tr>
                         <td colSpan={5} className="foot-cell">
-                          Total Pieces: {totalPieces > 0 ? totalPieces : ""}
+                          Total Pieces: {totalPieces > 0 ? totalPieces.toFixed(2) : ""}
                         </td>
                         <td colSpan={4} className="foot-cell"></td>
                       </tr>
