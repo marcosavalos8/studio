@@ -741,6 +741,14 @@ function TimeTrackingPage() {
     undefined,
   );
   const [editEndTime, setEditEndTime] = useState<Date | undefined>(undefined);
+  // Lunch In / Lunch Out for retroactively correcting or adding a lunch
+  // record on an existing time entry, mirroring editTimestamp/editEndTime.
+  const [editLunchStart, setEditLunchStart] = useState<Date | undefined>(
+    undefined,
+  );
+  const [editLunchEnd, setEditLunchEnd] = useState<Date | undefined>(
+    undefined,
+  );
   const [editPiecesWorked, setEditPiecesWorked] = useState<number | string>(0);
   const [editPaymentModality, setEditPaymentModality] = useState<
     "Hourly" | "Piecework"
@@ -4164,12 +4172,23 @@ function TimeTrackingPage() {
       return;
     }
 
+    if (editLunchEnd && editLunchStart && editLunchEnd < editLunchStart) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Data",
+        description: "Lunch Out time cannot be before Lunch In time.",
+      });
+      return;
+    }
+
     try {
       const updateData: any = {
         timestamp: editTimestamp,
         paymentModality: editPaymentModality,
         taskId: editTaskId,
         employeeId: editEmployeeId,
+        lunchStart: editLunchStart ?? null,
+        lunchEnd: editLunchEnd ?? null,
       };
 
       if (editEndTime) {
@@ -4214,6 +4233,8 @@ function TimeTrackingPage() {
       setEditTarget(null);
       setEditTimestamp(undefined);
       setEditEndTime(undefined);
+      setEditLunchStart(undefined);
+      setEditLunchEnd(undefined);
       setEditPiecesWorked(0);
       setEditPaymentModality("Hourly");
       setEditTaskId("");
@@ -8632,9 +8653,25 @@ function TimeTrackingPage() {
                                         })(),
                                     ) || [];
 
+                                  const parseLunchField = (
+                                    value: TimeEntry["lunchStart"],
+                                  ): Date | undefined => {
+                                    if (!value) return undefined;
+                                    if (value instanceof Date) return value;
+                                    return (value as any)?.toDate
+                                      ? (value as any).toDate()
+                                      : new Date(value as any);
+                                  };
+
                                   setEditTarget({ type: "time", entry: entry });
                                   setEditTimestamp(clockInTime);
                                   setEditEndTime(clockOutTime || undefined);
+                                  setEditLunchStart(
+                                    parseLunchField(entry.lunchStart),
+                                  );
+                                  setEditLunchEnd(
+                                    parseLunchField(entry.lunchEnd),
+                                  );
                                   setEditPiecesWorked(entry.piecesWorked || 0);
                                   setEditPaymentModality(initialModality);
                                   setEditRelatedPiecework(relatedPieces);
@@ -9359,6 +9396,30 @@ function TimeTrackingPage() {
                   />
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="edit-lunch-start">
+                    Lunch In (optional)
+                  </Label>
+                  <DateTimePicker
+                    date={editLunchStart}
+                    setDate={setEditLunchStart}
+                    label=""
+                    placeholder="Select date and time or leave empty"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-lunch-end">
+                    Lunch Out (optional)
+                  </Label>
+                  <DateTimePicker
+                    date={editLunchEnd}
+                    setDate={setEditLunchEnd}
+                    label=""
+                    placeholder="Select date and time or leave empty"
+                  />
+                </div>
+
                 {/* Show all pieces with individual editable fields - only for piecework tasks */}
                 {editPaymentModality === "Piecework" && (
                   <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
@@ -9554,6 +9615,8 @@ function TimeTrackingPage() {
                 setEditTarget(null);
                 setEditTimestamp(undefined);
                 setEditEndTime(undefined);
+                setEditLunchStart(undefined);
+                setEditLunchEnd(undefined);
                 setEditPiecesWorked(0);
                 setEditPaymentModality("Hourly");
                 setEditPieceCount(1);
