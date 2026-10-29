@@ -637,6 +637,14 @@ function TimeTrackingPage() {
       // ignore (e.g. storage disabled) — field still works for this session
     }
   }, [printListLunchOut]);
+  // Confirmation step shown right before printing, when the current
+  // selection spans one or more clients — lets the user pick which of
+  // those client lists to actually generate, each with its own Lunch
+  // In/Out (defaulted from the shared fields above, editable per client).
+  const [printClientDialogOpen, setPrintClientDialogOpen] = useState(false);
+  const [printClientChoices, setPrintClientChoices] = useState<
+    Record<string, { checked: boolean; lunchIn: string; lunchOut: string }>
+  >({});
   const shiftHistoryWeek = (direction: 1 | -1) => {
     const base = historyStartDate ?? new Date();
     const shifted = new Date(base.getTime() + direction * 7 * 24 * 60 * 60 * 1000);
@@ -875,41 +883,52 @@ function TimeTrackingPage() {
   );
 
   // Employees who actually have a record on printListDate — the
-  // selectable list for the print button, sorted by name. Reuses the same
-  // "Filter by Client" dropdown already above it in History (read-only
-  // here, never written), so a client filter that's splitting 33 workers
-  // into "14 for Eliers Farms" / "19 for Merriman" also keeps this list
-  // from mixing the two crews together.
+  // selectable list for the print button, sorted by name. Shows everyone
+  // with activity that day regardless of client — selecting a crew that
+  // spans several clients is the point now (see printListClientGroups
+  // below, which splits the selection into one list per client instead of
+  // requiring the top "Filter by Client" to be set first).
   const printListEmployees = useMemo(() => {
-    const matchesClientFilter = (taskId: string) => {
-      if (historyClientFilter === "all") return true;
-      const task = allTasks?.find((t) => t.id === taskId);
-      return task?.clientId === historyClientFilter;
-    };
     const idsWithActivity = new Set<string>();
-    (printListTimeEntries ?? []).forEach((e) => {
-      if (matchesClientFilter(e.taskId)) idsWithActivity.add(e.employeeId);
-    });
-    (printListPiecework ?? []).forEach((e) => {
-      if (matchesClientFilter(e.taskId)) idsWithActivity.add(e.employeeId);
-    });
+    (printListTimeEntries ?? []).forEach((e) => idsWithActivity.add(e.employeeId));
+    (printListPiecework ?? []).forEach((e) => idsWithActivity.add(e.employeeId));
     return (activeEmployees ?? [])
       .filter((e) => idsWithActivity.has(e.id))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [
-    printListTimeEntries,
-    printListPiecework,
-    activeEmployees,
-    historyClientFilter,
-    allTasks,
-  ]);
+  }, [printListTimeEntries, printListPiecework, activeEmployees]);
 
-  // Changing the print-list date (or the client filter it now respects)
-  // starts selection fresh, so a worker checked for one day/client never
-  // silently carries over to a different one.
+  // Changing the print-list date starts selection fresh, so a worker
+  // checked for one day never silently carries over to a different one.
   useEffect(() => {
     setSelectedPrintEmployeeIds(new Set());
-  }, [printListDate, historyClientFilter]);
+  }, [printListDate]);
+
+  // Splits the CURRENT selection into one group per client — e.g. 33
+  // selected workers who worked for 3 different clients that day becomes
+  // 3 groups of 14/19/... — so one click can hand off to "which of these
+  // lists do you actually want" instead of making the user filter by
+  // client and print once per client by hand.
+  const printListClientGroups = useMemo(() => {
+    const employeeIdsByClient = new Map<string, Set<string>>();
+    const assign = (employeeId: string, taskId: string) => {
+      if (!selectedPrintEmployeeIds.has(employeeId)) return;
+      const task = allTasks?.find((t) => t.id === taskId);
+      if (!task) return;
+      const set = employeeIdsByClient.get(task.clientId) ?? new Set<string>();
+      set.add(employeeId);
+      employeeIdsByClient.set(task.clientId, set);
+    };
+    (printListTimeEntries ?? []).forEach((e) => assign(e.employeeId, e.taskId));
+    (printListPiecework ?? []).forEach((e) => assign(e.employeeId, e.taskId));
+
+    return Array.from(employeeIdsByClient.entries())
+      .map(([clientId, ids]) => ({
+        clientId,
+        clientName: clients?.find((c) => c.id === clientId)?.name ?? "Unknown Client",
+        employeeIds: Array.from(ids),
+      }))
+      .sort((a, b) => a.clientName.localeCompare(b.clientName));
+  }, [selectedPrintEmployeeIds, printListTimeEntries, printListPiecework, allTasks, clients]);
 
   // Merged records - combining time entries and piecework for unified history view
   const mergedRecords = useMemo(() => {
@@ -7444,24 +7463,22 @@ function TimeTrackingPage() {
                       size="sm"
                       disabled={selectedPrintEmployeeIds.size === 0}
                       onClick={() => {
-                        const idsParam = Array.from(selectedPrintEmployeeIds).join(
-                          ",",
-                        );
-                        const dateParam = format(printListDate, "yyyy-MM-dd");
-                        const params = new URLSearchParams({
-                          ids: idsParam,
-                          date: dateParam,
+                        // Seed one row per client found in the current
+                        // selection, defaulted to the shared Lunch In/Out
+                        // above (each editable independently in the dialog).
+                        const initial: Record<
+                          string,
+                          { checked: boolean; lunchIn: string; lunchOut: string }
+                        > = {};
+                        printListClientGroups.forEach((group) => {
+                          initial[group.clientId] = {
+                            checked: true,
+                            lunchIn: printListLunchIn,
+                            lunchOut: printListLunchOut,
+                          };
                         });
-                        if (historyClientFilter !== "all") {
-                          params.set("clientId", historyClientFilter);
-                        }
-                        if (printListLunchIn) params.set("lunchIn", printListLunchIn);
-                        if (printListLunchOut) params.set("lunchOut", printListLunchOut);
-                        window.open(
-                          `/time-tracking/print-daily-list?${params.toString()}`,
-                          "_blank",
-                          "noopener,noreferrer",
-                        );
+                        setPrintClientChoices(initial);
+                        setPrintClientDialogOpen(true);
                       }}
                     >
                       <Printer className="h-4 w-4 mr-2" />
@@ -7470,6 +7487,114 @@ function TimeTrackingPage() {
                   </>
                 )}
               </div>
+
+              {/* Confirm-before-printing dialog: which client lists to
+                  generate, and each one's own Lunch In/Out. */}
+              <Dialog open={printClientDialogOpen} onOpenChange={setPrintClientDialogOpen}>
+                <DialogContent className="sm:max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle>Which lists do you want to print?</DialogTitle>
+                    <DialogDescription>
+                      This selection spans {printListClientGroups.length} client
+                      {printListClientGroups.length === 1 ? "" : "s"}. Pick which ones to
+                      generate — each opens as its own list, so you can set a different
+                      lunch time per client if needed.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3 max-h-[50vh] overflow-y-auto">
+                    {printListClientGroups.map((group) => {
+                      const choice = printClientChoices[group.clientId] ?? {
+                        checked: true,
+                        lunchIn: printListLunchIn,
+                        lunchOut: printListLunchOut,
+                      };
+                      return (
+                        <div key={group.clientId} className="border rounded-lg p-3 space-y-3">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <Checkbox
+                              checked={choice.checked}
+                              onCheckedChange={(checked) =>
+                                setPrintClientChoices((prev) => ({
+                                  ...prev,
+                                  [group.clientId]: { ...choice, checked: checked === true },
+                                }))
+                              }
+                            />
+                            <span className="font-medium">
+                              {group.clientName}{" "}
+                              <span className="text-xs text-muted-foreground font-normal">
+                                ({group.employeeIds.length} worker
+                                {group.employeeIds.length === 1 ? "" : "s"})
+                              </span>
+                            </span>
+                          </label>
+                          <div className="grid grid-cols-2 gap-3 pl-6">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Lunch In</Label>
+                              <Input
+                                type="time"
+                                value={choice.lunchIn}
+                                disabled={!choice.checked}
+                                onChange={(e) =>
+                                  setPrintClientChoices((prev) => ({
+                                    ...prev,
+                                    [group.clientId]: { ...choice, lunchIn: e.target.value },
+                                  }))
+                                }
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Lunch Out</Label>
+                              <Input
+                                type="time"
+                                value={choice.lunchOut}
+                                disabled={!choice.checked}
+                                onChange={(e) =>
+                                  setPrintClientChoices((prev) => ({
+                                    ...prev,
+                                    [group.clientId]: { ...choice, lunchOut: e.target.value },
+                                  }))
+                                }
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <DialogFooter>
+                    <Button variant="ghost" onClick={() => setPrintClientDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      disabled={!Object.values(printClientChoices).some((c) => c.checked)}
+                      onClick={() => {
+                        const dateParam = format(printListDate, "yyyy-MM-dd");
+                        printListClientGroups.forEach((group) => {
+                          const choice = printClientChoices[group.clientId];
+                          if (!choice?.checked) return;
+                          const params = new URLSearchParams({
+                            ids: group.employeeIds.join(","),
+                            date: dateParam,
+                            clientId: group.clientId,
+                          });
+                          if (choice.lunchIn) params.set("lunchIn", choice.lunchIn);
+                          if (choice.lunchOut) params.set("lunchOut", choice.lunchOut);
+                          window.open(
+                            `/time-tracking/print-daily-list?${params.toString()}`,
+                            "_blank",
+                            "noopener,noreferrer",
+                          );
+                        });
+                        setPrintClientDialogOpen(false);
+                      }}
+                    >
+                      <Printer className="h-4 w-4 mr-2" />
+                      Generate Lists
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
 
               {/* Unified Records Section */}
               <div>
