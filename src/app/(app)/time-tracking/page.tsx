@@ -493,23 +493,55 @@ function TimeTrackingPage() {
       hours?: string;
       groupId?: string;
       groupTotal?: number;
+      // Optional unpaid meal break fields for Past Records. lunchIn is the
+      // real time typed for reference; lunchBreak (defaults to checked once
+      // the top-level Lunch In field is used) says whether this employee
+      // took a lunch at all — unchecking it means no deduction applies.
+      lunchIn?: string;
+      lunchBreak?: boolean;
     }>
   >([]);
   const [manualAddEmployeeSearch, setManualAddEmployeeSearch] = useState("");
   const updateManualEntry = (
     idx: number,
-    field: "clockIn" | "clockOut" | "hours",
+    field: "clockIn" | "clockOut" | "hours" | "lunchIn",
     value: string,
   ) => {
     setManualEmployees((prev) =>
       prev.map((item, i) =>
-        i === idx ? recalcEntry({ ...item, [field]: value }, field) : item,
+        i === idx
+          ? field === "lunchIn"
+            ? { ...item, lunchIn: value }
+            : recalcEntry({ ...item, [field]: value }, field)
+          : item,
       ),
     );
   };
   const setManualClockInForAll = (value: string) => {
     setManualEmployees((prev) =>
       prev.map((item) => recalcEntry({ ...item, clockIn: value }, "clockIn")),
+    );
+  };
+  const setManualLunchInForAll = (value: string) => {
+    setManualEmployees((prev) =>
+      prev.map((item) => ({
+        ...item,
+        lunchIn: value,
+        lunchBreak: value ? true : item.lunchBreak,
+      })),
+    );
+  };
+  const updateManualLunchBreak = (idx: number, checked: boolean) => {
+    setManualEmployees((prev) =>
+      prev.map((item, i) => {
+        if (i !== idx) return item;
+        const updated = { ...item, lunchBreak: checked };
+        // Re-derive hours/clockOut now that the lunch assumption changed,
+        // same as when clockIn/clockOut/hours themselves are edited.
+        if (updated.clockOut) return recalcEntry(updated, "clockOut");
+        if (updated.hours) return recalcEntry(updated, "hours");
+        return updated;
+      }),
     );
   };
   const [showAddEmployeeSearch, setShowAddEmployeeSearch] = useState(false);
@@ -588,6 +620,13 @@ function TimeTrackingPage() {
   const [pastRecordClockInTime, setPastRecordClockInTime] =
     useState<string>("");
   const [pastRecordClockOutTime, setPastRecordClockOutTime] =
+    useState<string>("");
+  // Optional top-level Lunch In time for Past Records: when set, pre-fills
+  // each employee row's individual "Lunch In" field and defaults their
+  // "Lunch Break" checkbox to checked. No "Lunch Out" field exists here
+  // since the payroll deduction is always a flat 30 minutes regardless of
+  // the actual elapsed time.
+  const [pastRecordLunchInTime, setPastRecordLunchInTime] =
     useState<string>("");
   const [pastRecordPiecesCount, setPastRecordPiecesCount] = useState<
     number | string
@@ -2428,6 +2467,7 @@ function TimeTrackingPage() {
       clockInTime: Date,
       clockOutTime: Date,
       piecesCount?: number,
+      lunchStartTime?: Date,
     ) => {
       if (!firestore) return;
 
@@ -2473,6 +2513,7 @@ function TimeTrackingPage() {
           ...(piecesCount && piecesCount > 0
             ? { piecesWorked: piecesCount }
             : {}),
+          ...(lunchStartTime ? { lunchStart: lunchStartTime } : {}),
           //piecesWorked: piecesCount && piecesCount > 0 ? piecesCount : undefined,
         };
         batch.set(newTimeEntryRef, newTimeEntry);
@@ -3145,7 +3186,7 @@ function TimeTrackingPage() {
       manualEmployees.length > 0
         ? manualEmployees
         : manualSelectedEmployee
-          ? [{ employee: manualSelectedEmployee, pieces: pastRecordPiecesCount, clockIn: pastRecordClockInTime, clockOut: "", hours: "" }]
+          ? [{ employee: manualSelectedEmployee, pieces: pastRecordPiecesCount, clockIn: pastRecordClockInTime, clockOut: "", hours: "", lunchIn: pastRecordLunchInTime, lunchBreak: pastRecordLunchInTime ? true : undefined }]
           : [];
 
     if (!firestore || !selectedTask || employeesToProcess.length === 0) {
@@ -3342,12 +3383,19 @@ function TimeTrackingPage() {
               : parseFloat(String(entry.pieces))
             : 0;
 
+          const lunchStartTime =
+            entry.lunchBreak && entry.lunchIn
+              ? (combineDateAndTime(pastRecordDate, entry.lunchIn) ??
+                undefined)
+              : undefined;
+
           return createPastRecord(
             entry.employee,
             selectedTask,
             clockInDate,
             clockOutDate,
             piecesCount > 0 ? piecesCount : undefined,
+            lunchStartTime,
           );
         }),
       );
@@ -3365,6 +3413,7 @@ function TimeTrackingPage() {
       setPastRecordDate(undefined);
       setPastRecordClockInTime("");
       setPastRecordClockOutTime("");
+      setPastRecordLunchInTime("");
       setPastRecordPiecesCount("");
 
       // Only update loading state if online (offline already set to false)
@@ -5218,6 +5267,23 @@ function TimeTrackingPage() {
                       />
                     </div>
 
+                    {/* Lunch In (optional) */}
+                    <div className="space-y-2">
+                      <Label htmlFor="past-lunch-in-time-manual">
+                        Lunch In (pre-fills each employee)
+                      </Label>
+                      <Input
+                        id="past-lunch-in-time-manual"
+                        type="time"
+                        value={pastRecordLunchInTime}
+                        onChange={(e) => {
+                          setPastRecordLunchInTime(e.target.value);
+                          setManualLunchInForAll(e.target.value);
+                        }}
+                        placeholder="Optional - leave blank if no lunch"
+                      />
+                    </div>
+
                   </div>
                 )}
               </div>
@@ -5300,7 +5366,7 @@ function TimeTrackingPage() {
                             );
                             return alreadyAdded
                               ? prev
-                              : [...prev, { employee: manualSelectedEmployee!, pieces: pastRecordPiecesCount, clockIn: pastRecordClockInTime, clockOut: "", hours: "" }];
+                              : [...prev, { employee: manualSelectedEmployee!, pieces: pastRecordPiecesCount, clockIn: pastRecordClockInTime, clockOut: "", hours: "", lunchIn: pastRecordLunchInTime, lunchBreak: pastRecordLunchInTime ? true : undefined }];
                           });
                           setManualSelectedEmployee(null);
                           setManualEmployeeSearch("");
@@ -5377,6 +5443,34 @@ function TimeTrackingPage() {
                             updateManualEntry(idx, "hours", e.target.value)
                           }
                         />
+                        {pastRecordLunchInTime && (
+                          <>
+                            <div className="flex items-center gap-1">
+                              <Checkbox
+                                id={`lunch-break-${idx}`}
+                                checked={entry.lunchBreak ?? false}
+                                onCheckedChange={(checked: boolean) =>
+                                  updateManualLunchBreak(idx, checked)
+                                }
+                              />
+                              <Label
+                                htmlFor={`lunch-break-${idx}`}
+                                className="text-xs text-muted-foreground"
+                              >
+                                Lunch Break
+                              </Label>
+                            </div>
+                            <Input
+                              type="time"
+                              className="w-28 h-7 text-xs"
+                              value={entry.lunchIn ?? ""}
+                              disabled={!entry.lunchBreak}
+                              onChange={(e) =>
+                                updateManualEntry(idx, "lunchIn", e.target.value)
+                              }
+                            />
+                          </>
+                        )}
                         {selectedTask &&
                           taskAcceptsPieces(
                             allTasks?.find((t) => t.id === selectedTask),
@@ -5480,7 +5574,7 @@ function TimeTrackingPage() {
                             if (emp) {
                               setManualEmployees((prev) => [
                                 ...prev,
-                                { employee: emp, pieces: "", clockIn: pastRecordClockInTime, clockOut: "", hours: "" },
+                                { employee: emp, pieces: "", clockIn: pastRecordClockInTime, clockOut: "", hours: "", lunchIn: pastRecordLunchInTime, lunchBreak: pastRecordLunchInTime ? true : undefined },
                               ]);
                               setManualAddEmployeeSearch("");
                               setFocusedAddEmployeeIdx(-1);
@@ -5521,7 +5615,7 @@ function TimeTrackingPage() {
                               onClick={() => {
                                 setManualEmployees((prev) => [
                                   ...prev,
-                                  { employee, pieces: "", clockIn: pastRecordClockInTime, clockOut: "", hours: "" },
+                                  { employee, pieces: "", clockIn: pastRecordClockInTime, clockOut: "", hours: "", lunchIn: pastRecordLunchInTime, lunchBreak: pastRecordLunchInTime ? true : undefined },
                                 ]);
                                 setManualAddEmployeeSearch("");
                                 setFocusedAddEmployeeIdx(-1);
