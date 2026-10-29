@@ -56,6 +56,9 @@ export default function PrintDailyListPage() {
   const searchParams = useSearchParams();
   const idsParam = searchParams.get("ids");
   const dateParam = searchParams.get("date");
+  const clientIdParam = searchParams.get("clientId");
+  const lunchInParam = searchParams.get("lunchIn");
+  const lunchOutParam = searchParams.get("lunchOut");
   const employeeIds = useMemo(
     () => (idsParam ? idsParam.split(",") : []),
     [idsParam],
@@ -65,6 +68,20 @@ export default function PrintDailyListPage() {
     const [year, month, day] = dateParam.split("-").map(Number);
     return new Date(year, (month || 1) - 1, day || 1);
   }, [dateParam]);
+
+  // "HH:mm" (from a <input type="time">) -> "h:mm a" for display, applied
+  // to every row — there's no reliable per-worker break data (see the
+  // fetch effect below), so this is the one shared lunch time entered on
+  // the History tab, not a computed value.
+  const formatLunchTime = (value: string | null): string => {
+    if (!value) return "";
+    const [h, m] = value.split(":").map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return "";
+    const d = new Date(2000, 0, 1, h, m);
+    return format(d, "h:mm a");
+  };
+  const lunchInDisplay = formatLunchTime(lunchInParam);
+  const lunchOutDisplay = formatLunchTime(lunchOutParam);
 
   const firestore = useFirestore();
   const { companyInfo } = useCompanyInfo();
@@ -157,8 +174,19 @@ export default function PrintDailyListPage() {
 
       const taskIdsSeen: string[] = [];
 
+      // When the History tab's "Filter by Client" was active, only that
+      // client's tasks count toward a worker's Start/End/Hours/Pieces here
+      // — same scoping the employee checklist already applied, so a worker
+      // who split the day between two clients only shows the hours that
+      // belong to the one this sheet is for.
+      const matchesClient = (taskId: string) => {
+        if (!clientIdParam) return true;
+        return tasksById.get(taskId)?.clientId === clientIdParam;
+      };
+
       timeEntries.forEach((entry) => {
         if (!wantedIds.has(entry.employeeId)) return;
+        if (!matchesClient(entry.taskId)) return;
         const row = map.get(entry.employeeId);
         if (!row) return;
         if (entry.taskId) taskIdsSeen.push(entry.taskId);
@@ -172,18 +200,41 @@ export default function PrintDailyListPage() {
 
       piecework.forEach((entry) => {
         if (!wantedIds.has(entry.employeeId)) return;
+        if (!matchesClient(entry.taskId)) return;
         const row = map.get(entry.employeeId);
         if (!row) return;
         if (entry.taskId) taskIdsSeen.push(entry.taskId);
         row.pieces += entry.pieceCount || 0;
       });
 
+      // When a shared Lunch In/Out was entered, subtract it from the raw
+      // End − Start span so Hours reads as net worked time (what the Lunch
+      // columns show is then consistent with the Hours column next to
+      // them) — only when that lunch window actually falls inside the
+      // worker's own Start–End span, so entering a lunch time can never
+      // push a short day's hours negative.
+      const parseClockTime = (value: string | null, base: Date): Date | null => {
+        if (!value) return null;
+        const [h, m] = value.split(":").map(Number);
+        if (Number.isNaN(h) || Number.isNaN(m)) return null;
+        return new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, m);
+      };
+
       map.forEach((row) => {
         if (row.start && row.end) {
-          row.hours = Math.max(
-            0,
-            (row.end.getTime() - row.start.getTime()) / (1000 * 60 * 60),
-          );
+          let ms = row.end.getTime() - row.start.getTime();
+          const lunchStart = parseClockTime(lunchInParam, selectedDate);
+          const lunchEnd = parseClockTime(lunchOutParam, selectedDate);
+          if (
+            lunchStart &&
+            lunchEnd &&
+            lunchEnd > lunchStart &&
+            lunchStart >= row.start &&
+            lunchEnd <= row.end
+          ) {
+            ms -= lunchEnd.getTime() - lunchStart.getTime();
+          }
+          row.hours = Math.max(0, ms / (1000 * 60 * 60));
         }
       });
       setRowsByEmployee(new Map(map));
@@ -195,8 +246,13 @@ export default function PrintDailyListPage() {
       const majorityClient = majorityTask
         ? clientsById.get(majorityTask.clientId)
         : undefined;
+      // If a client filter was passed in, use it directly for the Grower/
+      // Orchard field — more precise than inferring it from whichever task
+      // happened to be most common, and guaranteed consistent with what
+      // was actually filtered.
+      const filteredClient = clientIdParam ? clientsById.get(clientIdParam) : undefined;
       setHeaderInfo({
-        client: majorityClient?.name ?? "",
+        client: filteredClient?.name ?? majorityClient?.name ?? "",
         location: [majorityTask?.ranch, majorityTask?.block]
           .filter(Boolean)
           .join(" · "),
@@ -208,7 +264,7 @@ export default function PrintDailyListPage() {
     };
 
     run().catch(() => setLoading(false));
-  }, [firestore, employeeIds, selectedDate]);
+  }, [firestore, employeeIds, selectedDate, clientIdParam, lunchInParam, lunchOutParam]);
 
   const rowCount = Math.max(MIN_ROWS, employees.length);
   const rows = Array.from({ length: rowCount }, (_, i) => employees[i] ?? null);
@@ -376,8 +432,8 @@ export default function PrintDailyListPage() {
                   <td className="emp">{emp?.employeeNumber || ""}</td>
                   <td className="name">{emp?.name || ""}</td>
                   <td className="time">{row?.start ? format(row.start, "h:mm a") : ""}</td>
-                  <td className="time"></td>
-                  <td className="time"></td>
+                  <td className="time">{emp ? lunchInDisplay : ""}</td>
+                  <td className="time">{emp ? lunchOutDisplay : ""}</td>
                   <td className="time">{row?.end ? format(row.end, "h:mm a") : ""}</td>
                   <td className="time">
                     {row?.hours !== null && row?.hours !== undefined

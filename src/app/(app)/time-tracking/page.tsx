@@ -606,6 +606,12 @@ function TimeTrackingPage() {
   const [selectedPrintEmployeeIds, setSelectedPrintEmployeeIds] = useState<
     Set<string>
   >(new Set());
+  // Manually entered, applied to every row on the printed sheet — there's
+  // no reliable way to read "left for lunch" / "came back" apart from the
+  // raw clock records (see printListEmployees below), so this is the
+  // crew's one shared lunch time instead of a guess per worker.
+  const [printListLunchIn, setPrintListLunchIn] = useState<string>("");
+  const [printListLunchOut, setPrintListLunchOut] = useState<string>("");
   const shiftHistoryWeek = (direction: 1 | -1) => {
     const base = historyStartDate ?? new Date();
     const shifted = new Date(base.getTime() + direction * 7 * 24 * 60 * 60 * 1000);
@@ -844,21 +850,41 @@ function TimeTrackingPage() {
   );
 
   // Employees who actually have a record on printListDate — the
-  // selectable list for the print button, sorted by name.
+  // selectable list for the print button, sorted by name. Reuses the same
+  // "Filter by Client" dropdown already above it in History (read-only
+  // here, never written), so a client filter that's splitting 33 workers
+  // into "14 for Eliers Farms" / "19 for Merriman" also keeps this list
+  // from mixing the two crews together.
   const printListEmployees = useMemo(() => {
+    const matchesClientFilter = (taskId: string) => {
+      if (historyClientFilter === "all") return true;
+      const task = allTasks?.find((t) => t.id === taskId);
+      return task?.clientId === historyClientFilter;
+    };
     const idsWithActivity = new Set<string>();
-    (printListTimeEntries ?? []).forEach((e) => idsWithActivity.add(e.employeeId));
-    (printListPiecework ?? []).forEach((e) => idsWithActivity.add(e.employeeId));
+    (printListTimeEntries ?? []).forEach((e) => {
+      if (matchesClientFilter(e.taskId)) idsWithActivity.add(e.employeeId);
+    });
+    (printListPiecework ?? []).forEach((e) => {
+      if (matchesClientFilter(e.taskId)) idsWithActivity.add(e.employeeId);
+    });
     return (activeEmployees ?? [])
       .filter((e) => idsWithActivity.has(e.id))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [printListTimeEntries, printListPiecework, activeEmployees]);
+  }, [
+    printListTimeEntries,
+    printListPiecework,
+    activeEmployees,
+    historyClientFilter,
+    allTasks,
+  ]);
 
-  // Changing the print-list date starts selection fresh, so a worker
-  // checked for one day never silently carries over to a different one.
+  // Changing the print-list date (or the client filter it now respects)
+  // starts selection fresh, so a worker checked for one day/client never
+  // silently carries over to a different one.
   useEffect(() => {
     setSelectedPrintEmployeeIds(new Set());
-  }, [printListDate]);
+  }, [printListDate, historyClientFilter]);
 
   // Merged records - combining time entries and piecework for unified history view
   const mergedRecords = useMemo(() => {
@@ -7295,21 +7321,44 @@ function TimeTrackingPage() {
                   <Printer className="h-4 w-4" />
                   <Label className="font-semibold">Print Daily List</Label>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="print-list-date">Date</Label>
-                  <Input
-                    id="print-list-date"
-                    type="date"
-                    value={format(printListDate, "yyyy-MM-dd")}
-                    onChange={(e) => {
-                      if (!e.target.value) return;
-                      const [year, month, day] = e.target.value
-                        .split("-")
-                        .map(Number);
-                      setPrintListDate(new Date(year, month - 1, day));
-                    }}
-                    className="max-w-[200px]"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-xl">
+                  <div className="space-y-2">
+                    <Label htmlFor="print-list-date">Date</Label>
+                    <Input
+                      id="print-list-date"
+                      type="date"
+                      value={format(printListDate, "yyyy-MM-dd")}
+                      onChange={(e) => {
+                        if (!e.target.value) return;
+                        const [year, month, day] = e.target.value
+                          .split("-")
+                          .map(Number);
+                        setPrintListDate(new Date(year, month - 1, day));
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="print-list-lunch-in">
+                      Lunch In <span className="text-muted-foreground">(optional)</span>
+                    </Label>
+                    <Input
+                      id="print-list-lunch-in"
+                      type="time"
+                      value={printListLunchIn}
+                      onChange={(e) => setPrintListLunchIn(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="print-list-lunch-out">
+                      Lunch Out <span className="text-muted-foreground">(optional)</span>
+                    </Label>
+                    <Input
+                      id="print-list-lunch-out"
+                      type="time"
+                      value={printListLunchOut}
+                      onChange={(e) => setPrintListLunchOut(e.target.value)}
+                    />
+                  </div>
                 </div>
                 {printListEmployees.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
@@ -7374,8 +7423,17 @@ function TimeTrackingPage() {
                           ",",
                         );
                         const dateParam = format(printListDate, "yyyy-MM-dd");
+                        const params = new URLSearchParams({
+                          ids: idsParam,
+                          date: dateParam,
+                        });
+                        if (historyClientFilter !== "all") {
+                          params.set("clientId", historyClientFilter);
+                        }
+                        if (printListLunchIn) params.set("lunchIn", printListLunchIn);
+                        if (printListLunchOut) params.set("lunchOut", printListLunchOut);
                         window.open(
-                          `/time-tracking/print-daily-list?ids=${idsParam}&date=${dateParam}`,
+                          `/time-tracking/print-daily-list?${params.toString()}`,
                           "_blank",
                           "noopener,noreferrer",
                         );
