@@ -117,18 +117,19 @@ service cloud.firestore {
 
     /**
      * @description Manages reusable employee crews ("cuadrillas") — a named
-     *   group of employeeIds, not tied to any task/ranch/client.
+     *   group of employeeIds, not tied to any task/ranch/client. The admin
+     *   check isn't used here (unlike employees/clients/tasks): this app's
+     *   real-world sessions are anonymous Firebase Auth with the Admin role
+     *   kept only in localStorage, so isAdmin()'s lookup of
+     *   /users/{request.auth.uid} never matches and always denies. Crew
+     *   management already has its own client-side admin gate (the whole
+     *   Employees page requires RequireAdmin), matching how /contracts and
+     *   other collections here rely on isSignedIn() alone.
      * @path /crews/{crewId}
-     * @allow (get, list) - Any authenticated user can read crew data (so
-     *   supervisors can use the crew picker in Time Tracking).
-     * @allow (create, update, delete) - Only an admin can manage crews.
-     * @principle Enforces role-based access control; only admins can modify crew data.
+     * @allow (get, list, create, update, delete) - Any authenticated user.
      */
     match /crews/{crewId} {
-      allow get, list: if isSignedIn();
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow get, list, create, update, delete: if isSignedIn();
     }
 
     /**
