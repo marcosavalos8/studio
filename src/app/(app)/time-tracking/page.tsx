@@ -609,9 +609,34 @@ function TimeTrackingPage() {
   // Manually entered, applied to every row on the printed sheet — there's
   // no reliable way to read "left for lunch" / "came back" apart from the
   // raw clock records (see printListEmployees below), so this is the
-  // crew's one shared lunch time instead of a guess per worker.
-  const [printListLunchIn, setPrintListLunchIn] = useState<string>("");
-  const [printListLunchOut, setPrintListLunchOut] = useState<string>("");
+  // crew's one shared lunch time instead of a guess per worker. Remembered
+  // in localStorage (not tied to printListDate) so a crew that takes lunch
+  // at the same time every day only needs to be entered once, not
+  // re-typed for every date printed.
+  const [printListLunchIn, setPrintListLunchIn] = useState<string>(() =>
+    typeof window === "undefined"
+      ? ""
+      : localStorage.getItem("timeTracking_printListLunchIn") ?? "",
+  );
+  const [printListLunchOut, setPrintListLunchOut] = useState<string>(() =>
+    typeof window === "undefined"
+      ? ""
+      : localStorage.getItem("timeTracking_printListLunchOut") ?? "",
+  );
+  useEffect(() => {
+    try {
+      localStorage.setItem("timeTracking_printListLunchIn", printListLunchIn);
+    } catch {
+      // ignore (e.g. storage disabled) — field still works for this session
+    }
+  }, [printListLunchIn]);
+  useEffect(() => {
+    try {
+      localStorage.setItem("timeTracking_printListLunchOut", printListLunchOut);
+    } catch {
+      // ignore (e.g. storage disabled) — field still works for this session
+    }
+  }, [printListLunchOut]);
   const shiftHistoryWeek = (direction: 1 | -1) => {
     const base = historyStartDate ?? new Date();
     const shifted = new Date(base.getTime() + direction * 7 * 24 * 60 * 60 * 1000);
