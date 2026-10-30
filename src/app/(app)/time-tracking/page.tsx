@@ -89,12 +89,14 @@ import {
   query,
   where,
   orderBy,
+  getDoc,
   getDocs,
   writeBatch,
   doc,
   addDoc,
   updateDoc,
   deleteDoc,
+  increment,
   Timestamp,
   type Firestore,
 } from "firebase/firestore";
@@ -987,8 +989,10 @@ function TimeTrackingPage() {
   // Piecework QR Scanner processing state - prevents duplicate scans while processing
   const [isPieceworkQrProcessing, setIsPieceworkQrProcessing] = useState(false);
 
-  // Sick leave state
-  const [sickHoursToUse, setSickHoursToUse] = useState<number | string>(0);
+  // Sick leave state. String (not number) so the field can actually be
+  // cleared/typed into — a numeric 0 default snapped back to "0" the
+  // instant the field was cleared, making it impossible to type over.
+  const [sickHoursToUse, setSickHoursToUse] = useState("");
   const [sickLeaveDate, setSickLeaveDate] = useState<string>("");
   const [sickLeaveNotes, setSickLeaveNotes] = useState("");
   const [isLoggingSickLeave, setIsLoggingSickLeave] = useState(false);
@@ -4630,7 +4634,22 @@ function TimeTrackingPage() {
     if (!firestore) return;
 
     try {
-      await deleteDoc(doc(firestore, "time_entries", entryId));
+      const entryRef = doc(firestore, "time_entries", entryId);
+      // Deleting a Sick Leave entry should give the hours it used back to
+      // the employee's balance — otherwise they're gone for good even
+      // though the leave never happened (e.g. logged by mistake).
+      const entrySnap = await getDoc(entryRef);
+      const entryData = entrySnap.data() as TimeEntry | undefined;
+      if (entryData?.isSickLeave && entryData.sickHoursUsed) {
+        const batch = writeBatch(firestore);
+        batch.delete(entryRef);
+        batch.update(doc(firestore, "employees", entryData.employeeId), {
+          sickHoursBalance: increment(entryData.sickHoursUsed),
+        });
+        await batch.commit();
+      } else {
+        await deleteDoc(entryRef);
+      }
 
       toast({
         title: "Entry Deleted",
@@ -5227,10 +5246,7 @@ function TimeTrackingPage() {
       return;
     }
 
-    const hours =
-      typeof sickHoursToUse === "number"
-        ? sickHoursToUse
-        : parseFloat(String(sickHoursToUse));
+    const hours = parseFloat(sickHoursToUse);
 
     if (isNaN(hours) || hours <= 0) {
       toast({
@@ -5315,7 +5331,7 @@ function TimeTrackingPage() {
       });
 
       // Reset form
-      setSickHoursToUse(0);
+      setSickHoursToUse("");
       setSickLeaveDate("");
       setSickLeaveNotes("");
       setManualSelectedEmployee(null);
@@ -7875,11 +7891,7 @@ function TimeTrackingPage() {
                   max={manualSelectedEmployee?.sickHoursBalance || 0}
                   placeholder="Enter hours"
                   value={sickHoursToUse}
-                  onChange={(e) =>
-                    setSickHoursToUse(
-                      e.target.value === "" ? 0 : parseFloat(e.target.value),
-                    )
-                  }
+                  onChange={(e) => setSickHoursToUse(e.target.value)}
                   disabled={!manualSelectedEmployee}
                 />
               </div>
