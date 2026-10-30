@@ -76,6 +76,7 @@ import {
   ChevronUp,
   CheckSquare,
   Printer,
+  Utensils,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
@@ -131,7 +132,7 @@ const QrScanner = dynamic(
   },
 );
 
-type ScanMode = "clock-in" | "clock-out" | "piece";
+type ScanMode = "clock-in" | "clock-out" | "lunch-in" | "lunch-out" | "piece";
 type ManualLogType =
   | "clock-in"
   | "clock-out"
@@ -2640,6 +2641,169 @@ function TimeTrackingPage() {
     [firestore, toast, playSound, isOnline],
   );
 
+  // Single-employee Lunch In/Out for the QR Scanner. Scoped to the
+  // selected task on purpose: an employee only shows up (is scannable at
+  // all for this mode) if they already have an active, non-ended entry for
+  // that exact task — scanning someone not currently on it just errors out
+  // instead of silently touching an unrelated entry.
+  const lunchInEmployee = useCallback(
+    async (employee: Employee, taskId: string, customTimestamp?: Date) => {
+      if (!firestore) return;
+      const q = query(
+        collection(firestore, "time_entries"),
+        where("employeeId", "==", employee.id),
+        where("taskId", "==", taskId),
+        where("endTime", "==", null),
+      );
+      try {
+        const querySnapshot = await getDocs(q);
+        if (querySnapshot.empty) {
+          toast({
+            variant: "destructive",
+            title: "Lunch In Failed",
+            description: `${employee.name} is not currently clocked into this task.`,
+          });
+          return;
+        }
+        const alreadyOnLunch = querySnapshot.docs.some((docSnap) => {
+          const entry = docSnap.data() as TimeEntry;
+          return entry.lunchStart && !entry.lunchEnd;
+        });
+        if (alreadyOnLunch) {
+          toast({
+            variant: "destructive",
+            title: "Already on Lunch",
+            description: `${employee.name} is already on lunch break.`,
+          });
+          return;
+        }
+
+        const lunchStartTime = roundToNearestQuarterHour(
+          customTimestamp || new Date(),
+        );
+        const batch = writeBatch(firestore);
+        querySnapshot.forEach((docSnap) => {
+          batch.update(docSnap.ref, { lunchStart: lunchStartTime });
+        });
+
+        if (!isOnline) {
+          batch.commit().catch((err) => {
+            console.warn("Lunch-in queued for sync:", err);
+          });
+          playSound("clock-in");
+          return;
+        }
+        await batch.commit();
+        playSound("clock-in");
+
+        toast({
+          title: "Lunch In Recorded",
+          description: addOfflineIndicator(
+            `${employee.name} started lunch.`,
+            isOnline,
+          ),
+        });
+      } catch (serverError) {
+        if (isOnline) {
+          const permissionError = new FirestorePermissionError({
+            path: "time_entries",
+            operation: "update",
+            requestResourceData: { message: `Lunch-in for ${employee.name}` },
+          });
+          errorEmitter.emit("permission-error", permissionError);
+        } else {
+          console.warn("Lunch-in operation failed offline:", serverError);
+          toast({
+            variant: "destructive",
+            title: "Lunch In Error",
+            description:
+              "Unable to complete lunch-in. Please try again or check your data when back online.",
+          });
+        }
+      }
+    },
+    [firestore, toast, playSound, isOnline],
+  );
+
+  const lunchOutEmployee = useCallback(
+    async (employee: Employee, taskId: string, customTimestamp?: Date) => {
+      if (!firestore) return;
+      const q = query(
+        collection(firestore, "time_entries"),
+        where("employeeId", "==", employee.id),
+        where("taskId", "==", taskId),
+        where("endTime", "==", null),
+      );
+      try {
+        const querySnapshot = await getDocs(q);
+        if (querySnapshot.empty) {
+          toast({
+            variant: "destructive",
+            title: "Lunch Out Failed",
+            description: `${employee.name} is not currently clocked into this task.`,
+          });
+          return;
+        }
+        const onLunchEntries = querySnapshot.docs.filter((docSnap) => {
+          const entry = docSnap.data() as TimeEntry;
+          return entry.lunchStart && !entry.lunchEnd;
+        });
+        if (onLunchEntries.length === 0) {
+          toast({
+            variant: "destructive",
+            title: "Not on Lunch",
+            description: `${employee.name} hasn't started lunch yet.`,
+          });
+          return;
+        }
+
+        const lunchEndTime = roundToNearestQuarterHour(
+          customTimestamp || new Date(),
+        );
+        const batch = writeBatch(firestore);
+        onLunchEntries.forEach((docSnap) => {
+          batch.update(docSnap.ref, { lunchEnd: lunchEndTime });
+        });
+
+        if (!isOnline) {
+          batch.commit().catch((err) => {
+            console.warn("Lunch-out queued for sync:", err);
+          });
+          playSound("clock-out");
+          return;
+        }
+        await batch.commit();
+        playSound("clock-out");
+
+        toast({
+          title: "Lunch Out Recorded",
+          description: addOfflineIndicator(
+            `${employee.name} ended lunch.`,
+            isOnline,
+          ),
+        });
+      } catch (serverError) {
+        if (isOnline) {
+          const permissionError = new FirestorePermissionError({
+            path: "time_entries",
+            operation: "update",
+            requestResourceData: { message: `Lunch-out for ${employee.name}` },
+          });
+          errorEmitter.emit("permission-error", permissionError);
+        } else {
+          console.warn("Lunch-out operation failed offline:", serverError);
+          toast({
+            variant: "destructive",
+            title: "Lunch Out Error",
+            description:
+              "Unable to complete lunch-out. Please try again or check your data when back online.",
+          });
+        }
+      }
+    },
+    [firestore, toast, playSound, isOnline],
+  );
+
   const recordPiecework = useCallback(
     async (
       employeeIds: string[],
@@ -2965,8 +3129,13 @@ function TimeTrackingPage() {
       );
 
       if (scannedEmployee) {
-        // Set processing state for clock-in and clock-out operations
-        if (scanMode === "clock-in" || scanMode === "clock-out") {
+        // Set processing state for clock-in/out and lunch-in/out operations
+        if (
+          scanMode === "clock-in" ||
+          scanMode === "clock-out" ||
+          scanMode === "lunch-in" ||
+          scanMode === "lunch-out"
+        ) {
           setIsQrProcessing(true);
         }
 
@@ -3161,6 +3330,30 @@ function TimeTrackingPage() {
                 description: `Still trying to clock out ${scannedEmployee.name} — check History in a moment before scanning again, in case it already saved.`,
               });
             }
+          } else if (scanMode === "lunch-in") {
+            const lunchInOutcome = await awaitOrWarnIfSlow(
+              lunchInEmployee(scannedEmployee, selectedTask),
+              15000,
+            );
+            if (lunchInOutcome.status === "slow") {
+              toast({
+                variant: "destructive",
+                title: "Taking longer than expected",
+                description: `Still trying to record lunch in for ${scannedEmployee.name} — check History in a moment before scanning again, in case it already saved.`,
+              });
+            }
+          } else if (scanMode === "lunch-out") {
+            const lunchOutOutcome = await awaitOrWarnIfSlow(
+              lunchOutEmployee(scannedEmployee, selectedTask),
+              15000,
+            );
+            if (lunchOutOutcome.status === "slow") {
+              toast({
+                variant: "destructive",
+                title: "Taking longer than expected",
+                description: `Still trying to record lunch out for ${scannedEmployee.name} — check History in a moment before scanning again, in case it already saved.`,
+              });
+            }
           } else if (scanMode === "piece") {
             if (isSharedPiece) {
               setScannedSharedEmployees((prev) => {
@@ -3190,7 +3383,12 @@ function TimeTrackingPage() {
           }
         } finally {
           // Reset processing state after operation completes
-          if (scanMode === "clock-in" || scanMode === "clock-out") {
+          if (
+            scanMode === "clock-in" ||
+            scanMode === "clock-out" ||
+            scanMode === "lunch-in" ||
+            scanMode === "lunch-out"
+          ) {
             setIsQrProcessing(false);
           }
         }
@@ -3231,6 +3429,8 @@ function TimeTrackingPage() {
       activeEmployees,
       clockInEmployee,
       clockOutEmployee,
+      lunchInEmployee,
+      lunchOutEmployee,
       recordPiecework,
       recentScans,
       playSound,
@@ -5525,6 +5725,33 @@ function TimeTrackingPage() {
                             <LogOut className="h-4 w-4 md:h-5 md:w-5 text-red-600" />
                             <p className="font-medium text-sm md:text-base">
                               Clock Out
+                            </p>
+                          </div>
+                        </Label>
+                        <Label
+                          htmlFor="mode-lunch-in"
+                          className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
+                        >
+                          <RadioGroupItem value="lunch-in" id="mode-lunch-in" />
+                          <div className="flex items-center gap-1 md:gap-2">
+                            <Utensils className="h-4 w-4 md:h-5 md:w-5 text-orange-600" />
+                            <p className="font-medium text-sm md:text-base">
+                              Lunch In
+                            </p>
+                          </div>
+                        </Label>
+                        <Label
+                          htmlFor="mode-lunch-out"
+                          className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
+                        >
+                          <RadioGroupItem
+                            value="lunch-out"
+                            id="mode-lunch-out"
+                          />
+                          <div className="flex items-center gap-1 md:gap-2">
+                            <Utensils className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
+                            <p className="font-medium text-sm md:text-base">
+                              Lunch Out
                             </p>
                           </div>
                         </Label>
