@@ -6733,16 +6733,15 @@ function TimeTrackingPage() {
           >
             <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 gap-1 h-auto">
               <TabsTrigger value="entry" className="text-xs sm:text-sm py-2">
-                <span className="hidden sm:inline">Manual Entry</span>
-                <span className="sm:hidden">Entry</span>
+                <span className="hidden sm:inline">Clock In/Out</span>
+                <span className="sm:hidden">Clock I/O</span>
               </TabsTrigger>
               <TabsTrigger value="past-records" className="text-xs sm:text-sm py-2">
                 <span className="hidden sm:inline">Past Records</span>
                 <span className="sm:hidden">Past</span>
               </TabsTrigger>
               <TabsTrigger value="bulk-clock" className="text-xs sm:text-sm py-2">
-                <span className="hidden sm:inline">Bulk Clock In/Out</span>
-                <span className="sm:hidden">Clock I/O</span>
+                Bulk
               </TabsTrigger>
               <TabsTrigger value="lunch" className="text-xs sm:text-sm py-2">
                 Lunch
