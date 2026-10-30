@@ -380,6 +380,13 @@ function filterEmployeesBySearch<T extends { name: string; employeeNumber?: stri
   });
 }
 
+// Placeholder taskId for non-billable Sick Leave entries — deliberately
+// never matches a real task document, so these entries never resolve to a
+// task/client anywhere they're looked up by id (History, Invoicing, Labor
+// Report). Payroll/Accounting Center don't need the lookup to succeed; they
+// read sickHoursUsed/sickPayRate directly off the entry.
+const NON_BILLABLE_SICK_LEAVE_TASK_ID = "sick-leave-not-billed";
+
 // True when employeeIds (as a set) is exactly one of the existing crews —
 // used to skip the "save as crew" suggestion when the group just entered
 // is one the user already has saved.
@@ -5349,23 +5356,17 @@ function TimeTrackingPage() {
       if (sickLeaveBillable) {
         taskIdForEntry = sickLeaveTask;
       } else {
-        // Not billed to any client — the entry still needs *a* taskId to
-        // satisfy TimeEntry's shape, but it's never looked up for display:
-        // every consumer treats isSickLeave && !sickLeaveBillable as
-        // payroll-only and shows "Sick Hours / Sick Leave" instead of a
-        // task name.
-        const defaultTask = allTasks?.find((t) => t.status === "Active");
-        if (!defaultTask) {
-          toast({
-            variant: "destructive",
-            title: "No Active Task",
-            description:
-              "Please create an active task before logging sick leave.",
-          });
-          setIsLoggingSickLeave(false);
-          return;
-        }
-        taskIdForEntry = defaultTask.id;
+        // Not billed to any client — use a sentinel taskId that never
+        // matches a real task, instead of borrowing an arbitrary active
+        // task's id. Invoicing/Labor Report scope entries to a client by
+        // checking whether their taskId belongs to that client's tasks, so
+        // a real (but unrelated) taskId here was making this entry show up
+        // under whichever client that borrowed task happened to belong to,
+        // even though it billed $0. A sentinel that resolves to no task
+        // keeps it out of every client-scoped view; Payroll/Accounting
+        // Center read sickHoursUsed/sickPayRate directly and never need the
+        // task lookup to succeed.
+        taskIdForEntry = NON_BILLABLE_SICK_LEAVE_TASK_ID;
       }
 
       const sickLeaveEntry: Omit<TimeEntry, "id"> = {
@@ -9834,7 +9835,9 @@ function TimeTrackingPage() {
                               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <Package className="h-3 w-3" />
                                 <p>
-                                  {task?.name || "Unknown Task"}
+                                  {entry.isSickLeave && !entry.sickLeaveBillable
+                                    ? "Sick Hours / Sick Leave"
+                                    : task?.name || "Unknown Task"}
                                   {task?.variety && ` (${task.variety})`}
                                 </p>
                               </div>
