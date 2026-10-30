@@ -1818,6 +1818,26 @@ function TimeTrackingPage() {
     manualPieceSharedEmployees,
   ]);
 
+  // Same search as filteredManualEmployees, but WITHOUT the "already has an
+  // entry today" exclusion — that rule exists to stop the Manual Entry
+  // Clock-In flow from double-clocking someone in, but on the Pieces tab
+  // we're specifically searching for employees who ARE already clocked
+  // into the task (that's what isActiveInTask then checks), so applying it
+  // here was hiding anyone it was supposed to find, including everyone
+  // clocked in via Bulk Clock In.
+  const filteredManualEmployeesForPiecework = useMemo(() => {
+    if (!activeEmployees) return [];
+    if (!manualEmployeeSearch) return [];
+    const query = manualEmployeeSearch.trim();
+    return activeEmployees.filter((emp) => {
+      const matchesName = emp.name.toLowerCase().includes(query.toLowerCase());
+      const matchesNumber = /^\d+$/.test(query) && (emp.employeeNumber ?? "").endsWith(query);
+      if (!matchesName && !matchesNumber) return false;
+      if (manualPieceSharedEmployees.includes(emp.id)) return false;
+      return true;
+    });
+  }, [activeEmployees, manualEmployeeSearch, manualPieceSharedEmployees]);
+
   // Filtered employees for adding to multi-employee list (excludes already added)
   const filteredAddEmployees = useMemo(() => {
     if (!activeEmployees) return [];
@@ -8130,11 +8150,11 @@ function TimeTrackingPage() {
                                 setManualEmployeeSearch(e.target.value)
                               }
                               onKeyDown={(e) => {
-                                if (!filteredManualEmployees?.length) return;
+                                if (!filteredManualEmployeesForPiecework?.length) return;
                                 if (e.key === "ArrowDown") {
                                   e.preventDefault();
                                   setFocusedManualEmployeeIdx((prev) =>
-                                    Math.min(prev + 1, filteredManualEmployees.length - 1),
+                                    Math.min(prev + 1, filteredManualEmployeesForPiecework.length - 1),
                                   );
                                 } else if (e.key === "ArrowUp") {
                                   e.preventDefault();
@@ -8143,7 +8163,7 @@ function TimeTrackingPage() {
                                   );
                                 } else if (e.key === "Enter" && focusedManualEmployeeIdx >= 0) {
                                   e.preventDefault();
-                                  const emp = filteredManualEmployees[focusedManualEmployeeIdx];
+                                  const emp = filteredManualEmployeesForPiecework[focusedManualEmployeeIdx];
                                   const isActiveInTask = emp && activeTimeEntries?.some(
                                     (entry) =>
                                       entry.employeeId === emp.id &&
@@ -8162,10 +8182,10 @@ function TimeTrackingPage() {
                               }}
                             />
                             {manualEmployeeSearch &&
-                              filteredManualEmployees &&
-                              filteredManualEmployees.length > 0 && (
+                              filteredManualEmployeesForPiecework &&
+                              filteredManualEmployeesForPiecework.length > 0 && (
                                 <div className="border rounded-md max-h-48 overflow-y-auto">
-                                  {filteredManualEmployees.map((employee, idx) => {
+                                  {filteredManualEmployeesForPiecework.map((employee, idx) => {
                                     // Check if employee is active in selected task
                                     const isActiveInTask =
                                       activeTimeEntries?.some(
@@ -8206,8 +8226,8 @@ function TimeTrackingPage() {
                                 </div>
                               )}
                             {manualEmployeeSearch &&
-                              filteredManualEmployees &&
-                              filteredManualEmployees.length === 0 && (
+                              filteredManualEmployeesForPiecework &&
+                              filteredManualEmployeesForPiecework.length === 0 && (
                                 <p className="p-4 text-sm text-muted-foreground">
                                   No employees found.
                                 </p>
@@ -8230,11 +8250,11 @@ function TimeTrackingPage() {
                             setManualEmployeeSearch(e.target.value)
                           }
                           onKeyDown={(e) => {
-                            if (!filteredManualEmployees?.length) return;
+                            if (!filteredManualEmployeesForPiecework?.length) return;
                             if (e.key === "ArrowDown") {
                               e.preventDefault();
                               setFocusedManualEmployeeIdx((prev) =>
-                                Math.min(prev + 1, filteredManualEmployees.length - 1),
+                                Math.min(prev + 1, filteredManualEmployeesForPiecework.length - 1),
                               );
                             } else if (e.key === "ArrowUp") {
                               e.preventDefault();
@@ -8243,7 +8263,7 @@ function TimeTrackingPage() {
                               );
                             } else if (e.key === "Enter" && focusedManualEmployeeIdx >= 0) {
                               e.preventDefault();
-                              const emp = filteredManualEmployees[focusedManualEmployeeIdx];
+                              const emp = filteredManualEmployeesForPiecework[focusedManualEmployeeIdx];
                               const isActiveInTask = emp && activeTimeEntries?.some(
                                 (entry) =>
                                   entry.employeeId === emp.id &&
@@ -8262,10 +8282,10 @@ function TimeTrackingPage() {
                           }}
                         />
                         {manualEmployeeSearch &&
-                          filteredManualEmployees &&
-                          filteredManualEmployees.length > 0 && (
+                          filteredManualEmployeesForPiecework &&
+                          filteredManualEmployeesForPiecework.length > 0 && (
                             <div className="border rounded-md max-h-48 overflow-y-auto">
-                              {filteredManualEmployees.map((employee, idx) => {
+                              {filteredManualEmployeesForPiecework.map((employee, idx) => {
                                 const isActiveInTask = activeTimeEntries?.some(
                                   (entry) =>
                                     entry.employeeId === employee.id &&
@@ -8300,8 +8320,8 @@ function TimeTrackingPage() {
                             </div>
                           )}
                         {manualEmployeeSearch &&
-                          filteredManualEmployees &&
-                          filteredManualEmployees.length === 0 && (
+                          filteredManualEmployeesForPiecework &&
+                          filteredManualEmployeesForPiecework.length === 0 && (
                             <p className="p-4 text-sm text-muted-foreground">
                               No employees found.
                             </p>
