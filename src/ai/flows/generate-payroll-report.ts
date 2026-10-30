@@ -879,8 +879,31 @@ export async function generatePayrollReport({
         });
       }
 
-      // Only add employee to the final report if they have calculated summaries
-      if (weeklySummaries.length > 0) {
+      // Non-billable Sick Leave (the default — not billed to any client)
+      // isn't part of weeklySummaries/finalPay at all, since it's never fed
+      // into the dailyWork pipeline above — a week containing only such
+      // entries has zero billable hours and gets dropped by the "Skip weeks
+      // with no work" check above. Tracked here instead, from the full
+      // empTimeEntries for this employee (not just the surviving weeks), so
+      // it ends up on the check (Payroll) without ever touching a client's
+      // invoice or the Labor Report, even when it's the employee's only
+      // activity this period.
+      const sickPayEntries = empTimeEntries.filter(
+        (e: TimeEntry) => e.isSickLeave && !e.sickLeaveBillable,
+      );
+      const sickHoursPaid = sickPayEntries.reduce(
+        (acc: number, e: TimeEntry) => acc + (e.sickHoursUsed || 0),
+        0,
+      );
+      const sickPay = sickPayEntries.reduce(
+        (acc: number, e: TimeEntry) =>
+          acc + (e.sickHoursUsed || 0) * (e.sickPayRate || 0),
+        0,
+      );
+
+      // Only add employee to the final report if they have calculated
+      // summaries, or non-billable sick pay to show on its own.
+      if (weeklySummaries.length > 0 || sickHoursPaid > 0) {
         const totalPayForPeriod = weeklySummaries.reduce(
           (acc, week) => acc + week.finalPay,
           0
@@ -895,25 +918,6 @@ export async function generatePayrollReport({
         // Calculate new sick hours balance
         const currentBalance = employee.sickHoursBalance || 0;
         const newSickHoursBalance = currentBalance + totalSickHoursAccrued;
-
-        // Non-billable Sick Leave (the default — not billed to any client)
-        // isn't part of weeklySummaries/finalPay at all, since it's never
-        // fed into the dailyWork pipeline above. Tracked here instead, from
-        // the same empTimeEntries this employee's weeks were built from, so
-        // it ends up on the check (Payroll) without ever touching a client's
-        // invoice or the Labor Report.
-        const sickPayEntries = empTimeEntries.filter(
-          (e: TimeEntry) => e.isSickLeave && !e.sickLeaveBillable,
-        );
-        const sickHoursPaid = sickPayEntries.reduce(
-          (acc: number, e: TimeEntry) => acc + (e.sickHoursUsed || 0),
-          0,
-        );
-        const sickPay = sickPayEntries.reduce(
-          (acc: number, e: TimeEntry) =>
-            acc + (e.sickHoursUsed || 0) * (e.sickPayRate || 0),
-          0,
-        );
 
         employeeSummaries.push({
           employeeId: employee.id,
