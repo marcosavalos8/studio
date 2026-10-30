@@ -35,6 +35,10 @@ type CrewFormDialogProps = {
   // undefined/null = create mode; an existing crew = edit mode
   crew?: Crew | null;
   employees: Employee[];
+  // Create mode only: pre-check these employees (e.g. suggesting a crew
+  // from a Bulk Clock In / Past Records selection) instead of starting
+  // from an empty set.
+  initialSelectedIds?: string[];
 };
 
 // Shared Add/Edit dialog for crews — a crew is just a name plus a set of
@@ -45,6 +49,7 @@ export function CrewFormDialog({
   onOpenChange,
   crew,
   employees,
+  initialSelectedIds,
 }: CrewFormDialogProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -59,10 +64,10 @@ export function CrewFormDialog({
   useEffect(() => {
     if (isOpen) {
       setName(crew?.name ?? "");
-      setSelectedIds(new Set(crew?.employeeIds ?? []));
+      setSelectedIds(new Set(crew?.employeeIds ?? initialSelectedIds ?? []));
       setSearch("");
     }
-  }, [isOpen, crew]);
+  }, [isOpen, crew, initialSelectedIds]);
 
   const filteredEmployees = useMemo(() => {
     const q = search.trim().toLowerCase();

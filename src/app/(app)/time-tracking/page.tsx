@@ -107,6 +107,7 @@ import type {
   SoundSettings,
 } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CrewFormDialog } from "@/app/(app)/employees/crew-form-dialog";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { withAuth } from "@/components/withAuth";
@@ -376,6 +377,22 @@ function filterEmployeesBySearch<T extends { name: string; employeeNumber?: stri
   });
 }
 
+// True when employeeIds (as a set) is exactly one of the existing crews —
+// used to skip the "save as crew" suggestion when the group just entered
+// is one the user already has saved.
+function groupMatchesExistingCrew(
+  employeeIds: string[],
+  crews: WithId<Crew>[] | null | undefined,
+): boolean {
+  if (!crews || crews.length === 0) return false;
+  const idSet = new Set(employeeIds);
+  return crews.some(
+    (crew) =>
+      crew.employeeIds.length === idSet.size &&
+      crew.employeeIds.every((id) => idSet.has(id)),
+  );
+}
+
 function TimeTrackingPage() {
   const { username } = useAuth();
   const [soundSettings, setSoundSettings] = useState<SoundSettings | null>(
@@ -428,6 +445,24 @@ function TimeTrackingPage() {
   const [bulkClockInDate, setBulkClockInDate] = useState<Date | undefined>(
     undefined,
   );
+
+  // Shared across Bulk Clock In and Past Records: after entering a group of
+  // 10+ employees that doesn't exactly match a saved crew, offer to save it
+  // as one.
+  const CREW_SUGGESTION_THRESHOLD = 10;
+  const [crewSuggestionEmployeeIds, setCrewSuggestionEmployeeIds] = useState<
+    string[] | null
+  >(null);
+  const [isCrewDialogOpenFromSuggestion, setIsCrewDialogOpenFromSuggestion] =
+    useState(false);
+  const maybeSuggestSavingAsCrew = (employeeIds: string[]) => {
+    if (
+      employeeIds.length >= CREW_SUGGESTION_THRESHOLD &&
+      !groupMatchesExistingCrew(employeeIds, crews)
+    ) {
+      setCrewSuggestionEmployeeIds(employeeIds);
+    }
+  };
 
   // Bulk lunch in
   const [isBulkLunchingIn, setIsBulkLunchingIn] = useState(false);
@@ -3716,6 +3751,10 @@ function TimeTrackingPage() {
         }),
       );
 
+      maybeSuggestSavingAsCrew(
+        employeesToProcess.map((entry) => entry.employee.id),
+      );
+
       // Reset form after Firestore operation
       setManualSelectedEmployee(null);
       setManualEmployeeSearch("");
@@ -4202,6 +4241,7 @@ function TimeTrackingPage() {
           ),
         });
 
+        maybeSuggestSavingAsCrew(Array.from(selectedBulkInEmployees));
         setSelectedBulkInEmployees(new Set());
         setIsBulkClockingIn(false);
         return;
@@ -4216,6 +4256,7 @@ function TimeTrackingPage() {
           isOnline,
         ),
       });
+      maybeSuggestSavingAsCrew(Array.from(selectedBulkInEmployees));
       setSelectedBulkInEmployees(new Set());
     } catch (serverError) {
       if (isOnline) {
@@ -9793,6 +9834,47 @@ function TimeTrackingPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Crew Suggestion Dialog — offered after a 10+ manual group (Bulk
+          Clock In or Past Records) that doesn't match a saved crew */}
+      <AlertDialog
+        open={crewSuggestionEmployeeIds !== null}
+        onOpenChange={(open) => {
+          if (!open) setCrewSuggestionEmployeeIds(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Save as a New Crew?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You've entered hours for {crewSuggestionEmployeeIds?.length ?? 0}{" "}
+              workers without using a saved crew. Would you like to save this
+              group as a new Crew so you can select them instantly next time?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => setCrewSuggestionEmployeeIds(null)}
+            >
+              No, Just Save Records
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => setIsCrewDialogOpenFromSuggestion(true)}
+            >
+              Yes, Create Crew
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <CrewFormDialog
+        isOpen={isCrewDialogOpenFromSuggestion}
+        onOpenChange={(open) => {
+          setIsCrewDialogOpenFromSuggestion(open);
+          if (!open) setCrewSuggestionEmployeeIds(null);
+        }}
+        employees={activeEmployees ?? []}
+        initialSelectedIds={crewSuggestionEmployeeIds ?? undefined}
+      />
 
       {/* Delete All Confirmation Dialog */}
       <AlertDialog
