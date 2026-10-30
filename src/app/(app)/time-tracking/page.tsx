@@ -785,6 +785,10 @@ function TimeTrackingPage() {
 
   // Past records state - for creating both clock-in and clock-out at once
   const [usePastRecords, setUsePastRecords] = useState(false);
+  // Which sub-tab of the Manual section is active. "entry" and
+  // "past-records" both render manualLogEntryCardContent (same form); this
+  // just drives which of that form's usePastRecords is forced on/off.
+  const [manualSubTab, setManualSubTab] = useState("entry");
   const [pastRecordClockInDate, setPastRecordClockInDate] = useState<
     Date | undefined
   >(undefined);
@@ -5447,330 +5451,36 @@ function TimeTrackingPage() {
       </div>
     );
   };
+  // Switches usePastRecords on/off, same reset logic the old "Use Manual
+  // Date/Time for Past Records" checkbox used to run from its
+  // onCheckedChange — now triggered by switching the Manual section's
+  // "Manual Entry" / "Past Records" sub-tab instead of a checkbox.
+  const applyUsePastRecords = (checked: boolean) => {
+    setUsePastRecords(checked);
+    if (!checked) {
+      setPastRecordClockInDate(undefined);
+      setPastRecordClockOutDate(undefined);
+      setPastRecordDate(undefined);
+      setPastRecordClockInTime("");
+      setPastRecordClockOutTime("");
+      setPastRecordPiecesCount("");
+      setManualEmployees([]);
+      setShowAddEmployeeSearch(false);
+      setManualAddEmployeeSearch("");
+      setFocusedAddEmployeeIdx(-1);
+    }
+    if (checked) {
+      setUseManualDateTime(false);
+      setManualClockInDate(undefined);
+      setManualClockOutDate(undefined);
+    }
+  };
 
-  return (
-    <div className="max-w-4xl mx-auto">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="qr-scanner" className="text-xs sm:text-sm">
-            <QrCode className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">QR Scanner</span>
-            <span className="sm:hidden">Scanner</span>
-          </TabsTrigger>
-          <TabsTrigger value="manual-entry" className="text-xs sm:text-sm">
-            <ClipboardEdit className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Manual Entry</span>
-            <span className="sm:hidden">Manual</span>
-          </TabsTrigger>
-          <TabsTrigger value="piece-work" className="text-xs sm:text-sm">
-            <Package className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Piece-Work</span>
-            <span className="sm:hidden">Pieces</span>
-          </TabsTrigger>
-          <TabsTrigger value="history" className="text-xs sm:text-sm">
-            <History className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">History</span>
-            <span className="sm:hidden">History</span>
-          </TabsTrigger>
-          <TabsTrigger value="test" className="text-xs sm:text-sm">
-            <div className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full" />
-            <span className="hidden sm:inline">Sound Test</span>
-            <span className="sm:hidden">Test</span>
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="qr-scanner">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg md:text-xl">
-                QR Code Scanner
-              </CardTitle>
-              <CardDescription className="text-sm">
-                Select task and mode. Actions are processed automatically upon
-                valid scan.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 md:space-y-4">
-              <SelectionFields />
-
-              <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="past-records-checkbox"
-                    checked={usePastRecords}
-                    onCheckedChange={(checked: boolean) => {
-                      setUsePastRecords(checked);
-                      if (!checked) {
-                        setPastRecordClockInDate(undefined);
-                        setPastRecordClockOutDate(undefined);
-                        setPastRecordDate(undefined);
-                        setPastRecordClockInTime("");
-                        setPastRecordClockOutTime("");
-                        setPastRecordPiecesCount("");
-                      }
-                      // Reset other modes when enabling past records
-                      if (checked) {
-                        setUseManualDateTime(false);
-                        setManualClockInDate(undefined);
-                        setManualClockOutDate(undefined);
-                      }
-                    }}
-                  />
-                  <Label
-                    htmlFor="past-records-checkbox"
-                    className="font-semibold"
-                  >
-                    Use Manual Date/Time for Past Records
-                  </Label>
-                </div>
-                {usePastRecords && (
-                  <div className="space-y-3 pt-2">
-                    {/* Single Date Picker */}
-                    <div className="space-y-2">
-                      <Label>Date</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={`w-full justify-start text-left font-normal ${
-                              !pastRecordDate && "text-muted-foreground"
-                            }`}
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {pastRecordDate ? (
-                              format(pastRecordDate, "PPP")
-                            ) : (
-                              <span>Select date</span>
-                            )}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <CalendarUI
-                            mode="single"
-                            selected={pastRecordDate}
-                            onSelect={setPastRecordDate}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-
-                    {/* Clock-In Time */}
-                    <div className="space-y-2">
-                      <Label htmlFor="past-clock-in-time">Clock-In Time</Label>
-                      <Input
-                        id="past-clock-in-time"
-                        type="time"
-                        value={pastRecordClockInTime}
-                        onChange={(e) =>
-                          setPastRecordClockInTime(e.target.value)
-                        }
-                        placeholder="Select clock-in time"
-                      />
-                      <p className="text-xs text-muted-foreground">Click the field and type the time directly (HH:MM)</p>
-                    </div>
-
-                    {/* Clock-Out Time */}
-                    <div className="space-y-2">
-                      <Label htmlFor="past-clock-out-time">
-                        Clock-Out Time
-                      </Label>
-                      <Input
-                        id="past-clock-out-time"
-                        type="time"
-                        value={pastRecordClockOutTime}
-                        onChange={(e) =>
-                          setPastRecordClockOutTime(e.target.value)
-                        }
-                        placeholder="Select clock-out time"
-                      />
-                      <p className="text-xs text-muted-foreground">Click the field and type the time directly (HH:MM)</p>
-                    </div>
-
-                    {selectedTask &&
-                      taskAcceptsPieces(
-                        allTasks?.find((t) => t.id === selectedTask),
-                      ) && (
-                        <div className="space-y-2">
-                          <Label htmlFor="past-pieces-count">
-                            Pieces Completed
-                          </Label>
-                          <Input
-                            id="past-pieces-count"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="Enter number of pieces"
-                            value={pastRecordPiecesCount}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              setPastRecordPiecesCount(
-                                value === "" ? "" : parseFloat(value),
-                              );
-                            }}
-                          />
-                        </div>
-                      )}
-                  </div>
-                )}
-              </div>
-
-              <div className="p-4 border rounded-lg space-y-4 bg-blue-50 dark:bg-blue-950/20">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="use-sick-hours-checkbox"
-                    checked={useSickHoursForPayment}
-                    onCheckedChange={(checked: boolean) => {
-                      setUseSickHoursForPayment(checked);
-                    }}
-                  />
-                  <Label
-                    htmlFor="use-sick-hours-checkbox"
-                    className="font-semibold text-blue-900 dark:text-blue-100"
-                  >
-                    Use Sick Hours for Payment
-                  </Label>
-                </div>
-                {useSickHoursForPayment && (
-                  <p className="text-sm text-blue-700 dark:text-blue-300">
-                    ⚠️ The hours worked in this shift will be deducted from the
-                    employee's sick hours balance when they clock out.
-                  </p>
-                )}
-              </div>
-
-              {!usePastRecords && (
-                <>
-                  {/* <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="manual-datetime-checkbox"
-                        checked={useManualDateTime}
-                        onCheckedChange={(checked: boolean) => {
-                          setUseManualDateTime(checked);
-                          if (!checked) {
-                            setManualClockInDate(undefined);
-                            setManualClockOutDate(undefined);
-                            setManualPieceworkDate(undefined);
-                          }
-                        }}
-                      />
-                      <Label
-                        htmlFor="manual-datetime-checkbox"
-                        className="font-semibold"
-                      >
-                        Use Manual Date/Time
-                      </Label>
-                    </div>
-                    {useManualDateTime && (
-                      <div className="space-y-3 pt-2">
-                        {scanMode === "clock-in" && (
-                          <DateTimePicker
-                            date={manualClockInDate}
-                            setDate={setManualClockInDate}
-                            label="Clock-In Date & Time"
-                            placeholder="Select date and time for clock-in"
-                          />
-                        )}
-                        {scanMode === "clock-out" && (
-                          <DateTimePicker
-                            date={manualClockOutDate}
-                            setDate={setManualClockOutDate}
-                            label="Clock-Out Date & Time"
-                            placeholder="Select date and time for clock-out"
-                          />
-                        )}
-                        {scanMode === "piece" && (
-                          <DateTimePicker
-                            date={manualPieceworkDate}
-                            setDate={setManualPieceworkDate}
-                            label="Piecework Date & Time"
-                            placeholder="Select date and time for piecework"
-                          />
-                        )}
-                      </div>
-                    )}
-                  </div> */}
-
-                  {!usePastRecords && (
-                    <div className="space-y-3 md:space-y-4 rounded-lg border bg-card text-card-foreground shadow-sm p-3 md:p-4">
-                      <Label className="font-semibold">Scan Mode</Label>
-                      <RadioGroup
-                        value={scanMode}
-                        onValueChange={(value: string) =>
-                          setScanMode(value as ScanMode)
-                        }
-                        className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4"
-                      >
-                        <Label
-                          htmlFor="mode-clock-in"
-                          className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
-                        >
-                          <RadioGroupItem value="clock-in" id="mode-clock-in" />
-                          <div className="flex items-center gap-1 md:gap-2">
-                            <LogIn className="h-4 w-4 md:h-5 md:w-5 text-green-600" />
-                            <p className="font-medium text-sm md:text-base">
-                              Clock In
-                            </p>
-                          </div>
-                        </Label>
-                        <Label
-                          htmlFor="mode-clock-out"
-                          className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
-                        >
-                          <RadioGroupItem
-                            value="clock-out"
-                            id="mode-clock-out"
-                          />
-                          <div className="flex items-center gap-1 md:gap-2">
-                            <LogOut className="h-4 w-4 md:h-5 md:w-5 text-red-600" />
-                            <p className="font-medium text-sm md:text-base">
-                              Clock Out
-                            </p>
-                          </div>
-                        </Label>
-                        <Label
-                          htmlFor="mode-lunch-in"
-                          className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
-                        >
-                          <RadioGroupItem value="lunch-in" id="mode-lunch-in" />
-                          <div className="flex items-center gap-1 md:gap-2">
-                            <Utensils className="h-4 w-4 md:h-5 md:w-5 text-orange-600" />
-                            <p className="font-medium text-sm md:text-base">
-                              Lunch In
-                            </p>
-                          </div>
-                        </Label>
-                        <Label
-                          htmlFor="mode-lunch-out"
-                          className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
-                        >
-                          <RadioGroupItem
-                            value="lunch-out"
-                            id="mode-lunch-out"
-                          />
-                          <div className="flex items-center gap-1 md:gap-2">
-                            <Utensils className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
-                            <p className="font-medium text-sm md:text-base">
-                              Lunch Out
-                            </p>
-                          </div>
-                        </Label>
-                      </RadioGroup>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* Pieces Completed input for piecework tasks in clock-in mode */}
-
-              <QrScanner
-                onScanResult={handleScanResult}
-                isProcessing={isQrProcessing}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="manual-entry">
+  // Shared by the "Manual Entry" and "Past Records" sub-tabs below — both
+  // render this exact same form; only the forced usePastRecords value (set
+  // when switching sub-tabs, see manualSubTab's onValueChange) changes which
+  // of its already-existing usePastRecords-conditional fields show.
+  const manualLogEntryCardContent = (
           <Card>
             <CardHeader>
               <CardTitle>Manual Log Entry</CardTitle>
@@ -5782,39 +5492,6 @@ function TimeTrackingPage() {
               <SelectionFields isManual={true} />
 
               <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="past-records-checkbox-manual"
-                    checked={usePastRecords}
-                    onCheckedChange={(checked: boolean) => {
-                      setUsePastRecords(checked);
-                      if (!checked) {
-                        setPastRecordClockInDate(undefined);
-                        setPastRecordClockOutDate(undefined);
-                        setPastRecordDate(undefined);
-                        setPastRecordClockInTime("");
-                        setPastRecordClockOutTime("");
-                        setPastRecordPiecesCount("");
-                        setManualEmployees([]);
-                        setShowAddEmployeeSearch(false);
-                        setManualAddEmployeeSearch("");
-                        setFocusedAddEmployeeIdx(-1);
-                      }
-                      // Reset other modes when enabling past records
-                      if (checked) {
-                        setUseManualDateTime(false);
-                        setManualClockInDate(undefined);
-                        setManualClockOutDate(undefined);
-                      }
-                    }}
-                  />
-                  <Label
-                    htmlFor="past-records-checkbox-manual"
-                    className="font-semibold"
-                  >
-                    Use Manual Date/Time for Past Records
-                  </Label>
-                </div>
                 {usePastRecords && (
                   <div className="space-y-3 pt-2">
                     {/* Single Date Picker */}
@@ -6713,7 +6390,380 @@ function TimeTrackingPage() {
               </Button>
             </CardContent>
           </Card>
-          <Card className="mt-4">
+  );
+
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="qr-scanner" className="text-xs sm:text-sm">
+            <QrCode className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">QR Scanner</span>
+            <span className="sm:hidden">Scanner</span>
+          </TabsTrigger>
+          <TabsTrigger value="manual-entry" className="text-xs sm:text-sm">
+            <ClipboardEdit className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Manual Entry</span>
+            <span className="sm:hidden">Manual</span>
+          </TabsTrigger>
+          <TabsTrigger value="piece-work" className="text-xs sm:text-sm">
+            <Package className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Piece-Work</span>
+            <span className="sm:hidden">Pieces</span>
+          </TabsTrigger>
+          <TabsTrigger value="history" className="text-xs sm:text-sm">
+            <History className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">History</span>
+            <span className="sm:hidden">History</span>
+          </TabsTrigger>
+          <TabsTrigger value="test" className="text-xs sm:text-sm">
+            <div className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full" />
+            <span className="hidden sm:inline">Sound Test</span>
+            <span className="sm:hidden">Test</span>
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="qr-scanner">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg md:text-xl">
+                QR Code Scanner
+              </CardTitle>
+              <CardDescription className="text-sm">
+                Select task and mode. Actions are processed automatically upon
+                valid scan.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 md:space-y-4">
+              <SelectionFields />
+
+              <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="past-records-checkbox"
+                    checked={usePastRecords}
+                    onCheckedChange={(checked: boolean) => {
+                      setUsePastRecords(checked);
+                      if (!checked) {
+                        setPastRecordClockInDate(undefined);
+                        setPastRecordClockOutDate(undefined);
+                        setPastRecordDate(undefined);
+                        setPastRecordClockInTime("");
+                        setPastRecordClockOutTime("");
+                        setPastRecordPiecesCount("");
+                      }
+                      // Reset other modes when enabling past records
+                      if (checked) {
+                        setUseManualDateTime(false);
+                        setManualClockInDate(undefined);
+                        setManualClockOutDate(undefined);
+                      }
+                    }}
+                  />
+                  <Label
+                    htmlFor="past-records-checkbox"
+                    className="font-semibold"
+                  >
+                    Use Manual Date/Time for Past Records
+                  </Label>
+                </div>
+                {usePastRecords && (
+                  <div className="space-y-3 pt-2">
+                    {/* Single Date Picker */}
+                    <div className="space-y-2">
+                      <Label>Date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={`w-full justify-start text-left font-normal ${
+                              !pastRecordDate && "text-muted-foreground"
+                            }`}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {pastRecordDate ? (
+                              format(pastRecordDate, "PPP")
+                            ) : (
+                              <span>Select date</span>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarUI
+                            mode="single"
+                            selected={pastRecordDate}
+                            onSelect={setPastRecordDate}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    {/* Clock-In Time */}
+                    <div className="space-y-2">
+                      <Label htmlFor="past-clock-in-time">Clock-In Time</Label>
+                      <Input
+                        id="past-clock-in-time"
+                        type="time"
+                        value={pastRecordClockInTime}
+                        onChange={(e) =>
+                          setPastRecordClockInTime(e.target.value)
+                        }
+                        placeholder="Select clock-in time"
+                      />
+                      <p className="text-xs text-muted-foreground">Click the field and type the time directly (HH:MM)</p>
+                    </div>
+
+                    {/* Clock-Out Time */}
+                    <div className="space-y-2">
+                      <Label htmlFor="past-clock-out-time">
+                        Clock-Out Time
+                      </Label>
+                      <Input
+                        id="past-clock-out-time"
+                        type="time"
+                        value={pastRecordClockOutTime}
+                        onChange={(e) =>
+                          setPastRecordClockOutTime(e.target.value)
+                        }
+                        placeholder="Select clock-out time"
+                      />
+                      <p className="text-xs text-muted-foreground">Click the field and type the time directly (HH:MM)</p>
+                    </div>
+
+                    {selectedTask &&
+                      taskAcceptsPieces(
+                        allTasks?.find((t) => t.id === selectedTask),
+                      ) && (
+                        <div className="space-y-2">
+                          <Label htmlFor="past-pieces-count">
+                            Pieces Completed
+                          </Label>
+                          <Input
+                            id="past-pieces-count"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="Enter number of pieces"
+                            value={pastRecordPiecesCount}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setPastRecordPiecesCount(
+                                value === "" ? "" : parseFloat(value),
+                              );
+                            }}
+                          />
+                        </div>
+                      )}
+                  </div>
+                )}
+              </div>
+
+              <div className="p-4 border rounded-lg space-y-4 bg-blue-50 dark:bg-blue-950/20">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="use-sick-hours-checkbox"
+                    checked={useSickHoursForPayment}
+                    onCheckedChange={(checked: boolean) => {
+                      setUseSickHoursForPayment(checked);
+                    }}
+                  />
+                  <Label
+                    htmlFor="use-sick-hours-checkbox"
+                    className="font-semibold text-blue-900 dark:text-blue-100"
+                  >
+                    Use Sick Hours for Payment
+                  </Label>
+                </div>
+                {useSickHoursForPayment && (
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    ⚠️ The hours worked in this shift will be deducted from the
+                    employee's sick hours balance when they clock out.
+                  </p>
+                )}
+              </div>
+
+              {!usePastRecords && (
+                <>
+                  {/* <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="manual-datetime-checkbox"
+                        checked={useManualDateTime}
+                        onCheckedChange={(checked: boolean) => {
+                          setUseManualDateTime(checked);
+                          if (!checked) {
+                            setManualClockInDate(undefined);
+                            setManualClockOutDate(undefined);
+                            setManualPieceworkDate(undefined);
+                          }
+                        }}
+                      />
+                      <Label
+                        htmlFor="manual-datetime-checkbox"
+                        className="font-semibold"
+                      >
+                        Use Manual Date/Time
+                      </Label>
+                    </div>
+                    {useManualDateTime && (
+                      <div className="space-y-3 pt-2">
+                        {scanMode === "clock-in" && (
+                          <DateTimePicker
+                            date={manualClockInDate}
+                            setDate={setManualClockInDate}
+                            label="Clock-In Date & Time"
+                            placeholder="Select date and time for clock-in"
+                          />
+                        )}
+                        {scanMode === "clock-out" && (
+                          <DateTimePicker
+                            date={manualClockOutDate}
+                            setDate={setManualClockOutDate}
+                            label="Clock-Out Date & Time"
+                            placeholder="Select date and time for clock-out"
+                          />
+                        )}
+                        {scanMode === "piece" && (
+                          <DateTimePicker
+                            date={manualPieceworkDate}
+                            setDate={setManualPieceworkDate}
+                            label="Piecework Date & Time"
+                            placeholder="Select date and time for piecework"
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div> */}
+
+                  {!usePastRecords && (
+                    <div className="space-y-3 md:space-y-4 rounded-lg border bg-card text-card-foreground shadow-sm p-3 md:p-4">
+                      <Label className="font-semibold">Scan Mode</Label>
+                      <RadioGroup
+                        value={scanMode}
+                        onValueChange={(value: string) =>
+                          setScanMode(value as ScanMode)
+                        }
+                        className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4"
+                      >
+                        <Label
+                          htmlFor="mode-clock-in"
+                          className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
+                        >
+                          <RadioGroupItem value="clock-in" id="mode-clock-in" />
+                          <div className="flex items-center gap-1 md:gap-2">
+                            <LogIn className="h-4 w-4 md:h-5 md:w-5 text-green-600" />
+                            <p className="font-medium text-sm md:text-base">
+                              Clock In
+                            </p>
+                          </div>
+                        </Label>
+                        <Label
+                          htmlFor="mode-clock-out"
+                          className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
+                        >
+                          <RadioGroupItem
+                            value="clock-out"
+                            id="mode-clock-out"
+                          />
+                          <div className="flex items-center gap-1 md:gap-2">
+                            <LogOut className="h-4 w-4 md:h-5 md:w-5 text-red-600" />
+                            <p className="font-medium text-sm md:text-base">
+                              Clock Out
+                            </p>
+                          </div>
+                        </Label>
+                        <Label
+                          htmlFor="mode-lunch-in"
+                          className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
+                        >
+                          <RadioGroupItem value="lunch-in" id="mode-lunch-in" />
+                          <div className="flex items-center gap-1 md:gap-2">
+                            <Utensils className="h-4 w-4 md:h-5 md:w-5 text-orange-600" />
+                            <p className="font-medium text-sm md:text-base">
+                              Lunch In
+                            </p>
+                          </div>
+                        </Label>
+                        <Label
+                          htmlFor="mode-lunch-out"
+                          className="flex flex-1 items-center gap-2 md:gap-3 rounded-md border p-2 md:p-3 hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary has-[input:checked]:bg-primary/5"
+                        >
+                          <RadioGroupItem
+                            value="lunch-out"
+                            id="mode-lunch-out"
+                          />
+                          <div className="flex items-center gap-1 md:gap-2">
+                            <Utensils className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
+                            <p className="font-medium text-sm md:text-base">
+                              Lunch Out
+                            </p>
+                          </div>
+                        </Label>
+                      </RadioGroup>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Pieces Completed input for piecework tasks in clock-in mode */}
+
+              <QrScanner
+                onScanResult={handleScanResult}
+                isProcessing={isQrProcessing}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="manual-entry">
+          <Tabs
+            value={manualSubTab}
+            onValueChange={(value: string) => {
+              setManualSubTab(value);
+              // Keep usePastRecords in sync with which of these two
+              // tabs is active — the other sub-tabs (bulk-clock, lunch,
+              // etc.) don't touch it either way.
+              if (value === "past-records" && !usePastRecords) {
+                applyUsePastRecords(true);
+              } else if (value === "entry" && usePastRecords) {
+                applyUsePastRecords(false);
+              }
+            }}
+            className="w-full"
+          >
+            <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 gap-1 h-auto">
+              <TabsTrigger value="entry" className="text-xs sm:text-sm py-2">
+                <span className="hidden sm:inline">Manual Entry</span>
+                <span className="sm:hidden">Entry</span>
+              </TabsTrigger>
+              <TabsTrigger value="past-records" className="text-xs sm:text-sm py-2">
+                <span className="hidden sm:inline">Past Records</span>
+                <span className="sm:hidden">Past</span>
+              </TabsTrigger>
+              <TabsTrigger value="bulk-clock" className="text-xs sm:text-sm py-2">
+                <span className="hidden sm:inline">Bulk Clock In/Out</span>
+                <span className="sm:hidden">Clock I/O</span>
+              </TabsTrigger>
+              <TabsTrigger value="lunch" className="text-xs sm:text-sm py-2">
+                Lunch
+              </TabsTrigger>
+              <TabsTrigger value="sick-leave" className="text-xs sm:text-sm py-2">
+                <span className="hidden sm:inline">Sick Leave</span>
+                <span className="sm:hidden">Sick</span>
+              </TabsTrigger>
+              <TabsTrigger value="missing-buckets" className="text-xs sm:text-sm py-2">
+                <span className="hidden sm:inline">Missing Buckets</span>
+                <span className="sm:hidden">Missing</span>
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="entry" className="mt-4">
+          {manualLogEntryCardContent}
+            </TabsContent>
+            <TabsContent value="past-records" className="mt-4">
+          {manualLogEntryCardContent}
+            </TabsContent>
+            <TabsContent value="bulk-clock" className="mt-4">
+          <Card>
             <CardHeader>
               <CardTitle>Bulk Clock In</CardTitle>
               <CardDescription>
@@ -7168,7 +7218,9 @@ function TimeTrackingPage() {
               </Button>
             </CardContent>
           </Card>
-          <Card className="mt-4">
+            </TabsContent>
+            <TabsContent value="lunch" className="mt-4">
+          <Card>
             <CardHeader>
               <CardTitle>Lunch In</CardTitle>
               <CardDescription>
@@ -7727,7 +7779,9 @@ function TimeTrackingPage() {
               </Button>
             </CardContent>
           </Card>
-          <Card className="mt-4">
+            </TabsContent>
+            <TabsContent value="sick-leave" className="mt-4">
+          <Card>
             <CardHeader>
               <CardTitle>Log Sick Leave</CardTitle>
               <CardDescription>
@@ -7865,7 +7919,8 @@ function TimeTrackingPage() {
               </Button>
             </CardContent>
           </Card>
-
+            </TabsContent>
+            <TabsContent value="missing-buckets" className="mt-4">
           {/* Missing Buckets Card */}
           <Card>
             <CardHeader>
@@ -7974,6 +8029,8 @@ function TimeTrackingPage() {
               </Button>
             </CardContent>
           </Card>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
         <TabsContent value="piece-work">
           <Card className="mb-4">
