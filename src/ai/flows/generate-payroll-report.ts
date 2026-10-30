@@ -208,11 +208,13 @@ export async function generatePayrollReport({
 
         // Note: tasks are keyed by taskId for normal work, but Missing Buckets
         // pieces use a composite key (taskId|MB|originalDate) so entries worked
-        // on different original dates stay separated. The real taskId is stored
-        // in `taskId` for task lookups.
+        // on different original dates stay separated, and billable Sick Leave
+        // uses taskId|SICK so it never blends into the same day's regular
+        // hours on that task. The real taskId is stored in `taskId` for task
+        // lookups either way.
         const dailyWork: Record<
           string,
-          { tasks: Record<string, { taskId: string; hours: number; pieces: number; isMissingBuckets?: boolean; originalDate?: string; firstClockInMs?: number }> }
+          { tasks: Record<string, { taskId: string; hours: number; pieces: number; isMissingBuckets?: boolean; originalDate?: string; firstClockInMs?: number; isSickLeave?: boolean }> }
         > = {};
         // Start with state minimum wage as fallback, will be replaced by client-specific minimum wage
         let applicableMinWage = STATE_MINIMUM_WAGE;
@@ -230,8 +232,16 @@ export async function generatePayrollReport({
             (1000 * 60 * 60);
           if (hours <= 0) return;
 
-          // Skip sick leave entries - they don't count as work hours
-          if (entry.isSickLeave) return;
+          // Non-billable sick leave (the default) never counts as work
+          // hours here — it's not billed to any client, so it's tracked
+          // separately below (see sickHoursPaid/sickPay) instead. Billable
+          // sick leave (sickLeaveBillable) falls through and gets treated
+          // exactly like normal hourly work for this task/client, just kept
+          // in its own taskId|SICK bucket (see below) so its hours don't
+          // blend into the same day's regular hours on that task, and its
+          // DailyTaskDetail line gets labeled "Sick Hours / Sick Leave"
+          // instead of the task name.
+          if (entry.isSickLeave && !entry.sickLeaveBillable) return;
 
           // Apply meal break deduction: always exactly 30 minutes, never
           // the real elapsed time between Lunch In and Lunch Out — a
@@ -249,21 +259,30 @@ export async function generatePayrollReport({
           // Round hours to nearest quarter hour (0.25 increments) to match 15-minute billing requirement
           hours = roundToQuarterHour(hours);
 
+          const taskKey = entry.isSickLeave
+            ? `${entry.taskId}|SICK`
+            : entry.taskId;
+
           if (!dailyWork[dayKey]) dailyWork[dayKey] = { tasks: {} };
-          if (!dailyWork[dayKey].tasks[entry.taskId])
-            dailyWork[dayKey].tasks[entry.taskId] = { taskId: entry.taskId, hours: 0, pieces: 0 };
-          dailyWork[dayKey].tasks[entry.taskId].hours += hours;
+          if (!dailyWork[dayKey].tasks[taskKey])
+            dailyWork[dayKey].tasks[taskKey] = {
+              taskId: entry.taskId,
+              hours: 0,
+              pieces: 0,
+              isSickLeave: entry.isSickLeave,
+            };
+          dailyWork[dayKey].tasks[taskKey].hours += hours;
           // Track the earliest clock-in for this task/day so weekly overtime
           // can be attributed chronologically across clients (see PASO 3.5 below).
           const clockInMs = date.getTime();
-          const existingFirstClockInMs = dailyWork[dayKey].tasks[entry.taskId].firstClockInMs;
+          const existingFirstClockInMs = dailyWork[dayKey].tasks[taskKey].firstClockInMs;
           if (existingFirstClockInMs === undefined || clockInMs < existingFirstClockInMs) {
-            dailyWork[dayKey].tasks[entry.taskId].firstClockInMs = clockInMs;
+            dailyWork[dayKey].tasks[taskKey].firstClockInMs = clockInMs;
           }
 
           // Add pieces from piecesWorked field in TimeEntry
           if (entry.piecesWorked && entry.piecesWorked > 0) {
-            dailyWork[dayKey].tasks[entry.taskId].pieces += entry.piecesWorked;
+            dailyWork[dayKey].tasks[taskKey].pieces += entry.piecesWorked;
           }
         });
 
@@ -463,7 +482,9 @@ export async function generatePayrollReport({
                 clientId: task.clientId,
                 clientName: client?.name || "Unknown Client",
                 taskId,
-                taskName: `${task.name}${task.variety ? ` (${task.variety})` : ""} - ${task.clientRateType === "piece" ? "Piecework" : "Hourly"}`,
+                taskName: taskWork.isSickLeave
+                  ? "Sick Hours / Sick Leave"
+                  : `${task.name}${task.variety ? ` (${task.variety})` : ""} - ${task.clientRateType === "piece" ? "Piecework" : "Hourly"}`,
                 rateType: task.clientRateType === "piece" ? "piece" : "hourly",
                 hours,
               });
@@ -555,7 +576,9 @@ export async function generatePayrollReport({
 
             taskDetailsForDay.push({
               taskId: taskId,
-              taskName: `${task.name}${task.variety ? ` (${task.variety})` : ""} - ${taskTypeLabel}`,
+              taskName: taskWork.isSickLeave
+                ? "Sick Hours / Sick Leave"
+                : `${task.name}${task.variety ? ` (${task.variety})` : ""} - ${taskTypeLabel}`,
               clientName: client?.name || "Unknown Client",
               ranch: task.ranch,
               block: task.block,
@@ -571,6 +594,7 @@ export async function generatePayrollReport({
                 : {}),
               isMissingBuckets: taskWork.isMissingBuckets,
               originalDate: taskWork.originalDate,
+              isSickLeave: taskWork.isSickLeave,
             });
           }
 
@@ -872,6 +896,25 @@ export async function generatePayrollReport({
         const currentBalance = employee.sickHoursBalance || 0;
         const newSickHoursBalance = currentBalance + totalSickHoursAccrued;
 
+        // Non-billable Sick Leave (the default — not billed to any client)
+        // isn't part of weeklySummaries/finalPay at all, since it's never
+        // fed into the dailyWork pipeline above. Tracked here instead, from
+        // the same empTimeEntries this employee's weeks were built from, so
+        // it ends up on the check (Payroll) without ever touching a client's
+        // invoice or the Labor Report.
+        const sickPayEntries = empTimeEntries.filter(
+          (e: TimeEntry) => e.isSickLeave && !e.sickLeaveBillable,
+        );
+        const sickHoursPaid = sickPayEntries.reduce(
+          (acc: number, e: TimeEntry) => acc + (e.sickHoursUsed || 0),
+          0,
+        );
+        const sickPay = sickPayEntries.reduce(
+          (acc: number, e: TimeEntry) =>
+            acc + (e.sickHoursUsed || 0) * (e.sickPayRate || 0),
+          0,
+        );
+
         employeeSummaries.push({
           employeeId: employee.id,
           employeeName: employee.name,
@@ -879,6 +922,9 @@ export async function generatePayrollReport({
           finalPay: parseFloat(totalPayForPeriod.toFixed(2)),
           totalSickHoursAccrued: parseFloat(totalSickHoursAccrued.toFixed(2)),
           newSickHoursBalance: parseFloat(newSickHoursBalance.toFixed(2)),
+          sickHoursPaid:
+            sickHoursPaid > 0 ? parseFloat(sickHoursPaid.toFixed(2)) : undefined,
+          sickPay: sickPay > 0 ? parseFloat(sickPay.toFixed(2)) : undefined,
         });
       }
     }

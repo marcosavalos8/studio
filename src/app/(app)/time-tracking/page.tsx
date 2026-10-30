@@ -996,6 +996,16 @@ function TimeTrackingPage() {
   const [sickLeaveDate, setSickLeaveDate] = useState<string>("");
   const [sickLeaveNotes, setSickLeaveNotes] = useState("");
   const [isLoggingSickLeave, setIsLoggingSickLeave] = useState(false);
+  // Unchecked (default): payroll-only, not billed to any client — paid out
+  // at sickPayRate instead of a task's rate. Checked: billed like normal
+  // hourly work on the chosen task (Invoice/Labor Report/Payroll all show
+  // it, labeled "Sick Hours / Sick Leave" instead of the task name).
+  const [sickLeaveBillable, setSickLeaveBillable] = useState(false);
+  const [sickPayRate, setSickPayRate] = useState("");
+  const [sickLeaveClient, setSickLeaveClient] = useState("");
+  const [sickLeaveRanch, setSickLeaveRanch] = useState("");
+  const [sickLeaveBlock, setSickLeaveBlock] = useState("");
+  const [sickLeaveTask, setSickLeaveTask] = useState("");
 
   // Use sick hours for payment state
   const [useSickHoursForPayment, setUseSickHoursForPayment] = useState(false);
@@ -1673,6 +1683,34 @@ function TimeTrackingPage() {
         selectedBulkInBlock,
       ),
     [bulkInTasksForClient, selectedBulkInRanch, selectedBulkInBlock],
+  );
+
+  // Billable Sick Leave's own cascade, restricted to hourly tasks only —
+  // sick hours bill as hours, which only makes sense against an hourly
+  // task's rate (a piecework task has no hourly rate to fall back on).
+  const sickLeaveTasksForClient = useMemo(
+    () =>
+      tasksForClientId(allTasks, sickLeaveClient).filter(
+        (t) => t.clientRateType === "hourly",
+      ),
+    [allTasks, sickLeaveClient],
+  );
+  const sickLeaveRanches = useMemo(
+    () => ranchesForTasks(sickLeaveTasksForClient),
+    [sickLeaveTasksForClient],
+  );
+  const sickLeaveBlocks = useMemo(
+    () => blocksForTasks(sickLeaveTasksForClient, sickLeaveRanch),
+    [sickLeaveTasksForClient, sickLeaveRanch],
+  );
+  const sickLeaveFilteredTasks = useMemo(
+    () =>
+      filterTasksByRanchBlock(
+        sickLeaveTasksForClient,
+        sickLeaveRanch,
+        sickLeaveBlock,
+      ),
+    [sickLeaveTasksForClient, sickLeaveRanch, sickLeaveBlock],
   );
 
   // Lunch In's own cascade, restricted to tasks with an active clock-in
@@ -5278,6 +5316,26 @@ function TimeTrackingPage() {
       return;
     }
 
+    let payRate = 0;
+    if (!sickLeaveBillable) {
+      payRate = parseFloat(sickPayRate);
+      if (isNaN(payRate) || payRate <= 0) {
+        toast({
+          variant: "destructive",
+          title: "Missing Pay Rate",
+          description: "Please enter a $/hr pay rate for these sick hours.",
+        });
+        return;
+      }
+    } else if (!sickLeaveTask) {
+      toast({
+        variant: "destructive",
+        title: "Missing Task",
+        description: "Please select a client and task to bill these sick hours to.",
+      });
+      return;
+    }
+
     setIsLoggingSickLeave(true);
 
     try {
@@ -5287,29 +5345,40 @@ function TimeTrackingPage() {
       const endDate = new Date(leaveDate);
       endDate.setHours(leaveDate.getHours() + hours);
 
-      // Find a default task or create a "Sick Leave" marker
-      // For now, we'll use the first active task or require task selection
-      const defaultTask = allTasks?.find((t) => t.status === "Active");
-
-      if (!defaultTask) {
-        toast({
-          variant: "destructive",
-          title: "No Active Task",
-          description:
-            "Please create an active task before logging sick leave.",
-        });
-        setIsLoggingSickLeave(false);
-        return;
+      let taskIdForEntry: string;
+      if (sickLeaveBillable) {
+        taskIdForEntry = sickLeaveTask;
+      } else {
+        // Not billed to any client — the entry still needs *a* taskId to
+        // satisfy TimeEntry's shape, but it's never looked up for display:
+        // every consumer treats isSickLeave && !sickLeaveBillable as
+        // payroll-only and shows "Sick Hours / Sick Leave" instead of a
+        // task name.
+        const defaultTask = allTasks?.find((t) => t.status === "Active");
+        if (!defaultTask) {
+          toast({
+            variant: "destructive",
+            title: "No Active Task",
+            description:
+              "Please create an active task before logging sick leave.",
+          });
+          setIsLoggingSickLeave(false);
+          return;
+        }
+        taskIdForEntry = defaultTask.id;
       }
 
       const sickLeaveEntry: Omit<TimeEntry, "id"> = {
         employeeId: manualSelectedEmployee.id,
-        taskId: defaultTask.id,
+        taskId: taskIdForEntry,
         timestamp: leaveDate,
         endTime: endDate,
         isBreak: false,
         isSickLeave: true,
         sickHoursUsed: hours,
+        ...(sickLeaveBillable
+          ? { sickLeaveBillable: true }
+          : { sickPayRate: payRate }),
       };
 
       await addDoc(collection(firestore, "time_entries"), sickLeaveEntry);
@@ -5336,6 +5405,12 @@ function TimeTrackingPage() {
       setSickLeaveNotes("");
       setManualSelectedEmployee(null);
       setManualEmployeeSearch("");
+      setSickLeaveBillable(false);
+      setSickPayRate("");
+      setSickLeaveClient("");
+      setSickLeaveRanch("");
+      setSickLeaveBlock("");
+      setSickLeaveTask("");
     } catch (error) {
       console.error("Error logging sick leave:", error);
       toast({
@@ -7896,6 +7971,162 @@ function TimeTrackingPage() {
                 />
               </div>
 
+              <div className="flex items-center space-x-2 p-3 border rounded-lg bg-muted/30">
+                <Checkbox
+                  id="sick-leave-add-to-invoice"
+                  checked={sickLeaveBillable}
+                  onCheckedChange={(checked: boolean) => {
+                    setSickLeaveBillable(checked);
+                    if (checked) {
+                      setSickPayRate("");
+                    } else {
+                      setSickLeaveClient("");
+                      setSickLeaveRanch("");
+                      setSickLeaveBlock("");
+                      setSickLeaveTask("");
+                    }
+                  }}
+                  disabled={!manualSelectedEmployee}
+                />
+                <Label htmlFor="sick-leave-add-to-invoice" className="font-normal">
+                  Add to Invoice — client agreed to pay for these sick hours
+                </Label>
+              </div>
+
+              {sickLeaveBillable ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="sick-leave-client-select">Client</Label>
+                    <Select
+                      value={sickLeaveClient || ""}
+                      onValueChange={(value) => {
+                        setSickLeaveClient(
+                          value === CLEAR_SELECTION_VALUE ? "" : value,
+                        );
+                        setSickLeaveRanch("");
+                        setSickLeaveBlock("");
+                        setSickLeaveTask("");
+                      }}
+                      disabled={!manualSelectedEmployee}
+                    >
+                      <SelectTrigger id="sick-leave-client-select">
+                        <SelectValue placeholder="Select a client" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={CLEAR_SELECTION_VALUE}>
+                          -- Clear selection --
+                        </SelectItem>
+                        {clients?.map((client) => (
+                          <SelectItem key={client.id} value={client.id}>
+                            {client.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="sick-leave-ranch-select">Ranch (Optional)</Label>
+                    <Select
+                      value={sickLeaveRanch || ""}
+                      onValueChange={(value) => {
+                        setSickLeaveRanch(
+                          value === CLEAR_SELECTION_VALUE ? "" : value,
+                        );
+                        setSickLeaveBlock("");
+                        setSickLeaveTask("");
+                      }}
+                      disabled={!sickLeaveClient || sickLeaveRanches.length === 0}
+                    >
+                      <SelectTrigger id="sick-leave-ranch-select">
+                        <SelectValue placeholder="Select a ranch" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={CLEAR_SELECTION_VALUE}>
+                          -- Clear selection --
+                        </SelectItem>
+                        {sickLeaveRanches.map((ranch) => (
+                          <SelectItem key={ranch} value={ranch}>
+                            {ranch}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="sick-leave-block-select">Block (Optional)</Label>
+                    <Select
+                      value={sickLeaveBlock || ""}
+                      onValueChange={(value) => {
+                        setSickLeaveBlock(
+                          value === CLEAR_SELECTION_VALUE ? "" : value,
+                        );
+                        setSickLeaveTask("");
+                      }}
+                      disabled={!sickLeaveRanch || sickLeaveBlocks.length === 0}
+                    >
+                      <SelectTrigger id="sick-leave-block-select">
+                        <SelectValue placeholder="Select a block" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={CLEAR_SELECTION_VALUE}>
+                          -- Clear selection --
+                        </SelectItem>
+                        {sickLeaveBlocks.map((block) => (
+                          <SelectItem key={block} value={block}>
+                            {block}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="sick-leave-task-select">Task</Label>
+                    <Select
+                      value={sickLeaveTask}
+                      onValueChange={setSickLeaveTask}
+                      disabled={!sickLeaveClient}
+                    >
+                      <SelectTrigger id="sick-leave-task-select">
+                        <SelectValue
+                          placeholder={
+                            !sickLeaveClient
+                              ? "Select a client first to view tasks"
+                              : "Select an hourly task to bill"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sickLeaveFilteredTasks.map((task) => (
+                          <SelectItem key={task.id} value={task.id}>
+                            {task.name}
+                            {task.variety && ` (${task.variety})`}
+                            {task.ranch && ` - ${task.ranch}`}
+                            {task.block && ` - ${task.block}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="sick-pay-rate">Pay Rate ($/hr)</Label>
+                  <Input
+                    id="sick-pay-rate"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="e.g., 19.82"
+                    value={sickPayRate}
+                    onChange={(e) => setSickPayRate(e.target.value)}
+                    disabled={!manualSelectedEmployee}
+                  />
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="sick-leave-date">Date of Absence</Label>
                 <Input
@@ -7921,7 +8152,11 @@ function TimeTrackingPage() {
               <Button
                 className="w-full"
                 onClick={handleLogSickLeave}
-                disabled={!manualSelectedEmployee || isLoggingSickLeave}
+                disabled={
+                  !manualSelectedEmployee ||
+                  isLoggingSickLeave ||
+                  (sickLeaveBillable ? !sickLeaveTask : !sickPayRate)
+                }
               >
                 {isLoggingSickLeave && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

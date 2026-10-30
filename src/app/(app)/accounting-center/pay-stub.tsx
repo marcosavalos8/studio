@@ -223,9 +223,16 @@ export function PayStub({ summary, employeeNumber, companyName, startDate, endDa
         </div>
       )}
 
+      {(summary.sickPay ?? 0) > 0 && (
+        <div className="sec" style={{ display: "flex", justifyContent: "space-between" }}>
+          <span>Sick Hours / Sick Leave ({num(summary.sickHoursPaid ?? 0)} hrs, no facturado a cliente)</span>
+          <span>{money(summary.sickPay ?? 0)}</span>
+        </div>
+      )}
+
       <div className="sec-title" style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
         <span>Pago Total Bruto</span>
-        <span>{money(summary.finalPay)}</span>
+        <span>{money(summary.finalPay + (summary.sickPay ?? 0))}</span>
       </div>
 
       <div className="note">El Pago Total Bruto está exento de deducciones aplicables.</div>

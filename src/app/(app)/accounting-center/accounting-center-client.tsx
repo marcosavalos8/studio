@@ -293,6 +293,8 @@ function AccountingSummaryCard({
   weeklySummaries,
   finalPay,
   totalSickHoursAccrued,
+  sickPay,
+  sickHoursPaid,
   isCompleted,
   isToggling,
   employeeId,
@@ -302,6 +304,8 @@ function AccountingSummaryCard({
   weeklySummaries: WeeklySummary[];
   finalPay: number;
   totalSickHoursAccrued?: number;
+  sickPay?: number;
+  sickHoursPaid?: number;
   isCompleted: boolean;
   isToggling: boolean;
   employeeId: string;
@@ -431,9 +435,17 @@ function AccountingSummaryCard({
               Period Final Pay
             </span>
             <span className="text-2xl font-bold text-primary tabular-nums">
-              ${finalPay.toFixed(2)}
+              ${(finalPay + (sickPay ?? 0)).toFixed(2)}
             </span>
           </div>
+          {(sickPay ?? 0) > 0 && (
+            <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-border/40">
+              <span className="text-[10px] text-muted-foreground">
+                incl. Sick Pay ({(sickHoursPaid ?? 0).toFixed(2)} hrs, not billed)
+              </span>
+              <span className="text-[10px] text-amber-600 font-medium">${sickPay!.toFixed(2)}</span>
+            </div>
+          )}
           {(totalSickHoursAccrued ?? 0) > 0 && (
             <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-border/40">
               <span className="text-[10px] text-muted-foreground">Sick Hours Accrued</span>
@@ -582,7 +594,7 @@ function WorkerAccordionItem({
                   : "text-primary",
               )}
             >
-              ${employeeSummary.finalPay.toFixed(2)}
+              ${(employeeSummary.finalPay + (employeeSummary.sickPay ?? 0)).toFixed(2)}
             </div>
           </div>
         </div>
@@ -608,6 +620,8 @@ function WorkerAccordionItem({
                 weeklySummaries={employeeSummary.weeklySummaries}
                 finalPay={employeeSummary.finalPay}
                 totalSickHoursAccrued={employeeSummary.totalSickHoursAccrued}
+                sickPay={employeeSummary.sickPay}
+                sickHoursPaid={employeeSummary.sickHoursPaid}
                 isCompleted={isCompleted}
                 isToggling={isToggling}
                 employeeId={employeeSummary.employeeId}

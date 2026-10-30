@@ -135,6 +135,17 @@ export type TimeEntry = {
   paymentModality?: "Hourly" | "Piecework";
   isSickLeave?: boolean; // Whether this entry uses sick hours
   sickHoursUsed?: number; // Number of sick hours used for this entry
+  // Only meaningful when isSickLeave is true. true = this sick leave was
+  // billed to a client's task like normal hourly work (Invoice/Labor
+  // Report/Payroll all show it, labeled "Sick Hours / Sick Leave" instead
+  // of the task name). false/undefined = the default: payroll-only, not
+  // billed to any client, uses sickPayRate instead of a task's rate.
+  sickLeaveBillable?: boolean;
+  // Only set (and only meaningful) when isSickLeave is true and
+  // sickLeaveBillable is false/undefined: the $/hr the employer pays out
+  // for these hours, entered by hand since there's no task/client rate to
+  // fall back on.
+  sickPayRate?: number;
   useSickHoursForPayment?: boolean; // Whether employee wants to use sick hours to pay for this shift
   // Real clock times for this entry's unpaid meal break, recorded via the
   // Lunch In / Lunch Out bulk actions (or typed by hand in Past Records /
@@ -189,6 +200,11 @@ export type DailyTaskDetail = {
   bonusRate?: number;
   isMissingBuckets?: boolean;
   originalDate?: string;
+  // Set when this line is billable Sick Leave hours billed to the task's
+  // client — taskName is already overridden to "Sick Hours / Sick Leave"
+  // at generation time, so a consumer doesn't need to re-derive this, but
+  // the flag is kept for anything that wants to branch on it directly.
+  isSickLeave?: boolean;
 };
 
 export type DailyBreakdown = {
@@ -263,6 +279,12 @@ export type EmployeePayrollSummary = {
   finalPay: number;
   totalSickHoursAccrued?: number; // Total sick hours accrued in this period
   newSickHoursBalance?: number; // Updated sick hours balance after this period
+  // Non-billable Sick Leave only (sickLeaveBillable: false/undefined) — billable
+  // Sick Leave is already folded into finalPay/weeklySummaries like normal
+  // hourly work instead. Not billed to any client; shown as an extra
+  // payroll-only line so it ends up on the check without touching finalPay.
+  sickHoursPaid?: number;
+  sickPay?: number;
 };
 
 export type ProcessedPayrollData = {

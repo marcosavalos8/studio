@@ -90,7 +90,10 @@ interface ReportDisplayProps {
 }
 
 export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
-    const overallTotal = report.employeeSummaries.reduce((acc, emp) => acc + emp.finalPay, 0);
+    const overallTotal = report.employeeSummaries.reduce(
+        (acc, emp) => acc + emp.finalPay + (emp.sickPay || 0),
+        0,
+    );
 
     const handlePrint = () => {
         window.print();
@@ -274,9 +277,20 @@ export function PayrollReportDisplay({ report, onBack }: ReportDisplayProps) {
                                                     <TableCell className="text-right text-green-600 font-medium">{employee.totalSickHoursAccrued.toFixed(2)} hrs</TableCell>
                                                   </TableRow>
                                                 )}
+                                                {employee.sickPay !== undefined && employee.sickPay > 0 && (
+                                                  <TableRow className="bg-amber-50 dark:bg-amber-900/20">
+                                                    <TableCell className="font-medium">
+                                                      Sick Pay ({(employee.sickHoursPaid ?? 0).toFixed(2)} hrs used, not billed to any client)
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-amber-600 font-medium">${employee.sickPay.toFixed(2)}</TableCell>
+                                                  </TableRow>
+                                                )}
                                             </TableBody>
                                             <TableFooter>
                                             <TableRow className="text-lg font-bold"><TableCell>Final Pay</TableCell><TableCell className="text-right">${employee.finalPay.toFixed(2)}</TableCell></TableRow>
+                                            {employee.sickPay !== undefined && employee.sickPay > 0 ? (
+                                              <TableRow className="text-lg font-bold bg-primary/5"><TableCell>Total incl. Sick Pay</TableCell><TableCell className="text-right">${(employee.finalPay + employee.sickPay).toFixed(2)}</TableCell></TableRow>
+                                            ) : null}
                                             </TableFooter>
                                         </Table>
                                         </div>
