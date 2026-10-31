@@ -120,6 +120,21 @@ function normalizeNumberValue(raw: string): string | null {
   return cleaned;
 }
 
+// Median word height across the photo, in pixels — the one scale reference
+// every other distance in this parser is measured against (row spacing,
+// how far below the header the data starts, how much a tilted row drifts).
+// A fixed pixel count only works for the one photo it was tuned against;
+// a phone photo's resolution and how far back it was taken from both vary
+// a lot, so every other threshold here is a multiple of this instead.
+function medianWordHeight(words: VisionWord[]): number {
+  const heights = words.map((w) => w.y1 - w.y0).sort((a, b) => a - b);
+  if (heights.length === 0) return 20; // arbitrary fallback, never hit in practice
+  const mid = Math.floor(heights.length / 2);
+  return heights.length % 2 === 0
+    ? (heights[mid - 1] + heights[mid]) / 2
+    : heights[mid];
+}
+
 // Least-squares slope (dy/dx) of the header row's words, used to deskew a
 // photo that wasn't captured perfectly level.
 function estimateSlope(points: VisionWord[]): number {
@@ -170,7 +185,15 @@ export function parseCrewSheet(words: VisionWord[]): CrewSheetParseResult {
     return { rows: [], headerFound: false };
   }
   const anchorY = Math.min(...startMatches.map((w) => w.cy));
-  const headerBand = 80;
+  // The scale reference is the printed header text's own height, not a
+  // median over every word — handwritten body text varies wildly in size
+  // (sloppy vs. careful handwriting) independent of how zoomed-in the photo
+  // is, so it's not a reliable ruler. The header's printed text and the
+  // table's row spacing are both fixed by the same template and photo
+  // zoom level, so their ratio holds even when their absolute pixel sizes
+  // don't match a different photo.
+  const lineHeight = medianWordHeight(startMatches);
+  const headerBand = lineHeight * 5;
   const headerGroups: Record<ColumnKey, VisionWord[]> = {
     name: [],
     start: [],
@@ -230,10 +253,22 @@ export function parseCrewSheet(words: VisionWord[]): CrewSheetParseResult {
     return /^[a-zA-ZÀ-ÿ]{3,}$/.test(text);
   }
 
+  // The sheet's own totals/legend line below the table ("Total Workers: 23
+  // Rate: $ /bin Total Pay: $ Total Bins: ... Notes: ...") sits close
+  // enough to the last real worker row that it can end up inside a row
+  // cluster. Its words are individually letters, so looksLikeName() can't
+  // tell it apart from a name on its own — this rejects a built name that
+  // contains any of this template's own fixed labels.
+  const FOOTER_WORDS = ["total", "rate", "notes", "workers", "pay"];
+  function looksLikeFooterText(name: string): boolean {
+    const words = name.toLowerCase().split(/\s+/);
+    return words.some((w) => FOOTER_WORDS.includes(w));
+  }
+
   // 3. Everything strictly below the header line (with a small margin) is
   // table data; anything above/at it is the sheet's preamble (grower,
   // date, crew leader, etc.) and gets ignored.
-  const margin = 15;
+  const margin = lineHeight * 1.5;
   const dataWords = normalized
     .filter((w) => deskewedY(w) > headerCenterY + margin)
     .map((w) => ({ ...w, dy: deskewedY(w) }));
@@ -243,9 +278,12 @@ export function parseCrewSheet(words: VisionWord[]): CrewSheetParseResult {
   }
 
   // 4. Cluster into rows by deskewed y: sort, then start a new row whenever
-  // the gap to the previous word exceeds half a typical row's height.
+  // the gap to the previous word exceeds this. Real rows are ~4 line-heights
+  // apart center-to-center; a single row's own words (tilt included) spread
+  // well under 2 — the threshold sits between the two so distinct rows never
+  // merge and one row's own words never split in half.
   dataWords.sort((a, b) => a.dy - b.dy);
-  const rowGapThreshold = 35;
+  const rowGapThreshold = lineHeight * 1.7;
   const rowClusters: (typeof dataWords)[] = [];
   let current: typeof dataWords = [];
   let lastY: number | null = null;
@@ -292,8 +330,14 @@ export function parseCrewSheet(words: VisionWord[]): CrewSheetParseResult {
       row[key] = wordsInCol.map((w) => w.text).join(key === "name" ? " " : "");
     }
     // A row with no name at all is almost certainly a stray mark, not a
-    // worker — skip it instead of emitting a blank card.
-    if (row.name && row.name.trim()) rawRows.push(row);
+    // worker — skip it instead of emitting a blank card. Also reject the
+    // sheet's own totals/notes line below the table ("Total Workers",
+    // "Rate", "Notes", ...) outright — those words are letters too, so
+    // looksLikeName() happily accepts them, but they are never a worker's
+    // name regardless of how row-clustering drew the line around them.
+    if (row.name && row.name.trim() && !looksLikeFooterText(row.name)) {
+      rawRows.push(row);
+    }
   }
 
   // 6. Validate each timed/numeric column; anything that doesn't parse
