@@ -186,61 +186,66 @@ export function ScanCrewSheetDialog({
     return { matched, suggested, unmatched };
   }, [rows]);
 
+  // Never blocks the whole batch over a couple of unresolved rows — adds
+  // every row that's ready now (into the same editable list "Add employee"
+  // already fills, so any of them can still be fixed by hand afterward) and
+  // tells the user which ones it skipped and why, instead of making them
+  // fix everything inside this dialog before they can add anything at all.
   const handleConfirm = () => {
     const toAdd = rows.filter((r) => r.included);
-    const missingEmployee = toAdd.some((r) => !r.employeeId);
-    if (missingEmployee) {
-      toast({
-        variant: "destructive",
-        title: "Missing worker",
-        description:
-          "Every included row needs a worker picked before you can add them.",
-      });
-      return;
-    }
     const seen = new Set<string>();
-    const duplicate = toAdd.find((r) => {
-      if (seen.has(r.employeeId)) return true;
+    const addedIds = new Set<string>();
+    const skippedNames: string[] = [];
+    const entries: ScannedEmployeeEntry[] = [];
+
+    for (const r of toAdd) {
+      const employee = r.employeeId ? employeesById.get(r.employeeId) : undefined;
+      if (!employee || seen.has(r.employeeId)) {
+        skippedNames.push(r.sheetName);
+        continue;
+      }
       seen.add(r.employeeId);
-      return false;
-    });
-    if (duplicate) {
+      addedIds.add(r.id);
+      entries.push({
+        employee,
+        pieces: r.bins,
+        clockIn: r.start,
+        clockOut: r.end,
+        hours: r.hours,
+        lunchIn: r.lunchIn,
+        lunchBreak: r.lunchIn ? true : undefined,
+      });
+    }
+
+    if (entries.length > 0) {
+      onConfirm(entries);
+    }
+    if (skippedNames.length === 0) {
+      onOpenChange(false);
       toast({
-        variant: "destructive",
-        title: "Same worker picked twice",
-        description:
-          "Two rows are assigned to the same worker — fix or uncheck one before continuing.",
+        title: "Sheet scanned",
+        description: `${entries.length} worker${entries.length === 1 ? "" : "s"} added — review their hours before saving.`,
       });
       return;
     }
 
-    const entries: ScannedEmployeeEntry[] = toAdd
-      .map((r): ScannedEmployeeEntry | null => {
-        const employee = employeesById.get(r.employeeId);
-        if (!employee) return null;
-        return {
-          employee,
-          pieces: r.bins,
-          clockIn: r.start,
-          clockOut: r.end,
-          hours: r.hours,
-          lunchIn: r.lunchIn,
-          lunchBreak: r.lunchIn ? true : undefined,
-        };
-      })
-      .filter((e): e is ScannedEmployeeEntry => e !== null);
-
-    onConfirm(entries);
-    onOpenChange(false);
     toast({
-      title: "Sheet scanned",
-      description: `${entries.length} worker${entries.length === 1 ? "" : "s"} added — review their hours before saving.`,
+      variant: entries.length === 0 ? "destructive" : "default",
+      title:
+        entries.length > 0
+          ? `${entries.length} added, ${skippedNames.length} skipped`
+          : "Nothing added",
+      description: `Still need a worker picked: ${skippedNames.join(", ")}. Fix them below and add again, or add them by hand in Past Records.`,
     });
+    // Drop only the rows that made it in — keep the skipped ones on screen
+    // (dialog stays open) so they can be fixed and resubmitted, instead of
+    // closing and losing the review state for just those couple of rows.
+    setRows((prev) => prev.filter((r) => !addedIds.has(r.id)));
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ScanLine className="h-5 w-5" />
@@ -315,7 +320,7 @@ export function ScanCrewSheetDialog({
                 {counts.unmatched} not found
               </Badge>
             </div>
-            <ScrollArea className="flex-1 -mx-1 px-1">
+            <ScrollArea className="flex-1 min-h-0 -mx-1 px-1">
               <div className="space-y-2 pb-2">
                 {rows.map((row) => (
                   <div
