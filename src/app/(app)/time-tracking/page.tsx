@@ -77,6 +77,7 @@ import {
   CheckSquare,
   Printer,
   Utensils,
+  ScanLine,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
@@ -111,6 +112,10 @@ import type {
 } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CrewFormDialog } from "@/app/(app)/employees/crew-form-dialog";
+import {
+  ScanCrewSheetDialog,
+  type ScannedEmployeeEntry,
+} from "@/components/time-tracking/scan-crew-sheet-dialog";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { withAuth } from "@/components/withAuth";
@@ -717,6 +722,20 @@ function TimeTrackingPage() {
       }
     }
     setManualLoadCrewId("");
+  };
+
+  const [isScanCrewSheetOpen, setIsScanCrewSheetOpen] = useState(false);
+  // Appends the workers confirmed in the crew-sheet scanner dialog, the same
+  // way handleLoadCrew appends a saved crew — skipping anyone already in the
+  // list rather than erroring, since the scan is just another way to fill in
+  // the same manualEmployees rows the "Add employee" search and Load Crew
+  // already populate.
+  const handleScanConfirm = (entries: ScannedEmployeeEntry[]) => {
+    const alreadyAddedIds = new Set(manualEmployees.map((e) => e.employee.id));
+    const toAdd = entries.filter((e) => !alreadyAddedIds.has(e.employee.id));
+    if (toAdd.length > 0) {
+      setManualEmployees((prev) => [...prev, ...toAdd]);
+    }
   };
   // Same idea for the QR Scanner's Shared Piece employee list: appends a
   // crew's members (skipping duplicates) instead of scanning each badge.
@@ -5777,6 +5796,16 @@ function TimeTrackingPage() {
                           Create Shared Group
                         </Button>
                       )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-1"
+                      onClick={() => setIsScanCrewSheetOpen(true)}
+                    >
+                      <ScanLine className="h-3 w-3" />
+                      Scan Sheet
+                    </Button>
                   </div>
                   )}
                 </div>
@@ -10407,6 +10436,12 @@ function TimeTrackingPage() {
         }}
         employees={activeEmployees ?? []}
         initialSelectedIds={crewSuggestionEmployeeIds ?? undefined}
+      />
+      <ScanCrewSheetDialog
+        open={isScanCrewSheetOpen}
+        onOpenChange={setIsScanCrewSheetOpen}
+        employees={activeEmployees ?? []}
+        onConfirm={handleScanConfirm}
       />
 
       {/* Delete All Confirmation Dialog */}
