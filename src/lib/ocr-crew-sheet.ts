@@ -106,18 +106,27 @@ const COLUMN_ORDER_INDEX = {
 
 type ColumnKey = keyof typeof COLUMN_ORDER_INDEX;
 
-const TIME_RE = /^\d{1,2}[:.]\d{2}$/;
-const NUMBER_RE = /^\d+(\.\d+)?$/;
+const TIME_RE = /\d{1,2}[:.]\d{2}/;
+const NUMBER_RE = /\d+(\.\d+)?/;
 
+// Not anchored to the whole string — a handwritten colon sometimes lands
+// as its own separate OCR word, so a column's cell can end up with stray
+// digits/punctuation stuck to the real value (e.g. "00/12:30" instead of
+// "12:30"). Pulling the pattern out of whatever text landed in the cell
+// recovers the real value in that case instead of rejecting the cell
+// outright; a cell with no valid pattern anywhere in it still comes back
+// null, same as before.
 function normalizeTimeValue(raw: string): string | null {
   const cleaned = raw.replace(/\s+/g, "");
-  if (!TIME_RE.test(cleaned)) return null;
-  return cleaned.replace(".", ":");
+  const match = cleaned.match(TIME_RE);
+  if (!match) return null;
+  return match[0].replace(".", ":");
 }
 function normalizeNumberValue(raw: string): string | null {
   const cleaned = raw.replace(/\s+/g, "");
-  if (!NUMBER_RE.test(cleaned)) return null;
-  return cleaned;
+  const match = cleaned.match(NUMBER_RE);
+  if (!match) return null;
+  return match[0];
 }
 
 // Median word height across the photo, in pixels — the one scale reference
@@ -207,6 +216,32 @@ export function parseCrewSheet(words: VisionWord[]): CrewSheetParseResult {
     if (Math.abs(w.cy - anchorY) <= headerBand) headerGroups[w.key].push(w);
   }
 
+  // A column's own header word can land here unclaimed when it matches
+  // none of HEADER_LABELS at all (seen in the wild: a real "Bins" header —
+  // misprinted on the physical sheet itself, not just misread — came
+  // through as "3r.s"). That missing column is always the rightmost one in
+  // this template, so its real printed label (if the camera caught
+  // anything at all) is whatever sits on the header row itself, to the
+  // right of the last column that WAS recognized (Hours) — a *tight* band
+  // matching the header text's own height, not the generous headerBand
+  // used above to find the header row in the first place, which is loose
+  // enough to also catch the first couple of data rows and would wrongly
+  // treat their content as part of the missing label otherwise.
+  const confirmedHeaderWords = Object.values(headerGroups).flat();
+  const rawHeaderY =
+    confirmedHeaderWords.reduce((a, w) => a + w.cy, 0) / confirmedHeaderWords.length;
+  const rightmostConfirmedX1 = Math.max(...confirmedHeaderWords.map((w) => w.x1));
+  const tightHeaderBand = lineHeight * 1.5;
+  const claimedHeaderKeys = new Set(
+    confirmedHeaderWords.map((w) => `${w.text}|${w.x0}|${w.y0}`),
+  );
+  const unclaimedHeaderWords = normalized.filter(
+    (w) =>
+      Math.abs(w.cy - rawHeaderY) <= tightHeaderBand &&
+      w.x0 > rightmostConfirmedX1 &&
+      !claimedHeaderKeys.has(`${w.text}|${w.x0}|${w.y0}`),
+  );
+
   const allHeaderWords = Object.values(headerGroups).flat();
   const slope = estimateSlope(allHeaderWords);
   const deskewedY = (w: VisionWord) => w.cy - slope * w.cx;
@@ -221,19 +256,79 @@ export function parseCrewSheet(words: VisionWord[]): CrewSheetParseResult {
   // true for "Employee Name", so a center-based split put 3-word last
   // names partway into the Start column). The Name column isn't bounded by
   // x at all — see the content-based rule below.
-  const groupEdges = (key: ColumnKey) => {
+  const order: ColumnKey[] = ["start", "lunchOut", "lunchIn", "end", "hours", "bins"];
+  const rawEdges: Array<{ x0: number; x1: number } | null> = order.map((key) => {
     const g = headerGroups[key];
+    if (g.length === 0) return null;
     return {
       x0: Math.min(...g.map((w) => w.x0)),
       x1: Math.max(...g.map((w) => w.x1)),
     };
-  };
-  const order: ColumnKey[] = ["start", "lunchOut", "lunchIn", "end", "hours", "bins"];
-  const edges = order.map(groupEdges);
+  });
+
+  // A column's header is sometimes read as garbage with no overlap with
+  // any known label at all — seen in the wild: a real "Bins" header OCR'd
+  // as "3r.s". Left as-is, that column's group stays empty, which used to
+  // leave its neighbor's boundary unbounded (Infinity) and swallow the
+  // missing column's own data into it (e.g. Hours reading "874" — the real
+  // hours and the unrecognized Bins-equivalent column's digits
+  // concatenated together). When there's exactly one gap and exactly one
+  // leftover header-band word nobody claimed, that word IS the missing
+  // label — use its real position outright rather than only estimating.
+  const missingIndexes = rawEdges
+    .map((e, i) => (e === null ? i : -1))
+    .filter((i) => i >= 0);
+  if (missingIndexes.length === 1 && unclaimedHeaderWords.length > 0) {
+    rawEdges[missingIndexes[0]] = {
+      x0: Math.min(...unclaimedHeaderWords.map((w) => w.x0)),
+      x1: Math.max(...unclaimedHeaderWords.map((w) => w.x1)),
+    };
+  }
+
+  // Every sheet in this template still has exactly 6 data columns in the
+  // same left-to-right order, so any column still missing after the above
+  // (no usable leftover word, or more than one gap) is reconstructed from
+  // the spacing of whichever columns WERE found, rather than left to
+  // corrupt its neighbor.
+  const foundEdges = rawEdges.filter((e): e is { x0: number; x1: number } => e !== null);
+  const avgGap = (() => {
+    const gaps: number[] = [];
+    for (let i = 1; i < rawEdges.length; i++) {
+      const a = rawEdges[i - 1];
+      const b = rawEdges[i];
+      if (a && b) gaps.push(b.x0 - a.x1);
+    }
+    return gaps.length > 0 ? gaps.reduce((s, g) => s + g, 0) / gaps.length : lineHeight;
+  })();
+  const avgWidth =
+    foundEdges.length > 0
+      ? foundEdges.reduce((s, e) => s + (e.x1 - e.x0), 0) / foundEdges.length
+      : lineHeight * 3;
+  for (let i = 0; i < rawEdges.length; i++) {
+    if (rawEdges[i] !== null) continue;
+    const prev = rawEdges[i - 1];
+    if (prev) {
+      rawEdges[i] = { x0: prev.x1 + avgGap, x1: prev.x1 + avgGap + avgWidth };
+      continue;
+    }
+    const next = rawEdges.slice(i + 1).find((e) => e !== null);
+    rawEdges[i] = next
+      ? { x0: next.x0 - avgGap - avgWidth, x1: next.x0 - avgGap }
+      : { x0: 0, x1: avgWidth };
+  }
+  const edges = rawEdges as Array<{ x0: number; x1: number }>;
+
+  const nameEdges =
+    headerGroups.name.length > 0
+      ? {
+          x0: Math.min(...headerGroups.name.map((w) => w.x0)),
+          x1: Math.max(...headerGroups.name.map((w) => w.x1)),
+        }
+      : { x0: 0, x1: edges[0].x0 - avgGap - avgWidth };
   const bounds: Array<{ key: ColumnKey; left: number; right: number }> = order.map(
     (key, i) => ({
       key,
-      left: i === 0 ? (edges[i].x0 + groupEdges("name").x1) / 2 : (edges[i - 1].x1 + edges[i].x0) / 2,
+      left: i === 0 ? (edges[i].x0 + nameEdges.x1) / 2 : (edges[i - 1].x1 + edges[i].x0) / 2,
       right: i === order.length - 1 ? Infinity : (edges[i].x1 + edges[i + 1].x0) / 2,
     }),
   );
@@ -242,6 +337,7 @@ export function parseCrewSheet(words: VisionWord[]): CrewSheetParseResult {
     const hit = bounds.find((b) => x >= b.left && x < b.right);
     return hit ? hit.key : null;
   }
+  const binsLeft = bounds.find((b) => b.key === "bins")!.left;
 
   // A worker's name is always letters (accents included) — real names
   // never collide with a time ("7:00") or a ditto mark, however Vision
@@ -313,7 +409,18 @@ export function parseCrewSheet(words: VisionWord[]): CrewSheetParseResult {
     };
     for (const w of cluster) {
       const col = looksLikeName(w.text) ? "name" : columnForX(w.cx);
-      if (col) byColumn[col].push(w);
+      if (!col) continue;
+      // Bins is the one column with no column after it to catch an
+      // over-wide word, so a word that lands in Bins by its center but
+      // actually starts back in Hours' territory (x0 left of Bins' own
+      // left edge) is Vision having merged the two handwritten numbers
+      // into one word (e.g. a real "8.5" hours + "5" bins read as one
+      // token "8.55") rather than a genuine Bins value — dropped instead
+      // of kept under a column it doesn't really belong to, so
+      // ditto-inheritance fills Bins from the row above instead of a
+      // fabricated-looking but wrong number.
+      if (col === "bins" && w.x0 < binsLeft) continue;
+      byColumn[col].push(w);
     }
     const row: RawRow = {
       name: null,
