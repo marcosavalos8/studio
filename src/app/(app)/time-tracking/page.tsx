@@ -646,6 +646,14 @@ function TimeTrackingPage() {
       // took a lunch at all — unchecking it means no deduction applies.
       lunchIn?: string;
       lunchBreak?: boolean;
+      // Set only for a row that came from Scan Sheet with a fuzzy ("suggested")
+      // or missing ("unmatched") name match — flags it for a second look in
+      // the list below even after it's already been added, instead of that
+      // signal disappearing the moment the scan dialog closes. Absent for
+      // every other way an entry gets into this list (Add employee, Load
+      // Crew, a confident scan match), so nothing about their rendering
+      // changes.
+      scanStatus?: "suggested" | "unmatched";
     }>
   >([]);
   const [manualAddEmployeeSearch, setManualAddEmployeeSearch] = useState("");
@@ -5816,7 +5824,13 @@ function TimeTrackingPage() {
                     {manualEmployees.map((entry, idx) => (
                       <div
                         key={`${entry.employee.id}-${entry.groupId ?? "solo"}-${idx}`}
-                        className="flex flex-wrap items-center gap-2 rounded-md border p-2 bg-muted"
+                        className={`flex flex-wrap items-center gap-2 rounded-md border p-2 bg-muted ${
+                          entry.scanStatus === "unmatched"
+                            ? "border-l-4 border-l-red-500"
+                            : entry.scanStatus === "suggested"
+                              ? "border-l-4 border-l-amber-500"
+                              : ""
+                        }`}
                       >
                         <User className="h-4 w-4 shrink-0" />
                         <span className="flex-1 min-w-[120px] text-sm font-medium truncate">
@@ -5824,6 +5838,17 @@ function TimeTrackingPage() {
                           {entry.groupId && (
                             <span className="ml-1 text-xs font-normal text-muted-foreground">
                               (group)
+                            </span>
+                          )}
+                          {entry.scanStatus && (
+                            <span
+                              className={`ml-2 text-[10px] font-normal px-1.5 py-0.5 rounded-full ${
+                                entry.scanStatus === "unmatched"
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-amber-100 text-amber-800"
+                              }`}
+                            >
+                              Review match
                             </span>
                           )}
                         </span>

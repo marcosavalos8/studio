@@ -12,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -31,6 +30,8 @@ import {
 } from "@/lib/fuzzy-match";
 import type { ParsedCrewSheetRow } from "@/lib/ocr-crew-sheet";
 
+type MatchStatus = "matched" | "suggested" | "unmatched";
+
 export type ScannedEmployeeEntry = {
   employee: Employee;
   pieces: string;
@@ -39,9 +40,13 @@ export type ScannedEmployeeEntry = {
   hours?: string;
   lunchIn?: string;
   lunchBreak?: boolean;
+  // Carried into the main Past Records list so a "suggested" (yellow) match
+  // stays visibly flagged for a second look even after it's been added,
+  // instead of losing all trace of needing review the moment it leaves
+  // this dialog. Never "matched" — a confident match needs no flag, so
+  // handleConfirm below always maps that case to undefined instead.
+  scanStatus?: Exclude<MatchStatus, "matched">;
 };
-
-type MatchStatus = "matched" | "suggested" | "unmatched";
 
 type ReviewRow = {
   id: string;
@@ -214,6 +219,7 @@ export function ScanCrewSheetDialog({
         hours: r.hours,
         lunchIn: r.lunchIn,
         lunchBreak: r.lunchIn ? true : undefined,
+        scanStatus: r.matchStatus === "matched" ? undefined : r.matchStatus,
       });
     }
 
@@ -320,7 +326,11 @@ export function ScanCrewSheetDialog({
                 {counts.unmatched} not found
               </Badge>
             </div>
-            <ScrollArea className="flex-1 min-h-0 -mx-1 px-1">
+            {/* Plain native scroll instead of the ScrollArea component —
+                it uses JS-mediated scrolling that's been unreliable for
+                touch drags on some mobile browsers in testing; a native
+                overflow-y-auto div always responds to a finger drag. */}
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain -mx-1 px-1">
               <div className="space-y-2 pb-2">
                 {rows.map((row) => (
                   <div
@@ -414,7 +424,7 @@ export function ScanCrewSheetDialog({
                   </div>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           </>
         )}
 
