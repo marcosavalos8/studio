@@ -21,14 +21,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Camera, Upload, Loader2, AlertTriangle, ScanLine } from "lucide-react";
+import { Camera, Upload, Loader2, AlertTriangle, ScanLine, UserPlus } from "lucide-react";
 import type { Employee } from "@/lib/types";
+import type { WithId } from "@/firebase/firestore/use-collection";
 import {
   bestNameMatch,
   MATCH_THRESHOLD_EXACT,
   MATCH_THRESHOLD_FUZZY,
 } from "@/lib/fuzzy-match";
 import type { ParsedCrewSheetRow } from "@/lib/ocr-crew-sheet";
+import { AddEmployeeDialog } from "@/app/(app)/employees/add-employee-dialog";
 
 type MatchStatus = "matched" | "suggested" | "unmatched";
 
@@ -97,22 +99,39 @@ export function ScanCrewSheetDialog({
   );
   const [rows, setRows] = React.useState<ReviewRow[]>([]);
   const [error, setError] = React.useState<string | null>(null);
+  // A worker created right here (via "Add as new employee" on an unmatched
+  // row) needs to be selectable immediately, before the live employees
+  // list this dialog was handed has necessarily caught up — merged into
+  // every lookup below right alongside it.
+  const [locallyCreatedEmployees, setLocallyCreatedEmployees] = React.useState<
+    WithId<Employee>[]
+  >([]);
+  const [addEmployeeFor, setAddEmployeeFor] = React.useState<{
+    rowId: string;
+    name: string;
+  } | null>(null);
 
   React.useEffect(() => {
     if (!open) {
       setStep("upload");
       setRows([]);
       setError(null);
+      setLocallyCreatedEmployees([]);
+      setAddEmployeeFor(null);
     }
   }, [open]);
 
+  const allEmployees = React.useMemo(
+    () => [...employees, ...locallyCreatedEmployees],
+    [employees, locallyCreatedEmployees],
+  );
   const employeesById = React.useMemo(
-    () => new Map(employees.map((e) => [e.id, e])),
-    [employees],
+    () => new Map(allEmployees.map((e) => [e.id, e])),
+    [allEmployees],
   );
   const sortedEmployees = React.useMemo(
-    () => [...employees].sort((a, b) => a.name.localeCompare(b.name)),
-    [employees],
+    () => [...allEmployees].sort((a, b) => a.name.localeCompare(b.name)),
+    [allEmployees],
   );
 
   const handleFile = async (file: File) => {
@@ -250,6 +269,7 @@ export function ScanCrewSheetDialog({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col overflow-y-hidden overflow-x-hidden">
         <DialogHeader>
@@ -349,23 +369,39 @@ export function ScanCrewSheetDialog({
                       </span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <Select
-                        value={row.employeeId}
-                        onValueChange={(value) =>
-                          updateRow(row.id, { employeeId: value })
-                        }
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="Pick worker…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {sortedEmployees.map((emp) => (
-                            <SelectItem key={emp.id} value={emp.id}>
-                              {emp.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div>
+                        <Select
+                          value={row.employeeId}
+                          onValueChange={(value) =>
+                            updateRow(row.id, { employeeId: value })
+                          }
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Pick worker…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {sortedEmployees.map((emp) => (
+                              <SelectItem key={emp.id} value={emp.id}>
+                                {emp.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {row.matchStatus === "unmatched" && (
+                          <Button
+                            type="button"
+                            variant="link"
+                            size="sm"
+                            className="h-6 px-0 text-xs"
+                            onClick={() =>
+                              setAddEmployeeFor({ rowId: row.id, name: row.sheetName })
+                            }
+                          >
+                            <UserPlus className="mr-1 h-3 w-3" />
+                            Add &ldquo;{row.sheetName}&rdquo; as a new employee
+                          </Button>
+                        )}
+                      </div>
                       <div className="grid grid-cols-4 gap-1">
                         <div>
                           <label className="text-[10px] text-muted-foreground">
@@ -443,5 +479,26 @@ export function ScanCrewSheetDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <AddEmployeeDialog
+      isOpen={addEmployeeFor !== null}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) setAddEmployeeFor(null);
+      }}
+      initialName={addEmployeeFor?.name}
+      onCreated={(employee) => {
+        if (!addEmployeeFor) return;
+        setLocallyCreatedEmployees((prev) => [...prev, employee]);
+        // Now a deliberate, certain assignment (the person just typed this
+        // exact name themselves) — no longer flagged for a second look,
+        // unlike a merely fuzzy-matched existing employee.
+        updateRow(addEmployeeFor.rowId, {
+          employeeId: employee.id,
+          included: true,
+          matchStatus: "matched",
+        });
+        setAddEmployeeFor(null);
+      }}
+    />
+    </>
   );
 }

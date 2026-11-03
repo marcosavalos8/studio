@@ -38,6 +38,8 @@ import { FirestorePermissionError } from '@/firebase/errors'
 import { useNetworkStatus } from '@/hooks/use-network-status'
 import { addOfflineIndicator } from '@/lib/offline-utils'
 import { normalizeNameInput } from '@/lib/utils'
+import type { WithId } from '@/firebase/firestore/use-collection'
+import { useEffect } from 'react'
 
 const employeeSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -48,20 +50,37 @@ const employeeSchema = z.object({
 type AddEmployeeDialogProps = {
   isOpen: boolean
   onOpenChange: (isOpen: boolean) => void
+  // Pre-fills the name field — used when this dialog is opened from
+  // somewhere that already has a candidate name on hand (e.g. a crew-sheet
+  // scan's unmatched worker), so the person doesn't have to retype it.
+  initialName?: string
+  // Called with the employee that was actually created, right before this
+  // dialog closes itself — lets a caller that opened this dialog for a
+  // specific purpose (e.g. picking the new employee into a scan row) react
+  // without this dialog needing to know anything about that purpose.
+  onCreated?: (employee: WithId<Employee>) => void
 }
 
-export function AddEmployeeDialog({ isOpen, onOpenChange }: AddEmployeeDialogProps) {
+export function AddEmployeeDialog({ isOpen, onOpenChange, initialName, onCreated }: AddEmployeeDialogProps) {
   const firestore = useFirestore()
   const { toast } = useToast()
   const { isOnline } = useNetworkStatus()
   const form = useForm<z.infer<typeof employeeSchema>>({
     resolver: zodResolver(employeeSchema),
     defaultValues: {
-      name: '',
+      name: initialName ?? '',
       role: 'Worker',
       status: 'Active',
     },
   })
+
+  // Re-applies initialName each time the dialog is (re)opened with a new
+  // one — defaultValues alone only takes effect on first mount, and this
+  // dialog instance can be reused across multiple different scan rows.
+  useEffect(() => {
+    if (isOpen) form.reset({ name: initialName ?? '', role: 'Worker', status: 'Active' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialName])
 
   const { isSubmitting } = form.formState
 
@@ -122,6 +141,7 @@ export function AddEmployeeDialog({ isOpen, onOpenChange }: AddEmployeeDialogPro
           isOnline
         ),
       })
+      onCreated?.({ id: newDocRef.id, ...newEmployee })
       form.reset()
       onOpenChange(false)
       return
@@ -154,7 +174,7 @@ export function AddEmployeeDialog({ isOpen, onOpenChange }: AddEmployeeDialogPro
       };
 
       await setDoc(newDocRef, newEmployeeWithNumber);
-      
+
       toast({
         title: 'Employee Added',
         description: addOfflineIndicator(
@@ -162,6 +182,7 @@ export function AddEmployeeDialog({ isOpen, onOpenChange }: AddEmployeeDialogPro
           isOnline
         ),
       })
+      onCreated?.({ id: newDocRef.id, ...newEmployeeWithNumber })
       form.reset()
       onOpenChange(false)
     } catch (serverError) {
