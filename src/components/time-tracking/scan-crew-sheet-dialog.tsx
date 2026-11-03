@@ -210,6 +210,26 @@ export function ScanCrewSheetDialog({
     return { matched, suggested, unmatched };
   }, [rows]);
 
+  // Dynamic sanity-check totals from the spec: a running sum of whatever is
+  // currently in each included card's Hours/Bins fields (editable, so this
+  // updates live as rows are fixed, toggled, or added) — the user glances
+  // at this against the sheet's own handwritten "Total Hours"/"Total Bins"
+  // line at the bottom of the paper to confirm nothing was missed, rather
+  // than the app re-reading that handwritten total itself (no more
+  // reliable than the per-worker digits it's already struggling with).
+  const totals = React.useMemo(() => {
+    const included = rows.filter((r) => r.included);
+    const sum = (values: string[]) =>
+      values.reduce((acc, v) => {
+        const n = parseFloat(v);
+        return acc + (Number.isFinite(n) ? n : 0);
+      }, 0);
+    return {
+      hours: sum(included.map((r) => r.hours)),
+      bins: sum(included.map((r) => r.bins)),
+    };
+  }, [rows]);
+
   // Never blocks the whole batch over a couple of unresolved rows — adds
   // every row that's ready now (into the same editable list "Add employee"
   // already fills, so any of them can still be fixed by hand afterward) and
@@ -460,6 +480,17 @@ export function ScanCrewSheetDialog({
                   </div>
                 ))}
               </div>
+            </div>
+            <div className="flex items-center justify-center gap-4 text-sm border-t pt-2 shrink-0">
+              <span>
+                Total Hours: <strong>{totals.hours.toFixed(2)}</strong>
+              </span>
+              <span>
+                Total Pieces/Bins: <strong>{totals.bins.toFixed(2)}</strong>
+              </span>
+              <span className="text-xs text-muted-foreground">
+                (compare against the sheet)
+              </span>
             </div>
           </>
         )}
