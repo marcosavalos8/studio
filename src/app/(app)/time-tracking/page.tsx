@@ -740,7 +740,18 @@ function TimeTrackingPage() {
   // already populate.
   const handleScanConfirm = (entries: ScannedEmployeeEntry[]) => {
     const alreadyAddedIds = new Set(manualEmployees.map((e) => e.employee.id));
-    const toAdd = entries.filter((e) => !alreadyAddedIds.has(e.employee.id));
+    const toAdd = entries
+      .filter((e) => !alreadyAddedIds.has(e.employee.id))
+      // The sheet's End column is occasionally unreadable (blank/smudged,
+      // or merged with a neighboring value) even when Hours still came
+      // through — in that one case only, derive it the same way the rest
+      // of the app does when a clock-out is missing, instead of leaving
+      // it blank for every one of those rows to fix by hand.
+      .map((e) =>
+        !e.clockOut && e.clockIn && e.hours
+          ? recalcEntry(e, "hours")
+          : e,
+      );
     if (toAdd.length > 0) {
       setManualEmployees((prev) => [...prev, ...toAdd]);
     }

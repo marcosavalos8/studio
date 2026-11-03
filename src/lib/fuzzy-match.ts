@@ -38,15 +38,48 @@ function levenshtein(a: string, b: string): number {
   return prev[n];
 }
 
+function wordSimilarity(a: string, b: string): number {
+  if (a === b) return 1;
+  const distance = levenshtein(a, b);
+  const maxLen = Math.max(a.length, b.length);
+  return maxLen === 0 ? 0 : 1 - distance / maxLen;
+}
+
 // 1 = identical (after normalization), 0 = completely different.
 export function nameSimilarity(a: string, b: string): number {
   const na = normalize(a);
   const nb = normalize(b);
   if (!na || !nb) return 0;
   if (na === nb) return 1;
+
   const distance = levenshtein(na, nb);
   const maxLen = Math.max(na.length, nb.length);
-  return 1 - distance / maxLen;
+  const wholeStringScore = 1 - distance / maxLen;
+
+  // Whole-string edit distance alone penalizes a scanned name that's
+  // missing a word the system's full name has (e.g. the sheet only
+  // captured "Pedro Cardona" for an employee registered as "Pedro
+  // Cardona Gregorio") as heavily as a genuinely different name of
+  // similar length — in the wild this let an unrelated "Genaro Cardona"
+  // outscore the correct longer match, since "Genaro"/"Pedro" happened
+  // to edit-distance closer than the missing "Gregorio" cost. Scoring
+  // each word of the shorter name against its best match in the longer
+  // one, then averaging, rewards the scanned name being a clean subset
+  // of the full one instead of punishing it for the word neither side
+  // typed. The two scores are combined by taking the higher one, so a
+  // close single-token match (e.g. a minor spelling variant) that the
+  // per-word average alone might undervalue is still caught.
+  const tokensA = na.split(" ");
+  const tokensB = nb.split(" ");
+  const [shorter, longer] =
+    tokensA.length <= tokensB.length ? [tokensA, tokensB] : [tokensB, tokensA];
+  const tokenScore =
+    shorter.reduce(
+      (sum, word) => sum + Math.max(...longer.map((cand) => wordSimilarity(word, cand))),
+      0,
+    ) / shorter.length;
+
+  return Math.max(wholeStringScore, tokenScore);
 }
 
 export type NameMatch = {

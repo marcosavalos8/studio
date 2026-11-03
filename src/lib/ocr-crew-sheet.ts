@@ -476,16 +476,71 @@ export function parseCrewSheet(words: VisionWord[]): CrewSheetParseResult {
     }
   }
 
-  const rows: ParsedCrewSheetRow[] = validated.map((row, idx) => ({
-    rowIndex: idx + 1,
-    name: (row.name ?? "").trim(),
-    start: row.start,
-    lunchOut: row.lunchOut,
-    lunchIn: row.lunchIn,
-    end: row.end,
-    hours: row.hours,
-    bins: row.bins,
-  }));
+  // 8. Resolve each row's Start/Lunch Out/Lunch In/End into real 24-hour
+  // times. The sheet is handwritten in 12-hour time with no AM/PM marker
+  // (e.g. "1:00" for 1 PM), so taken literally a 1-6 o'clock End reads as
+  // 1-6 AM — earlier than the morning Start, not later, which is what
+  // left clock-out blank downstream (an <input type="time"> won't render
+  // a value a 24-hour reading makes impossible, and even if it did,
+  // "before the shift started" fails the app's own hoursFromClock check).
+  // Each column is a single shift that only moves forward through the
+  // day, so a time is read as PM instead of AM whenever taking it as AM
+  // would place it before (or at) the time right before it in the row.
+  const rows: ParsedCrewSheetRow[] = validated.map((row, idx) => {
+    const [start, lunchOut, lunchIn, end] = resolveTimeSequence([
+      row.start,
+      row.lunchOut,
+      row.lunchIn,
+      row.end,
+    ]);
+    return {
+      rowIndex: idx + 1,
+      name: (row.name ?? "").trim(),
+      start,
+      lunchOut,
+      lunchIn,
+      end,
+      hours: row.hours,
+      bins: row.bins,
+    };
+  });
 
   return { rows, headerFound: true };
+}
+
+// Takes a row's Start/Lunch Out/Lunch In/End as literal 12-hour "H:MM"
+// readings (hour 1-12, no AM/PM) and returns them as proper zero-padded
+// 24-hour "HH:MM" strings, each resolved to fall after the one before it.
+function resolveTimeSequence(
+  times: Array<string | null>,
+): Array<string | null> {
+  let prevMinutes: number | null = null;
+  return times.map((t) => {
+    if (!t) return t;
+    const [hStr, mStr] = t.split(":");
+    const literalHour = parseInt(hStr, 10);
+    const minute = parseInt(mStr, 10);
+    if (Number.isNaN(literalHour) || Number.isNaN(minute)) return t;
+
+    // 12-hour hour -> 24-hour AM candidate (12 o'clock means midnight/00).
+    const amHour = literalHour % 12;
+    const pmHour = amHour + 12;
+    const amMinutes = amHour * 60 + minute;
+    const pmMinutes = pmHour * 60 + minute;
+
+    let hour24: number;
+    if (prevMinutes === null) {
+      // The first time in the row (Start) anchors the rest — always
+      // morning on this sheet, used as read.
+      hour24 = amHour;
+      prevMinutes = amMinutes;
+    } else if (amMinutes > prevMinutes) {
+      hour24 = amHour;
+      prevMinutes = amMinutes;
+    } else {
+      hour24 = pmHour;
+      prevMinutes = pmMinutes;
+    }
+    return `${String(hour24).padStart(2, "0")}:${mStr.padStart(2, "0")}`;
+  });
 }
