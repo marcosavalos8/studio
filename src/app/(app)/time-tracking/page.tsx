@@ -6517,6 +6517,36 @@ function TimeTrackingPage() {
                 </DialogContent>
               </Dialog>
 
+              {usePastRecords && manualEmployees.length > 0 && (
+                <div className="flex items-center justify-center gap-4 text-sm border-t pt-2">
+                  <span>
+                    Total Hours:{" "}
+                    <strong>
+                      {manualEmployees
+                        .reduce((acc, e) => {
+                          const n = parseFloat(e.hours ?? "");
+                          return acc + (Number.isFinite(n) ? n : 0);
+                        }, 0)
+                        .toFixed(2)}
+                    </strong>
+                  </span>
+                  <span>
+                    Total Pieces/Bins:{" "}
+                    <strong>
+                      {manualEmployees
+                        .reduce((acc, e) => {
+                          const n = parseFloat(String(e.pieces ?? ""));
+                          return acc + (Number.isFinite(n) ? n : 0);
+                        }, 0)
+                        .toFixed(2)}
+                    </strong>
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    (compare against the sheet)
+                  </span>
+                </div>
+              )}
+
               {manualSubmitIssues.length > 0 && (
                 <div className="rounded-md border border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950/30 px-3 py-2">
                   <p className="text-xs font-semibold text-yellow-800 dark:text-yellow-300 mb-1">

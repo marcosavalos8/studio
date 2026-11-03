@@ -338,6 +338,13 @@ export function parseCrewSheet(words: VisionWord[]): CrewSheetParseResult {
     return hit ? hit.key : null;
   }
   const binsLeft = bounds.find((b) => b.key === "bins")!.left;
+  // A genuine single value's own bounding box can overshoot the boundary
+  // by a few pixels of ordinary font width/padding — only an overshoot
+  // close to a whole extra digit's width (roughly lineHeight, digits
+  // being close to as wide as they are tall) means a second, real value
+  // actually got merged in, as opposed to the column estimate just not
+  // being pixel-perfect.
+  const straddleMargin = lineHeight;
 
   // A worker's name is always letters (accents included) — real names
   // never collide with a time ("7:00") or a ditto mark, however Vision
@@ -410,16 +417,18 @@ export function parseCrewSheet(words: VisionWord[]): CrewSheetParseResult {
     for (const w of cluster) {
       const col = looksLikeName(w.text) ? "name" : columnForX(w.cx);
       if (!col) continue;
-      // Bins is the one column with no column after it to catch an
-      // over-wide word, so a word that lands in Bins by its center but
-      // actually starts back in Hours' territory (x0 left of Bins' own
-      // left edge) is Vision having merged the two handwritten numbers
-      // into one word (e.g. a real "8.5" hours + "5" bins read as one
-      // token "8.55") rather than a genuine Bins value — dropped instead
-      // of kept under a column it doesn't really belong to, so
-      // ditto-inheritance fills Bins from the row above instead of a
-      // fabricated-looking but wrong number.
-      if (col === "bins" && w.x0 < binsLeft) continue;
+      // A merged Hours+Bins word (Vision reading a real "8.5" hours + "5"
+      // bins as one token "8.55") can land in EITHER column depending on
+      // which side of the boundary its center falls on — dropped either
+      // way instead of kept under a column it doesn't really belong to,
+      // so ditto-inheritance fills that one cell from the row above
+      // instead of a fabricated-looking but wrong number. Bins has no
+      // column after it to catch an over-wide word reaching right, so
+      // that direction is caught by its left edge (x0) reaching back into
+      // Hours; Hours does have one, so that direction is caught the usual
+      // way, by its own right edge (x1) reaching forward into Bins.
+      if (col === "bins" && w.x0 < binsLeft - straddleMargin) continue;
+      if (col === "hours" && w.x1 > binsLeft + straddleMargin) continue;
       byColumn[col].push(w);
     }
     const row: RawRow = {
