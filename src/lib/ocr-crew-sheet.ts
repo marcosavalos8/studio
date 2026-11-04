@@ -404,6 +404,16 @@ export function parseCrewSheet(words: VisionWord[]): CrewSheetParseResult {
   // the row's raw (unvalidated) column text.
   type RawRow = Record<ColumnKey, string | null>;
   const rawRows: RawRow[] = [];
+  // A cell dropped for straddling the Hours/Bins boundary means "Vision
+  // merged two real values into one word, so neither is readable" — not
+  // "no ditto mark was written here". Ditto-inheritance (step 7) must
+  // treat those two cases differently: a cell that's null because nothing
+  // was there inherits the row above's value same as always, but one
+  // that's null because it was actively rejected as ambiguous must stay
+  // blank, or inheritance would quietly paper over "might have changed,
+  // we just couldn't read it" with a stale repeated number that looks
+  // just as confidently read as a real one.
+  const ambiguousPerRow: Array<Set<ColumnKey>> = [];
   for (const cluster of rowClusters) {
     const byColumn: Record<ColumnKey, VisionWord[]> = {
       name: [],
@@ -414,21 +424,27 @@ export function parseCrewSheet(words: VisionWord[]): CrewSheetParseResult {
       hours: [],
       bins: [],
     };
+    const ambiguous = new Set<ColumnKey>();
     for (const w of cluster) {
       const col = looksLikeName(w.text) ? "name" : columnForX(w.cx);
       if (!col) continue;
       // A merged Hours+Bins word (Vision reading a real "8.5" hours + "5"
       // bins as one token "8.55") can land in EITHER column depending on
       // which side of the boundary its center falls on — dropped either
-      // way instead of kept under a column it doesn't really belong to,
-      // so ditto-inheritance fills that one cell from the row above
-      // instead of a fabricated-looking but wrong number. Bins has no
-      // column after it to catch an over-wide word reaching right, so
-      // that direction is caught by its left edge (x0) reaching back into
-      // Hours; Hours does have one, so that direction is caught the usual
-      // way, by its own right edge (x1) reaching forward into Bins.
-      if (col === "bins" && w.x0 < binsLeft - straddleMargin) continue;
-      if (col === "hours" && w.x1 > binsLeft + straddleMargin) continue;
+      // way instead of kept under a column it doesn't really belong to.
+      // Bins has no column after it to catch an over-wide word reaching
+      // right, so that direction is caught by its left edge (x0) reaching
+      // back into Hours; Hours does have one, so that direction is caught
+      // the usual way, by its own right edge (x1) reaching forward into
+      // Bins.
+      if (col === "bins" && w.x0 < binsLeft - straddleMargin) {
+        ambiguous.add("bins");
+        continue;
+      }
+      if (col === "hours" && w.x1 > binsLeft + straddleMargin) {
+        ambiguous.add("hours");
+        continue;
+      }
       byColumn[col].push(w);
     }
     const row: RawRow = {
@@ -453,6 +469,7 @@ export function parseCrewSheet(words: VisionWord[]): CrewSheetParseResult {
     // name regardless of how row-clustering drew the line around them.
     if (row.name && row.name.trim() && !looksLikeFooterText(row.name)) {
       rawRows.push(row);
+      ambiguousPerRow.push(ambiguous);
     }
   }
 
@@ -472,11 +489,17 @@ export function parseCrewSheet(words: VisionWord[]): CrewSheetParseResult {
   });
 
   // 7. Ditto inheritance: a null cell inherits the nearest resolved value
-  // above it in the same column.
+  // above it in the same column — except a cell flagged ambiguous (a
+  // merged Hours+Bins word straddling the boundary, see above), which
+  // stays null outright. Its real value is genuinely unknown, possibly
+  // different from the row above's, so inheriting would show a number
+  // that looks just as read-with-confidence as a real one.
   const inheritCols: ColumnKey[] = [...timeCols, ...numberCols];
   for (const key of inheritCols) {
     let lastValue: string | null = null;
-    for (const row of validated) {
+    for (let i = 0; i < validated.length; i++) {
+      const row = validated[i];
+      if (ambiguousPerRow[i].has(key)) continue;
       if (row[key] === null) {
         row[key] = lastValue;
       } else {

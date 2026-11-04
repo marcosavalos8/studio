@@ -740,17 +740,17 @@ function TimeTrackingPage() {
   // already populate.
   const handleScanConfirm = (entries: ScannedEmployeeEntry[]) => {
     const alreadyAddedIds = new Set(manualEmployees.map((e) => e.employee.id));
+    // Clock-in/clock-out/lunch-in already come fully resolved from the
+    // dialog (clock-in and lunch-in from the same top-level fields "Add
+    // employee"/"Load Crew" pre-fill every row with, clock-out derived
+    // from that plus the sheet's Hours) — this fallback only covers the
+    // rare row where clock-out still ended up blank (e.g. Hours itself
+    // couldn't be read), deriving it the same way the rest of the app
+    // does whenever an hours field changes by hand.
     const toAdd = entries
       .filter((e) => !alreadyAddedIds.has(e.employee.id))
-      // The sheet's End column is occasionally unreadable (blank/smudged,
-      // or merged with a neighboring value) even when Hours still came
-      // through — in that one case only, derive it the same way the rest
-      // of the app does when a clock-out is missing, instead of leaving
-      // it blank for every one of those rows to fix by hand.
       .map((e) =>
-        !e.clockOut && e.clockIn && e.hours
-          ? recalcEntry(e, "hours")
-          : e,
+        !e.clockOut && e.clockIn && e.hours ? recalcEntry(e, "hours") : e,
       );
     if (toAdd.length > 0) {
       setManualEmployees((prev) => [...prev, ...toAdd]);
@@ -10508,6 +10508,8 @@ function TimeTrackingPage() {
         onOpenChange={setIsScanCrewSheetOpen}
         employees={activeEmployees ?? []}
         onConfirm={handleScanConfirm}
+        defaultClockIn={pastRecordClockInTime}
+        defaultLunchIn={pastRecordLunchInTime}
       />
 
       {/* Delete All Confirmation Dialog */}

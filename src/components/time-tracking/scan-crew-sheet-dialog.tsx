@@ -31,6 +31,7 @@ import {
 } from "@/lib/fuzzy-match";
 import type { ParsedCrewSheetRow } from "@/lib/ocr-crew-sheet";
 import { AddEmployeeDialog } from "@/app/(app)/employees/add-employee-dialog";
+import { clockOutFromHours } from "@/lib/entry-hours";
 
 type MatchStatus = "matched" | "suggested" | "unmatched";
 
@@ -68,6 +69,11 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   employees: Employee[];
   onConfirm: (entries: ScannedEmployeeEntry[]) => void;
+  // Same values "Add employee"/"Load Crew" already pre-fill every new Past
+  // Records row with — Clock In/Lunch In here come from these, same as
+  // everywhere else a worker enters the list, never from the sheet itself.
+  defaultClockIn?: string;
+  defaultLunchIn?: string;
 };
 
 function fileToBase64(file: File): Promise<string> {
@@ -90,6 +96,8 @@ export function ScanCrewSheetDialog({
   onOpenChange,
   employees,
   onConfirm,
+  defaultClockIn,
+  defaultLunchIn,
 }: Props) {
   const { toast } = useToast();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -170,16 +178,22 @@ export function ScanCrewSheetDialog({
             : best && best.score >= MATCH_THRESHOLD_FUZZY
               ? "suggested"
               : "unmatched";
+        const hours = parsed.hours ?? "";
+        const hoursNum = parseFloat(hours);
+        const end =
+          defaultClockIn && Number.isFinite(hoursNum)
+            ? (clockOutFromHours(defaultClockIn, hoursNum, !!defaultLunchIn) ?? "")
+            : "";
         return {
           id: `${idx}-${parsed.name}`,
           sheetName: parsed.name,
           matchStatus,
           employeeId: matchStatus === "unmatched" ? "" : (best?.candidateId ?? ""),
           included: matchStatus !== "unmatched",
-          start: parsed.start ?? "",
-          end: parsed.end ?? "",
-          lunchIn: parsed.lunchIn ?? "",
-          hours: parsed.hours ?? "",
+          start: defaultClockIn ?? "",
+          end,
+          lunchIn: defaultLunchIn ?? "",
+          hours,
           bins: parsed.bins ?? "",
         };
       });
