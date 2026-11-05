@@ -112,6 +112,7 @@ import type {
 } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CrewFormDialog } from "@/app/(app)/employees/crew-form-dialog";
+import { AddEmployeeDialog } from "@/app/(app)/employees/add-employee-dialog";
 import {
   ScanCrewSheetDialog,
   type ScannedEmployeeEntry,
@@ -756,6 +757,29 @@ function TimeTrackingPage() {
       setManualEmployees((prev) => [...prev, ...toAdd]);
     }
   };
+
+  // "Add employee" search with no match ("No employees found") opens this,
+  // pre-filled with whatever was typed — same quick-create path Scan Sheet
+  // already offers on an unmatched row, now available here too for a
+  // worker who was simply never entered into the system at all.
+  const [isQuickAddEmployeeOpen, setIsQuickAddEmployeeOpen] = useState(false);
+  const handleQuickAddEmployeeCreated = (employee: WithId<Employee>) => {
+    setManualEmployees((prev) => [
+      ...prev,
+      {
+        employee,
+        pieces: "",
+        clockIn: pastRecordClockInTime,
+        clockOut: "",
+        hours: "",
+        lunchIn: pastRecordLunchInTime,
+        lunchBreak: pastRecordLunchInTime ? true : undefined,
+      },
+    ]);
+    setManualAddEmployeeSearch("");
+    setFocusedAddEmployeeIdx(-1);
+  };
+
   // Same idea for the QR Scanner's Shared Piece employee list: appends a
   // crew's members (skipping duplicates) instead of scanning each badge.
   const handleLoadCrewIntoScanned = (crewId: string) => {
@@ -6079,9 +6103,20 @@ function TimeTrackingPage() {
                       )}
                     {manualAddEmployeeSearch &&
                       filteredAddEmployees.length === 0 && (
-                        <p className="p-4 text-sm text-muted-foreground">
-                          No employees found.
-                        </p>
+                        <div className="p-4 space-y-2">
+                          <p className="text-sm text-muted-foreground">
+                            No employees found.
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsQuickAddEmployeeOpen(true)}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Add &ldquo;{manualAddEmployeeSearch}&rdquo; as a new employee
+                          </Button>
+                        </div>
                       )}
                   </div>
                 )}
@@ -10510,6 +10545,12 @@ function TimeTrackingPage() {
         onConfirm={handleScanConfirm}
         defaultClockIn={pastRecordClockInTime}
         defaultLunchIn={pastRecordLunchInTime}
+      />
+      <AddEmployeeDialog
+        isOpen={isQuickAddEmployeeOpen}
+        onOpenChange={setIsQuickAddEmployeeOpen}
+        initialName={manualAddEmployeeSearch}
+        onCreated={handleQuickAddEmployeeCreated}
       />
 
       {/* Delete All Confirmation Dialog */}
